@@ -1,38 +1,42 @@
 /**
  * TimSyS Contract: EventBus
- * Status: FROZEN v6.0.0
+ * Status: PENDING FREEZE
  *
- * In-memory pub/sub for inter-module communication.
- * This is the sole legal mechanism for runtime inter-module communication.
- */
-
-/**
- * @typedef {Function} EventHandler
- * @param {*} payload - Event-specific payload
- * @returns {void}
+ * In-memory pub/sub + request/reply for inter-module communication.
+ * Modules communicate exclusively through EventBus.
  */
 
 /** @interface EventBus */
 module.exports = {
   /**
-   * Publish a payload to all subscribers of a channel.
-   * @param {string} channel - Event channel name (e.g., "user.created")
-   * @param {*} payload - Event payload
+   * Publish an event to a channel (fire-and-forget).
+   * @param {string} channel - Event channel name
+   * @param {Object} payload - Event data
    */
   publish(channel, payload) {},
 
   /**
-   * Subscribe a handler to a channel.
-   * @param {string} channel - Event channel name
-   * @param {EventHandler} handler - Function called on publish
-   * @returns {string} Subscription ID (for unsubscribe)
+   * Subscribe to an event channel.
+   * @param {string} channel
+   * @param {Function} handler - Receives (payload, publisherModuleId)
+   * @returns {string} subscriptionId (for unsubscribe)
    */
   subscribe(channel, handler) {},
 
   /**
-   * Unsubscribe a handler from a channel.
-   * @param {string} channel - Event channel name
-   * @param {EventHandler} handler - The handler function or subscription ID
+   * Unsubscribe from a channel.
+   * @param {string} subscriptionId
    */
-  unsubscribe(channel, handler) {}
+  unsubscribe(subscriptionId) {},
+
+  /**
+   * Send synchronous request/reply message to subscribers.
+   * Timeout prevents indefinite blocking.
+   * @param {string} channel
+   * @param {Object} payload
+   * @param {number} timeoutMs
+   * @returns {Promise<Array<Object>>} - Array of subscriber responses
+   * @throws {Error} If timeout exceeded
+   */
+  request(channel, payload, timeoutMs) {}
 };
