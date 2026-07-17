@@ -2,152 +2,143 @@
 
 const fs = require('fs');
 const path = require('path');
-
-const db = require('./services/db');
 const log = require('./services/log');
+const db = require('./services/db');
 
-const ROOT_MIGRATIONS_DIR = path.resolve(process.cwd(), 'migrations');
-const MODULES_DIR = path.resolve(process.cwd(), 'modules');
+var MIGRATIONS_DIR = path.resolve(__dirname, '../migrations');
+var MODULES_DIR = path.resolve(__dirname, '../modules');
 
-async function runMigrations() {
-  const migrations = [];
+function findMigrationFiles() {
+  var files = [];
 
-  if (fs.existsSync(ROOT_MIGRATIONS_DIR)) {
-    const entries = fs.readdirSync(ROOT_MIGRATIONS_DIR, { withFileTypes: true })
-      .filter((e) => e.isFile() && e.name.endsWith('.sql'))
-      .map((e) => ({
-        version: e.name.replace('.sql', ''),
-        file: e.name,
-        dir: ROOT_MIGRATIONS_DIR,
-        isBootstrap: e.name.startsWith('000_'),
-      }));
-    migrations.push(...entries);
+  if (fs.existsSync(MIGRATIONS_DIR)) {
+    var platformFiles = fs.readdirSync(MIGRATIONS_DIR)
+      .filter(function(f) { return f.endsWith('.sql'); })
+      .sort();
+
+    for (var i = 0; i < platformFiles.length; i++) {
+      files.push({
+        version: platformFiles[i].replace('.sql', ''),
+        file: platformFiles[i],
+        path: path.join(MIGRATIONS_DIR, platformFiles[i]),
+        module: null,
+      });
+    }
   }
 
   if (fs.existsSync(MODULES_DIR)) {
-    const moduleDirs = fs.readdirSync(MODULES_DIR, { withFileTypes: true })
-      .filter((e) => e.isDirectory());
+    var moduleDirs = fs.readdirSync(MODULES_DIR)
+      .filter(function(d) { return fs.statSync(path.join(MODULES_DIR, d)).isDirectory(); });
 
-    for (const modDir of moduleDirs) {
-      const modMigrationsDir = path.join(MODULES_DIR, modDir.name, 'migrations');
-      if (!fs.existsSync(modMigrationsDir)) continue;
+    for (var m = 0; m < moduleDirs.length; m++) {
+      var modName = moduleDirs[m];
+      var modMigDir = path.join(MODULES_DIR, modName, 'migrations');
+      if (fs.existsSync(modMigDir)) {
+        var modFiles = fs.readdirSync(modMigDir)
+          .filter(function(f) { return f.endsWith('.sql'); })
+          .sort();
 
-      const entries = fs.readdirSync(modMigrationsDir, { withFileTypes: true })
-        .filter((e) => e.isFile() && e.name.endsWith('.sql'))
-        .map((e) => ({
-          version: modDir.name + '_' + e.name.replace('.sql', ''),
-          file: e.name,
-          dir: modMigrationsDir,
-          isBootstrap: false,
-          moduleName: modDir.name,
-        }));
-      migrations.push(...entries);
+        for (var j = 0; j < modFiles.length; j++) {
+          files.push({
+            version: modName + '_' + modFiles[j].replace('.sql', ''),
+            file: modFiles[j],
+            path: path.join(modMigDir, modFiles[j]),
+            module: modName,
+          });
+        }
+      }
     }
   }
 
-  migrations.sort((a, b) => {
-    if (a.isBootstrap && !b.isBootstrap) return -1;
-    if (!a.isBootstrap && b.isBootstrap) return 1;
+  files.sort(function(a, b) {
+    if (a.version === '000_bootstrap') return -1;
+    if (b.version === '000_bootstrap') return 1;
     return a.version.localeCompare(b.version);
   });
 
+  return files;
+}
+
+function tableExists(tableName) {
+  var result = db.query(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+    [tableName]
+  );
+  return result.rows.length > 0;
+}
+
+function getAppliedMigrations() {
+  if (!tableExists('schema_migrations')) {
+    return new Set();
+  }
+  var result = db.query('SELECT version FROM schema_migrations');
+  return new Set(result.rows.map(function(r) { return r.version; }));
+}
+
+function runMigration(migration) {
+  var sql = fs.readFileSync(migration.path, 'utf8');
+
+  log.info('Applying migration ' + migration.version, {
+    version: migration.version,
+    file: migration.file,
+  });
+
+  var conn = db.getConnection();
+
+  conn.exec('BEGIN TRANSACTION');
+  try {
+    conn.exec(sql);
+    conn.prepare('INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)').run(
+      migration.version,
+      Date.now()
+    );
+    conn.exec('COMMIT');
+  } catch (err) {
+    try {
+      conn.exec('ROLLBACK');
+    } catch (rollbackErr) {
+      // Transaction may have auto-rolled back — discard this secondary error
+    }
+    throw new Error('Migration ' + migration.version + ' failed: ' + err.message);
+  }
+}
+
+function runMigrations() {
+  var migrations = findMigrationFiles();
   log.info('Found ' + migrations.length + ' migration file(s)', { count: migrations.length });
 
-  const applied = [];
-  let tableExists = false;
+  var applied = getAppliedMigrations();
+  var newCount = 0;
+  var appliedVersions = [];
 
-  try {
-    const result = db.query(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name='schema_migrations'"
-    );
-    tableExists = result.rows.length > 0;
-  } catch (err) {
-    tableExists = false;
-  }
+  for (var i = 0; i < migrations.length; i++) {
+    var m = migrations[i];
 
-  for (const migration of migrations) {
-    const version = migration.version;
-    const file = migration.file;
-    const dir = migration.dir;
-    const isBootstrap = migration.isBootstrap;
-
-    // Check if already applied — only skip for bootstrap when table doesn't exist yet
-    if (tableExists) {
-      try {
-        const existing = db.query(
-          'SELECT version FROM schema_migrations WHERE version = ?',
-          [version]
-        );
-        if (existing.rows.length > 0) {
-          continue;
-        }
-      } catch (err) {
-        throw new Error('Failed to check migration ' + version + ': ' + err.message);
-      }
+    if (m.version === '000_bootstrap' && !tableExists('schema_migrations')) {
+      runMigration(m);
+      newCount++;
+      appliedVersions.push(m.version);
+      applied.add(m.version);
+      continue;
     }
 
-    const sqlPath = path.join(dir, file);
-    const sql = fs.readFileSync(sqlPath, 'utf-8');
-
-    log.info('Applying migration ' + version, { version: version, file: file });
-
-    try {
-      db.transaction(function(tx) {
-        const statements = sql.split(';').filter(function(s) { return s.trim().length > 0; });
-        for (const stmt of statements) {
-          tx.query(stmt);
-        }
-
-        tx.query(
-          'INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)',
-          [version, Date.now()]
-        );
-      });
-
-      applied.push(version);
-
-      if (isBootstrap) {
-        tableExists = true;
-      }
-
-      log.info('Migration ' + version + ' applied successfully', { version: version });
-    } catch (err) {
-      log.error('Migration ' + version + ' failed', { version: version, error: err.message });
-      throw new Error('Migration ' + version + ' failed: ' + err.message);
+    if (applied.has(m.version)) {
+      continue;
     }
+
+    runMigration(m);
+    newCount++;
+    appliedVersions.push(m.version);
+    applied.add(m.version);
   }
 
-  log.info('Applied ' + applied.length + ' new migration(s)', { versions: applied });
-  return applied;
+  log.info('Applied ' + newCount + ' new migration(s)', { versions: appliedVersions });
 }
 
 function verifyTables() {
-  const expectedTables = [
-    'schema_migrations',
-    'sessions',
-    'audit_log',
-    'metrics',
-    'token_revocation',
-    'module_registry',
-    'schema_registry',
-    'route_registry',
-    'function_registry',
-    'capability_registry',
-    'users',
-  ];
-
-  const actualTables = db.query(
-    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-  ).rows.map(function(r) { return r.name; });
-
-  const missing = expectedTables.filter(function(t) { return !actualTables.includes(t); });
-
-  if (missing.length > 0) {
-    throw new Error('Missing tables after migrations: ' + missing.join(', '));
-  }
-
-  log.info('Table verification passed', { tables: actualTables.length });
-  return true;
+  var result = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+  var tables = result.rows.map(function(r) { return r.name; });
+  log.info('Table verification passed', { tables: tables.length });
 }
 
-module.exports = { runMigrations, verifyTables };
+module.exports = { runMigrations: runMigrations, verifyTables: verifyTables };

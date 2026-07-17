@@ -22,27 +22,39 @@ const metrics = require('./shared/services/metrics');
 const db = require('./shared/services/db');
 
 const PORT = parseInt(process.env.PORT, 10) || 3000;
-const contextRegistry = {};
+var contextRegistry = {};
 
-// CORS configuration
-const CORS_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(function(s) { return s.trim(); });
+var CORS_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(function(s) { return s.trim(); });
+var RATE_LIMIT_WINDOW = 60000;
+var RATE_LIMIT_DEFAULT = parseInt(process.env.RATE_LIMIT_DEFAULT, 10) || 100;
+var RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;
 
-// Rate limiting configuration
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const RATE_LIMIT_DEFAULT = parseInt(process.env.RATE_LIMIT_DEFAULT, 10) || 100;
-const RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;
+var rateLimitStore = new Map();
 
-// CSRF: API routes with Authorization header are exempt
-// CSRF protection applies to state-changing requests (POST, PUT, PATCH, DELETE)
-// that use cookie-based auth. Since we use Bearer tokens, CSRF is mostly mitigated,
-// but we enforce a header check for extra safety.
+setInterval(function() {
+  var now = Date.now();
+  var toDelete = [];
+  for (var entry of rateLimitStore.entries()) {
+    if (now - entry[1].windowStart > RATE_LIMIT_WINDOW * 2) {
+      toDelete.push(entry[0]);
+    }
+  }
+  for (var i = 0; i < toDelete.length; i++) {
+    rateLimitStore.delete(toDelete[i]);
+  }
+}, 300000).unref();
 
 async function bootPlatform() {
   log.info('=== Platform Boot Starting ===');
 
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    log.error('JWT_SECRET environment variable must be set with at least 32 characters');
+    log.error('Example: export JWT_SECRET="your-long-secret-key-at-least-32-chars"');
+    throw new Error('JWT_SECRET not set or too short (minimum 32 characters)');
+  }
+
   log.info('Services initialized');
 
-  // Clear registry tables before rebuilding state
   db.query('DELETE FROM module_registry');
   db.query('DELETE FROM route_registry');
   db.query('DELETE FROM function_registry');
@@ -54,60 +66,55 @@ async function bootPlatform() {
   verifyTables();
   log.info('Migrations complete');
 
-  const discovered = discover();
+  var discovered = discover();
   log.info('Discovered ' + discovered.length + ' module(s)', { modules: discovered.map(function(d) { return d.name; }) });
 
-  const validated = discovered.map(function(d) { return validate(d); });
+  var validated = discovered.map(function(d) { return validate(d); });
   log.info(validated.length + ' module(s) validated');
 
-  const registered = validated.map(function(d) { return register(d); });
+  var registered = validated.map(function(d) { return register(d); });
   log.info(registered.length + ' module(s) registered');
 
   resolveStage(registered);
   log.info('Dependencies resolved');
 
-  const bootOrder = dependencyGraph.computeBootOrder();
+  var bootOrder = dependencyGraph.computeBootOrder();
   log.info('Boot order: ' + bootOrder.join(' -> '));
 
-  const wired = registered.map(function(d) { return wire(d); });
+  var wired = registered.map(function(d) { return wire(d); });
   log.info(wired.length + ' module(s) wired');
 
   for (var w = 0; w < wired.length; w++) {
     contextRegistry[wired[w].manifest.name] = wired[w].ctx;
   }
 
-  const bootResults = boot(wired);
-  const bootedCount = bootResults.filter(function(r) { return r.status === 'booted'; }).length;
-  const failedCount = bootResults.filter(function(r) { return r.status === 'failed'; }).length;
+  var bootResults = boot(wired);
+  var bootedCount = bootResults.filter(function(r) { return r.status === 'booted'; }).length;
+  var failedCount = bootResults.filter(function(r) { return r.status === 'failed'; }).length;
   log.info('Boot results: ' + bootedCount + ' booted, ' + failedCount + ' failed');
 
   if (bootResults.some(function(r) { return r.status === 'failed'; })) {
-    const failedNames = bootResults.filter(function(r) { return r.status === 'failed'; }).map(function(r) { return r.name; });
+    var failedNames = bootResults.filter(function(r) { return r.status === 'failed'; }).map(function(r) { return r.name; });
     log.error('Platform boot failed due to module boot errors', { failed: failedNames });
-
-    for (const mod of wired) {
+    for (var mod of wired) {
       if (bootResults.find(function(r) { return r.name === mod.manifest.name && r.status === 'booted'; })) {
         unstage(mod);
       }
     }
-
     throw new Error('Platform boot failed: ' + failedNames.join(', '));
   }
 
   log.info('=== Platform Boot Complete ===');
 
-  const server = createServer();
+  var server = createServer();
 
   return new Promise(function(resolve, reject) {
     server.listen(PORT, function() {
       log.info('HTTP server listening on port ' + PORT);
-
-      const events = require('./shared/services/events');
+      var events = require('./shared/services/events');
       events.publish('platform.ready', { timestamp: Date.now() });
-
       resolve(server);
     });
-
     server.on('error', reject);
   });
 }
@@ -116,17 +123,15 @@ function matchRoute(pattern, pathname) {
   if (pattern === pathname) return { params: {} };
 
   if (pattern.includes(':')) {
-    const paramNames = [];
-    const regexPattern = pattern.replace(/:(\w+)/g, function(_, name) {
+    var paramNames = [];
+    var regexPattern = pattern.replace(/:(\w+)/g, function(_, name) {
       paramNames.push(name);
       return '([^/]+)';
     });
-
-    const regex = new RegExp('^' + regexPattern + '$');
-    const match = pathname.match(regex);
-
+    var regex = new RegExp('^' + regexPattern + '$');
+    var match = pathname.match(regex);
     if (match) {
-      const params = {};
+      var params = {};
       paramNames.forEach(function(name, i) {
         params[name] = decodeURIComponent(match[i + 1]);
       });
@@ -137,39 +142,23 @@ function matchRoute(pattern, pathname) {
   return null;
 }
 
-// ============================================================
-// MIDDLEWARE STACK (Constitution Phase 5 — fixed order)
-// 1. CORS
-// 2. Body parsing (JSON, 1MB limit)
-// 3. Cookie parsing (basic)
-// 4. CSRF protection (state-changing requests only, Bearer token exempt)
-// 5. Authentication (JWT or session)
-// 6. Authorization (permission check)
-// 7. Rate limiting (per-user)
-// 8. Request logging
-// ============================================================
-
 function corsMiddleware(req, res) {
   var origin = req.headers.origin;
-
   if (CORS_ORIGINS.indexOf('*') !== -1) {
     res.setHeader('Access-Control-Allow-Origin', '*');
   } else if (origin && CORS_ORIGINS.indexOf(origin) !== -1) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
-
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Max-Age', '86400');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
     res.end();
     return false;
   }
-
   return true;
 }
 
@@ -177,7 +166,6 @@ function cookieParserMiddleware(req) {
   req.cookies = {};
   var cookieHeader = req.headers.cookie;
   if (!cookieHeader) return;
-
   var pairs = cookieHeader.split(';');
   for (var i = 0; i < pairs.length; i++) {
     var pair = pairs[i].trim().split('=');
@@ -188,19 +176,13 @@ function cookieParserMiddleware(req) {
 }
 
 function csrfMiddleware(req, res) {
-  // Only applies to state-changing methods
   var stateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'];
   if (stateChanging.indexOf(req.method.toUpperCase()) === -1) return true;
 
-  // Bearer token (Authorization header) is exempt from CSRF
-  // CSRF attacks rely on cookies being sent automatically — Bearer tokens require
-  // explicit JS action, so they're inherently immune
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) {
     return true;
   }
 
-  // For cookie-based auth: require X-Requested-With header (anti-CSRF token)
-  // If no Authorization header AND no X-Requested-With, block
   if (!req.headers['x-requested-with'] || req.headers['x-requested-with'] !== 'XMLHttpRequest') {
     respond(res, 403, {
       success: false,
@@ -208,14 +190,11 @@ function csrfMiddleware(req, res) {
     });
     return false;
   }
-
   return true;
 }
 
 function authenticationMiddleware(req, res, route) {
-  if (!route.auth_required) {
-    return true;
-  }
+  if (!route.auth_required) return true;
 
   var authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -240,24 +219,18 @@ function authenticationMiddleware(req, res, route) {
   }
 }
 
-// In-memory rate limiter (sliding window)
-var rateLimitStore = new Map();
-
 function rateLimitMiddleware(req, res) {
   var ip = req.socket.remoteAddress || 'unknown';
   var userId = req.user ? req.user.id : ip;
-  var tier = 'default';
   var limit = RATE_LIMIT_DEFAULT;
 
   if (req.user && req.user.permissions) {
-    // Admin tier gets higher limits
-    if (req.user.permissions.indexOf('admin:*') !== -1 || req.user.permissions.indexOf('admin:rate:service') !== -1) {
-      tier = 'admin';
+    if (req.user.permissions.indexOf('admin:*') !== -1) {
       limit = RATE_LIMIT_ADMIN;
     }
   }
 
-  var key = userId + ':' + tier;
+  var key = userId + ':' + limit;
   var now = Date.now();
   var entry = rateLimitStore.get(key);
 
@@ -266,7 +239,6 @@ function rateLimitMiddleware(req, res) {
     rateLimitStore.set(key, entry);
   }
 
-  // Reset window if expired
   if (now - entry.windowStart > RATE_LIMIT_WINDOW) {
     entry.count = 0;
     entry.windowStart = now;
@@ -274,7 +246,6 @@ function rateLimitMiddleware(req, res) {
 
   entry.count++;
 
-  // Set rate limit headers
   res.setHeader('X-RateLimit-Limit', String(limit));
   res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - entry.count)));
   res.setHeader('X-RateLimit-Reset', String(entry.windowStart + RATE_LIMIT_WINDOW));
@@ -286,23 +257,8 @@ function rateLimitMiddleware(req, res) {
     });
     return false;
   }
-
   return true;
 }
-
-// Cleanup expired rate limit entries every 5 minutes
-setInterval(function() {
-  var now = Date.now();
-  var toDelete = [];
-  for (var entry of rateLimitStore.entries()) {
-    if (now - entry[1].windowStart > RATE_LIMIT_WINDOW * 2) {
-      toDelete.push(entry[0]);
-    }
-  }
-  for (var i = 0; i < toDelete.length; i++) {
-    rateLimitStore.delete(toDelete[i]);
-  }
-}, 300000).unref();
 
 function createServer() {
   return http.createServer(async function(req, res) {
@@ -312,19 +268,15 @@ function createServer() {
     var query = parsedUrl.query;
     var method = req.method.toUpperCase();
 
-    // ===== 1. CORS =====
     if (!corsMiddleware(req, res)) return;
 
     metrics.increment('http.requests_total', { method: method, path: pathname });
 
     try {
-      // ===== 3. Cookie parsing (before CSRF) =====
       cookieParserMiddleware(req);
 
-      // ===== 4. CSRF protection =====
       if (!csrfMiddleware(req, res)) return;
 
-      // Find matching route
       var route = null;
       var routeParams = {};
 
@@ -347,31 +299,21 @@ function createServer() {
         return;
       }
 
-      // ===== 5. Authentication =====
       if (!authenticationMiddleware(req, res, route)) return;
 
-      // ===== 2. Body parsing (after auth for pre-auth rejection) =====
       var body = {};
       if (['POST', 'PUT', 'PATCH'].indexOf(method) !== -1) {
         body = await readBody(req);
       }
 
-      // ===== 7. Rate limiting (after auth so we can tier by user) =====
       if (!rateLimitMiddleware(req, res)) return;
 
-      // ===== 8. Request logging =====
       log.info('Request: ' + method + ' ' + pathname, {
         method: method,
         path: pathname,
         userId: req.user ? req.user.id : 'anonymous',
       });
 
-      // ===== 6. Authorization =====
-      // Authorization is handled by individual handlers via auth.checkPerm()
-      // The platform enforces auth_required at the route level (step 5)
-      // Fine-grained permission checks are delegated to handlers
-
-      // Get handler
       var handler = functionRegistry.get(route.handler);
       if (!handler || typeof handler.implementation !== 'function') {
         respond(res, 500, {
@@ -408,9 +350,7 @@ function createServer() {
         error: err.message,
         stack: err.stack,
       });
-
       metrics.increment('http.errors_total', { method: method, path: pathname });
-
       respond(res, 500, {
         success: false,
         error: { code: 'INTERNAL_ERROR', message: err.message },
@@ -447,11 +387,13 @@ function respond(res, statusCode, data) {
   })));
 }
 
-bootPlatform().then(function() {
-  // Server running
-}).catch(function(err) {
-  log.error('Platform failed to start', { error: err.message, stack: err.stack });
-  process.exit(1);
-});
+if (require.main === module) {
+  bootPlatform().then(function() {
+    // Server running
+  }).catch(function(err) {
+    log.error('Platform failed to start', { error: err.message, stack: err.stack });
+    process.exit(1);
+  });
+}
 
 module.exports = { bootPlatform: bootPlatform, createServer: createServer };

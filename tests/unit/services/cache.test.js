@@ -1,5 +1,23 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
+var DB_PATH = path.resolve('./data/test_cache.sqlite');
+process.env.DB_PATH = DB_PATH;
+
+beforeAll(function() {
+  if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+  if (fs.existsSync(DB_PATH + '-wal')) fs.unlinkSync(DB_PATH + '-wal');
+  if (fs.existsSync(DB_PATH + '-shm')) fs.unlinkSync(DB_PATH + '-shm');
+});
+
+afterAll(function() {
+  if (fs.existsSync(DB_PATH)) fs.unlinkSync(DB_PATH);
+  if (fs.existsSync(DB_PATH + '-wal')) fs.unlinkSync(DB_PATH + '-wal');
+  if (fs.existsSync(DB_PATH + '-shm')) fs.unlinkSync(DB_PATH + '-shm');
+});
+
 const cache = require('../../../shared/services/cache');
 
 describe('CacheService', function() {
@@ -39,7 +57,6 @@ describe('CacheService', function() {
   describe('TTL', function() {
     test('should expire after TTL (manual expiry check)', function() {
       cache.set('tempkey', 'tempval', 0);
-      // ttl=0 means no expiry
       expect(cache.get('tempkey')).toBe('tempval');
     });
 
@@ -51,20 +68,14 @@ describe('CacheService', function() {
 
   describe('LRU eviction', function() {
     test('should evict least recently used when at capacity', function() {
-      // Fill cache to capacity (100 items from env)
       for (var i = 0; i < 100; i++) {
         cache.set('key' + i, 'val' + i);
       }
-
-      // Access key0 to make it recently used
       cache.get('key0');
-
-      // Add one more — should evict the LRU (key1)
       cache.set('overflow', 'val');
-
       expect(cache.get('overflow')).toBe('val');
-      expect(cache.get('key0')).toBe('val0'); // Was accessed recently
-      expect(cache.get('key1')).toBeNull(); // Should be evicted as LRU
+      expect(cache.get('key0')).toBe('val0');
+      expect(cache.get('key1')).toBeNull();
     });
   });
 
@@ -73,9 +84,7 @@ describe('CacheService', function() {
       cache.set('user:1', 'a');
       cache.set('user:2', 'b');
       cache.set('session:1', 'c');
-
       var count = cache.invalidate('user:*');
-
       expect(count).toBe(2);
       expect(cache.get('user:1')).toBeNull();
       expect(cache.get('user:2')).toBeNull();
@@ -91,9 +100,7 @@ describe('CacheService', function() {
       cache.set('ab1', 'x');
       cache.set('ab2', 'y');
       cache.set('abc', 'z');
-
       var count = cache.invalidate('ab?');
-
       expect(count).toBe(3);
       expect(cache.get('abc')).toBeNull();
     });

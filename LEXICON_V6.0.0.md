@@ -111,3 +111,17 @@ Development Order
     Gap Analysis
     Recommendation Engine
     Builder
+
+## Terms Added 2026-07-17
+
+### Function Exports Pattern
+The separation of a function's declared `name` (following `{module}_{operation}` convention) from its `exports` field (mapping to the actual export key in `index.js`). The `name` is used as the registry key and route handler reference. The `exports` field is used by the `register` pipeline step to look up the implementation from the module's exports.
+
+### Test Isolation Pattern
+Each test suite sets `process.env.DB_PATH` to a unique file (e.g. `data/test_cache.sqlite`, `data/test_auth.sqlite`) before requiring any modules. This prevents SQLite lock conflicts between test suites. Each suite cleans up its database file in `afterAll`.
+
+### Manual Transaction Control
+The migration runner uses explicit `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` via `conn.exec()` rather than better-sqlite3's `db.transaction()` wrapper. This ensures the original migration error is surfaced, not masked by a secondary rollback error.
+
+### Per-Suite Database Isolation
+The practice of assigning each Jest test suite its own SQLite database file, set via `process.env.DB_PATH` before module require. Prevents cross-suite contamination and lock contention.

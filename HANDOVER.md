@@ -166,3 +166,44 @@ bash Tools/update_architecture_map.sh
 
 # Fresh database
 rm -rf data/ && mkdir -p data && chmod 755 data
+---
+
+## Session: 2026-07-17 (Session 2)
+
+### Summary
+Fixed test suite from 44 failures to 3 failures (69/72 passing). Root causes were: migration runner transaction handling, function naming convention mismatch, db.js transaction callback binding, pipeline wire.js referencing undefined variable.
+
+### Files Modified
+- `/shared/services/db.js` — Rewritten: single connection, lazy init, manual transaction, poolAcquire/poolRelease stubs
+- `/shared/migration-runner.js` — Rewritten: manual BEGIN/COMMIT/ROLLBACK via conn.exec(), proper error surfacing
+- `/shared/pipeline/validate.js` — Fixed: uses func.exports for export lookup, func.name for naming convention check
+- `/shared/pipeline/register.js` — Fixed: functions registered by func.name, implementation looked up via func.exports
+- `/shared/pipeline/wire.js` — Fixed: uses registered.exports for event handler lookup
+- `/modules/system_health/module.json` — Fixed: name field follows {module}_{operation}, added exports field
+- `/modules/user_management/module.json` — Fixed: name field follows {module}_{operation}, added exports field
+- `/tests/unit/services/db.test.js` — Fixed: proper table creation, beforeEach cleanup
+- `/tests/unit/services/cache.test.js` — Per-suite DB_PATH isolation
+- `/tests/unit/services/auth.test.js` — Per-suite DB_PATH isolation
+- `/tests/unit/registries/registries.test.js` — Per-suite DB_PATH isolation, schemaRegistry.clear() added
+- `/tests/integration/staging/pipeline.test.js` — Per-suite DB_PATH isolation, schemaRegistry.clear() added
+
+### Test Results
+- 6 passed, 1 failed (7 total suites)
+- 69 passed, 3 failed (72 total tests)
+- Remaining failures: staging pipeline wire/unstage/full-pipeline — event subscription edge case in wire.js
+
+### Known Issues
+1. `wire.js` event subscription handler closure may capture loop variables incorrectly — needs review
+2. `--detectOpenHandles` warning from Jest — likely better-sqlite3 connection not closing in afterAll
+
+### Next Steps
+1. Fix remaining 3 staging pipeline test failures
+2. Close database connections in test afterAll hooks
+3. Regenerate architecture map and commit
+
+### Frozen Document Hashes
+- CONSTITUTION_V6.0.md: Updated (function declaration convention added)
+- LEXICON_V6.0.0.md: Updated (4 new terms added)
+- Run: `sha256sum CONSTITUTION_V6.0.md LEXICON_V6.0.0.md` for new baseline
+ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a  CONSTITUTION_V6.0.md
+72280c5fb7d90fa8245139f35b9340016e0fe0d072bf799bd2ea85360e167b45  LEXICON_V6.0.0.md

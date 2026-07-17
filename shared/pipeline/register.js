@@ -1,67 +1,91 @@
 'use strict';
 
-var moduleRegistry = require('../registry/moduleRegistry');
-var schemaRegistry = require('../registry/schemaRegistry');
-var routeRegistry = require('../registry/routeRegistry');
-var functionRegistry = require('../registry/functionRegistry');
-var capabilityRegistry = require('../registry/capabilityRegistry');
-var dependencyGraph = require('../registry/dependencyGraph');
+const path = require('path');
+const log = require('../services/log');
+const moduleRegistry = require('../registry/moduleRegistry');
+const routeRegistry = require('../registry/routeRegistry');
+const functionRegistry = require('../registry/functionRegistry');
+const capabilityRegistry = require('../registry/capabilityRegistry');
+const schemaRegistry = require('../registry/schemaRegistry');
+const dependencyGraph = require('../registry/dependencyGraph');
 
-function register(module) {
-  var manifest = module.manifest;
-  var dir = module.dir;
+function registerModule(moduleInfo) {
+  var manifest = moduleInfo.manifest;
+  var indexPath = path.join(moduleInfo.dir, 'index.js');
 
-  var indexPath = require('path').join(dir, 'index.js');
+  log.info('Registering module "' + manifest.name + '"', { module: manifest.name });
+
+  // Load module
   delete require.cache[require.resolve(indexPath)];
-  var index = require(indexPath);
+  var modExports = require(indexPath);
 
-  moduleRegistry.register(manifest);
+  // Register in module registry
+  moduleRegistry.register({
+    name: manifest.name,
+    version: manifest.version,
+    author: manifest.author,
+    status: 'registered',
+    booted: false,
+  });
 
-  if (manifest.provides) {
-    for (var i = 0; i < manifest.provides.length; i++) {
-      capabilityRegistry.register(manifest.provides[i], manifest.name);
-    }
-  }
-
-  if (manifest.functions) {
-    for (var j = 0; j < manifest.functions.length; j++) {
-      var fn = manifest.functions[j];
-      if (typeof index[fn.name] === 'function') {
-        functionRegistry.register(fn.name, manifest.name, index[fn.name], {
-          params: fn.params || [],
-          returns: fn.returns || null,
-        });
-      }
-    }
-  }
-
+  // Register routes
   if (manifest.routes) {
-    for (var k = 0; k < manifest.routes.length; k++) {
-      var route = manifest.routes[k];
+    for (var r = 0; r < manifest.routes.length; r++) {
+      var route = manifest.routes[r];
       routeRegistry.register({
         path: route.path,
         method: route.method.toUpperCase(),
         handler: route.handler,
-        auth_required: route.auth || false,
+        auth_required: route.auth_required !== undefined ? route.auth_required : (route.auth || false),
         moduleName: manifest.name,
       });
     }
   }
 
-  if (manifest.schema && manifest.schema.tables) {
-    for (var t = 0; t < manifest.schema.tables.length; t++) {
-      schemaRegistry.register(
-        manifest.schema.tables[t],
-        manifest.name,
-        manifest.schema.migrations || []
-      );
+  // Register functions — use func.name as key, func.exports to look up implementation
+  if (manifest.functions) {
+    for (var f = 0; f < manifest.functions.length; f++) {
+      var func = manifest.functions[f];
+      var exportName = func.exports || func.name;
+      var implementation = modExports[exportName];
+
+      if (implementation) {
+        functionRegistry.register(func.name, manifest.name, implementation, {
+          params: func.params || [],
+          returns: func.returns || 'any',
+        });
+      }
     }
   }
 
+  // Register capabilities
+  if (manifest.provides) {
+    for (var c = 0; c < manifest.provides.length; c++) {
+      capabilityRegistry.register(manifest.provides[c], manifest.name);
+    }
+  }
+
+  // Register schema ownership
+  if (manifest.schema && manifest.schema.tables) {
+    for (var t = 0; t < manifest.schema.tables.length; t++) {
+      var tableName = manifest.schema.tables[t];
+      var migrations = manifest.schema.migrations || [];
+      schemaRegistry.register(tableName, manifest.name, migrations);
+    }
+  }
+
+  // Add to dependency graph
   dependencyGraph.addModule(manifest.name, manifest.dependencies || []);
 
-  var result = Object.assign({}, module, { index: index, registered: true });
-  return result;
+  log.info('Registered module "' + manifest.name + '"', { module: manifest.name });
+
+  return {
+    name: moduleInfo.name,
+    dir: moduleInfo.dir,
+    manifest: manifest,
+    exports: modExports,
+    registered: true,
+  };
 }
 
-module.exports = register;
+module.exports = registerModule;
