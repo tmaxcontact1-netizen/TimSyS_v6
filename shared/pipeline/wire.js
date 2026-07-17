@@ -27,20 +27,18 @@ function wireModule(registered) {
 
   // Wire event subscriptions
   if (manifest.events && manifest.events.subscribes) {
-    for (var i = 0; i < manifest.events.subscribes.length; i++) {
-      var channel = manifest.events.subscribes[i];
+    manifest.events.subscribes.forEach(function(channel) {
       var handlerName = 'on_' + channel.replace(/\./g, '_');
-      
       if (typeof modExports[handlerName] === 'function') {
-        events.subscribe(channel, function(payload, c) {
+        events.subscribe(channel, function(payload) {
           try {
             modExports[handlerName](payload, ctx);
           } catch (err) {
-            log.error('Event handler "' + handlerName + '" failed', { error: err.message });
+            log.error('Event handler ' + handlerName + ' failed', { error: err.message });
           }
         });
       }
-    }
+    });
   }
 
   // Wire routes to function registry

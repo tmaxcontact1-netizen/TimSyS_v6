@@ -1,65 +1,85 @@
-{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T05:28:52.296Z","count":4}
-{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T05:28:52.322Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
-{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T05:28:52.327Z","version":"001_initial","file":"001_initial.sql"}
-{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T05:28:52.330Z","version":"user_management_001_users","file":"001_users.sql"}
-{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T05:28:52.331Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
-{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T05:28:52.332Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
-{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T05:28:52.360Z","module":"system_health"}
-{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T05:28:52.373Z","module":"user_management"}
-{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T05:28:52.378Z","module":"system_health"}
-{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T05:28:52.378Z","module":"system_health"}
-{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T05:28:52.382Z","module":"system_health"}
-{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T05:28:52.387Z","module":"system_health"}
-{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T05:28:52.387Z","module":"user_management"}
-{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T05:28:52.387Z","module":"system_health"}
-{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T05:28:52.390Z","module":"system_health"}
-{"level":"info","message":"Registering module \"user_management\"","timestamp":"2026-07-17T05:28:52.390Z","module":"user_management"}
-{"level":"info","message":"Registered module \"user_management\"","timestamp":"2026-07-17T05:28:52.397Z","module":"user_management"}
-{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T05:28:52.402Z","module":"system_health"}
-{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T05:28:52.402Z","module":"user_management"}
-{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T05:28:52.403Z","module":"system_health"}
-{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T05:28:52.405Z","module":"system_health"}
-{"level":"info","message":"Registering module \"user_management\"","timestamp":"2026-07-17T05:28:52.405Z","module":"user_management"}
-{"level":"info","message":"Registered module \"user_management\"","timestamp":"2026-07-17T05:28:52.411Z","module":"user_management"}
-{"level":"info","message":"Wiring module \"system_health\"","timestamp":"2026-07-17T05:28:52.411Z","module":"system_health"}
-{"level":"info","message":"Wired module \"system_health\"","timestamp":"2026-07-17T05:28:52.412Z","module":"system_health"}
-{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T05:28:52.417Z","module":"system_health"}
-{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T05:28:52.417Z","module":"system_health"}
-{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T05:28:52.420Z","module":"system_health"}
-{"level":"info","message":"Wiring module \"system_health\"","timestamp":"2026-07-17T05:28:52.420Z","module":"system_health"}
-{"level":"info","message":"Wired module \"system_health\"","timestamp":"2026-07-17T05:28:52.420Z","module":"system_health"}
-{"level":"info","message":"Unstaging module \"system_health\"","timestamp":"2026-07-17T05:28:52.421Z","module":"system_health"}
-{"level":"info","message":"Module \"system_health\" unstaged","timestamp":"2026-07-17T05:28:52.423Z","module":"system_health"}
-{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T05:28:52.427Z","module":"system_health"}
-{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T05:28:52.428Z","module":"user_management"}
-{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T05:28:52.428Z","module":"system_health"}
-{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T05:28:52.430Z","module":"system_health"}
-{"level":"info","message":"Registering module \"user_management\"","timestamp":"2026-07-17T05:28:52.430Z","module":"user_management"}
-{"level":"info","message":"Registered module \"user_management\"","timestamp":"2026-07-17T05:28:52.436Z","module":"user_management"}
-{"level":"info","message":"Wiring module \"system_health\"","timestamp":"2026-07-17T05:28:52.436Z","module":"system_health"}
-{"level":"info","message":"Wired module \"system_health\"","timestamp":"2026-07-17T05:28:52.436Z","module":"system_health"}
-{"level":"info","message":"Wiring module \"user_management\"","timestamp":"2026-07-17T05:28:52.436Z","module":"user_management"}
-{"level":"info","message":"Wired module \"user_management\"","timestamp":"2026-07-17T05:28:52.436Z","module":"user_management"}
-{"level":"info","message":"Unstaging module \"user_management\"","timestamp":"2026-07-17T05:28:52.437Z","module":"user_management"}
-{"level":"info","message":"Module \"user_management\" unstaged","timestamp":"2026-07-17T05:28:52.441Z","module":"user_management"}
-{"level":"info","message":"Unstaging module \"system_health\"","timestamp":"2026-07-17T05:28:52.442Z","module":"system_health"}
-{"level":"info","message":"Module \"system_health\" unstaged","timestamp":"2026-07-17T05:28:52.443Z","module":"system_health"}
+{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T08:17:31.183Z","count":4}
+{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T08:17:31.207Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
+{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T08:17:31.213Z","version":"001_initial","file":"001_initial.sql"}
+{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T08:17:31.216Z","version":"user_management_001_users","file":"001_users.sql"}
+{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T08:17:31.217Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
+{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T08:17:31.218Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
+{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T08:17:31.244Z","module":"system_health"}
+{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T08:17:31.257Z","module":"user_management"}
+{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T08:17:31.262Z","module":"system_health"}
+{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T08:17:31.262Z","module":"system_health"}
+{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T08:17:31.266Z","module":"system_health"}
+{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T08:17:31.272Z","module":"system_health"}
+{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T08:17:31.272Z","module":"user_management"}
+{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T08:17:31.272Z","module":"system_health"}
+{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T08:17:31.276Z","module":"system_health"}
+{"level":"info","message":"Registering module \"user_management\"","timestamp":"2026-07-17T08:17:31.276Z","module":"user_management"}
+{"level":"info","message":"Registered module \"user_management\"","timestamp":"2026-07-17T08:17:31.283Z","module":"user_management"}
+{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T08:17:31.288Z","module":"system_health"}
+{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T08:17:31.288Z","module":"user_management"}
+{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T08:17:31.288Z","module":"system_health"}
+{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T08:17:31.290Z","module":"system_health"}
+{"level":"info","message":"Registering module \"user_management\"","timestamp":"2026-07-17T08:17:31.290Z","module":"user_management"}
+{"level":"info","message":"Registered module \"user_management\"","timestamp":"2026-07-17T08:17:31.295Z","module":"user_management"}
+{"level":"info","message":"Wiring module \"system_health\"","timestamp":"2026-07-17T08:17:31.296Z","module":"system_health"}
+{"level":"info","message":"Wired module \"system_health\"","timestamp":"2026-07-17T08:17:31.296Z","module":"system_health"}
+{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T08:17:31.301Z","module":"system_health"}
+{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T08:17:31.301Z","module":"system_health"}
+{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T08:17:31.304Z","module":"system_health"}
+{"level":"info","message":"Wiring module \"system_health\"","timestamp":"2026-07-17T08:17:31.304Z","module":"system_health"}
+{"level":"info","message":"Wired module \"system_health\"","timestamp":"2026-07-17T08:17:31.304Z","module":"system_health"}
+{"level":"info","message":"Unstaging module \"system_health\"","timestamp":"2026-07-17T08:17:31.304Z","module":"system_health"}
+{"level":"info","message":"Module \"system_health\" unstaged","timestamp":"2026-07-17T08:17:31.307Z","module":"system_health"}
+{"level":"info","message":"Validated module \"system_health\"","timestamp":"2026-07-17T08:17:31.311Z","module":"system_health"}
+{"level":"info","message":"Validated module \"user_management\"","timestamp":"2026-07-17T08:17:31.311Z","module":"user_management"}
+{"level":"info","message":"Registering module \"system_health\"","timestamp":"2026-07-17T08:17:31.311Z","module":"system_health"}
+{"level":"info","message":"Registered module \"system_health\"","timestamp":"2026-07-17T08:17:31.313Z","module":"system_health"}
+{"level":"info","message":"Registering module \"user_management\"","timestamp":"2026-07-17T08:17:31.313Z","module":"user_management"}
+{"level":"info","message":"Registered module \"user_management\"","timestamp":"2026-07-17T08:17:31.318Z","module":"user_management"}
+{"level":"info","message":"Wiring module \"system_health\"","timestamp":"2026-07-17T08:17:31.318Z","module":"system_health"}
+{"level":"info","message":"Wired module \"system_health\"","timestamp":"2026-07-17T08:17:31.318Z","module":"system_health"}
+{"level":"info","message":"Wiring module \"user_management\"","timestamp":"2026-07-17T08:17:31.318Z","module":"user_management"}
+{"level":"info","message":"Wired module \"user_management\"","timestamp":"2026-07-17T08:17:31.319Z","module":"user_management"}
+{"level":"info","message":"Unstaging module \"user_management\"","timestamp":"2026-07-17T08:17:31.331Z","module":"user_management"}
+{"level":"info","message":"Module \"user_management\" unstaged","timestamp":"2026-07-17T08:17:31.335Z","module":"user_management"}
+{"level":"info","message":"Unstaging module \"system_health\"","timestamp":"2026-07-17T08:17:31.335Z","module":"system_health"}
+{"level":"info","message":"Module \"system_health\" unstaged","timestamp":"2026-07-17T08:17:31.337Z","module":"system_health"}
 PASS tests/integration/staging/pipeline.test.js
   Staging Pipeline (Integration)
     discover
-      ✓ should find modules in /modules directory (11 ms)
+      ✓ should find modules in /modules directory (10 ms)
     validate
       ✓ should validate discovered modules without errors (24 ms)
     register
-      ✓ should register module in all registries (8 ms)
+      ✓ should register module in all registries (9 ms)
     resolve
-      ✓ should resolve dependencies for real modules (14 ms)
+      ✓ should resolve dependencies for real modules (15 ms)
     wire
-      ✓ should wire module with context containing services (14 ms)
+      ✓ should wire module with context containing services (13 ms)
     unstage
-      ✓ should cleanly remove a module from all registries (10 ms)
+      ✓ should cleanly remove a module from all registries (8 ms)
     full pipeline (discover → validate → register → resolve → wire → unstage)
-      ✓ should complete full staging lifecycle for all modules (19 ms)
+      ✓ should complete full staging lifecycle for all modules (29 ms)
+
+{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T08:17:31.603Z","count":4}
+{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T08:17:31.625Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
+{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T08:17:31.630Z","version":"001_initial","file":"001_initial.sql"}
+{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T08:17:31.634Z","version":"user_management_001_users","file":"001_users.sql"}
+{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T08:17:31.635Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
+{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T08:17:31.636Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
+PASS tests/unit/services/auth.test.js
+  AuthService
+    issueToken / verifyToken
+      ✓ should issue and verify a valid token (27 ms)
+      ✓ should reject a tampered token (62 ms)
+      ✓ should reject a revoked token (15 ms)
+      ✓ should reject all tokens for a user after revokeAllUserTokens (20 ms)
+    checkPerm
+      ✓ should grant exact permission match (3 ms)
+      ✓ should deny unmatched permission (3 ms)
+      ✓ should grant with wildcard prefix (admin:*) (3 ms)
+      ✓ should grant with full wildcard (*) (3 ms)
+      ✓ should deny when no permissions (3 ms)
 
   console.error
     EventBus handler error on channel "error.channel": Handler error
@@ -78,119 +98,99 @@ PASS tests/integration/staging/pipeline.test.js
 PASS tests/unit/services/events.test.js
   EventBus
     publish/subscribe
-      ✓ should deliver payload to subscriber (7 ms)
-      ✓ should deliver to multiple subscribers (2 ms)
-      ✓ should not deliver to unsubscribed handlers (2 ms)
-      ✓ should silently ignore publish to empty channel (1 ms)
-      ✓ should isolate errors — one failing handler should not block others (46 ms)
+      ✓ should deliver payload to subscriber (13 ms)
+      ✓ should deliver to multiple subscribers (3 ms)
+      ✓ should not deliver to unsubscribed handlers (4 ms)
+      ✓ should silently ignore publish to empty channel (3 ms)
+      ✓ should isolate errors — one failing handler should not block others (69 ms)
     request/reply
-      ✓ should receive a reply within timeout (3 ms)
-      ✓ should timeout when no responder replies (116 ms)
+      ✓ should receive a reply within timeout (4 ms)
+      ✓ should timeout when no responder replies (119 ms)
 
-{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T05:28:53.035Z","count":4}
-{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T05:28:53.054Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
-{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T05:28:53.059Z","version":"001_initial","file":"001_initial.sql"}
-{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T05:28:53.062Z","version":"user_management_001_users","file":"001_users.sql"}
-{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T05:28:53.062Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
-{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T05:28:53.063Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
+{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T08:17:32.638Z","count":4}
+{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T08:17:32.661Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
+{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T08:17:32.668Z","version":"001_initial","file":"001_initial.sql"}
+{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T08:17:32.672Z","version":"user_management_001_users","file":"001_users.sql"}
+{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T08:17:32.674Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
+{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T08:17:32.675Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
 PASS tests/unit/registries/registries.test.js
   Registries
     ModuleRegistry
-      ✓ should register a module (13 ms)
-      ✓ should list all modules (3 ms)
-      ✓ should mark module as booted (3 ms)
-      ✓ should deregister a module (4 ms)
+      ✓ should register a module (10 ms)
+      ✓ should list all modules (4 ms)
+      ✓ should mark module as booted (4 ms)
+      ✓ should deregister a module (5 ms)
     RouteRegistry
-      ✓ should register a route (3 ms)
-      ✓ should detect route conflicts (56 ms)
-      ✓ should allow same path with different methods (5 ms)
+      ✓ should register a route (4 ms)
+      ✓ should detect route conflicts (53 ms)
+      ✓ should allow same path with different methods (4 ms)
     FunctionRegistry
-      ✓ should register and retrieve a function (5 ms)
-      ✓ should check if function exists (6 ms)
-      ✓ should list functions by module (5 ms)
+      ✓ should register and retrieve a function (4 ms)
+      ✓ should check if function exists (4 ms)
+      ✓ should list functions by module (4 ms)
     CapabilityRegistry
-      ✓ should register and check existence (4 ms)
+      ✓ should register and check existence (5 ms)
       ✓ should detect capability conflicts (10 ms)
     DependencyGraph
       ✓ should add modules and compute boot order (6 ms)
-      ✓ should detect circular dependencies (15 ms)
+      ✓ should detect circular dependencies (14 ms)
       ✓ should find missing dependencies (3 ms)
-      ✓ should remove a module (5 ms)
+      ✓ should remove a module (4 ms)
     SchemaRegistry
-      ✓ should register and check table ownership (5 ms)
-      ✓ should get owner of a table (3 ms)
-      ✓ should list tables by owner (3 ms)
-
-{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T05:28:53.609Z","count":4}
-{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T05:28:53.633Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
-{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T05:28:53.639Z","version":"001_initial","file":"001_initial.sql"}
-{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T05:28:53.643Z","version":"user_management_001_users","file":"001_users.sql"}
-{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T05:28:53.644Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
-{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T05:28:53.645Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
-PASS tests/unit/services/auth.test.js
-  AuthService
-    issueToken / verifyToken
-      ✓ should issue and verify a valid token (29 ms)
-      ✓ should reject a tampered token (54 ms)
-      ✓ should reject a revoked token (16 ms)
-      ✓ should reject all tokens for a user after revokeAllUserTokens (24 ms)
-    checkPerm
-      ✓ should grant exact permission match (3 ms)
-      ✓ should deny unmatched permission (3 ms)
-      ✓ should grant with wildcard prefix (admin:*) (3 ms)
-      ✓ should grant with full wildcard (*) (2 ms)
-      ✓ should deny when no permissions (2 ms)
-
-{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T05:28:54.137Z","count":4}
-{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T05:28:54.161Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
-{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T05:28:54.168Z","version":"001_initial","file":"001_initial.sql"}
-{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T05:28:54.172Z","version":"user_management_001_users","file":"001_users.sql"}
-{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T05:28:54.174Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
-{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T05:28:54.175Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
-PASS tests/unit/services/db.test.js
-  DBService
-    query
-      ✓ should execute CREATE TABLE (9 ms)
-      ✓ should execute INSERT and return rowid (4 ms)
-      ✓ should execute SELECT and return rows (3 ms)
-      ✓ should execute UPDATE (2 ms)
-      ✓ should execute DELETE (3 ms)
-      ✓ should return empty rows for no results (3 ms)
-    transaction
-      ✓ should commit on success (5 ms)
-      ✓ should rollback on error (52 ms)
-    poolAcquire/poolRelease
-      ✓ should acquire and release a connection (2 ms)
+      ✓ should register and check table ownership (6 ms)
+      ✓ should get owner of a table (2 ms)
+      ✓ should list tables by owner (2 ms)
 
 PASS tests/unit/services/validate.test.js
   ValidationService
     validate
-      ✓ should validate valid data against schema (16 ms)
-      ✓ should reject invalid data with errors (7 ms)
-      ✓ should reject missing required fields (3 ms)
-      ✓ should return coerced data on success (3 ms)
+      ✓ should validate valid data against schema (15 ms)
+      ✓ should reject invalid data with errors (6 ms)
+      ✓ should reject missing required fields (2 ms)
+      ✓ should return coerced data on success (2 ms)
     sanitize
-      ✓ should strip HTML tags from strings (4 ms)
+      ✓ should strip HTML tags from strings (3 ms)
       ✓ should escape dangerous characters (2 ms)
       ✓ should sanitize recursively in objects (2 ms)
       ✓ should sanitize arrays (2 ms)
       ✓ should pass through numbers and booleans unchanged (3 ms)
 
+{"level":"info","message":"Found 4 migration file(s)","timestamp":"2026-07-17T08:17:33.544Z","count":4}
+{"level":"info","message":"Applying migration 000_bootstrap","timestamp":"2026-07-17T08:17:33.564Z","version":"000_bootstrap","file":"000_bootstrap.sql"}
+{"level":"info","message":"Applying migration 001_initial","timestamp":"2026-07-17T08:17:33.570Z","version":"001_initial","file":"001_initial.sql"}
+{"level":"info","message":"Applying migration user_management_001_users","timestamp":"2026-07-17T08:17:33.572Z","version":"user_management_001_users","file":"001_users.sql"}
+{"level":"info","message":"Applying migration user_management_002_password_resets","timestamp":"2026-07-17T08:17:33.573Z","version":"user_management_002_password_resets","file":"002_password_resets.sql"}
+{"level":"info","message":"Applied 4 new migration(s)","timestamp":"2026-07-17T08:17:33.574Z","versions":["000_bootstrap","001_initial","user_management_001_users","user_management_002_password_resets"]}
+PASS tests/unit/services/db.test.js
+  DBService
+    query
+      ✓ should execute CREATE TABLE (7 ms)
+      ✓ should execute INSERT and return rowid (3 ms)
+      ✓ should execute SELECT and return rows (4 ms)
+      ✓ should execute UPDATE (2 ms)
+      ✓ should execute DELETE (1 ms)
+      ✓ should return empty rows for no results (1 ms)
+    transaction
+      ✓ should commit on success (3 ms)
+      ✓ should rollback on error (29 ms)
+    poolAcquire/poolRelease
+      ✓ should acquire and release a connection (1 ms)
+
 PASS tests/unit/services/cache.test.js
   CacheService
     get/set
-      ✓ should store and retrieve a value (6 ms)
+      ✓ should store and retrieve a value (5 ms)
       ✓ should return null for missing key (2 ms)
-      ✓ should overwrite existing key (2 ms)
+      ✓ should overwrite existing key (1 ms)
       ✓ should store objects (3 ms)
-      ✓ should store arrays (2 ms)
+      ✓ should store arrays (1 ms)
     TTL
-      ✓ should expire after TTL (manual expiry check) (2 ms)
+      ✓ should expire after TTL (manual expiry check) (1 ms)
       ✓ should use default TTL when not specified (1 ms)
     LRU eviction
-      ✓ should evict least recently used when at capacity (3 ms)
+      ✓ should evict least recently used when at capacity (2 ms)
     invalidate
-      ✓ should invalidate keys matching glob pattern (6 ms)
+      ✓ should invalidate keys matching glob pattern (3 ms)
       ✓ should return 0 for no matches (2 ms)
       ✓ should support ? wildcard (2 ms)
     flush
@@ -199,6 +199,6 @@ PASS tests/unit/services/cache.test.js
 Test Suites: 7 passed, 7 total
 Tests:       72 passed, 72 total
 Snapshots:   0 total
-Time:        3.76 s
+Time:        3.721 s
 Ran all test suites.
 Force exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?

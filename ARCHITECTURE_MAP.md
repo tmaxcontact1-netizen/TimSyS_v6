@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-17T08:09:24Z
+Generated: 2026-07-17T08:18:12Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -17,7 +17,7 @@ Path: `/home/tmax/TimSyS_v6`
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `CONTEXT.md` | ✅ | 4117B | 2026-07-17 12:34:29 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 15:09:24 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 15:18:12 |
 | `HANDOVER.md` | ✅ | 10540B | 2026-07-17 12:35:01 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
@@ -179,7 +179,7 @@ Location: `/shared/pipeline/`
 | `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 12:19:29 |
 | `register.js` | ✅ (shared/pipeline/register.js) | 2848B | 2026-07-17 12:25:26 |
 | `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2332B | 2026-07-16 22:32:00 |
-| `wire.js` | ✅ (shared/pipeline/wire.js) | 2039B | 2026-07-17 12:28:40 |
+| `wire.js` | ✅ (shared/pipeline/wire.js) | 1971B | 2026-07-17 15:17:07 |
 | `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |
 | `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 21:53:03 |
 
