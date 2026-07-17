@@ -1,57 +1,60 @@
-/**
- * TimSyS Contract: LogService
- * Status: FROZEN v6.0.0
- *
- * Structured JSON logging with audit trail support.
- * Implemented across log.js (logging) and audit.js (immutable audit log).
- */
+'use strict';
 
 /**
  * @typedef {Object} LogContext
- * @property {string} [module] - Module name
- * @property {string} [requestId] - Request correlation ID
- * @property {string} [userId] - Acting user ID
- * @property {...*} - Additional contextual fields
+ * @property {string} [requestId]
+ * @property {string} [moduleId]
+ * @property {string} [userId]
+ * @property {string} [action]
+ * @property {*} [extra] - Arbitrary additional context
  */
 
 /**
- * @typedef {Object} AuditEntry
- * @property {number} timestamp - Unix timestamp
- * @property {string|number} userId
- * @property {string} action - Audit action descriptor
- * @property {Object} meta - Additional metadata
+ * LogService Contract — Structured JSON logs.
+ *
+ * Every log entry is a JSON object written to stdout (or configured transport).
+ * Fields: level, message, timestamp (ISO8601), and flattened context.
+ *
+ * FROZEN: Do not modify after sign-off. Implementations must conform exactly.
  */
-
-/** @interface LogService */
-module.exports = {
+class LogService {
   /**
-   * Log an informational message.
+   * Log at INFO level.
    * @param {string} msg - Human-readable message
    * @param {LogContext} [ctx] - Structured context
    */
-  info(msg, ctx) {},
+  info(msg, ctx) {
+    throw new Error('LogService.info: not implemented');
+  }
 
   /**
-   * Log a warning message.
-   * @param {string} msg - Human-readable message
-   * @param {LogContext} [ctx] - Structured context
+   * Log at WARN level.
+   * @param {string} msg
+   * @param {LogContext} [ctx]
    */
-  warn(msg, ctx) {},
+  warn(msg, ctx) {
+    throw new Error('LogService.warn: not implemented');
+  }
 
   /**
-   * Log an error message.
-   * @param {string} msg - Human-readable message
-   * @param {LogContext} [ctx] - Structured context
+   * Log at ERROR level.
+   * @param {string} msg
+   * @param {LogContext} [ctx]
    */
-  error(msg, ctx) {},
+  error(msg, ctx) {
+    throw new Error('LogService.error: not implemented');
+  }
 
   /**
-   * Write an immutable audit log entry.
-   * Entry is appended to audit_log table and cannot be modified.
-   * @param {string} action - What action was performed
-   * @param {string|number} userId - Who performed it
-   * @param {Object} meta - Additional metadata (entity, old/new values, IP, etc.)
-   * @returns {AuditEntry}
+   * Write an audit entry. Audit logs are immutable append-only records
+   * separate from operational logs. Stored in audit_log table.
+   * @param {string} action - What happened (e.g., "user.create", "module.stage")
+   * @param {string} userId - Who did it
+   * @param {Object} [meta] - Additional metadata (entity, old/new values, ip, etc.)
    */
-  audit(action, userId, meta) {}
-};
+  audit(action, userId, meta) {
+    throw new Error('LogService.audit: not implemented');
+  }
+}
+
+module.exports = { LogService };

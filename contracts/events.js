@@ -1,42 +1,63 @@
+'use strict';
+
 /**
- * TimSyS Contract: EventBus
- * Status: PENDING FREEZE
- *
- * In-memory pub/sub + request/reply for inter-module communication.
- * Modules communicate exclusively through EventBus.
+ * @typedef {Function} EventHandler
+ * @param {*} payload - Event payload
+ * @returns {void|Promise<void>}
  */
 
-/** @interface EventBus */
-module.exports = {
+/**
+ * EventBus Contract — In-memory pub/sub + request/reply.
+ *
+ * The sole legal mechanism for inter-Module communication at runtime.
+ * publish() is fire-and-forget. request() blocks with a timeout for a reply.
+ *
+ * FROZEN: Do not modify after sign-off. Implementations must conform exactly.
+ */
+class EventBus {
   /**
-   * Publish an event to a channel (fire-and-forget).
+   * Publish a payload to all subscribers of a channel.
+   * Synchronous dispatch — handlers execute in subscription order.
+   * A throwing handler does not prevent subsequent handlers from receiving the event;
+   * the error is logged and swallowed.
    * @param {string} channel - Event channel name
-   * @param {Object} payload - Event data
+   * @param {*} payload - Event data
    */
-  publish(channel, payload) {},
+  publish(channel, payload) {
+    throw new Error('EventBus.publish: not implemented');
+  }
 
   /**
-   * Subscribe to an event channel.
+   * Subscribe a handler to a channel.
    * @param {string} channel
-   * @param {Function} handler - Receives (payload, publisherModuleId)
-   * @returns {string} subscriptionId (for unsubscribe)
+   * @param {EventHandler} handler
+   * @returns {void}
    */
-  subscribe(channel, handler) {},
+  subscribe(channel, handler) {
+    throw new Error('EventBus.subscribe: not implemented');
+  }
 
   /**
-   * Unsubscribe from a channel.
-   * @param {string} subscriptionId
-   */
-  unsubscribe(subscriptionId) {},
-
-  /**
-   * Send synchronous request/reply message to subscribers.
-   * Timeout prevents indefinite blocking.
+   * Remove a previously subscribed handler from a channel.
+   * No-op if the handler was never subscribed.
    * @param {string} channel
-   * @param {Object} payload
-   * @param {number} timeoutMs
-   * @returns {Promise<Array<Object>>} - Array of subscriber responses
-   * @throws {Error} If timeout exceeded
+   * @param {EventHandler} handler
    */
-  request(channel, payload, timeoutMs) {}
-};
+  unsubscribe(channel, handler) {
+    throw new Error('EventBus.unsubscribe: not implemented');
+  }
+
+  /**
+   * Publish a request and wait for a single reply within a timeout.
+   * @param {string} channel
+   * @param {*} payload
+   * @param {number} [timeout=5000] - Milliseconds
+   * @returns {Promise<*>} Resolves with the reply, rejects on timeout
+   * @throws {Error} If no responder replies within timeout
+   */
+  async request(channel, payload, timeout = 5000) {
+    throw new Error('EventBus.request: not implemented');
+  }
+}
+
+module.exports = { EventBus };

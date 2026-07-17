@@ -1,0 +1,122 @@
+{
+  "name": "user_management",
+  "version": "1.0.0",
+  "author": "internal",
+  "dependencies": ["db", "cache", "auth", "log", "validate"],
+  "provides": [
+    "capability:user.read",
+    "capability:user.write",
+    "capability:user.delete",
+    "capability:auth.login",
+    "capability:auth.logout"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "handler": "user_management_login",
+      "auth": false
+    },
+    {
+      "path": "/api/auth/logout",
+      "method": "POST",
+      "handler": "user_management_logout",
+      "auth": true
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "handler": "user_management_getMe",
+      "auth": true
+    },
+    {
+      "path": "/api/users",
+      "method": "GET",
+      "handler": "user_management_listUsers",
+      "auth": true
+    },
+    {
+      "path": "/api/users",
+      "method": "POST",
+      "handler": "user_management_createUser",
+      "auth": true
+    },
+    {
+      "path": "/api/users/:id",
+      "method": "GET",
+      "handler": "user_management_getUser",
+      "auth": true
+    },
+    {
+      "path": "/api/users/:id",
+      "method": "PUT",
+      "handler": "user_management_updateUser",
+      "auth": true
+    },
+    {
+      "path": "/api/users/:id",
+      "method": "DELETE",
+      "handler": "user_management_deleteUser",
+      "auth": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "user_management_login",
+      "exports": "login",
+      "params": ["username", "password"],
+      "returns": "AuthToken"
+    },
+    {
+      "name": "user_management_logout",
+      "exports": "logout",
+      "params": [],
+      "returns": "Ack"
+    },
+    {
+      "name": "user_management_getMe",
+      "exports": "get_me",
+      "params": [],
+      "returns": "User"
+    },
+    {
+      "name": "user_management_listUsers",
+      "exports": "list_users",
+      "params": [],
+      "returns": "UserList"
+    },
+    {
+      "name": "user_management_createUser",
+      "exports": "create_user",
+      "params": ["username", "email", "password", "permissions"],
+      "returns": "User"
+    },
+    {
+      "name": "user_management_getUser",
+      "exports": "get_user",
+      "params": ["id"],
+      "returns": "User"
+    },
+    {
+      "name": "user_management_updateUser",
+      "exports": "update_user",
+      "params": ["id", "data"],
+      "returns": "User"
+    },
+    {
+      "name": "user_management_deleteUser",
+      "exports": "delete_user",
+      "params": ["id"],
+      "returns": "Ack"
+    }
+  ],
+  "schema": {
+    "tables": ["users"],
+    "migrations": ["migrations/001_users.sql"]
+  },
+  "events": {
+    "publishes": ["user.created", "user.updated", "user.deleted"],
+    "subscribes": []
+  }
+}

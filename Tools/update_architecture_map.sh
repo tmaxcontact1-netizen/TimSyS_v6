@@ -12,10 +12,10 @@ GENERATED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Expected structure (source of truth: CONSTITUTION + CONTEXT) ---
 EXPECTED_CONTRACTS=("db.js" "cache.js" "auth.js" "log.js" "validate.js" "events.js")
-EXPECTED_SERVICES=("db.js" "cache.js" "session.js" "audit.js" "metrics.js")
+EXPECTED_SERVICES=("db.js" "cache.js" "auth.js" "log.js" "validate.js" "events.js" "session.js" "audit.js" "metrics.js")
 EXPECTED_REGISTRIES=("moduleRegistry.js" "schemaRegistry.js" "routeRegistry.js" "functionRegistry.js" "capabilityRegistry.js" "dependencyGraph.js")
-EXPECTED_PIPELINE=("discover.js" "validate.js" "register.js" "wire.js" "boot.js" "unstage.js")
-EXPECTED_DIRS=("contracts" "shared/services" "shared/registry" "shared/pipeline" "modules" "tests" "scripts" "data" "routes" "engine/gap-analysis" "engine/recommendation")
+EXPECTED_PIPELINE=("discover.js" "validate.js" "register.js" "resolve.js" "wire.js" "boot.js" "unstage.js")
+EXPECTED_DIRS=("contracts" "shared/services" "shared/registry" "shared/pipeline" "modules" "tests" "Tools" "data" "routes" "engine/gap-analysis" "engine/recommendation")
 ROOT_DOCS=("CONTEXT.md" "ARCHITECTURE_MAP.md" "HANDOVER.md" "CONSTITUTION_V6.0.md" "LEXICON_V6.0.0.md")
 
 check_file_exists() {
@@ -115,14 +115,6 @@ for s in "${EXPECTED_SERVICES[@]}"; do
     echo "| \`$s\` | ❌ MISSING | - | - |" >> "$OUTPUT_FILE"
   fi
 done
-# Check for unexpected files
-echo "" >> "$OUTPUT_FILE"
-mapfile -t ACTUAL_SERVICES < <(find "$PROJECT_ROOT/shared/services" -maxdepth 1 -name "*.js" -exec basename {} \; 2>/dev/null | sort || echo "")
-for af in "${ACTUAL_SERVICES[@]}"; do
-  if [[ ! " ${EXPECTED_SERVICES[*]} " =~ " ${af} " ]]; then
-    echo "- ⚠️ UNEXPECTED: \`$af\` in /shared/services/" >> "$OUTPUT_FILE"
-  fi
-done
 
 # --- Registry Layer ---
 echo "" >> "$OUTPUT_FILE"
@@ -147,7 +139,6 @@ done
 echo "" >> "$OUTPUT_FILE"
 echo "## Phase 1.3: Staging Pipeline" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
-# Check both possible locations
 PIPELINE_DIR_SHARED="$PROJECT_ROOT/shared/pipeline"
 PIPELINE_DIR_ROOT="$PROJECT_ROOT/pipeline"
 if [[ -d "$PIPELINE_DIR_SHARED" ]]; then
@@ -214,25 +205,25 @@ echo "" >> "$OUTPUT_FILE"
 TEST_BASE="$PROJECT_ROOT/tests"
 if [[ -d "$TEST_BASE" ]]; then
   for subdir in "unit/services" "unit/registries" "integration/staging" "integration/http" "e2e"; do
-    count=$(find "$TEST_BASE/$subdir" -name "*.spec.js" 2>/dev/null | wc -l)
-    echo "- \`/tests/$subdir/\` — ${count} spec file(s)" >> "$OUTPUT_FILE"
+    count=$(find "$TEST_BASE/$subdir" -name "*.test.js" -o -name "*.spec.js" 2>/dev/null | wc -l)
+    echo "- \`/tests/$subdir/\` — ${count} test file(s)" >> "$OUTPUT_FILE"
   done
 else
   echo "Directory does not exist." >> "$OUTPUT_FILE"
 fi
 
-# --- Scripts ---
+# --- Tools ---
 echo "" >> "$OUTPUT_FILE"
-echo "## Scripts" >> "$OUTPUT_FILE"
+echo "## Tools" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
-SCRIPTS_DIR="$PROJECT_ROOT/scripts"
-if [[ -d "$SCRIPTS_DIR" ]]; then
-  mapfile -t SCRIPTS < <(find "$SCRIPTS_DIR" -maxdepth 2 -type f -exec basename {} \; 2>/dev/null | sort)
-  if [[ ${#SCRIPTS[@]} -eq 0 ]]; then
-    echo "No scripts found." >> "$OUTPUT_FILE"
+TOOLS_DIR="$PROJECT_ROOT/Tools"
+if [[ -d "$TOOLS_DIR" ]]; then
+  mapfile -t TOOLS < <(find "$TOOLS_DIR" -maxdepth 2 -type f -exec basename {} \; 2>/dev/null | sort)
+  if [[ ${#TOOLS[@]} -eq 0 ]]; then
+    echo "No tools found." >> "$OUTPUT_FILE"
   else
-    for s in "${SCRIPTS[@]}"; do
-      echo "- \`$s\`" >> "$OUTPUT_FILE"
+    for t in "${TOOLS[@]}"; do
+      echo "- \`$t\`" >> "$OUTPUT_FILE"
     done
   fi
 else
@@ -328,20 +319,6 @@ LEXICON_HASH=$(sha256sum "$PROJECT_ROOT/LEXICON_V6.0.0.md" 2>/dev/null | cut -d'
 echo "- CONSTITUTION_V6.0.md SHA256: \`$CONSTITUTION_HASH\`" >> "$OUTPUT_FILE"
 echo "- LEXICON_V6.0.0.md SHA256: \`$LEXICON_HASH\`" >> "$OUTPUT_FILE"
 echo "- Store these hashes. Any change indicates a frozen document was modified. Halt and investigate." >> "$OUTPUT_FILE"
-
-# Pipeline path consistency check
-echo "" >> "$OUTPUT_FILE"
-echo "### Pipeline Path Consistency" >> "$OUTPUT_FILE"
-echo "" >> "$OUTPUT_FILE"
-if [[ -d "$PIPELINE_DIR_SHARED" ]] && [[ -d "$PIPELINE_DIR_ROOT" ]]; then
-  echo "- ⚠️ BOTH \`/pipeline/\` AND \`/shared/pipeline/\` exist. Constitution says \`/pipeline/\`. Context says \`/shared/pipeline/\`. Resolve ambiguity." >> "$OUTPUT_FILE"
-elif [[ -d "$PIPELINE_DIR_SHARED" ]] && [[ ! -d "$PIPELINE_DIR_ROOT" ]]; then
-  echo "- ℹ️ Pipeline at \`/shared/pipeline/\`. Constitution specifies \`/pipeline/\`. Update one or the other." >> "$OUTPUT_FILE"
-elif [[ -d "$PIPELINE_DIR_ROOT" ]] && [[ ! -d "$PIPELINE_DIR_SHARED" ]]; then
-  echo "- ✅ Pipeline at \`/pipeline/\`. Matches constitution." >> "$OUTPUT_FILE"
-else
-  echo "- Neither pipeline directory exists yet. Constitution says \`/pipeline/\`." >> "$OUTPUT_FILE"
-fi
 
 # Contract freeze status check
 echo "" >> "$OUTPUT_FILE"

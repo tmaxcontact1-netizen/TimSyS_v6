@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-16T13:51:19Z
+Generated: 2026-07-17T00:14:40Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -17,8 +17,8 @@ Path: `/home/tmax/TimSyS_v6`
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `CONTEXT.md` | ✅ | 2458B | 2026-07-16 20:50:01 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-16 20:51:19 |
-| `HANDOVER.md` | ✅ | 0B | 2026-07-16 10:11:52 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 07:14:40 |
+| `HANDOVER.md` | ✅ | 3326B | 2026-07-17 07:08:31 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-16 20:44:30 |
 | `LEXICON_V6.0.0.md` | ✅ | 9588B | 2026-07-16 10:22:03 |
 
@@ -38,7 +38,9 @@ Path: `/home/tmax/TimSyS_v6`
 ./contracts/log.js
 ./contracts/validate.js
 ./data
-./data/.gitkeep
+./data/timsys.sqlite
+./data/timsys.sqlite-shm
+./data/timsys.sqlite-wal
 ./engine
 ./engine/gap-analysis
 ./engine/gap-analysis/.gitkeep
@@ -47,10 +49,22 @@ Path: `/home/tmax/TimSyS_v6`
 ./.git
 ./.gitignore
 ./HANDOVER.md
+./index.js
+./jest.config.js
 ./LEXICON_V6.0.0.md
 ./migrations
+./migrations/000_bootstrap.sql
+./migrations/001_initial.sql
 ./modules
 ./modules/.gitkeep
+./modules/system_health
+./modules/system_health/index.js
+./modules/system_health/module.json
+./modules/user_management
+./modules/user_management/index.js
+./modules/user_management/migrations
+./modules/user_management/migrations/001_users.sql
+./modules/user_management/module.json
 ./node_modules
 ./package.json
 ./package-lock.json
@@ -61,10 +75,12 @@ Path: `/home/tmax/TimSyS_v6`
 ./scripts
 ./scripts/.gitkeep
 ./shared
+./shared/migration-runner.js
 ./shared/pipeline
 ./shared/pipeline/boot.js
 ./shared/pipeline/discover.js
 ./shared/pipeline/register.js
+./shared/pipeline/resolve.js
 ./shared/pipeline/unstage.js
 ./shared/pipeline/validate.js
 ./shared/pipeline/wire.js
@@ -93,11 +109,19 @@ Path: `/home/tmax/TimSyS_v6`
 ./tests/integration/http/.gitkeep
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
+./tests/integration/staging/pipeline.test.js
+./tests/setup.js
 ./tests/unit
 ./tests/unit/registries
 ./tests/unit/registries/.gitkeep
+./tests/unit/registries/registries.test.js
 ./tests/unit/services
+./tests/unit/services/auth.test.js
+./tests/unit/services/cache.test.js
+./tests/unit/services/db.test.js
+./tests/unit/services/events.test.js
 ./tests/unit/services/.gitkeep
+./tests/unit/services/validate.test.js
 ./Tools
 ./Tools/update_architecture_map.sh
 ```
@@ -108,12 +132,12 @@ Location: `/contracts/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ✅ | 1602B | 2026-07-16 11:00:36 |
-| `cache.js` | ✅ | 1009B | 2026-07-16 11:00:36 |
-| `auth.js` | ✅ | 2634B | 2026-07-16 20:38:18 |
-| `log.js` | ✅ | 1592B | 2026-07-16 11:00:36 |
-| `validate.js` | ✅ | 895B | 2026-07-16 11:00:36 |
-| `events.js` | ✅ | 1142B | 2026-07-16 20:38:28 |
+| `db.js` | ✅ | 1976B | 2026-07-16 21:04:09 |
+| `cache.js` | ✅ | 1540B | 2026-07-16 21:04:27 |
+| `auth.js` | ✅ | 3905B | 2026-07-16 21:04:43 |
+| `log.js` | ✅ | 1607B | 2026-07-16 21:04:56 |
+| `validate.js` | ✅ | 1275B | 2026-07-16 21:05:07 |
+| `events.js` | ✅ | 1876B | 2026-07-16 21:05:19 |
 
 ## Phase 1.1: Persistence / Service Layer
 
@@ -121,16 +145,15 @@ Location: `/shared/services/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ✅ | 0B | 2026-07-16 20:31:32 |
-| `cache.js` | ✅ | 0B | 2026-07-16 20:31:28 |
-| `session.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `audit.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `metrics.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-
-- ⚠️ UNEXPECTED: `auth.js` in /shared/services/
-- ⚠️ UNEXPECTED: `events.js` in /shared/services/
-- ⚠️ UNEXPECTED: `log.js` in /shared/services/
-- ⚠️ UNEXPECTED: `validate.js` in /shared/services/
+| `db.js` | ✅ | 4060B | 2026-07-16 22:25:21 |
+| `cache.js` | ✅ | 3439B | 2026-07-17 06:56:18 |
+| `auth.js` | ✅ | 2996B | 2026-07-16 23:16:25 |
+| `log.js` | ✅ | 1103B | 2026-07-16 21:39:58 |
+| `validate.js` | ✅ | 1493B | 2026-07-16 21:40:14 |
+| `events.js` | ✅ | 2263B | 2026-07-16 21:40:26 |
+| `session.js` | ✅ | 2717B | 2026-07-16 21:39:15 |
+| `audit.js` | ✅ | 2248B | 2026-07-16 21:39:29 |
+| `metrics.js` | ✅ | 4338B | 2026-07-16 21:39:45 |
 
 ## Phase 1.2: Registry Layer
 
@@ -138,12 +161,12 @@ Location: `/shared/registry/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `moduleRegistry.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `schemaRegistry.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `routeRegistry.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `functionRegistry.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `capabilityRegistry.js` | ✅ | 0B | 2026-07-16 10:42:32 |
-| `dependencyGraph.js` | ✅ | 0B | 2026-07-16 10:42:32 |
+| `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 21:47:26 |
+| `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 21:43:03 |
+| `routeRegistry.js` | ✅ | 2635B | 2026-07-16 21:43:26 |
+| `functionRegistry.js` | ✅ | 2575B | 2026-07-16 21:43:47 |
+| `capabilityRegistry.js` | ✅ | 2879B | 2026-07-16 21:45:09 |
+| `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 21:45:25 |
 
 ## Phase 1.3: Staging Pipeline
 
@@ -151,63 +174,17 @@ Location: `/shared/pipeline/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `discover.js` | ✅ (shared/pipeline/discover.js) | 0B | 2026-07-16 10:42:32 |
-| `validate.js` | ✅ (shared/pipeline/validate.js) | 0B | 2026-07-16 10:42:32 |
-| `register.js` | ✅ (shared/pipeline/register.js) | 0B | 2026-07-16 10:42:32 |
-| `wire.js` | ✅ (shared/pipeline/wire.js) | 0B | 2026-07-16 10:42:32 |
-| `boot.js` | ✅ (shared/pipeline/boot.js) | 0B | 2026-07-16 10:42:32 |
-| `unstage.js` | ✅ (shared/pipeline/unstage.js) | 0B | 2026-07-16 10:42:32 |
+| `discover.js` | ✅ (shared/pipeline/discover.js) | 1225B | 2026-07-16 21:49:40 |
+| `validate.js` | ✅ (shared/pipeline/validate.js) | 4663B | 2026-07-16 21:50:33 |
+| `register.js` | ✅ (shared/pipeline/register.js) | 1991B | 2026-07-16 23:16:55 |
+| `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2332B | 2026-07-16 22:32:00 |
+| `wire.js` | ✅ (shared/pipeline/wire.js) | 2439B | 2026-07-16 21:51:33 |
+| `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |
+| `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 21:53:03 |
 
 ## Modules
 
 Location: `/modules/`
 
-No modules staged.
-
-## Phase 7: Testing Layer
-
-- `/tests/unit/services/` — 0 spec file(s)
-- `/tests/unit/registries/` — 0 spec file(s)
-- `/tests/integration/staging/` — 0 spec file(s)
-- `/tests/integration/http/` — 0 spec file(s)
-- `/tests/e2e/` — 0 spec file(s)
-
-## Scripts
-
-- `.gitkeep`
-
-## Phase 10-11: Engine Layers
-
-**`/engine/gap-analysis/`**
-- `.gitkeep`
-**`/engine/recommendation/`**
-- `.gitkeep`
-
-## Phase 5: HTTP / Routes
-
-No route files found.
-
-## Data Layer
-
-- `.gitkeep` (0B)
-
----
-
-## Drift Detection
-
-### Expected Directories
-
-- ✅ All expected directories present.
-
-### Frozen Document Integrity
-
-- CONSTITUTION_V6.0.md SHA256: `ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a`
-- LEXICON_V6.0.0.md SHA256: `65315362e4979c0ee3199a23f9e2678713b5f6e590aa98966420628e70d385ef`
-- Store these hashes. Any change indicates a frozen document was modified. Halt and investigate.
-
-### Pipeline Path Consistency
-
-- ℹ️ Pipeline at `/shared/pipeline/`. Constitution specifies `/pipeline/`. Update one or the other.
-
-### Contract Freeze Status
-
+| Module | Manifest | Index | Migrations | Handlers | Schemas |
+|--------|----------|-------|------------|----------|---------|

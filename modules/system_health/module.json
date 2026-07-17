@@ -1,0 +1,84 @@
+{
+  "name": "system_health",
+  "version": "1.0.0",
+  "author": "internal",
+  "dependencies": ["db", "cache", "log"],
+  "provides": [
+    "capability:health_check",
+    "capability:platform_info",
+    "capability:metrics_read"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/health",
+      "method": "GET",
+      "handler": "system_health_getHealthCheck",
+      "auth": false
+    },
+    {
+      "path": "/ready",
+      "method": "GET",
+      "handler": "system_health_getReadyCheck",
+      "auth": false
+    },
+    {
+      "path": "/introspect/platform",
+      "method": "GET",
+      "handler": "system_health_getPlatformInfo",
+      "auth": true
+    },
+    {
+      "path": "/introspect/modules",
+      "method": "GET",
+      "handler": "system_health_listModules",
+      "auth": true
+    },
+    {
+      "path": "/metrics",
+      "method": "GET",
+      "handler": "system_health_getMetrics",
+      "auth": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "system_health_getHealthCheck",
+      "exports": "get_health_check",
+      "params": [],
+      "returns": "HealthResponse"
+    },
+    {
+      "name": "system_health_getReadyCheck",
+      "exports": "get_ready_check",
+      "params": [],
+      "returns": "ReadyResponse"
+    },
+    {
+      "name": "system_health_getPlatformInfo",
+      "exports": "get_platform_info",
+      "params": [],
+      "returns": "PlatformInfo"
+    },
+    {
+      "name": "system_health_listModules",
+      "exports": "list_modules",
+      "params": [],
+      "returns": "ModuleList"
+    },
+    {
+      "name": "system_health_getMetrics",
+      "exports": "get_metrics",
+      "params": [],
+      "returns": "MetricsSnapshot"
+    }
+  ],
+  "schema": {
+    "tables": [],
+    "migrations": []
+  },
+  "events": {
+    "publishes": ["platform.started"],
+    "subscribes": ["platform.ready"]
+  }
+}

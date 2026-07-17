@@ -62,4 +62,6 @@ Once Phase 0 contracts are reviewed and confirmed:
 
 ---
 
+Before commit run architecture map update bash Tools/update_architecture_map.sh and then updte the handover.md document, then commit.
+
 Last updated: 2026-07-16

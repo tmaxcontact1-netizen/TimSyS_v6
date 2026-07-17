@@ -1,102 +1,142 @@
+'use strict';
+
 /**
- * TimSyS Contract: AuthService
- * Status: PENDING FREEZE
- *
- * JWT + session store with immediate revocation support.
- * Modules consume auth exclusively through Context.
+ * @typedef {Object} TokenPayload
+ * @property {string} userId
+ * @property {string[]} [permissions]
+ * @property {number} [iat] - Issued at (unix seconds)
+ * @property {number} [exp] - Expiry (unix seconds)
  */
 
-/** @interface AuthService */
-module.exports = {
+/**
+ * @typedef {Object} Session
+ * @property {string} sessionId
+ * @property {string} userId
+ * @property {Object} payload
+ * @property {number} createdAt - Unix ms
+ * @property {number} expiresAt - Unix ms
+ */
+
+/**
+ * AuthService Contract — JWT + session store + revocation.
+ *
+ * All token issuance, verification, revocation, and session lifecycle
+ * flows through this interface. Revocation is permanent and immediate.
+ *
+ * FROZEN: Do not modify after sign-off. Implementations must conform exactly.
+ */
+class AuthService {
   /**
-   * Issue a new JWT token for authenticated user.
-   * @param {Object} user - User record with id, roles, permissions
-   * @returns {{token: string, expiresIn: number}}
+   * Issue a signed JWT for a user.
+   * @param {Object} user - Must contain at minimum { id, permissions }
+   * @returns {string} Signed JWT string
    */
-  issueToken(user) {},
+  issueToken(user) {
+    throw new Error('AuthService.issueToken: not implemented');
+  }
 
   /**
-   * Verify JWT token validity against signing key + revocation list.
-   * Returns decoded payload if valid, throws if expired/revoked.
-   * @param {string} token
-   * @returns {Object} Decoded payload
-   * @throws {Error} If token invalid, expired, or revoked
+   * Verify a JWT signature and check revocation list.
+   * @param {string} token - JWT string
+   * @returns {TokenPayload} Decoded and verified payload
+   * @throws {Error} If token is invalid, expired, or revoked
    */
-  verifyToken(token) {},
+  verifyToken(token) {
+    throw new Error('AuthService.verifyToken: not implemented');
+  }
 
   /**
-   * Immediately invalidate a specific JWT token (adds to revocation list).
-   * @param {string} token
+   * Revoke a single token permanently.
+   * @param {string} token - JWT string
+   * @param {string} [reason] - Optional reason for audit
    */
-  revokeToken(token) {},
+  revokeToken(token, reason) {
+    throw new Error('AuthService.revokeToken: not implemented');
+  }
 
   /**
-   * Invalidate ALL JWT tokens for a user (security breach, termination).
+   * Revoke all tokens issued to a user.
+   * Does NOT destroy sessions — call destroyUserSessions for full logout.
    * @param {string} userId
+   * @param {string} [reason]
    */
-  revokeAllUserTokens(userId) {},
+  revokeAllUserTokens(userId, reason) {
+    throw new Error('AuthService.revokeAllUserTokens: not implemented');
+  }
 
   /**
-   * Create a new server-side session (sqlite-backed).
+   * Create a new session for a user.
    * @param {string} userId
-   * @param {Object} payload - Session metadata
-   * @returns {string} sessionId
+   * @param {Object} payload - Arbitrary session data
+   * @returns {Session}
    */
-  createSession(userId, payload) {},
+  createSession(userId, payload) {
+    throw new Error('AuthService.createSession: not implemented');
+  }
 
   /**
-   * Retrieve session data by ID.
-   * @param {string} sessId
-   * @returns {Object|null} Session record or null if expired/not found
+   * Retrieve a session by ID.
+   * @param {string} sessionId
+   * @returns {Session|null}
    */
-  getSession(sessId) {},
+  getSession(sessionId) {
+    throw new Error('AuthService.getSession: not implemented');
+  }
 
   /**
-   * Destroy a specific session (logout from one device).
-   * @param {string} sessId
+   * Destroy a single session.
+   * @param {string} sessionId
    */
-  destroySession(sessId) {},
+  destroySession(sessionId) {
+    throw new Error('AuthService.destroySession: not implemented');
+  }
 
   /**
-   * Destroy ALL sessions for a user (termination, compromise).
+   * Destroy all sessions for a user.
    * @param {string} userId
-   * @param {string} reason - Audit trail explanation
+   * @param {string} [reason]
+   * @returns {number} Count of destroyed sessions
    */
-  destroyUserSessions(userId, reason) {},
+  destroyUserSessions(userId, reason) {
+    throw new Error('AuthService.destroyUserSessions: not implemented');
+  }
 
   /**
-   * List active sessions for a user (audit / "where am I logged in").
+   * List all active (non-expired) sessions for a user.
    * @param {string} userId
-   * @returns {Array<{sessionId, createdAt, lastActivity, payload}>}
+   * @returns {Session[]}
    */
-  getActiveSessions(userId) {},
+  getActiveSessions(userId) {
+    throw new Error('AuthService.getActiveSessions: not implemented');
+  }
 
   /**
-   * Rotate session (destroy old, create new - session fixation defense).
-   * @param {string} sessId
-   * @returns {string} New sessionId
+   * Rotate a session: create a new one, transfer payload, destroy the old.
+   * @param {string} sessionId
+   * @returns {Session} New session
    */
-  rotateSession(sessId) {},
+  rotateSession(sessionId) {
+    throw new Error('AuthService.rotateSession: not implemented');
+  }
 
   /**
-   * Force logout: revoke all tokens + destroy all sessions + audit entry.
+   * Force full logout: destroy all sessions + revoke all tokens.
    * @param {string} userId
-   * @param {string} reason
+   * @param {string} [reason]
    */
-  forceLogout(userId, reason) {},
+  forceLogout(userId, reason) {
+    throw new Error('AuthService.forceLogout: not implemented');
+  }
 
   /**
-   * Check if user has required permission.
-   * @param {Object} user
-   * @param {string} perm - Permission identifier
+   * Check if a user possesses a specific permission.
+   * @param {Object} user - Must contain permissions or a way to resolve them
+   * @param {string} perm - Permission identifier (e.g., "admin:staging:write")
    * @returns {boolean}
    */
-  checkPerm(user, perm) {},
+  checkPerm(user, perm) {
+    throw new Error('AuthService.checkPerm: not implemented');
+  }
+}
 
-  /**
-   * Check if session exists and is active.
-   * @param {string} sessId
-   * @returns {boolean}
-   */
-  sessionExists(sessId) {}
-};
+module.exports = { AuthService };
