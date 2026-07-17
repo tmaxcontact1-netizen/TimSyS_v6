@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-17T08:18:12Z
+Generated: 2026-07-17T08:45:48Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 4117B | 2026-07-17 12:34:29 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 15:18:12 |
-| `HANDOVER.md` | ✅ | 10540B | 2026-07-17 12:35:01 |
+| `CONTEXT.md` | ✅ | 8999B | 2026-07-17 15:39:19 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 15:45:48 |
+| `HANDOVER.md` | ✅ | 11503B | 2026-07-17 15:45:13 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 

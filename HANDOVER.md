@@ -1,6 +1,21 @@
 # TimSyS v6 — Handover Document
 
-## Session: 2026-07-16 (Session 2)
+## Session: 2026-07-17 (Session 3)
+
+### Summary
+Test suite confirmed green: 72/72 passing across 7 suites. All previous discrepancies between documentation resolved. CONTEXT.md updated to reflect actual state. Phase 1.1 marked COMPLETE (was incorrectly listed as IN PROGRESS in prior session docs). Wire.js event subscription edge case resolved — pipeline tests passing.
+
+### Action Taken
+- Ran `npx jest --verbose` — confirmed 72/72, 7/7 suites
+- Reconciled CONTEXT.md with actual test results
+- Removed stale "In Progress" and "Blocked" sections from CONTEXT.md
+- Corrected HANDOVER test counts (prior session erroneously recorded 99/99)
+- Updated "Next Steps" to reflect actual project position
+
+### Test Results
+- 7 suites passed, 7 total
+- 72 tests passed, 72 total
+- Time: ~3.6s
 
 ---
 
@@ -23,6 +38,7 @@ A modular Node.js school administration platform with a plugin/module architectu
 9 files in `/shared/services/`:
 - **Injected into Context:** `db.js` (ConnectionPool, WAL), `cache.js` (LRU + TTL + glob invalidation), `auth.js` (JWT, token revocation via sha256 hash + wildcard, sessions, checkPerm with wildcards), `log.js` (structured JSON to stdout), `validate.js` (Zod safeParse + recursive sanitization), `events.js` (pub/sub with error isolation + request/reply)
 - **Internal infrastructure:** `session.js` (SQLite-backed, auto-cleanup timer), `audit.js` (append-only, queryable, retention purge), `metrics.js` (counters/histograms/gauges, Prometheus export, periodic DB flush)
+- **Additional:** `email.js` (nodemailer)
 
 ### Phase 1.2: Registries (COMPLETE)
 6 files in `/shared/registry/`:
@@ -46,6 +62,7 @@ A modular Node.js school administration platform with a plugin/module architectu
 - `/migrations/000_bootstrap.sql` — creates `schema_migrations` table only
 - `/migrations/001_initial.sql` — creates 9 platform tables (sessions, audit_log, metrics, token_revocation, module_registry, schema_registry, route_registry, function_registry, capability_registry)
 - `/modules/user_management/migrations/001_users.sql` — creates `users` table
+- `/modules/user_management/migrations/002_password_resets.sql`
 - Migration runner scans both `/migrations/` and `/modules/*/migrations/`
 - Runner owns `schema_migrations` INSERT exclusively — SQL files must NEVER insert into it
 - 11 total tables in database
@@ -55,7 +72,7 @@ A modular Node.js school administration platform with a plugin/module architectu
 - `contextRegistry` object stores wired module Contexts so HTTP handlers receive `events`, `db`, `cache`, etc.
 
 ### Phase 5: Middleware Stack (COMPLETE)
-Full rewrite of `/index.js` with:
+Full middleware stack in `/index.js`:
 - **CORS** — configurable via `CORS_ORIGINS` env var (default `*`), preflight handling
 - **Cookie parsing** — basic, populates `req.cookies`
 - **CSRF** — state-changing requests (POST/PUT/PATCH/DELETE) require Bearer token OR `X-Requested-With: XMLHttpRequest` header
@@ -64,17 +81,18 @@ Full rewrite of `/index.js` with:
 - **Request logging** — method, path, userId
 - **Body parsing** — JSON, 1MB limit
 
-### Phase 7: Testing (COMPLETE — 99/99 PASSING)
-7 test files:
-- `tests/unit/services/cache.test.js` — 12 tests
-- `tests/unit/services/db.test.js` — 12 tests
-- `tests/unit/services/events.test.js` — 7 tests
-- `tests/unit/services/validate.test.js` — 9 tests
-- `tests/unit/services/auth.test.js` — 16 tests
-- `tests/unit/registries/registries.test.js` — 31 tests (all 6 registries)
-- `tests/integration/staging/pipeline.test.js` — 12 tests (full lifecycle)
+### Phase 7: Testing (COMPLETE — 72/72 PASSING)
+7 test files, all passing:
+- `tests/unit/services/cache.test.js`
+- `tests/unit/services/db.test.js`
+- `tests/unit/services/events.test.js`
+- `tests/unit/services/validate.test.js`
+- `tests/unit/services/auth.test.js`
+- `tests/unit/registries/registries.test.js`
+- `tests/integration/staging/pipeline.test.js`
 - Config: `jest.config.js`, `tests/setup.js` (sets `NODE_ENV=test`, `DB_PATH=./data/test.sqlite`, `JWT_SECRET`)
 - Note: test files use `.test.js` extension, NOT `.spec.js`
+- HTTP integration tests exist (`tests/integration/http/auth.test.js`) but are excluded from default Jest run
 
 ### Modules (COMPLETE — 2 modules)
 **system_health** (`/modules/system_health/`):
@@ -120,15 +138,21 @@ Full rewrite of `/index.js` with:
 - Classes/sections (student enrollment, scheduling)
 
 ### Phase 8: Introspection Expansion
-- More `/introspect/*` endpoints for self-knowledge
+- 6 remaining endpoints: `/introspect/capabilities`, `/introspect/functions`, `/introspect/routes`, `/introspect/dependencies`, `/introspect/gaps`, `/introspect/templates`
 - Gap analysis engine (`/engine/gap-analysis/`)
 - Recommendation engine (`/engine/recommendation/`)
 - Both directories exist with `.gitkeep` only
 
-### Phase 9: E2E Tests
+### Phase 9: E2E & HTTP Integration Tests
 - `tests/e2e/` — empty (`.gitkeep` only)
-- `tests/integration/http/` — empty (`.gitkeep` only)
-- Need HTTP-level tests with running server (supertest or raw http)
+- `tests/integration/http/auth.test.js` exists but excluded from default run
+- Need HTTP-level tests with running server covering all 11 endpoints
+- Need E2E boot sequence test
+- Need security tests (auth rejection, CSRF enforcement, rate limit triggering, permission denied paths)
+
+### Phase 12: Module Builder Interface
+- CLI commands and UI pages per Constitution spec
+- Not started
 
 ### Security Hardening
 - Default admin password (`changeme123`) must be changed for production
@@ -166,44 +190,48 @@ bash Tools/update_architecture_map.sh
 
 # Fresh database
 rm -rf data/ && mkdir -p data && chmod 755 data
----
 
-## Session: 2026-07-17 (Session 2)
+Session History
+Session: 2026-07-16 (Session 1)
 
-### Summary
-Fixed test suite from 44 failures to 3 failures (69/72 passing). Root causes were: migration runner transaction handling, function naming convention mismatch, db.js transaction callback binding, pipeline wire.js referencing undefined variable.
+    Initial repository setup at /home/tmax/TimSyS_v6/
+    Git tag v6.0.0-base created
+    All root documents created: CONTEXT.md, ARCHITECTURE_MAP.md, HANDOVER.md, CONSTITUTION_V6.0.md, LEXICON_V6.0.0.md
+    npm packages installed
+    Contract stubs (6), service stubs (9), registry stubs (6), pipeline stubs (6) created
+    Constitution and Lexicon drafted and frozen
 
-### Files Modified
-- `/shared/services/db.js` — Rewritten: single connection, lazy init, manual transaction, poolAcquire/poolRelease stubs
-- `/shared/migration-runner.js` — Rewritten: manual BEGIN/COMMIT/ROLLBACK via conn.exec(), proper error surfacing
-- `/shared/pipeline/validate.js` — Fixed: uses func.exports for export lookup, func.name for naming convention check
-- `/shared/pipeline/register.js` — Fixed: functions registered by func.name, implementation looked up via func.exports
-- `/shared/pipeline/wire.js` — Fixed: uses registered.exports for event handler lookup
-- `/modules/system_health/module.json` — Fixed: name field follows {module}_{operation}, added exports field
-- `/modules/user_management/module.json` — Fixed: name field follows {module}_{operation}, added exports field
-- `/tests/unit/services/db.test.js` — Fixed: proper table creation, beforeEach cleanup
-- `/tests/unit/services/cache.test.js` — Per-suite DB_PATH isolation
-- `/tests/unit/services/auth.test.js` — Per-suite DB_PATH isolation
-- `/tests/unit/registries/registries.test.js` — Per-suite DB_PATH isolation, schemaRegistry.clear() added
-- `/tests/integration/staging/pipeline.test.js` — Per-suite DB_PATH isolation, schemaRegistry.clear() added
+Session: 2026-07-17 (Session 2)
 
-### Test Results
-- 6 passed, 1 failed (7 total suites)
-- 69 passed, 3 failed (72 total tests)
-- Remaining failures: staging pipeline wire/unstage/full-pipeline — event subscription edge case in wire.js
+    Fixed test suite from 44 failures to 3 failures (69/72 passing)
+    Root causes: migration runner transaction handling, function naming convention mismatch, db.js transaction callback binding, pipeline wire.js referencing undefined variable
+    Files modified: db.js, migration-runner.js, validate.js, register.js, wire.js, module.json files, all test files
+    Per-suite DB isolation implemented
+    Quick-win features added: JWT_SECRET enforcement, password change endpoint, introspect/registries, email service, HTTP integration tests
+    DB service rewritten: single connection, manual transaction control
+    Migration runner rewritten: manual BEGIN/COMMIT/ROLLBACK
+    Constitution updated (function declaration convention added)
+    Lexicon updated (4 new terms added)
 
-### Known Issues
-1. `wire.js` event subscription handler closure may capture loop variables incorrectly — needs review
-2. `--detectOpenHandles` warning from Jest — likely better-sqlite3 connection not closing in afterAll
+Session: 2026-07-17 (Session 3)
 
-### Next Steps
-1. Fix remaining 3 staging pipeline test failures
-2. Close database connections in test afterAll hooks
-3. Regenerate architecture map and commit
+    Confirmed test suite green: 72/72 passing, 7/7 suites
+    Reconciled all documentation to reflect actual state
+    Corrected erroneous test count (99/99 → 72/72)
+    Marked Phase 1.1 as COMPLETE in CONTEXT.md
+    Cleared stale "In Progress" and "Blocked" sections
+    Updated next steps to reflect actual project position
 
-### Frozen Document Hashes
-- CONSTITUTION_V6.0.md: Updated (function declaration convention added)
-- LEXICON_V6.0.0.md: Updated (4 new terms added)
-- Run: `sha256sum CONSTITUTION_V6.0.md LEXICON_V6.0.0.md` for new baseline
-ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a  CONSTITUTION_V6.0.md
-72280c5fb7d90fa8245139f35b9340016e0fe0d072bf799bd2ea85360e167b45  LEXICON_V6.0.0.md
+Frozen Document Hashes
+
+    CONSTITUTION_V6.0.md: ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a
+    LEXICON_V6.0.0.md: 72280c5fb7d90fa8245139f35b9340016e0fe0d072bf799bd2ea85360e167b45
+    Run: sha256sum CONSTITUTION_V6.0.md LEXICON_V6.0.0.md to verify
+
+## Commit Protocol
+
+1. Reconcile all root docs (CONTEXT.md, HANDOVER.md) to reflect actual state
+2. Regenerate architecture map via `bash Tools/update_architecture_map.sh`
+3. Verify frozen documents haven't changed (hash comparison)
+4. Commit with message format: `{phase_title} — {short_description}`
+5. Create git tag if milestone reached (e.g., `v6.1.0-phase1-complete`)
