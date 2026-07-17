@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-17T00:14:40Z
+Generated: 2026-07-17T05:29:46Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 2458B | 2026-07-16 20:50:01 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 07:14:40 |
-| `HANDOVER.md` | ✅ | 3326B | 2026-07-17 07:08:31 |
+| `CONTEXT.md` | ✅ | 2593B | 2026-07-17 07:17:14 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 12:29:46 |
+| `HANDOVER.md` | ✅ | 7996B | 2026-07-17 07:19:44 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-16 20:44:30 |
 | `LEXICON_V6.0.0.md` | ✅ | 9588B | 2026-07-16 10:22:03 |
 
@@ -38,9 +38,6 @@ Path: `/home/tmax/TimSyS_v6`
 ./contracts/log.js
 ./contracts/validate.js
 ./data
-./data/timsys.sqlite
-./data/timsys.sqlite-shm
-./data/timsys.sqlite-wal
 ./engine
 ./engine/gap-analysis
 ./engine/gap-analysis/.gitkeep
@@ -64,6 +61,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./modules/user_management/index.js
 ./modules/user_management/migrations
 ./modules/user_management/migrations/001_users.sql
+./modules/user_management/migrations/002_password_resets.sql
 ./modules/user_management/module.json
 ./node_modules
 ./package.json
@@ -96,16 +94,19 @@ Path: `/home/tmax/TimSyS_v6`
 ./shared/services/auth.js
 ./shared/services/cache.js
 ./shared/services/db.js
+./shared/services/email.js
 ./shared/services/events.js
 ./shared/services/log.js
 ./shared/services/metrics.js
 ./shared/services/session.js
 ./shared/services/validate.js
+./test-results.txt
 ./tests
 ./tests/e2e
 ./tests/e2e/.gitkeep
 ./tests/integration
 ./tests/integration/http
+./tests/integration/http/auth.test.js
 ./tests/integration/http/.gitkeep
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
@@ -145,7 +146,7 @@ Location: `/shared/services/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ✅ | 4060B | 2026-07-16 22:25:21 |
+| `db.js` | ✅ | 1738B | 2026-07-17 12:18:19 |
 | `cache.js` | ✅ | 3439B | 2026-07-17 06:56:18 |
 | `auth.js` | ✅ | 2996B | 2026-07-16 23:16:25 |
 | `log.js` | ✅ | 1103B | 2026-07-16 21:39:58 |
@@ -175,10 +176,10 @@ Location: `/shared/pipeline/`
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `discover.js` | ✅ (shared/pipeline/discover.js) | 1225B | 2026-07-16 21:49:40 |
-| `validate.js` | ✅ (shared/pipeline/validate.js) | 4663B | 2026-07-16 21:50:33 |
-| `register.js` | ✅ (shared/pipeline/register.js) | 1991B | 2026-07-16 23:16:55 |
+| `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 12:19:29 |
+| `register.js` | ✅ (shared/pipeline/register.js) | 2848B | 2026-07-17 12:25:26 |
 | `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2332B | 2026-07-16 22:32:00 |
-| `wire.js` | ✅ (shared/pipeline/wire.js) | 2439B | 2026-07-16 21:51:33 |
+| `wire.js` | ✅ (shared/pipeline/wire.js) | 2039B | 2026-07-17 12:28:40 |
 | `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |
 | `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 21:53:03 |
 
