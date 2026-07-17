@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-17T08:45:48Z
+Generated: 2026-07-17T15:07:10Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 8999B | 2026-07-17 15:39:19 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 15:45:48 |
-| `HANDOVER.md` | ✅ | 11503B | 2026-07-17 15:45:13 |
+| `CONTEXT.md` | ✅ | 5647B | 2026-07-17 22:06:15 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 22:07:10 |
+| `HANDOVER.md` | ✅ | 12588B | 2026-07-17 22:06:40 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -38,6 +38,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./contracts/log.js
 ./contracts/validate.js
 ./data
+./DECISIONS.md
 ./engine
 ./engine/gap-analysis
 ./engine/gap-analysis/.gitkeep
@@ -103,11 +104,11 @@ Path: `/home/tmax/TimSyS_v6`
 ./test-results.txt
 ./tests
 ./tests/e2e
+./tests/e2e/boot.test.js
 ./tests/e2e/.gitkeep
 ./tests/integration
 ./tests/integration/http
 ./tests/integration/http/auth.test.js
-./tests/integration/http/.gitkeep
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
 ./tests/integration/staging/pipeline.test.js
@@ -146,9 +147,9 @@ Location: `/shared/services/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ✅ | 1738B | 2026-07-17 12:18:19 |
+| `db.js` | ✅ | 1840B | 2026-07-17 16:23:17 |
 | `cache.js` | ✅ | 3439B | 2026-07-17 06:56:18 |
-| `auth.js` | ✅ | 2996B | 2026-07-16 23:16:25 |
+| `auth.js` | ✅ | 3035B | 2026-07-17 21:57:36 |
 | `log.js` | ✅ | 1103B | 2026-07-16 21:39:58 |
 | `validate.js` | ✅ | 1493B | 2026-07-16 21:40:14 |
 | `events.js` | ✅ | 2263B | 2026-07-16 21:40:26 |
@@ -179,7 +180,7 @@ Location: `/shared/pipeline/`
 | `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 12:19:29 |
 | `register.js` | ✅ (shared/pipeline/register.js) | 2848B | 2026-07-17 12:25:26 |
 | `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2332B | 2026-07-16 22:32:00 |
-| `wire.js` | ✅ (shared/pipeline/wire.js) | 1971B | 2026-07-17 15:17:07 |
+| `wire.js` | ✅ (shared/pipeline/wire.js) | 1994B | 2026-07-17 16:34:34 |
 | `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |
 | `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 21:53:03 |
 

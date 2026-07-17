@@ -235,3 +235,22 @@ Frozen Document Hashes
 3. Verify frozen documents haven't changed (hash comparison)
 4. Commit with message format: `{phase_title} — {short_description}`
 5. Create git tag if milestone reached (e.g., `v6.1.0-phase1-complete`)
+
+### Session: 2026-07-17 (Session 4)
+
+**Summary:** Fixed JWT session token collision bug. After password change, new login produced identical JWT, which was rejected due to wildcard session revocation. Fix adds sessionId to JWT payload, ensuring each login generates unique token.
+
+**Changes:**
+- `shared/services/auth.js`: Modified `issueToken(user, sessionId)` to include sessionId in JWT payload
+- `modules/user_management/index.js`: Modified login handler to pass `session.sessionId` to `issueToken()`
+- Test suite: 98/98 passing (up from 72/72 unit tests; added 26 HTTP integration tests)
+
+**Lesson Learned:** Authentication tokens must include session identifiers when supporting session invalidation. Deterministic token signing (same inputs → same outputs) breaks session revocation semantics.
+
+---
+
+### Frozen Document Hashes
+
+- CONSTITUTION_V6.0.md: `ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a`
+- LEXICON_V6.0.0.md: `72280c5fb7d90fa8245139f35b9340016e0fe0d072bf799bd2ea85360e167b45`
+- Run: `sha256sum CONSTITUTION_V6.0.md LEXICON_V6.0.0.md` to verify

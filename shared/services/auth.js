@@ -23,10 +23,11 @@ class AuthServiceImpl extends AuthService {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
-  issueToken(user) {
+  issueToken(user, sessionId) {
     var payload = {
       userId: user.id,
       permissions: user.permissions || [],
+      sessionId: sessionId,
     };
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
   }

@@ -48,8 +48,8 @@ async function login(req, ctx) {
   }
 
   var permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
-  var token = ctx.auth.issueToken({ id: user.id, permissions: permissions });
   var session = ctx.auth.createSession(user.id, { username: user.username, permissions: permissions });
+  var token = ctx.auth.issueToken({ id: user.id, permissions: permissions }, session.sessionId);
 
   ctx.log.audit('user.login', user.id, { entityType: 'user', entityId: user.id });
 

@@ -62,6 +62,7 @@ function wireModule(registered) {
     dir: registered.dir,
     manifest: manifest,
     exports: modExports,
+    index: modExports,
     ctx: ctx,
     wired: true,
   };

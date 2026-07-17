@@ -55,16 +55,16 @@ async function bootPlatform() {
 
   log.info('Services initialized');
 
+    await runMigrations();
+  verifyTables();
+  log.info('Migrations complete');
+
   db.query('DELETE FROM module_registry');
   db.query('DELETE FROM route_registry');
   db.query('DELETE FROM function_registry');
   db.query('DELETE FROM capability_registry');
   db.query('DELETE FROM schema_registry');
   log.info('Registries cleared');
-
-  await runMigrations();
-  verifyTables();
-  log.info('Migrations complete');
 
   var discovered = discover();
   log.info('Discovered ' + discovered.length + ' module(s)', { modules: discovered.map(function(d) { return d.name; }) });

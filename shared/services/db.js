@@ -77,4 +77,11 @@ DBServiceImpl.prototype.poolRelease = function(conn) {
 
 var service = new DBServiceImpl();
 
+DBServiceImpl.prototype.close = function() {
+  if (conn) {
+    conn.close();
+    conn = null;
+  }
+};
+
 module.exports = service;
