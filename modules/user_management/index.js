@@ -48,8 +48,9 @@ async function login(req, ctx) {
   }
 
   var permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+  var mustChangePassword = user.must_change_password === 1;
   var session = ctx.auth.createSession(user.id, { username: user.username, permissions: permissions });
-  var token = ctx.auth.issueToken({ id: user.id, permissions: permissions }, session.sessionId);
+  var token = ctx.auth.issueToken({ id: user.id, permissions: permissions, mustChangePassword: mustChangePassword }, session.sessionId);
 
   ctx.log.audit('user.login', user.id, { entityType: 'user', entityId: user.id });
 
@@ -57,6 +58,7 @@ async function login(req, ctx) {
     success: true,
     token: token,
     sessionId: session.sessionId,
+    mustChangePassword: mustChangePassword,
     user: {
       id: user.id,
       username: user.username,
@@ -149,7 +151,7 @@ async function resetPassword(req, ctx) {
   var resetRow = resetRecord.rows[0];
   var hashedPassword = bcrypt.hashSync(newPassword, 10);
 
-  ctx.db.query('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [hashedPassword, now, resetRow.user_id]);
+  ctx.db.query('UPDATE users SET password_hash = ?, updated_at = ?, must_change_password = 0 WHERE id = ?', [hashedPassword, now, resetRow.user_id]);
   ctx.db.query('UPDATE password_resets SET used_at = ? WHERE id = ?', [now, resetRow.id]);
   ctx.auth.forceLogout(resetRow.user_id, 'password_reset');
 
@@ -200,8 +202,8 @@ async function createUser(req, ctx) {
   var now = Date.now();
 
   ctx.db.query(
-    'INSERT INTO users (id, username, email, password_hash, permissions, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [userId, username, emailAddr, hashedPassword, JSON.stringify(permissions), now, now]
+    'INSERT INTO users (id, username, email, password_hash, permissions, created_at, updated_at, must_change_password) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [userId, username, emailAddr, hashedPassword, JSON.stringify(permissions), now, now, 1]
   );
 
   ctx.log.audit('user.create', req.user.id, { entityType: 'user', entityId: userId, newValue: { username: username, email: emailAddr, permissions: permissions } });
@@ -325,12 +327,16 @@ async function changePassword(req, ctx) {
   }
 
   var hashedPassword = bcrypt.hashSync(newPassword, 10);
-  ctx.db.query('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?', [hashedPassword, Date.now(), userId]);
+  ctx.db.query('UPDATE users SET password_hash = ?, updated_at = ?, must_change_password = 0 WHERE id = ?', [hashedPassword, Date.now(), userId]);
 
   ctx.log.audit('user.password_changed', currentUserId, { entityType: 'user', entityId: userId });
   ctx.events.publish('user.password_changed', { userId: userId });
 
-  ctx.auth.forceLogout(userId, 'password_changed_force_logout');
+  ctx.auth.destroyUserSessions(userId, 'password_changed_force_logout');
+  var authHeader = req.headers.authorization;
+  if (authHeader) {
+    ctx.auth.revokeToken(authHeader.replace('Bearer ', ''), 'password_changed_force_logout');
+  }
 
   return { success: true, message: 'Password changed successfully. All active sessions have been terminated.' };
 }

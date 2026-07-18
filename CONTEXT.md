@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Current Phase:** Phase 1.1 — COMPLETE. All infrastructure layers shipped. Test suite: 98/98 passing.
+**Current Phase:** Phase 1.1 — COMPLETE. All infrastructure layers shipped. Test suite: 110/110 passing.
 
 Platform boots successfully. All services, registries, pipeline, migrations, boot sequence, middleware, and testing infrastructure complete. 2 application modules deployed. JWT session token collision bug fixed.
 
@@ -18,18 +18,22 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - 6 pipeline stub files present in `/shared/pipeline/`
 - Core services implemented: `db.js`, `cache.js`, `auth.js`, `validate.js`, `log.js`, `events.js`, `email.js`, `session.js`, `audit.js`, `metrics.js`
 - Migration runner implemented (`/shared/migration-runner.js`)
-- 4 migrations: `000_bootstrap.sql`, `001_initial.sql`, `001_users.sql`, `002_password_resets.sql`
+- 5 migrations: `000_bootstrap.sql`, `001_initial.sql`, `001_users.sql`, `002_password_resets.sql`, `003_must_change_password.sql`
 - 2 modules with full implementations: `system_health`, `user_management`
 - Module manifests follow `{module}_{operation}` naming convention with `exports` field
 - Staging pipeline: discover → validate → register → resolve → wire → boot → unstage
 - 7 unit test suites with per-suite database isolation
-- HTTP integration tests (9 suites, 98 total tests, all passing)
+- HTTP integration tests (10 total suites, 110 total tests, all passing)
+- Password change prompt test suite (12 tests covering full flow)
 - JWT_SECRET enforcement at boot
 - Password change, forgot/reset password flows
 - Email service via nodemailer
 - CSRF protection via X-Requested-With header check
 - Rate limiting with in-memory sliding window
 - **JWT session token fix: sessionId included in JWT payload to prevent token collision after password change**
+- **Password change prompt: new users must change password on first login**
+- **Password change middleware: `shared/middleware/passwordChangeRequired.js`**
+- **Targeted token revocation on password change (not wildcard)**
 
 ## In Progress
 
@@ -41,11 +45,7 @@ Nothing.
 
 ## Next Commit
 
-1. Regenerate architecture map via `bash Tools/update_architecture_map.sh`
-2. Verify frozen documents unchanged (hash comparison)
-3. Update CONTEXT.md, HANDOVER.md, DECISIONS.md
-4. Commit with message: `Fix: Include sessionId in JWT payload to prevent token collision after password change`
-5. Tag milestone: `v6.1.0-jwt-session-fix`
+Nothing queued.
 
 ## Recent Changes
 
@@ -63,6 +63,7 @@ Nothing.
 | 2026-07-17 | Wire.js fix | Uses registered.exports for event handler lookup |
 | 2026-07-17 | Module manifests | name field follows {module}_{operation}, exports field maps to actual export key |
 | 2026-07-17 | JWT session fix | Added sessionId to JWT payload to prevent token collision after password change |
+| 2026-07-18 | Password change prompt | New users must change password on first login; middleware blocks protected routes; targeted token revocation on password change |
 
 ## Lessons Learned
 
@@ -77,6 +78,12 @@ Nothing.
 **Cause:** Shared process state across Jest suites (auth service singleton, JWT_SECRET caching).
 **Solution:** Run test suites separately or reset module cache between suites with `jest.resetModules()`.
 **Prevention:** Design tests to be independent and avoid relying on mutable global state.
+
+### Wildcard Token Revocation
+**Problem:** `forceLogout()` inserts wildcard `*` in `token_revocation` table, permanently blocking ALL future tokens for a user.
+**Root Cause:** Wildcard revocation has no expiry — it matches any token for that user regardless of when it was issued.
+**Solution:** Use `destroyUserSessions()` + `revokeToken()` for password changes. Reserve `forceLogout()` for permanent lockout only.
+**Prevention:** Understand the blast radius of wildcard operations before using them.
 
 ### Documentation Drift
 **Problem:** CONTEXT.md, HANDOVER.md, and inline comments disagreed on test counts and phase status.

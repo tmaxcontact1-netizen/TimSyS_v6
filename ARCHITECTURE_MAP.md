@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-17T15:07:10Z
+Generated: 2026-07-18T06:01:56Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -17,7 +17,7 @@ Path: `/home/tmax/TimSyS_v6`
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `CONTEXT.md` | ✅ | 5647B | 2026-07-17 22:06:15 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-17 22:07:10 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-18 13:01:56 |
 | `HANDOVER.md` | ✅ | 12588B | 2026-07-17 22:06:40 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
@@ -38,6 +38,9 @@ Path: `/home/tmax/TimSyS_v6`
 ./contracts/log.js
 ./contracts/validate.js
 ./data
+./data/timsys.sqlite
+./data/timsys.sqlite-shm
+./data/timsys.sqlite-wal
 ./DECISIONS.md
 ./engine
 ./engine/gap-analysis
@@ -63,6 +66,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./modules/user_management/migrations
 ./modules/user_management/migrations/001_users.sql
 ./modules/user_management/migrations/002_password_resets.sql
+./modules/user_management/migrations/003_must_change_password.sql
 ./modules/user_management/module.json
 ./node_modules
 ./package.json
@@ -74,6 +78,8 @@ Path: `/home/tmax/TimSyS_v6`
 ./scripts
 ./scripts/.gitkeep
 ./shared
+./shared/middleware
+./shared/middleware/passwordChangeRequired.js
 ./shared/migration-runner.js
 ./shared/pipeline
 ./shared/pipeline/boot.js
@@ -109,6 +115,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./tests/integration
 ./tests/integration/http
 ./tests/integration/http/auth.test.js
+./tests/integration/http/password-prompt.test.js
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
 ./tests/integration/staging/pipeline.test.js
@@ -149,7 +156,7 @@ Location: `/shared/services/`
 |------|--------|------|---------------|
 | `db.js` | ✅ | 1840B | 2026-07-17 16:23:17 |
 | `cache.js` | ✅ | 3439B | 2026-07-17 06:56:18 |
-| `auth.js` | ✅ | 3035B | 2026-07-17 21:57:36 |
+| `auth.js` | ✅ | 3095B | 2026-07-18 12:39:45 |
 | `log.js` | ✅ | 1103B | 2026-07-16 21:39:58 |
 | `validate.js` | ✅ | 1493B | 2026-07-16 21:40:14 |
 | `events.js` | ✅ | 2263B | 2026-07-16 21:40:26 |

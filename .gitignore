@@ -2,3 +2,6 @@ node_modules/
 .env
 *.sqlite
 .vscode/
+data/*.sqlite
+data/*.sqlite-shm
+data/*.sqlite-wal

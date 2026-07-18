@@ -65,3 +65,32 @@
 **Status:** IMPLEMENTED
 
 **Lesson Learned:** Some bugs only manifest under specific test ordering (cross-suite contamination). Integration tests must be idempotent and handle state left by previous suites.
+
+# Architectural Decisions
+
+## Session 2026-07-18
+
+### Password Change Prompt for New Users
+
+**Decision:** New users created via `createUser` have `must_change_password = 1`. Login detects this flag, includes it in JWT payload and API response. Middleware (`passwordChangeRequired.js`) blocks protected routes until password is changed.
+
+**Whitelisted routes while pending:**
+- `GET /api/auth/me`
+- `POST /api/auth/logout`
+- `POST /api/users/:id/change-password`
+
+**Status:** IMPLEMENTED
+
+### Wildcard Revocation vs Targeted Revocation in Password Change
+
+**Decision:** Use `destroyUserSessions()` + `revokeToken()` (specific token hash) instead of `forceLogout()` (wildcard `*` revocation) for password changes.
+
+**Rationale:** `forceLogout()` inserts a wildcard `*` record in `token_revocation` for the user. This permanently blocks ALL future tokens for that user, not just existing ones. New tokens issued after the password change are immediately rejected because the wildcard match has no expiry.
+
+**Failed Attempt:** Tried comparing JWT `iat` against `revoked_at` timestamp. Failed because JWT `iat` is in seconds — password change and new login occurred in the same second, making the comparison unreliable.
+
+**Solution:** Don't use wildcard revocation for password changes. Destroy sessions and revoke the specific current token. New sessions/tokens are unaffected.
+
+**Rule:** `forceLogout()` should only be used for permanent lockout scenarios (account deletion, security incident). Password changes require targeted revocation only.
+
+**Status:** IMPLEMENTED

@@ -31,6 +31,6 @@
     { "name": "user_management_deleteUser", "exports": "deleteUser", "params": [], "returns": "any" },
     { "name": "user_management_changePassword", "exports": "changePassword", "params": [], "returns": "any" }
   ],
-  "schema": { "tables": ["users", "password_resets"], "migrations": ["001_users.sql", "002_password_resets.sql"] },
+  "schema": { "tables": ["users", "password_resets"], "migrations": ["001_users.sql", "002_password_resets.sql", "003_must_change_password.sql"] },
   "events": { "publishes": ["user.created", "user.updated", "user.deleted", "user.password_changed"], "subscribes": [] }
 }
