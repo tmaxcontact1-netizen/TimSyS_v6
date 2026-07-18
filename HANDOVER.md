@@ -58,11 +58,12 @@ A modular Node.js school administration platform with a plugin/module architectu
 - `unstage.js` graceful deregistration in reverse
 
 ### Phase 2: Migrations (COMPLETE)
-3 SQL files:
+5 SQL files:
 - `/migrations/000_bootstrap.sql` — creates `schema_migrations` table only
 - `/migrations/001_initial.sql` — creates 9 platform tables (sessions, audit_log, metrics, token_revocation, module_registry, schema_registry, route_registry, function_registry, capability_registry)
 - `/modules/user_management/migrations/001_users.sql` — creates `users` table
 - `/modules/user_management/migrations/002_password_resets.sql`
+- `/modules/user_management/migrations/003_must_change_password.sql` — adds `must_change_password` column to users table
 - Migration runner scans both `/migrations/` and `/modules/*/migrations/`
 - Runner owns `schema_migrations` INSERT exclusively — SQL files must NEVER insert into it
 - 11 total tables in database
@@ -76,13 +77,14 @@ Full middleware stack in `/index.js`:
 - **CORS** — configurable via `CORS_ORIGINS` env var (default `*`), preflight handling
 - **Cookie parsing** — basic, populates `req.cookies`
 - **CSRF** — state-changing requests (POST/PUT/PATCH/DELETE) require Bearer token OR `X-Requested-With: XMLHttpRequest` header
-- **Authentication** — JWT Bearer token, populates `req.user` with `{ id, permissions }`
+- **Authentication** — JWT Bearer token, populates `req.user` with `{ id, permissions, mustChangePassword }`
 - **Rate limiting** — sliding window, default 100/min, admin tier 500/min (detected via `admin:*` permission), `X-RateLimit-*` headers
+- **Password change required** — blocks protected routes when `mustChangePassword` is true; whitelists `/api/auth/me`, `/api/auth/logout`, `/api/users/:id/change-password`
 - **Request logging** — method, path, userId
 - **Body parsing** — JSON, 1MB limit
 
-### Phase 7: Testing (COMPLETE — 72/72 PASSING)
-7 test files, all passing:
+### Phase 7: Testing (COMPLETE — 110/110 PASSING)
+10 test files, all passing:
 - `tests/unit/services/cache.test.js`
 - `tests/unit/services/db.test.js`
 - `tests/unit/services/events.test.js`
@@ -90,9 +92,11 @@ Full middleware stack in `/index.js`:
 - `tests/unit/services/auth.test.js`
 - `tests/unit/registries/registries.test.js`
 - `tests/integration/staging/pipeline.test.js`
+- `tests/integration/http/auth.test.js`
+- `tests/integration/http/password-prompt.test.js`
+- `tests/e2e/boot.test.js`
 - Config: `jest.config.js`, `tests/setup.js` (sets `NODE_ENV=test`, `DB_PATH=./data/test.sqlite`, `JWT_SECRET`)
 - Note: test files use `.test.js` extension, NOT `.spec.js`
-- HTTP integration tests exist (`tests/integration/http/auth.test.js`) but are excluded from default Jest run
 
 ### Modules (COMPLETE — 2 modules)
 **system_health** (`/modules/system_health/`):
@@ -100,7 +104,7 @@ Full middleware stack in `/index.js`:
 - Subscribes to `platform.ready` event
 
 **user_management** (`/modules/user_management/`):
-- 8 routes: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `GET /api/users`, `POST /api/users`, `GET /api/users/:id`, `PUT /api/users/:id`, `DELETE /api/users/:id`
+- 11 routes: `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`, `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`, `GET /api/users`, `POST /api/users`, `GET /api/users/:id`, `PUT /api/users/:id`, `DELETE /api/users/:id`, `POST /api/users/:id/change-password`
 - Seeds default admin on first boot (username: `admin`, password: `changeme123`)
 - Uses bcryptjs for password hashing
 - Publishes user events (`user.created`, `user.updated`, `user.deleted`)
@@ -155,7 +159,7 @@ Full middleware stack in `/index.js`:
 - Not started
 
 ### Security Hardening
-- Default admin password (`changeme123`) must be changed for production
+- Default admin password (`changeme123`) must be changed for production (password change prompt implemented for new users; admin seed still uses default)
 - `JWT_SECRET` must be set via env var for production
 - No refresh token mechanism — JWT TTL is 24h, no rotation
 - Rate limiting is in-memory only (resets on restart)
@@ -249,7 +253,30 @@ Frozen Document Hashes
 
 ---
 
-### Frozen Document Hashes
+#
+### Session: 2026-07-18 (Session 5)
+
+**Summary:** Implemented password change prompt for new users. New users created via `createUser` have `must_change_password = 1`. Login returns `mustChangePassword` flag in response and JWT payload. Middleware blocks protected routes until password is changed.
+
+**New Files:**
+- `modules/user_management/migrations/003_must_change_password.sql` — ALTER TABLE adds `must_change_password` column
+- `shared/middleware/passwordChangeRequired.js` — blocks protected routes when JWT has `mustChangePassword: true`
+- `tests/integration/http/password-prompt.test.js` — 12 tests covering full password change prompt flow
+
+**Modified Files:**
+- `shared/services/auth.js` — `issueToken` includes `mustChangePassword` in JWT payload
+- `modules/user_management/index.js` — login returns flag; createUser sets flag to 1; changePassword clears flag to 0; changePassword uses targeted revocation instead of `forceLogout()`
+- `modules/user_management/module.json` — added `003_must_change_password.sql` to migrations
+- `index.js` — wired `passwordChangeRequired` middleware; `req.user` includes `mustChangePassword`
+
+**Bug Found & Fixed:**
+- `changePassword` used `forceLogout()` which inserts wildcard `*` revocation, permanently blocking ALL future tokens for that user
+- Fix: replaced with `destroyUserSessions()` + `revokeToken()` (current token only)
+- `forceLogout()` should only be used for permanent lockout (account deletion, security incident)
+
+**Test Results:** 110/110 passing, 10/10 suites (up from 98/98, 9 suites)
+
+## Frozen Document Hashes
 
 - CONSTITUTION_V6.0.md: `ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a`
 - LEXICON_V6.0.0.md: `72280c5fb7d90fa8245139f35b9340016e0fe0d072bf799bd2ea85360e167b45`

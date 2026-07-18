@@ -18,6 +18,7 @@ const boot = require('./shared/pipeline/boot');
 const unstage = require('./shared/pipeline/unstage');
 const log = require('./shared/services/log');
 const auth = require('./shared/services/auth');
+const passwordChangeRequired = require('./shared/middleware/passwordChangeRequired');
 const metrics = require('./shared/services/metrics');
 const db = require('./shared/services/db');
 
@@ -208,7 +209,7 @@ function authenticationMiddleware(req, res, route) {
   try {
     var token = authHeader.split(' ')[1];
     var payload = auth.verifyToken(token);
-    req.user = { id: payload.userId, permissions: payload.permissions || [] };
+    req.user = { id: payload.userId, permissions: payload.permissions || [], mustChangePassword: payload.mustChangePassword || false };
     return true;
   } catch (err) {
     respond(res, 401, {
@@ -307,6 +308,8 @@ function createServer() {
       }
 
       if (!rateLimitMiddleware(req, res)) return;
+
+      if (!passwordChangeRequired(req, res, pathname, method, respond)) return;
 
       log.info('Request: ' + method + ' ' + pathname, {
         method: method,

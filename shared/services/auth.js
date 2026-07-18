@@ -28,6 +28,7 @@ class AuthServiceImpl extends AuthService {
       userId: user.id,
       permissions: user.permissions || [],
       sessionId: sessionId,
+      mustChangePassword: user.mustChangePassword || false,
     };
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
   }
