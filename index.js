@@ -17,6 +17,7 @@ const wire = require('./shared/pipeline/wire');
 const boot = require('./shared/pipeline/boot');
 const unstage = require('./shared/pipeline/unstage');
 const log = require('./shared/services/log');
+const ratelimit = require("./shared/services/ratelimit");
 const auth = require('./shared/services/auth');
 const passwordChangeRequired = require('./shared/middleware/passwordChangeRequired');
 const metrics = require('./shared/services/metrics');
@@ -30,20 +31,8 @@ var RATE_LIMIT_WINDOW = 60000;
 var RATE_LIMIT_DEFAULT = parseInt(process.env.RATE_LIMIT_DEFAULT, 10) || 100;
 var RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;
 
-var rateLimitStore = new Map();
-
-setInterval(function() {
-  var now = Date.now();
-  var toDelete = [];
-  for (var entry of rateLimitStore.entries()) {
-    if (now - entry[1].windowStart > RATE_LIMIT_WINDOW * 2) {
-      toDelete.push(entry[0]);
-    }
-  }
-  for (var i = 0; i < toDelete.length; i++) {
-    rateLimitStore.delete(toDelete[i]);
-  }
-}, 300000).unref();
+// In-memory rate limiting replaced by SQLite-backed service
+ratelimit.initTable();
 
 async function bootPlatform() {
   log.info('=== Platform Boot Starting ===');
@@ -239,41 +228,21 @@ function authenticationMiddleware(req, res, route) {
 }
 
 function rateLimitMiddleware(req, res) {
-  var ip = req.socket.remoteAddress || 'unknown';
+  var ip = req.socket.remoteAddress || "unknown";
   var userId = req.user ? req.user.id : ip;
   var limit = RATE_LIMIT_DEFAULT;
-
   if (req.user && req.user.permissions) {
-    if (req.user.permissions.indexOf('admin:*') !== -1) {
+    if (req.user.permissions.indexOf("admin:*") !== -1) {
       limit = RATE_LIMIT_ADMIN;
     }
   }
-
-  var key = userId + ':' + limit;
-  var now = Date.now();
-  var entry = rateLimitStore.get(key);
-
-  if (!entry) {
-    entry = { count: 0, windowStart: now };
-    rateLimitStore.set(key, entry);
-  }
-
-  if (now - entry.windowStart > RATE_LIMIT_WINDOW) {
-    entry.count = 0;
-    entry.windowStart = now;
-  }
-
-  entry.count++;
-
-  res.setHeader('X-RateLimit-Limit', String(limit));
-  res.setHeader('X-RateLimit-Remaining', String(Math.max(0, limit - entry.count)));
-  res.setHeader('X-RateLimit-Reset', String(entry.windowStart + RATE_LIMIT_WINDOW));
-
-  if (entry.count > limit) {
-    respond(res, 429, {
-      success: false,
-      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Rate limit exceeded. Try again in ' + Math.ceil((entry.windowStart + RATE_LIMIT_WINDOW - now) / 1000) + ' seconds.' },
-    });
+  var key = ratelimit.getKey(userId, limit);
+  var result = ratelimit.recordRequest(key, RATE_LIMIT_WINDOW, limit);
+  res.setHeader("X-RateLimit-Limit", String(limit));
+  res.setHeader("X-RateLimit-Remaining", String(Math.max(0, result.remaining)));
+  res.setHeader("X-RateLimit-Reset", String(result.resetAt));
+  if (!result.allowed) {
+    respond(res, 429, { success: false, error: { code: "RATE_LIMIT_EXCEEDED", message: "Rate limit exceeded. Try again in " + Math.ceil((result.resetAt - Date.now()) / 1000) + " seconds." } });
     return false;
   }
   return true;

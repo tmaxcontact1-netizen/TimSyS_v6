@@ -162,18 +162,17 @@ Full middleware stack in `/index.js`:
 - ✅ `logic.js` `_matchesConditions()` — condition evaluation engine (9 operators: ==, !=, <, >, <=, >=, contains, in, not_in, exists; dot notation field access; rule priority scoring)
 - ✅ Intelligence unit tests (`tests/unit/intelligence.test.js` — 7 tests)
 
-### Tier 5: Operational Tooling (NOT STARTED)
-- Rate limiting persistence (SQLite-backed sliding window)
-- Migration CLI (run/rollback/list migrations from command line)
-- Module scaffolding CLI (generate module skeleton from template)
-
-### Tier 6: Advanced Intelligence (NOT STARTED)
+### Tier 5: Operational Tooling (COMPLETE)
+- ✅ Rate limiting persistence (SQLite-backed sliding window)
+- ✅ Migration CLI (run/rollback/list migrations)
+- ✅ Module scaffolding CLI (generate module skeleton)
+: Advanced Intelligence (NOT STARTED)
 - Gap analysis engine (`/engine/gap-analysis/`)
 - Recommendation engine (`/engine/recommendation/`)
 - `/introspect/gaps` endpoint (requires gap analysis engine)
 - `/introspect/templates` endpoint (requires template registry)
 
-### Overall Backend Completion: ~70%
+### Overall Backend Completion: ~75%
 
 ---
 

@@ -161,3 +161,54 @@
 **Root Cause:** tests/unit/ is two levels deep from project root, not three. Recurring pattern across sessions.
 
 **Prevention:** Standardize require path depth for test files going forward.
+
+
+# Session 2026-07-18 (Session 8)
+
+### Tier 5 Implementation Decisions
+
+**Rate Limiting Persistence**
+- Decision: SQLite-backed rate_limit table (shared/services/ratelimit.js)
+- Rationale: Leverages existing DB infrastructure, persists across restarts
+- Trade-off: Adds DB dependency to middleware, requires migration
+
+**Migration CLI**
+- Decision: Standalone CLI at scripts/cli/migrate.js (not integrated into boot runner)
+- Rationale: Clean separation of concerns, test isolation preserved
+- Commands: list, run, rollback
+
+**Module Scaffolding CLI**
+- Decision: Minimal template (module.json, index.js, migrations/.gitkeep)
+- Rationale: Fast bootstrap, developer fills implementation details
+- Command: scaffold:new <module-name>
+
+### Session Summary
+- Tier 5 complete (3/3 items)
+- Backend completion: ~75%
+- All tests passing: 173/173
+
+
+# Session 2026-07-18 (Session 8)
+
+## Tier 5 Implementation Decisions
+
+### Rate Limiting Persistence
+**Decision:** SQLite-backed rate_limit table (shared/services/ratelimit.js)
+**Rationale:** Leverages existing DB infrastructure, persists across restarts
+**Trade-off:** Adds DB dependency to middleware, requires migration
+
+### Migration CLI
+**Decision:** Standalone CLI at scripts/cli/migrate.js
+**Rationale:** Clean separation of concerns, test isolation preserved
+**Commands:** list, run, rollback
+
+### Module Scaffolding CLI
+**Decision:** Minimal template (module.json, index.js, migrations/.gitkeep)
+**Rationale:** Fast bootstrap, developer fills implementation details
+**Command:** scaffold:new <module-name>
+
+## Session Summary
+- Tier 5 complete (3/3 items)
+- Backend completion: ~75%
+- All tests passing: 173/173
+- Files modified: shared/services/ratelimit.js, index.js, migrations/003_rate_limit.sql, scripts/cli/migrate.js, scripts/cli/scaffold.js, package.json

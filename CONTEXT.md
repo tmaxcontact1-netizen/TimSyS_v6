@@ -62,7 +62,12 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - ✅ `logic.js` `_matchesConditions()` — condition evaluation engine (9 operators: ==, !=, <, >, <=, >=, contains, in, not_in, exists; dot notation field access; rule priority scoring)
 - ✅ Intelligence unit tests (`tests/unit/intelligence.test.js` — 7 tests)
 
-### Tier 5: Operational Tooling (NOT STARTED)
+### Tier 5: Operational Tooling (COMPLETE)
+
+### Completed
+- Rate limiting persistence (SQLite-backed sliding window)
+- Migration CLI (run/rollback/list migrations from command line)
+- Module scaffolding CLI (generate module skeleton from template)
 - Rate limiting persistence (SQLite-backed sliding window)
 - Migration CLI (run/rollback/list migrations from command line)
 - Module scaffolding CLI (generate module skeleton from template)
@@ -73,7 +78,7 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - `/introspect/gaps` endpoint (requires gap analysis engine)
 - `/introspect/templates` endpoint (requires template registry)
 
-**Overall Backend Completion: ~70%**
+**Overall Backend Completion: ~75%**
 
 ## In Progress
 

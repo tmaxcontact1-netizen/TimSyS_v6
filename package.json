@@ -9,5 +9,11 @@
   },
   "devDependencies": {
     "jest": "^30.4.2"
+  },
+  "scripts": {
+    "migrate:list": "node scripts/cli/migrate.js list",
+    "migrate:run": "node scripts/cli/migrate.js run",
+    "migrate:rollback": "node scripts/cli/migrate.js rollback",
+    "scaffold:new": "node scripts/cli/scaffold.js new"
   }
 }

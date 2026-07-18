@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-18T15:00:18Z
+Generated: 2026-07-18T17:06:06Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 6829B | 2026-07-18 16:14:37 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-18 22:00:18 |
-| `HANDOVER.md` | ✅ | 16446B | 2026-07-18 16:14:37 |
+| `CONTEXT.md` | ✅ | 10487B | 2026-07-19 00:04:24 |
+| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-19 00:06:06 |
+| `HANDOVER.md` | ✅ | 17613B | 2026-07-19 00:04:33 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -58,6 +58,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./migrations/000_bootstrap.sql
 ./migrations/001_initial.sql
 ./migrations/002_intelligence.sql
+./migrations/003_rate_limit.sql
 ./modules
 ./modules/.gitkeep
 ./modules/system_health
@@ -78,6 +79,10 @@ Path: `/home/tmax/TimSyS_v6`
 ./routes/introspect
 ./routes/introspect/.gitkeep
 ./scripts
+./scripts/cli
+./scripts/cli/migrate.js
+./scripts/cli/scaffold.js
+./scripts/cli/update-package.js
 ./scripts/.gitkeep
 ./shared
 ./shared/middleware
@@ -113,6 +118,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./shared/services/intelligence/store.js
 ./shared/services/log.js
 ./shared/services/metrics.js
+./shared/services/ratelimit.js
 ./shared/services/session.js
 ./shared/services/validate.js
 ./test-results.txt
