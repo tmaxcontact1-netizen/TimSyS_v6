@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-18T09:11:14Z
+Generated: 2026-07-18T15:00:18Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 6333B | 2026-07-18 13:02:14 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-18 16:11:14 |
-| `HANDOVER.md` | ✅ | 14671B | 2026-07-18 13:02:14 |
+| `CONTEXT.md` | ✅ | 6829B | 2026-07-18 16:14:37 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-18 22:00:18 |
+| `HANDOVER.md` | ✅ | 16446B | 2026-07-18 16:14:37 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -118,17 +118,21 @@ Path: `/home/tmax/TimSyS_v6`
 ./test-results.txt
 ./tests
 ./tests/e2e
+./tests/e2e/boot-sequence.test.js
 ./tests/e2e/boot.test.js
 ./tests/e2e/.gitkeep
 ./tests/integration
 ./tests/integration/http
 ./tests/integration/http/auth.test.js
 ./tests/integration/http/password-prompt.test.js
+./tests/integration/http/security.test.js
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
 ./tests/integration/staging/pipeline.test.js
 ./tests/setup.js
 ./tests/unit
+./tests/unit/contracts-verification.test.js
+./tests/unit/intelligence.test.js
 ./tests/unit/registries
 ./tests/unit/registries/.gitkeep
 ./tests/unit/registries/registries.test.js

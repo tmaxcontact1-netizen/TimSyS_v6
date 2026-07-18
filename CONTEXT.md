@@ -2,9 +2,9 @@
 
 ## Current State
 
-**Current Phase:** Phase 1.1 — COMPLETE. All infrastructure layers shipped. Test suite: 110/110 passing.
+**Current Phase:** Backend Completion — Tier 4 (INTELLIGENCE SERVICE IMPLEMENTATION) COMPLETE. Test suite: 173/173 passing across 14 suites.
 
-Platform boots successfully. All services, registries, pipeline, migrations, boot sequence, middleware, and testing infrastructure complete. 2 application modules deployed. JWT session token collision bug fixed.
+Platform boots successfully. All services, registries, pipeline, migrations, boot sequence, middleware, and testing infrastructure complete. 2 application modules deployed. Intelligence service fully implemented with metadata classification, insights synthesis, and logic rule evaluation.
 
 ## Completed
 
@@ -22,8 +22,8 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - 2 modules with full implementations: `system_health`, `user_management`
 - Module manifests follow `{module}_{operation}` naming convention with `exports` field
 - Staging pipeline: discover → validate → register → resolve → wire → boot → unstage
-- 7 unit test suites with per-suite database isolation
-- HTTP integration tests (10 total suites, 110 total tests, all passing)
+- 14 unit test suites with per-suite database isolation (173 tests total, all passing)
+- HTTP integration tests (10 total suites, 110+ tests, all passing)
 - Password change prompt test suite (12 tests covering full flow)
 - JWT_SECRET enforcement at boot
 - Password change, forgot/reset password flows
@@ -34,7 +34,46 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - **Password change prompt: new users must change password on first login**
 - **Password change middleware: `shared/middleware/passwordChangeRequired.js`**
 - **Targeted token revocation on password change (not wildcard)**
-- **Intelligence service: `/shared/services/intelligence/` — metadata, insights, and logic rule evaluation. Injected into module Context via `wire.js`. Recognized as platform service in `resolve.js`**
+- **Intelligence service: `/shared/services/intelligence/` — metadata, insights, and logic rule evaluation. Fully implemented with DB-backed aggregation and condition evaluation engine. Injected into module Context via `wire.js`. Recognized as platform service in `resolve.js`**
+- **Intelligence service tests: `tests/unit/intelligence.test.js` — 7 unit tests covering metadata classification and logic condition evaluation**
+- **Security hardening: HTTPS enforcement middleware, password policy (isStrongPassword), 11 security integration tests**
+
+## Backend Completion Roadmap
+
+### Tier 1: Security Quick Wins (COMPLETE — 2 deferred)
+- ✅ HTTPS enforcement middleware
+- ✅ Password policy (`isStrongPassword()` — min 8 chars + special char)
+- ❌ Graceful shutdown (deferred — Jest SIGTERM/SIGINT handler accumulation causes hangs)
+- ❌ Input validation middleware (deferred — blocked 37 test requests, root cause unclear)
+
+### Tier 2: Test Coverage & Observability (COMPLETE)
+- ✅ Security tests (`tests/integration/http/security.test.js` — 11 tests)
+- ✅ Boot sequence regression tests (`tests/e2e/boot-sequence.test.js` — 13 tests)
+- ✅ Contract verification tests (`tests/unit/contracts-verification.test.js` — 32 tests)
+- ✅ Introspection endpoints (getCapabilities, getFunctions, getRoutes, getDependencies)
+
+### Tier 3: Core Feature Gaps (COMPLETE)
+- ✅ Password change prompt for new users (`must_change_password` column, middleware, targeted revocation)
+- ✅ Intelligence service package structure (5 files, 3 DB tables, wired into pipeline)
+
+### Tier 4: Intelligence Service Implementation (COMPLETE)
+- ✅ `metadata.js` `suggest()` — rule-based pattern detection (email domains, student/teacher/course classification, risk indicators, confidence scoring)
+- ✅ `insights.js` `synthesize()` — DB-backed aggregation (attendance rate, GPA averages, at-risk counts, alerts with critical/warning levels, trend tracking)
+- ✅ `logic.js` `_matchesConditions()` — condition evaluation engine (9 operators: ==, !=, <, >, <=, >=, contains, in, not_in, exists; dot notation field access; rule priority scoring)
+- ✅ Intelligence unit tests (`tests/unit/intelligence.test.js` — 7 tests)
+
+### Tier 5: Operational Tooling (NOT STARTED)
+- Rate limiting persistence (SQLite-backed sliding window)
+- Migration CLI (run/rollback/list migrations from command line)
+- Module scaffolding CLI (generate module skeleton from template)
+
+### Tier 6: Advanced Intelligence (NOT STARTED)
+- Gap analysis engine (`/engine/gap-analysis/`)
+- Recommendation engine (`/engine/recommendation/`)
+- `/introspect/gaps` endpoint (requires gap analysis engine)
+- `/introspect/templates` endpoint (requires template registry)
+
+**Overall Backend Completion: ~70%**
 
 ## In Progress
 
@@ -66,6 +105,7 @@ Nothing queued.
 | 2026-07-17 | JWT session fix | Added sessionId to JWT payload to prevent token collision after password change |
 | 2026-07-18 | Password change prompt | New users must change password on first login; middleware blocks protected routes; targeted token revocation on password change |
 | 2026-07-18 | Intelligence service | Shared service package for metadata, insights synthesis, and logic rule evaluation. Wired into `wire.js` and `resolve.js`. 3 new DB tables. |
+| 2026-07-18 | Intelligence implementation | Full implementations of metadata.suggest(), insights.synthesize(), logic._matchesConditions(). 7 unit tests added. |
 
 ## Lessons Learned
 
@@ -92,12 +132,19 @@ Nothing queued.
 **Cause:** Documentation updated manually without synchronization.
 **Prevention:** Update all affected docs as part of commit protocol, not post-commit.
 
+### Intelligence Service Placeholder Pattern
+**Problem:** Initial intelligence service had placeholder methods returning sample data.
+**Solution:** Implemented full logic with DB-backed aggregation and condition evaluation.
+**Lesson:** Service structure can be laid out early, but actual business logic should wait until consuming modules exist to provide real data.
+
 ## Open Decisions
 
 1. **Token revocation strategy:** Implemented via SQLite table (token_revocation). Bloom filter optimization deferred.
 2. **Session duration policy:** JWT TTL 24h, no refresh token. Needs policy before production with real users.
 3. **Request/reply timeout defaults:** Not specified — defer to Phase 9 (EventBus impl)
 4. **Rate limiting persistence:** In-memory Map, resets on restart. Consider Redis or DB-backed before production.
+5. **Graceful shutdown:** Signal handlers interfere with Jest test isolation. Need alternative approach.
+6. **Input validation middleware:** Blocked test requests when implemented. Root cause investigation needed.
 
 ## Session Protocol
 
