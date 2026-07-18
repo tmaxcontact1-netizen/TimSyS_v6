@@ -38,7 +38,7 @@ describe('HTTP Auth Integration', function() {
   }
   async function adminLogin(){
     var r=await makeRequest('POST','/api/auth/login',{username:'admin',password:'changeme123'});
-    if(r.status!==200)r=await makeRequest('POST','/api/auth/login',{username:'admin',password:'newSecurePass123'});
+    if(r.status!==200)r=await makeRequest('POST','/api/auth/login',{username:'admin',password:'newSecurePass123!'});
     return r;
   }
 
@@ -54,8 +54,8 @@ describe('HTTP Auth Integration', function() {
     test('reject unauth',async function(){var r=await makeRequest('GET','/api/users');expect(r.status).toBe(401);});
     test('accept auth',async function(){var r=await makeRequest('GET','/api/users',null,tok);expect(r.status).toBe(200);});
     test('auth/me',async function(){var r=await makeRequest('GET','/api/auth/me',null,tok);expect(r.status).toBe(200);});
-    test('create user',async function(){var r=await makeRequest('POST','/api/users',{username:'u'+Date.now(),email:'e@test.com',password:'p',permissions:['user:read']},tok);expect(r.status).toBe(200);});
-    test('dup username',async function(){var r=await makeRequest('POST','/api/users',{username:'admin',email:'d@test.com',password:'p',permissions:[]},tok);expect(r.status).toBe(409);});
+    test('create user',async function(){var r=await makeRequest('POST','/api/users',{username:'u'+Date.now(),email:'e@test.com',password:'TestPass123!',permissions:['user:read']},tok);expect(r.status).toBe(200);});
+    test('dup username',async function(){var r=await makeRequest('POST','/api/users',{username:'admin',email:'d@test.com',password:'TestPass123!',permissions:[]},tok);expect(r.status).toBe(409);});
   });
 
   describe('CSRF',function(){
@@ -74,10 +74,10 @@ describe('HTTP Auth Integration', function() {
   });
 
     describe('Password change',function(){
-    var tok=null,id=null,np='newSecurePass123';
+    var tok=null,id=null,np='newSecurePass123!';
     beforeAll(async function(){
       var r=await makeRequest('POST','/api/auth/login',{username:'admin',password:'changeme123'});
-      if(r.status===401)r=await makeRequest('POST','/api/auth/login',{username:'admin',password:'newSecurePass123'});
+      if(r.status===401)r=await makeRequest('POST','/api/auth/login',{username:'admin',password:'newSecurePass123!'});
       expect(r.status).toBe(200);
       expect(r.data.token).toBeDefined();
       tok=r.data.token;

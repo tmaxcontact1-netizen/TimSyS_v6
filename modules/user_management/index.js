@@ -132,7 +132,7 @@ async function resetPassword(req, ctx) {
   var token = req.body.token;
   var newPassword = req.body.newPassword;
 
-  if (!token || !newPassword || newPassword.length < 8) {
+  if (!token || !newPassword || !isStrongPassword(newPassword)) {
     return { success: false, statusCode: 400, error: { code: 'BAD_REQUEST', message: 'Token and new password required (min 8 chars)' } };
   }
 
@@ -178,6 +178,15 @@ async function listUsers(req, ctx) {
   return { success: true, users: users, total: users.length };
 }
 
+function isStrongPassword(pwd) {
+  if (!pwd || pwd.length < 8) return false;
+  var specials = "!@#$%^&*()_+-=[]{};'\\|,.<>/?";
+  for (var i = 0; i < pwd.length; i++) {
+    if (specials.indexOf(pwd[i]) !== -1) return true;
+  }
+  return false;
+}
+
 async function createUser(req, ctx) {
   if (!ctx.auth.checkPerm(req.user, 'admin:users:write')) {
     return { success: false, statusCode: 403, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } };
@@ -190,6 +199,10 @@ async function createUser(req, ctx) {
 
   if (!username || !emailAddr || !password) {
     return { success: false, statusCode: 400, error: { code: 'BAD_REQUEST', message: 'Username, email, and password required' } };
+  }
+
+  if (!isStrongPassword(password)) {
+    return { success: false, statusCode: 400, error: { code: 'BAD_PASSWORD', message: 'Password must be at least 8 characters and contain a special character' } };
   }
 
   var existing = ctx.db.query('SELECT id FROM users WHERE username = ? OR email = ?', [username, emailAddr]);
@@ -310,7 +323,7 @@ async function changePassword(req, ctx) {
   var userId = req.params.id;
   var newPassword = req.body.newPassword;
 
-  if (!newPassword || newPassword.length < 8) {
+  if (!newPassword || !isStrongPassword(newPassword)) {
     return { success: false, statusCode: 400, error: { code: 'BAD_REQUEST', message: 'New password must be at least 8 characters' } };
   }
 

@@ -163,6 +163,24 @@ function corsMiddleware(req, res) {
   return true;
 }
 
+function httpsRedirectMiddleware(req, res) {
+  const NODE_ENV = process.env.NODE_ENV || 'development';
+  const HTTPS_ENABLED = process.env.HTTPS_ENABLED === 'true';
+  const xForwardedProto = req.headers['x-forwarded-proto'];
+
+  if (NODE_ENV === 'production' && HTTPS_ENABLED) {
+    const proto = xForwardedProto ? xForwardedProto.split(',')[0].trim() : (req.connection?.encrypted ? 'https' : 'http');
+
+    if (proto !== 'https') {
+      const host = req.headers.host;
+      res.writeHead(301, { 'Location': 'https://' + host + req.url });
+      res.end();
+      return false;
+    }
+  }
+  return true;
+}
+
 function cookieParserMiddleware(req) {
   req.cookies = {};
   var cookieHeader = req.headers.cookie;
@@ -270,6 +288,8 @@ function createServer() {
     var method = req.method.toUpperCase();
 
     if (!corsMiddleware(req, res)) return;
+
+    if (!httpsRedirectMiddleware(req, res)) return;
 
     metrics.increment('http.requests_total', { method: method, path: pathname });
 

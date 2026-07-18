@@ -101,6 +101,61 @@ function getRegistries(req, ctx) {
   };
 }
 
+function getCapabilities(req, ctx) {
+  var caps = capabilityRegistry.getAll().map(function(cap) {
+    return {
+      name: cap.name,
+      module: cap.module,
+      metadata: cap.metadata,
+      registeredAt: cap.registeredAt,
+    };
+  });
+  return {
+    success: true,
+    capabilities: caps,
+    total: caps.length,
+  };
+}
+
+function getFunctions(req, ctx) {
+  var funcs = functionRegistry.getAll().map(function(fn) {
+    return {
+      name: fn.name,
+      module: fn.module || 'unknown',
+    };
+  });
+  return {
+    success: true,
+    functions: funcs,
+    total: funcs.length,
+  };
+}
+
+function getRoutes(req, ctx) {
+  var routes = routeRegistry.getAll().map(function(r) {
+    return {
+      method: r.method,
+      path: r.path,
+      handler: r.handler,
+      auth_required: r.auth_required,
+    };
+  });
+  return {
+    success: true,
+    routes: routes,
+    total: routes.length,
+  };
+}
+
+function getDependencies(req, ctx) {
+  var bootOrder = dependencyGraph.computeBootOrder();
+  return {
+    success: true,
+    bootOrder: bootOrder,
+    total: bootOrder.length,
+  };
+}
+
 module.exports = {
   boot: boot,
   teardown: teardown,
@@ -110,4 +165,8 @@ module.exports = {
   getModules: getModules,
   getMetrics: getMetrics,
   getRegistries: getRegistries,
+  getCapabilities: getCapabilities,
+  getFunctions: getFunctions,
+  getRoutes: getRoutes,
+  getDependencies: getDependencies,
 };
