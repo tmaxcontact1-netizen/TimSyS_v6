@@ -11,6 +11,7 @@ const PLATFORM_SERVICES = new Set([
   'log',
   'validate',
   'events',
+  'intelligence',
 ]);
 
 /**

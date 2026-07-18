@@ -32,11 +32,11 @@ A modular Node.js school administration platform with a plugin/module architectu
 ## What's Done
 
 ### Phase 0: Foundation Contracts (COMPLETE — FROZEN)
-6 contract files in `/contracts/`: `db.js`, `cache.js`, `auth.js`, `log.js`, `validate.js`, `events.js`
+7 contract files in `/contracts/`: `db.js`, `cache.js`, `auth.js`, `log.js`, `validate.js`, `events.js`, `intelligence.js`
 
 ### Phase 1.1: Services (COMPLETE)
-9 files in `/shared/services/`:
-- **Injected into Context:** `db.js` (ConnectionPool, WAL), `cache.js` (LRU + TTL + glob invalidation), `auth.js` (JWT, token revocation via sha256 hash + wildcard, sessions, checkPerm with wildcards), `log.js` (structured JSON to stdout), `validate.js` (Zod safeParse + recursive sanitization), `events.js` (pub/sub with error isolation + request/reply)
+9 files in `/shared/services/` plus intelligence service package (`/shared/services/intelligence/`):
+- **Injected into Context:** `db.js` (ConnectionPool, WAL), `cache.js` (LRU + TTL + glob invalidation), `auth.js` (JWT, token revocation via sha256 hash + wildcard, sessions, checkPerm with wildcards), `log.js` (structured JSON to stdout), `validate.js` (Zod safeParse + recursive sanitization), `events.js` (pub/sub with error isolation + request/reply), `intelligence/` (metadata catalog, insights synthesis, logic rule evaluation)
 - **Internal infrastructure:** `session.js` (SQLite-backed, auto-cleanup timer), `audit.js` (append-only, queryable, retention purge), `metrics.js` (counters/histograms/gauges, Prometheus export, periodic DB flush)
 - **Additional:** `email.js` (nodemailer)
 
@@ -52,25 +52,26 @@ A modular Node.js school administration platform with a plugin/module architectu
 ### Phase 1.3: Pipeline (COMPLETE)
 7 stages in `/shared/pipeline/`:
 - Order: `discover → validate → register → resolve → wire → boot → (unstage)`
-- `resolve.js` checks `requires` capabilities and `dependencies` (excluding platform services)
+- `resolve.js` checks `requires` capabilities and `dependencies` (excluding platform services: db, cache, auth, log, validate, events, intelligence)
 - `register.js` maps `route.auth` to `auth_required` during registration
 - `boot.js` executes `boot(ctx)` in topological order, rolls back on failure
 - `unstage.js` graceful deregistration in reverse
 
 ### Phase 2: Migrations (COMPLETE)
-5 SQL files:
+6 SQL files:
 - `/migrations/000_bootstrap.sql` — creates `schema_migrations` table only
 - `/migrations/001_initial.sql` — creates 9 platform tables (sessions, audit_log, metrics, token_revocation, module_registry, schema_registry, route_registry, function_registry, capability_registry)
+- `/migrations/002_intelligence.sql` — creates 3 intelligence tables (intelligence_metadata, intelligence_insights, intelligence_rules)
 - `/modules/user_management/migrations/001_users.sql` — creates `users` table
 - `/modules/user_management/migrations/002_password_resets.sql`
 - `/modules/user_management/migrations/003_must_change_password.sql` — adds `must_change_password` column to users table
 - Migration runner scans both `/migrations/` and `/modules/*/migrations/`
 - Runner owns `schema_migrations` INSERT exclusively — SQL files must NEVER insert into it
-- 11 total tables in database
+- 15 total tables in database
 
 ### Phase 4: Boot Sequence (COMPLETE)
 `/index.js` orchestrates: clear registries → run migrations → verify tables → discover → validate → register → resolve → compute boot order → wire → boot → start HTTP server → emit `platform.ready`
-- `contextRegistry` object stores wired module Contexts so HTTP handlers receive `events`, `db`, `cache`, etc.
+- `contextRegistry` object stores wired module Contexts so HTTP handlers receive `events`, `db`, `cache`, `intelligence`, etc.
 
 ### Phase 5: Middleware Stack (COMPLETE)
 Full middleware stack in `/index.js`:
@@ -275,6 +276,28 @@ Frozen Document Hashes
 - `forceLogout()` should only be used for permanent lockout (account deletion, security incident)
 
 **Test Results:** 110/110 passing, 10/10 suites (up from 98/98, 9 suites)
+
+
+### Session: 2026-07-18 (Session 6)
+
+**Summary:** Added intelligence service package — shared backend service for metadata catalog, insights synthesis, and logic rule evaluation. All modules declaring `"dependencies": ["intelligence"]` receive `ctx.intelligence` automatically via the staging pipeline. Zero per-module wiring required.
+
+**New Files:**
+- `contracts/intelligence.js` — service interface spec
+- `migrations/002_intelligence.sql` — 3 tables: intelligence_metadata, intelligence_insights, intelligence_rules
+- `shared/services/intelligence/index.js` — service facade, delegates to sub-modules
+- `shared/services/intelligence/store.js` — SQLite persistence layer
+- `shared/services/intelligence/metadata.js` — entity tagging and classification
+- `shared/services/intelligence/insights.js` — synthesis engine
+- `shared/services/intelligence/logic.js` — rule evaluation engine
+
+**Modified Files:**
+- `shared/pipeline/wire.js` — imports intelligence, injects into module Context
+- `shared/pipeline/resolve.js` — added 'intelligence' to PLATFORM_SERVICES set
+
+**Design Decision:** Service package (folder with multiple files) rather than single file. Consistent with existing service pattern but allows metadata, insights, and logic to evolve independently within one service boundary.
+
+**Test Results:** 110/110 passing, 10/10 suites (unchanged — no test regressions)
 
 ## Frozen Document Hashes
 

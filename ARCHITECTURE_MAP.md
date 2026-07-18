@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-18T06:01:56Z
+Generated: 2026-07-18T09:11:14Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 5647B | 2026-07-17 22:06:15 |
-| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-18 13:01:56 |
-| `HANDOVER.md` | ✅ | 12588B | 2026-07-17 22:06:40 |
+| `CONTEXT.md` | ✅ | 6333B | 2026-07-18 13:02:14 |
+| `ARCHITECTURE_MAP.md` | ✅ | 450B | 2026-07-18 16:11:14 |
+| `HANDOVER.md` | ✅ | 14671B | 2026-07-18 13:02:14 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -35,6 +35,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./contracts/cache.js
 ./contracts/db.js
 ./contracts/events.js
+./contracts/intelligence.js
 ./contracts/log.js
 ./contracts/validate.js
 ./data
@@ -56,6 +57,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./migrations
 ./migrations/000_bootstrap.sql
 ./migrations/001_initial.sql
+./migrations/002_intelligence.sql
 ./modules
 ./modules/.gitkeep
 ./modules/system_health
@@ -103,6 +105,12 @@ Path: `/home/tmax/TimSyS_v6`
 ./shared/services/db.js
 ./shared/services/email.js
 ./shared/services/events.js
+./shared/services/intelligence
+./shared/services/intelligence/index.js
+./shared/services/intelligence/insights.js
+./shared/services/intelligence/logic.js
+./shared/services/intelligence/metadata.js
+./shared/services/intelligence/store.js
 ./shared/services/log.js
 ./shared/services/metrics.js
 ./shared/services/session.js
@@ -186,8 +194,8 @@ Location: `/shared/pipeline/`
 | `discover.js` | ✅ (shared/pipeline/discover.js) | 1225B | 2026-07-16 21:49:40 |
 | `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 12:19:29 |
 | `register.js` | ✅ (shared/pipeline/register.js) | 2848B | 2026-07-17 12:25:26 |
-| `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2332B | 2026-07-16 22:32:00 |
-| `wire.js` | ✅ (shared/pipeline/wire.js) | 1994B | 2026-07-17 16:34:34 |
+| `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2350B | 2026-07-18 16:07:29 |
+| `wire.js` | ✅ (shared/pipeline/wire.js) | 2084B | 2026-07-18 16:06:16 |
 | `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |
 | `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 21:53:03 |
 

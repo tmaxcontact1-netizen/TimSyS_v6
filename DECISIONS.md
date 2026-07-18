@@ -94,3 +94,29 @@
 **Rule:** `forceLogout()` should only be used for permanent lockout scenarios (account deletion, security incident). Password changes require targeted revocation only.
 
 **Status:** IMPLEMENTED
+
+
+# Architectural Decisions
+
+## Session 2026-07-18 (Session 6)
+
+### Intelligence Service as Shared Platform Service
+
+**Decision:** Implement intelligence (metadata, insights, logic) as a shared service package at `/shared/services/intelligence/` rather than standalone engines in `/engine/`.
+
+**Rationale:** All modules should consume intelligence through the same backend service. Service package (folder) allows metadata, insights, and logic to evolve independently within one service boundary. Consistent with existing service injection pattern — modules declare `"dependencies": ["intelligence"]` and receive `ctx.intelligence` automatically.
+
+**Structure:**
+- `index.js` — facade, delegates to sub-modules
+- `store.js` — SQLite persistence (3 tables: metadata, insights, rules)
+- `metadata.js` — entity tagging and classification
+- `insights.js` — synthesis engine
+- `logic.js` — rule evaluation engine
+
+**Wiring:**
+- `wire.js` imports and injects `intelligence` into module Context
+- `resolve.js` adds `intelligence` to `PLATFORM_SERVICES` set so dependency resolution skips it
+
+**Constitution Deviation:** Phases 10-11 specify `/engine/gap-analysis/` and `/engine/recommendation/` as standalone engines. This decision consolidates intelligence capabilities into a shared service instead. Constitution update deferred until gap analysis and recommendation features are actually implemented.
+
+**Status:** IMPLEMENTED (placeholder logic — synthesis and rule evaluation methods return sample data. Real implementation deferred until application modules exist to provide data.)

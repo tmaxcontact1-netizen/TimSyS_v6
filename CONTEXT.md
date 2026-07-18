@@ -12,13 +12,13 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - Git tag `v6.0.0-base` created
 - All root docs: `CONTEXT.md`, `ARCHITECTURE_MAP.md`, `HANDOVER.md`, `CONSTITUTION_V6.0.md`, `LEXICON_V6.0.0.md`
 - npm packages installed (`package.json`, `package-lock.json`)
-- 6 contract stub files present in `/contracts/`
-- 9 service stub files present in `/shared/services/`
+- 7 contract files present in `/contracts/` (including `intelligence.js`)
+- 9 service files present in `/shared/services/` plus intelligence service package (`/shared/services/intelligence/`)
 - 6 registry stub files present in `/shared/registry/`
 - 6 pipeline stub files present in `/shared/pipeline/`
 - Core services implemented: `db.js`, `cache.js`, `auth.js`, `validate.js`, `log.js`, `events.js`, `email.js`, `session.js`, `audit.js`, `metrics.js`
 - Migration runner implemented (`/shared/migration-runner.js`)
-- 5 migrations: `000_bootstrap.sql`, `001_initial.sql`, `001_users.sql`, `002_password_resets.sql`, `003_must_change_password.sql`
+- 6 migrations: `000_bootstrap.sql`, `001_initial.sql`, `002_intelligence.sql`, `001_users.sql`, `002_password_resets.sql`, `003_must_change_password.sql`
 - 2 modules with full implementations: `system_health`, `user_management`
 - Module manifests follow `{module}_{operation}` naming convention with `exports` field
 - Staging pipeline: discover → validate → register → resolve → wire → boot → unstage
@@ -34,6 +34,7 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - **Password change prompt: new users must change password on first login**
 - **Password change middleware: `shared/middleware/passwordChangeRequired.js`**
 - **Targeted token revocation on password change (not wildcard)**
+- **Intelligence service: `/shared/services/intelligence/` — metadata, insights, and logic rule evaluation. Injected into module Context via `wire.js`. Recognized as platform service in `resolve.js`**
 
 ## In Progress
 
@@ -64,6 +65,7 @@ Nothing queued.
 | 2026-07-17 | Module manifests | name field follows {module}_{operation}, exports field maps to actual export key |
 | 2026-07-17 | JWT session fix | Added sessionId to JWT payload to prevent token collision after password change |
 | 2026-07-18 | Password change prompt | New users must change password on first login; middleware blocks protected routes; targeted token revocation on password change |
+| 2026-07-18 | Intelligence service | Shared service package for metadata, insights synthesis, and logic rule evaluation. Wired into `wire.js` and `resolve.js`. 3 new DB tables. |
 
 ## Lessons Learned
 
@@ -105,4 +107,4 @@ Nothing queued.
 
 ---
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18

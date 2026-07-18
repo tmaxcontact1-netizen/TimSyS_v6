@@ -6,6 +6,7 @@ const cache = require('../services/cache');
 const auth = require('../services/auth');
 const validate = require('../services/validate');
 const events = require('../services/events');
+const intelligence = require('../services/intelligence');
 const routeRegistry = require('../registry/routeRegistry');
 const functionRegistry = require('../registry/functionRegistry');
 
@@ -22,6 +23,7 @@ function wireModule(registered) {
     log: log,
     validate: validate,
     events: events,
+    intelligence: intelligence,
     manifest: manifest,
   };
 
