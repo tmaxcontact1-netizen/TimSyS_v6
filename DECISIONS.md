@@ -292,3 +292,26 @@
 - Backend completion: ~90%
 - All tests passing: 173/173
 - Files modified: index.js, tests/e2e/boot.test.js, tests/e2e/boot-sequence.test.js
+
+
+# Session 2026-07-19 (Session 12)
+
+## Authorization Middleware — FAILED, ROLLED BACK
+**Decision:** Attempted to extract per-handler auth checks into pipeline middleware
+**Approach:** Derived permissions from handler name segments (module_action format)
+**Result:** 62 test failures — permission scheme mismatch
+**Root Cause:** Handler names (user_management_listUsers) don't map cleanly to permission strings (admin:users:read, admin:users:write, admin:*)
+**Rollback:** git reset --hard v6.7.0-tier1-complete
+**Recommendation:** If revisited, use route-level permission declarations in module.json instead of name derivation
+
+## Discovery + Audit Endpoints — COMPLETED
+- /discover/capabilities — Filter by module query param
+- /discover/functions — Filter by module query param
+- /audit/logs — Paginated, filterable by user_id/action/entity_type/entity_id
+- /audit/logs/:id — Single record lookup
+
+## Session Summary
+- Tiers 5, 6, Phase 12, deferred Tier 1, discovery endpoints, audit endpoints all complete
+- Authorization middleware attempted and rolled back
+- Backend completion: ~92%
+- Tests: 173/173

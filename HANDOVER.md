@@ -172,7 +172,7 @@ Full middleware stack in `/index.js`:
 - `/introspect/gaps` endpoint (requires gap analysis engine)
 - `/introspect/templates` endpoint (requires template registry)
 
-### Overall Backend Completion: ~90%
+### Overall Backend Completion: ~92%
 
 ---
 
@@ -305,3 +305,55 @@ Frozen Document Hashes
 3. Verify frozen documents haven't changed (hash comparison)
 4. Commit with message format: `{phase_title} — {short_description}`
 5. Create git tag if milestone reached (e.g., `v6.1.0-phase1-complete`)
+
+
+# Session 2026-07-19 (Session 12 — Final)
+
+## Completed This Session
+- Tier 5: Operational Tooling (Migration CLI, Rate Limiting Persistence, Module Scaffolding CLI)
+- Tier 6: Advanced Intelligence (Gap Analysis Engine, Recommendation Engine, /introspect/gaps, /introspect/templates)
+- Phase 12: Module Builder Interface (CLI: new/inspect/recommend/complete, builder module with 5 endpoints)
+- Deferred Tier 1: Graceful shutdown (shutdownPlatform), Input validation middleware (non-blocking sanitization)
+- Discovery endpoints: /discover/capabilities, /discover/functions
+- Audit log endpoints: /audit/logs, /audit/logs/:id
+
+## Failed Attempt: Authorization Middleware
+- Attempted to extract checkPerm from individual handlers into pipeline middleware
+- Handler name-based permission derivation did not match actual permission scheme (admin:*, admin:users:read, etc.)
+- Caused 62 test failures across password-prompt, boot, and security suites
+- Rolled back to v6.7.0-tier1-complete
+- **Recommendation for next session:** Do NOT move auth checks into middleware. The current per-handler pattern using ctx.auth.checkPerm() is intentional and works. The permission schemes are too varied for generic middleware derivation.
+
+## Remaining Backend Tasks (in order of complexity)
+
+### 1. Dynamic Staging Endpoints (Phase 5)
+- GET /staging/modules — List staged modules with runtime status
+- POST /staging/modules — Hot-load a module at runtime (filesystem scan + pipeline re-execution)
+- DELETE /staging/modules/{id} — Runtime unstage via API (calls unstage() on target module)
+- Requires: Exposing pipeline functions (discover, validate, register, wire, boot, unstage) to HTTP layer
+- Risk: Hot-plugging registries, cache invalidation, route table updates
+
+### 2. Authorization Middleware (Phase 5 — OPTIONAL)
+- Constitution specifies authz as middleware step 6
+- Current per-handler approach works but is not constitution-compliant
+- If attempted again: Use route-level permission declarations in module.json instead of deriving from handler names
+- Add optional "permissions" field to route declarations: { "path": "/api/users", "method": "GET", "handler": "...", "auth_required": true, "permissions": ["admin:users:read"] }
+- Middleware checks route.permissions if present, falls through to handler if not
+
+### 3. Technical Debt
+- --detectOpenHandles warning: Investigate unclosed DB connections or event listeners in test teardown
+- ratelimit.js initTable() on module load is redundant with migration 003_rate_limit.sql — remove initTable() call, rely on migration only
+- Migration CLI had duplicate schema_migrations entry for user_management_003_password_changed_at — verify no code path creates duplicates
+
+### 4. Production Readiness (Phase 8 — DEFERRED)
+- Environment variable validation
+- Production vs development configuration
+- Prometheus metrics scraping setup
+- Log aggregation interface
+
+## Current State
+- Tests: 173/173 passing
+- Migrations: 8/8 applied
+- Modules: 3 (system_health, user_management, builder)
+- Backend completion: ~92%
+- Git tags: v6.4.0-tier5-complete, v6.5.0-tier6-complete, v6.6.0-phase12-complete, v6.7.0-tier1-complete
