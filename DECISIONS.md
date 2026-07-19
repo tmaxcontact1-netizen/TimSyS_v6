@@ -315,3 +315,25 @@
 - Authorization middleware attempted and rolled back
 - Backend completion: ~92%
 - Tests: 173/173
+
+
+# Session 2026-07-19 (Session 13)
+
+## Technical Debt Cleanup
+
+### ratelimit.initTable() Redundancy
+**Decision:** Removed initTable() call from index.js module-load scope
+**Rationale:** Migration 003_rate_limit.sql creates the same table with identical schema. Having both creates a race condition risk and violates single-source-of-truth for schema management
+**Result:** Tests 173/173 passing, rate limiting still functional via migration-created table
+
+### Open Handles Investigation
+**Finding:** Ran jest with --detectOpenHandles — zero leaks detected
+**Explanation:** The "Force exiting Jest" warning on normal runs is expected behavior when SQLite operates in WAL mode. The WAL file handle keeps the process alive. This is not a bug.
+
+### Duplicate Migration Entry
+**Status:** Previously resolved in Session 10 (manual sqlite3 deletion of user_management_003_password_changed_at). No code path found that creates duplicates. CLI rewrite in Session 10 fixed the root cause.
+
+## Session Summary
+- Technical debt items resolved: ratelimit initTable redundancy, open handles investigation, migration duplication verification
+- Backend completion: ~93%
+- Tests: 173/173

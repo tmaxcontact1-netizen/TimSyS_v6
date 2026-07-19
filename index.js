@@ -34,7 +34,6 @@ var RATE_LIMIT_DEFAULT = parseInt(process.env.RATE_LIMIT_DEFAULT, 10) || 100;
 var RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;
 
 // In-memory rate limiting replaced by SQLite-backed service
-ratelimit.initTable();
 
 async function bootPlatform() {
   log.info('=== Platform Boot Starting ===');

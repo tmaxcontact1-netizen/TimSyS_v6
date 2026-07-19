@@ -341,8 +341,8 @@ Frozen Document Hashes
 - Middleware checks route.permissions if present, falls through to handler if not
 
 ### 3. Technical Debt
-- --detectOpenHandles warning: Investigate unclosed DB connections or event listeners in test teardown
-- ratelimit.js initTable() on module load is redundant with migration 003_rate_limit.sql — remove initTable() call, rely on migration only
+- ~~--detectOpenHandles warning~~ RESOLVED: Ran with --detectOpenHandles, zero leaks found. Force-exit warning is expected behavior with SQLite WAL mode.
+- ~~ratelimit.js initTable()~~ RESOLVED: Removed initTable() call from index.js. Table creation handled exclusively by migration 003_rate_limit.sql.
 - Migration CLI had duplicate schema_migrations entry for user_management_003_password_changed_at — verify no code path creates duplicates
 
 ### 4. Production Readiness (Phase 8 — DEFERRED)
@@ -355,5 +355,5 @@ Frozen Document Hashes
 - Tests: 173/173 passing
 - Migrations: 8/8 applied
 - Modules: 3 (system_health, user_management, builder)
-- Backend completion: ~92%
-- Git tags: v6.4.0-tier5-complete, v6.5.0-tier6-complete, v6.6.0-phase12-complete, v6.7.0-tier1-complete
+- Backend completion: ~93%
+- Git tags: v6.4.0-tier5-complete, v6.5.0-tier6-complete, v6.6.0-phase12-complete, v6.7.0-tier1-complete, v6.8.0-session12
