@@ -243,3 +243,29 @@
 - All migrations applied: 8/8
 - Files created: engine/gap-analysis/index.js, engine/gap-analysis/calculator.js, engine/recommendation/index.js, engine/recommendation/analyzer.js, migrations/004_recommendations.sql
 - Files modified: modules/system_health/index.js, modules/system_health/module.json, scripts/cli/migrate.js
+
+
+# Session 2026-07-19 (Session 10)
+
+## Phase 12: Module Builder Interface Decisions
+
+### CLI Design
+**Decision:** Single binary at scripts/cli/builder.js with subcommands
+**Commands:** new, inspect, recommend, complete
+**Rationale:** Mirrors the endpoint structure, no additional dependencies
+
+### Builder Module
+**Decision:** Built as regular application module (modules/builder/)
+**Endpoints:** /builder/dashboard, /builder/new-module, /builder/:module/analysis, /builder/recommendations, /builder/templates
+**Rationale:** Conforms to existing module standard, auto-stages via pipeline
+
+### Test Updates
+**Decision:** Updated boot-sequence.test.js to expect 3 modules
+**Rationale:** builder module now part of the platform
+
+## Session Summary
+- Phase 12 complete (4/4 CLI commands, 5 endpoints)
+- Backend completion: ~85%
+- All tests passing: 173/173
+- Files created: modules/builder/index.js, modules/builder/module.json, modules/builder/migrations/, scripts/cli/builder.js
+- Files modified: tests/e2e/boot-sequence.test.js, package.json

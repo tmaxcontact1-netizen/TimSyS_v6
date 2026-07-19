@@ -14,6 +14,10 @@
     "migrate:list": "node scripts/cli/migrate.js list",
     "migrate:run": "node scripts/cli/migrate.js run",
     "migrate:rollback": "node scripts/cli/migrate.js rollback",
-    "scaffold:new": "node scripts/cli/scaffold.js new"
+    "scaffold:new": "node scripts/cli/scaffold.js new",
+    "builder:new": "node scripts/cli/builder.js new",
+    "builder:inspect": "node scripts/cli/builder.js inspect",
+    "builder:recommend": "node scripts/cli/builder.js recommend",
+    "builder:complete": "node scripts/cli/builder.js complete"
   }
 }

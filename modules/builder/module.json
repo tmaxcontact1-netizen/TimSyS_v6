@@ -1,0 +1,92 @@
+{
+  "name": "builder",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events"
+  ],
+  "provides": [
+    "capability:builder.dashboard",
+    "capability:builder.scaffold"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/builder/dashboard",
+      "method": "GET",
+      "handler": "builder_dashboard",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/new-module",
+      "method": "GET",
+      "handler": "builder_newModule",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/:module/analysis",
+      "method": "GET",
+      "handler": "builder_analysis",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/recommendations",
+      "method": "GET",
+      "handler": "builder_recommendations",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/templates",
+      "method": "GET",
+      "handler": "builder_templates",
+      "auth_required": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "builder_dashboard",
+      "exports": "dashboard",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "builder_newModule",
+      "exports": "newModule",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "builder_analysis",
+      "exports": "analysis",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "builder_recommendations",
+      "exports": "recommendations",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "builder_templates",
+      "exports": "templates",
+      "params": [],
+      "returns": "any"
+    }
+  ],
+  "schema": {
+    "tables": [],
+    "migrations": []
+  },
+  "events": {
+    "publishes": [],
+    "subscribes": [
+      "platform.ready"
+    ]
+  }
+}

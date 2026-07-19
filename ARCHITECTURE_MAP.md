@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-19T01:13:38Z
+Generated: 2026-07-19T04:35:59Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 10487B | 2026-07-19 00:06:21 |
-| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-19 08:13:38 |
-| `HANDOVER.md` | ✅ | 17613B | 2026-07-19 00:06:29 |
+| `CONTEXT.md` | ✅ | 10548B | 2026-07-19 08:13:50 |
+| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-19 11:36:00 |
+| `HANDOVER.md` | ✅ | 17613B | 2026-07-19 08:14:01 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -65,6 +65,11 @@ Path: `/home/tmax/TimSyS_v6`
 ./migrations/003_rate_limit.sql
 ./migrations/004_recommendations.sql
 ./modules
+./modules/builder
+./modules/builder/index.js
+./modules/builder/migrations
+./modules/builder/migrations/.gitkeep
+./modules/builder/module.json
 ./modules/.gitkeep
 ./modules/system_health
 ./modules/system_health/index.js
@@ -85,6 +90,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./routes/introspect/.gitkeep
 ./scripts
 ./scripts/cli
+./scripts/cli/builder.js
 ./scripts/cli/migrate.js
 ./scripts/cli/scaffold.js
 ./scripts/cli/update-package.js

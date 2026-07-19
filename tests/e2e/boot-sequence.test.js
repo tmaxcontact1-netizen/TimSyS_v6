@@ -110,7 +110,7 @@ describe('E2E: Boot Sequence Regression', function() {
   });
 
   describe('Stage: Module Discovery', function() {
-    test('2 modules discovered and booted', async function() {
+    test('3 modules discovered and booted', async function() {
       var r = await makeRequest('GET', '/introspect/modules');
       expect(r.status).toBe(401);
 
@@ -120,7 +120,7 @@ describe('E2E: Boot Sequence Regression', function() {
 
       r = await makeRequest('GET', '/introspect/modules', tok);
       expect(r.status).toBe(200);
-      expect(r.data.total).toBe(2);
+      expect(r.data.total).toBe(3);
       expect(r.data.modules[0].status).toBe('booted');
       expect(r.data.modules[1].status).toBe('booted');
     });
@@ -164,7 +164,7 @@ describe('E2E: Boot Sequence Regression', function() {
       var tok = loginRes.data.token;
       var r = await makeRequest('GET', '/introspect/registries', tok);
       expect(r.status).toBe(200);
-      expect(r.data.registries.modules).toBe(2);
+      expect(r.data.registries.modules).toBe(3);
       expect(r.data.registries.routes).toBeGreaterThanOrEqual(16);
       expect(r.data.registries.functions).toBeGreaterThanOrEqual(16);
     });
