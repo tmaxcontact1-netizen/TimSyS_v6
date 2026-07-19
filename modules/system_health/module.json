@@ -14,6 +14,18 @@
   "requires": [],
   "routes": [
     {
+      "path": "/audit/logs",
+      "method": "GET",
+      "handler": "system_health_getAuditLogs",
+      "auth_required": true
+    },
+    {
+      "path": "/audit/logs/:id",
+      "method": "GET",
+      "handler": "system_health_getAuditLog",
+      "auth_required": true
+    },
+    {
       "path": "/health",
       "method": "GET",
       "handler": "system_health_getHealth",
@@ -84,9 +96,33 @@
       "method": "GET",
       "handler": "system_health_getTemplates",
       "auth_required": true
+    },
+    {
+      "path": "/discover/capabilities",
+      "method": "GET",
+      "handler": "system_health_discoverCapabilities",
+      "auth_required": true
+    },
+    {
+      "path": "/discover/functions",
+      "method": "GET",
+      "handler": "system_health_discoverFunctions",
+      "auth_required": true
     }
   ],
   "functions": [
+    {
+      "name": "system_health_getAuditLogs",
+      "exports": "getAuditLogs",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getAuditLog",
+      "exports": "getAuditLog",
+      "params": [],
+      "returns": "any"
+    },
     {
       "name": "system_health_getHealth",
       "exports": "getHealth",
@@ -156,6 +192,18 @@
     {
       "name": "system_health_getTemplates",
       "exports": "getTemplates",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_discoverCapabilities",
+      "exports": "discoverCapabilities",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_discoverFunctions",
+      "exports": "discoverFunctions",
       "params": [],
       "returns": "any"
     }
