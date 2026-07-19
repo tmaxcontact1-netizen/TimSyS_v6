@@ -8,6 +8,8 @@ const capabilityRegistry = require('../../shared/registry/capabilityRegistry');
 const schemaRegistry = require('../../shared/registry/schemaRegistry');
 const dependencyGraph = require('../../shared/registry/dependencyGraph');
 const metrics = require('../../shared/services/metrics');
+const gapAnalysis = require('../../engine/gap-analysis');
+const recommendationEngine = require('../../engine/recommendation');
 
 var startTime = Date.now();
 var booted = false;
@@ -156,6 +158,29 @@ function getDependencies(req, ctx) {
   };
 }
 
+
+function getGaps(req, ctx) {
+  var moduleName = req.query.module;
+  var result = moduleName
+    ? gapAnalysis.analyze(moduleName)
+    : gapAnalysis.getPlatformCompletion();
+  return {
+    success: true,
+    gaps: result
+  };
+}
+
+function getTemplates(req, ctx) {
+  var recs = recommendationEngine.getSuggestions(req.query.intent || null);
+  return {
+    success: true,
+    templates: {
+      suggestions: recs.suggestions,
+      platformReadiness: recs.platformReadiness
+    }
+  };
+}
+
 module.exports = {
   boot: boot,
   teardown: teardown,
@@ -169,4 +194,6 @@ module.exports = {
   getFunctions: getFunctions,
   getRoutes: getRoutes,
   getDependencies: getDependencies,
+  getGaps: getGaps,
+  getTemplates: getTemplates,
 };

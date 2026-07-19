@@ -212,3 +212,34 @@
 - Backend completion: ~75%
 - All tests passing: 173/173
 - Files modified: shared/services/ratelimit.js, index.js, migrations/003_rate_limit.sql, scripts/cli/migrate.js, scripts/cli/scaffold.js, package.json
+
+
+# Session 2026-07-19 (Session 9)
+
+## Tier 6 Implementation Decisions
+
+### Gap Analysis Engine
+**Decision:** Weighted scoring model (capabilities 40%, functions 30%, routes 20%, schema 10%)
+**Rationale:** Capabilities are the core contract; functions implement them; routes expose them; schema supports them
+**Status thresholds:** <25% red, <50% yellow, >=50% green
+
+### Recommendation Engine
+**Decision:** Capability clustering by prefix, orphan detection, partial module detection
+**Rationale:** Identifies incomplete modules and suggests new module builds from unclustered capabilities
+**Persistence:** recommendations table with 1-hour TTL
+
+### New Endpoints
+**Decision:** /introspect/gaps and /introspect/templates added to system_health module
+**Rationale:** Consistent with existing introspection pattern, auth-required
+
+### Migration CLI Fix
+**Decision:** Rewrote migrate.js with proper connection lifecycle (open per operation, close after)
+**Rationale:** Previous singleton pattern closed connection before operations could use it
+
+## Session Summary
+- Tier 6 complete (4/4 items)
+- Backend completion: ~80%
+- All tests passing: 173/173
+- All migrations applied: 8/8
+- Files created: engine/gap-analysis/index.js, engine/gap-analysis/calculator.js, engine/recommendation/index.js, engine/recommendation/analyzer.js, migrations/004_recommendations.sql
+- Files modified: modules/system_health/index.js, modules/system_health/module.json, scripts/cli/migrate.js

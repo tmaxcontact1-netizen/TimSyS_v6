@@ -72,13 +72,13 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - Migration CLI (run/rollback/list migrations from command line)
 - Module scaffolding CLI (generate module skeleton from template)
 
-### Tier 6: Advanced Intelligence (NOT STARTED)
-- Gap analysis engine (`/engine/gap-analysis/`)
-- Recommendation engine (`/engine/recommendation/`)
-- `/introspect/gaps` endpoint (requires gap analysis engine)
-- `/introspect/templates` endpoint (requires template registry)
+### ### Tier 6: Advanced Intelligence (COMPLETE)
 
-**Overall Backend Completion: ~75%**
+- Gap analysis engine (engine/gap-analysis/) — completion scoring, gap detection, recommended actions
+- Recommendation engine (engine/recommendation/) — capability clustering, orphan detection, suggestion ranking
+- /introspect/gaps endpoint
+- /introspect/templates endpoint
+- Migration 004_recommendations.sql applied
 
 ## In Progress
 
