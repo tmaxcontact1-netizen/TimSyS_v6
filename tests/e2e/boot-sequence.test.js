@@ -22,19 +22,12 @@ describe('E2E: Boot Sequence Regression', function() {
     await new Promise(function(r) { setTimeout(r, 500); });
   }, 30000);
 
-  afterAll(function() {
-    return new Promise(function(r) {
-      if (server) {
-        server.close(function() {
-          var dbPath = path.resolve('./data/test_boot_seq.sqlite');
-          [dbPath, dbPath + '-wal', dbPath + '-shm'].forEach(function(p) {
-            if (fs.existsSync(p)) fs.unlinkSync(p);
-          });
-          r();
-        });
-      } else {
-        r();
-      }
+  afterAll(async function() {
+    var index = require('../../index');
+    await index.shutdownPlatform(server);
+    var dbPath = path.resolve('./data/test_boot_seq.sqlite');
+    [dbPath, dbPath + '-wal', dbPath + '-shm'].forEach(function(p) {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
     });
   });
 

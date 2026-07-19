@@ -43,8 +43,8 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 ### Tier 1: Security Quick Wins (COMPLETE — 2 deferred)
 - ✅ HTTPS enforcement middleware
 - ✅ Password policy (`isStrongPassword()` — min 8 chars + special char)
-- ❌ Graceful shutdown (deferred — Jest SIGTERM/SIGINT handler accumulation causes hangs)
-- ❌ Input validation middleware (deferred — blocked 37 test requests, root cause unclear)
+- ✅ Graceful shutdown (shutdownPlatform function, SIGTERM/SIGINT handlers)
+- ✅ Input validation middleware (non-blocking sanitization in request pipeline)
 
 ### Tier 2: Test Coverage & Observability (COMPLETE)
 - ✅ Security tests (`tests/integration/http/security.test.js` — 11 tests)

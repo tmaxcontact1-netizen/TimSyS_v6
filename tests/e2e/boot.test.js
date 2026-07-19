@@ -16,7 +16,7 @@ describe('E2E: Boot Sequence',function(){
     await new Promise(r=>setTimeout(r,500));
   },30000);
 
-  afterAll(function(){return new Promise(r=>{if(server){server.close(()=>{var dp=path.resolve('./data/test_e2e.sqlite');[dp,dp+'-wal',dp+'-shm'].forEach(p=>{if(fs.existsSync(p))fs.unlinkSync(p)});r();});}else{r();}});});
+  afterAll(async function(){var index=require('../../index');await index.shutdownPlatform(server);var dp=path.resolve('./data/test_e2e.sqlite');[dp,dp+'-wal',dp+'-shm'].forEach(function(p){if(fs.existsSync(p))fs.unlinkSync(p);});});
 
   function mr(m,ps,b,t){return new Promise(function(res,rej){var p=url.parse(bu+ps),o={hostname:p.hostname,port:p.port,path:p.path,method:m,headers:{'Content-Type':'application/json'}};if(t)o.headers['Authorization']='Bearer '+t;else o.headers['X-Requested-With']='XMLHttpRequest';var r=http.request(o,function(rr){var d='';rr.on('data',c=>d+=c);rr.on('end',()=>{try{res({status:rr.statusCode,data:JSON.parse(d),headers:rr.headers});}catch(e){res({status:rr.statusCode,data:d,headers:rr.headers});}});});r.on('error',rej);if(b)r.write(JSON.stringify(b));r.end();});}
 

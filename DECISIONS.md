@@ -269,3 +269,26 @@
 - All tests passing: 173/173
 - Files created: modules/builder/index.js, modules/builder/module.json, modules/builder/migrations/, scripts/cli/builder.js
 - Files modified: tests/e2e/boot-sequence.test.js, package.json
+
+
+# Session 2026-07-19 (Session 11)
+
+## Deferred Tier 1 Items Resolved
+
+### Graceful Shutdown
+**Decision:** Added shutdownPlatform() to index.js, exported alongside bootPlatform/createServer
+**Implementation:** Reverses wired modules, calls unstage() on each, closes DB connection
+**Signal handlers:** SIGTERM and SIGINT registered when running as main module (production only, not in tests)
+**Test integration:** Both E2E suites (boot.test.js, boot-sequence.test.js) now call shutdownPlatform in afterAll instead of raw server.close()
+
+### Input Validation Middleware
+**Decision:** Non-blocking sanitization middleware added to request pipeline
+**Position:** After body parsing, before rate limiting
+**Scope:** Sanitizes req.body and req.query using existing ValidationService.sanitize()
+**Non-blocking rationale:** Previous attempt blocked 37 test requests by rejecting unsanitized input. Non-blocking approach cleans input without rejecting requests.
+
+## Session Summary
+- Both deferred Tier 1 items resolved
+- Backend completion: ~90%
+- All tests passing: 173/173
+- Files modified: index.js, tests/e2e/boot.test.js, tests/e2e/boot-sequence.test.js

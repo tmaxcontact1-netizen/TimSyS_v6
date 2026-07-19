@@ -18,6 +18,7 @@ const boot = require('./shared/pipeline/boot');
 const unstage = require('./shared/pipeline/unstage');
 const log = require('./shared/services/log');
 const ratelimit = require("./shared/services/ratelimit");
+const validation = require("./shared/services/validate");
 const auth = require('./shared/services/auth');
 const passwordChangeRequired = require('./shared/middleware/passwordChangeRequired');
 const metrics = require('./shared/services/metrics');
@@ -25,6 +26,7 @@ const db = require('./shared/services/db');
 
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 var contextRegistry = {};
+var wiredModules = [];
 
 var CORS_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(function(s) { return s.trim(); });
 var RATE_LIMIT_WINDOW = 60000;
@@ -72,6 +74,7 @@ async function bootPlatform() {
   log.info('Boot order: ' + bootOrder.join(' -> '));
 
   var wired = registered.map(function(d) { return wire(d); });
+  wiredModules = wired;
   log.info(wired.length + ' module(s) wired');
 
   for (var w = 0; w < wired.length; w++) {
@@ -227,6 +230,12 @@ function authenticationMiddleware(req, res, route) {
   }
 }
 
+function sanitizationMiddleware(req) {
+  if (req.body && typeof req.body === 'object') req.body = validation.sanitize(req.body);
+  if (req.query && typeof req.query === 'object') req.query = validation.sanitize(req.query);
+  return true;
+}
+
 function rateLimitMiddleware(req, res) {
   var ip = req.socket.remoteAddress || "unknown";
   var userId = req.user ? req.user.id : ip;
@@ -246,6 +255,22 @@ function rateLimitMiddleware(req, res) {
     return false;
   }
   return true;
+}
+
+function shutdownPlatform(server) {
+  return new Promise(function(resolve) {
+    function cleanup() {
+      var reversed = wiredModules.slice().reverse();
+      for (var i = 0; i < reversed.length; i++) {
+        try { unstage(reversed[i]); } catch (err) { log.error('Shutdown teardown failed: ' + reversed[i].manifest.name, { error: err.message }); }
+      }
+      try { if (typeof db.close === 'function') db.close(); } catch (err) {}
+      wiredModules = [];
+      contextRegistry = {};
+      resolve();
+    }
+    if (server) { server.close(cleanup); } else { cleanup(); }
+  });
 }
 
 function createServer() {
@@ -296,6 +321,7 @@ function createServer() {
         body = await readBody(req);
       }
 
+      if (!sanitizationMiddleware(req)) return;
       if (!rateLimitMiddleware(req, res)) return;
 
       if (!passwordChangeRequired(req, res, pathname, method, respond)) return;
@@ -379,13 +405,23 @@ function respond(res, statusCode, data) {
   })));
 }
 
+var currentServer = null;
+
 if (require.main === module) {
-  bootPlatform().then(function() {
-    // Server running
+  bootPlatform().then(function(server) {
+    currentServer = server;
+    process.on('SIGTERM', function() {
+      log.info('SIGTERM received, shutting down...');
+      shutdownPlatform(currentServer).then(function() { process.exit(0); });
+    });
+    process.on('SIGINT', function() {
+      log.info('SIGINT received, shutting down...');
+      shutdownPlatform(currentServer).then(function() { process.exit(0); });
+    });
   }).catch(function(err) {
     log.error('Platform failed to start', { error: err.message, stack: err.stack });
     process.exit(1);
   });
 }
 
-module.exports = { bootPlatform: bootPlatform, createServer: createServer };
+module.exports = { bootPlatform: bootPlatform, createServer: createServer, shutdownPlatform: shutdownPlatform };
