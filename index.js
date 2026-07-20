@@ -1,4 +1,25 @@
 'use strict';
+const path = require('path');
+const fs = require('fs');
+const CONFIG_FILE = path.join(__dirname, 'config', 'session-policy.json');
+
+// Check if setup wizard has been completed
+  console.error('\n[ERROR] Initial setup not completed.');
+  console.error('Run: node deploy/setup-wizard.js');
+  console.error('This wizard must be completed before first deployment.\n');
+  process.exit(1);
+}
+
+const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+// Verify integrity
+const crypto = require('crypto');
+const currentHash = crypto.createHash('sha256').update(JSON.stringify(config)).digest('hex');
+if (currentHash !== config.hash) {
+  console.error('[ERROR] Config file tampered. Integrity check failed.');
+  process.exit(1);
+}
+console.log('✓ Configuration verified:', config.admin.adminName, '-', new Date(config.timestamp).toLocaleString());
+
 
 const http = require('http');
 const url = require('url');
