@@ -24,7 +24,7 @@ const passwordChangeRequired = require('./shared/middleware/passwordChangeRequir
 const metrics = require('./shared/services/metrics');
 const db = require('./shared/services/db');
 
-const PORT = parseInt(process.env.PORT, 10) || 3000;
+var PORT = process.env.PORT !== undefined ? parseInt(process.env.PORT, 10) : 3000;
 var contextRegistry = {};
 var wiredModules = [];
 

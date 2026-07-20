@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { AuthService } = require('../../contracts/auth');
 const db = require('./db');
 const sessionStore = require('./session');
+const refresh = require('./refresh');
 
 const JWT_SECRET =
   process.env.JWT_SECRET ||
@@ -33,6 +34,10 @@ class AuthServiceImpl extends AuthService {
     return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
   }
 
+  issueRefreshToken(userId, sessionId) {
+    return refresh.issueRefreshToken(userId, sessionId);
+  }
+
   verifyToken(token) {
     var decoded = jwt.verify(token, JWT_SECRET);
     var tokenHash = this._hashToken(token);
@@ -50,6 +55,10 @@ class AuthServiceImpl extends AuthService {
     return decoded;
   }
 
+  verifyRefreshToken(token) {
+    return refresh.verifyRefreshToken(token);
+  }
+
   revokeToken(token, reason) {
     var tokenHash = this._hashToken(token);
     var userId = null;
@@ -58,7 +67,6 @@ class AuthServiceImpl extends AuthService {
       var decoded = jwt.verify(token, JWT_SECRET);
       userId = decoded.userId;
     } catch (e) {
-      // Token may be expired — still revoke by hash
     }
 
     db.query(
@@ -67,11 +75,23 @@ class AuthServiceImpl extends AuthService {
     );
   }
 
+  rotateRefreshToken(token) {
+    return refresh.rotateRefreshToken(token);
+  }
+
+  revokeRefreshToken(token, reason) {
+    return refresh.revokeRefreshToken(token, reason);
+  }
+
   revokeAllUserTokens(userId, reason) {
     db.query(
       'INSERT INTO token_revocation (token_hash, revoked_at, user_id, reason) VALUES (?, ?, ?, ?)',
       ['*', Date.now(), userId, reason || null]
     );
+  }
+
+  revokeAllUserRefreshTokens(userId, reason) {
+    return refresh.revokeAllUserRefreshTokens(userId, reason);
   }
 
   createSession(userId, payload) {
@@ -101,6 +121,7 @@ class AuthServiceImpl extends AuthService {
   forceLogout(userId, reason) {
     this.revokeAllUserTokens(userId, reason);
     sessionStore.destroyByUser(userId);
+    this.revokeAllUserRefreshTokens(userId, reason);
   }
 
   checkPerm(user, perm) {

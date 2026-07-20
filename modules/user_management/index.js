@@ -51,12 +51,14 @@ async function login(req, ctx) {
   var mustChangePassword = user.must_change_password === 1;
   var session = ctx.auth.createSession(user.id, { username: user.username, permissions: permissions });
   var token = ctx.auth.issueToken({ id: user.id, permissions: permissions, mustChangePassword: mustChangePassword }, session.sessionId);
+  var refreshTokenStr = ctx.auth.issueRefreshToken(user.id, session.sessionId);
 
   ctx.log.audit('user.login', user.id, { entityType: 'user', entityId: user.id });
 
   return {
     success: true,
     token: token,
+    refreshToken: refreshTokenStr,
     sessionId: session.sessionId,
     mustChangePassword: mustChangePassword,
     user: {
@@ -74,6 +76,9 @@ async function logout(req, ctx) {
   var authHeader = req.headers.authorization;
   var token = authHeader.split(' ')[1];
   ctx.auth.revokeToken(token, 'user_logout');
+  if (req.body && req.body.refreshToken) {
+    ctx.auth.revokeRefreshToken(req.body.refreshToken, 'user_logout');
+  }
   return { success: true, message: 'Logged out successfully' };
 }
 
@@ -349,3 +354,45 @@ module.exports = {
   deleteUser: deleteUser,
   changePassword: changePassword,
 };
+
+async function refreshToken(req, ctx) {
+  var refreshToken = req.body.refreshToken;
+
+  if (!refreshToken) {
+    return { success: false, statusCode: 400, error: { code: 'BAD_REQUEST', message: 'Refresh token required' } };
+  }
+
+  try {
+    var verified = ctx.auth.verifyRefreshToken(refreshToken);
+    var newRefreshToken = ctx.auth.rotateRefreshToken(refreshToken);
+    
+    var userResult = ctx.db.query('SELECT * FROM users WHERE id = ?', [verified.userId]);
+    if (userResult.rows.length === 0) {
+      return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'User not found' } };
+    }
+    
+    var user = userResult.rows[0];
+    var permissions = typeof user.permissions === 'string' ? JSON.parse(user.permissions) : user.permissions;
+    var mustChangePassword = user.must_change_password === 1;
+    
+    var session = ctx.auth.createSession(user.id, { username: user.username, permissions: permissions });
+    var accessToken = ctx.auth.issueToken({ id: user.id, permissions: permissions, mustChangePassword: mustChangePassword }, session.sessionId);
+
+    return {
+      success: true,
+      accessToken: accessToken,
+      refreshToken: newRefreshToken,
+      user: {
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        permissions: permissions,
+      },
+    };
+  } catch (err) {
+    console.log('DEBUG: Refresh error:', err.message);
+    return { success: false, statusCode: 401, error: { code: 'UNAUTHORIZED', message: 'Invalid or expired refresh token' } };
+  }
+}
+
+module.exports.refreshToken = refreshToken;

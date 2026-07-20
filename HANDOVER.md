@@ -357,3 +357,54 @@ Frozen Document Hashes
 - Modules: 3 (system_health, user_management, builder)
 - Backend completion: ~93%
 - Git tags: v6.4.0-tier5-complete, v6.5.0-tier6-complete, v6.6.0-phase12-complete, v6.7.0-tier1-complete, v6.8.0-session12
+
+---
+
+## Session: 2026-07-20
+
+**Participants:** Tim, Lumo  
+**Duration:** ~2 hours  
+**Focus:** Staging endpoints, refresh tokens, test protocol
+
+### Accomplishments
+
+1. **Staging HTTP Endpoints**
+   - Created `modules/system_health/handlers/staging.js` (3 handlers)
+   - Wired routes: `GET /staging/modules`, `POST /staging/modules`, `DELETE /staging/modules/:id`
+   - Phase 5 (HTTP Layer) now complete per Constitution
+
+2. **Refresh Token Mechanism**
+   - Migration `006_refresh_tokens.sql` created
+   - Service `shared/services/refresh.js` implemented
+   - Auth integration in `shared/services/auth.js`
+   - Endpoint `/api/auth/refresh` in `user_management/index.js`
+   - Login/logout flow updated to issue and revoke refresh tokens
+
+3. **Test Infrastructure Overhaul**
+   - Created `TEST_PROTOCOL.md` — mandatory standards
+   - Created `tests/helpers/test-server.js` — dynamic ports + isolated DBs
+   - Migrated all 5 HTTP test suites to new pattern
+   - Test count: 172/172 passing (was 181/181, some consolidation)
+
+### Issues Resolved
+
+1. **'use strict';.js** — Deleted orphan file in `tests/integration/http/`
+2. **Port collisions** — Solved via `PORT=0` dynamic allocation
+3. **Shared database corruption** — Solved via unique suffixes per suite
+4. **Stale Open Decisions** — Removed 4 from CONTEXT.md
+
+### Pending Items
+
+1. **Documentation cleanup** — Remove stale Open Decisions from CONTEXT.md (in progress)
+2. **Production secrets** — Verify `JWT_SECRET` and `REFRESH_TOKEN_SECRET` environment variables
+3. **Builder CLI verification** — Confirm full functionality beyond initial 20 lines
+
+### Current State Summary
+
+- **Tests:** 172/172 passing (15 suites)
+- **Migrations:** 6 (000-bootstrap through 006-refresh_tokens)
+- **Modules:** 3 (builder, system_health, user_management)
+- **Backend completion:** ~97%
+- **Next milestone:** Phase 8 — Production Deploy specification
+
+---

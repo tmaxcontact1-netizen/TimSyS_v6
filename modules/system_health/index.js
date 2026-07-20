@@ -289,6 +289,8 @@ function discoverFunctions(req, ctx) {
   return { success: true, functions: funcs, total: funcs.length };
 }
 
+const staging = require('./handlers/staging');
+
 module.exports = {
   boot: boot,
   teardown: teardown,
@@ -307,5 +309,8 @@ module.exports = {
   getAuditLogs: getAuditLogs,
   getAuditLog: getAuditLog,
   discoverCapabilities: discoverCapabilities,
-  discoverFunctions: discoverFunctions
+  discoverFunctions: discoverFunctions,
+  listStagedModules: staging.listStagedModules,
+  stageModule: staging.stageModule,
+  unstageModule: staging.unstageModule
 };

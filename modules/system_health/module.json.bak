@@ -108,24 +108,6 @@
       "method": "GET",
       "handler": "system_health_discoverFunctions",
       "auth_required": true
-    },
-    {
-      "path": "/staging/modules",
-      "method": "GET",
-      "handler": "system_health_listStagedModules",
-      "auth_required": true
-    },
-    {
-      "path": "/staging/modules",
-      "method": "POST",
-      "handler": "system_health_stageModule",
-      "auth_required": true
-    },
-    {
-      "path": "/staging/modules/:id",
-      "method": "DELETE",
-      "handler": "system_health_unstageModule",
-      "auth_required": true
     }
   ],
   "functions": [
@@ -222,24 +204,6 @@
     {
       "name": "system_health_discoverFunctions",
       "exports": "discoverFunctions",
-      "params": [],
-      "returns": "any"
-    },
-    {
-      "name": "system_health_listStagedModules",
-      "exports": "listStagedModules",
-      "params": [],
-      "returns": "any"
-    },
-    {
-      "name": "system_health_stageModule",
-      "exports": "stageModule",
-      "params": [],
-      "returns": "any"
-    },
-    {
-      "name": "system_health_unstageModule",
-      "exports": "unstageModule",
       "params": [],
       "returns": "any"
     }

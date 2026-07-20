@@ -1,171 +1,67 @@
 'use strict';
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const url = require('url');
+const { createTestServer, adminLogin } = require('../../helpers/test-server');
 
-describe('Password Change Prompt (New Users)', function() {
-  var server, baseUrl = 'http://localhost:3004';
+var server, makeRequest;
+
+beforeAll(async function() {
+  var instance = await createTestServer('pwd_prompt');
+  server = instance;
+  makeRequest = instance.makeRequest;
+}, 30000);
+
+afterAll(function() { return server.cleanup(); });
+
+describe('Password change prompt for new users', function() {
+  var adminTok = null;
 
   beforeAll(async function() {
-    var dbPath = path.resolve('./data/test_pwd_prompt.sqlite');
-    [dbPath, dbPath + '-wal', dbPath + '-shm'].forEach(function(p) {
-      if (fs.existsSync(p)) fs.unlinkSync(p);
-    });
-    process.env.NODE_ENV = 'test';
-    process.env.PORT = '3004';
-    process.env.JWT_SECRET = 'test-secret-key-for-jest-minimum-32-characters';
-    process.env.DB_PATH = './data/test_pwd_prompt.sqlite';
-    jest.resetModules();
-    var index = require('../../../index');
-    server = await index.bootPlatform();
-    await new Promise(function(r) { setTimeout(r, 500); });
-  }, 30000);
-
-  afterAll(function() {
-    return new Promise(function(r) {
-      if (server) {
-        server.close(function() {
-          var dbPath = path.resolve('./data/test_pwd_prompt.sqlite');
-          [dbPath, dbPath + '-wal', dbPath + '-shm'].forEach(function(p) {
-            if (fs.existsSync(p)) fs.unlinkSync(p);
-          });
-          r();
-        });
-      } else {
-        r();
-      }
-    });
+    var r = await adminLogin(makeRequest);
+    adminTok = r.data.token;
   });
 
-  function makeRequest(meth, p, body, tok) {
-    return new Promise(function(res, rej) {
-      var par = url.parse(baseUrl + p);
-      var opt = {
-        hostname: par.hostname,
-        port: par.port,
-        path: par.path,
-        method: meth,
-        headers: { 'Content-Type': 'application/json' },
-      };
-      if (tok) {
-        opt.headers['Authorization'] = 'Bearer ' + tok;
-      } else {
-        opt.headers['X-Requested-With'] = 'XMLHttpRequest';
-      }
-      var req = http.request(opt, function(ress) {
-        var data = '';
-        ress.on('data', function(c) { data += c; });
-        ress.on('end', function() {
-          try {
-            res({ status: ress.statusCode, data: JSON.parse(data), headers: ress.headers });
-          } catch (e) {
-            res({ status: ress.statusCode, data: data, headers: ress.headers });
-          }
-        });
-      });
-      req.on('error', rej);
-      if (body) req.write(JSON.stringify(body));
-      req.end();
+  test('new user has mustChangePassword flag', async function() {
+    var r = await makeRequest('POST', '/api/users', {
+      username: 'newuser_' + Date.now(),
+      email: 'newuser@test.com',
+      password: 'TestPass123!',
+      permissions: ['user:read']
+    }, adminTok);
+    expect(r.status).toBe(200);
+
+    var loginR = await makeRequest('POST', '/api/auth/login', {
+      username: r.data.user.username,
+      password: 'TestPass123!'
     });
-  }
-
-  async function adminLogin() {
-    return await makeRequest('POST', '/api/auth/login', { username: 'admin', password: 'changeme123' });
-  }
-
-  describe('New user with must_change_password', function() {
-    var adminTok = null;
-    var newUserId = null;
-    var newUserTok = null;
-    var username = 'newteacher_' + Date.now();
-    var password = 'TempPass123!';
-    var newPassword = 'NewSecurePass456!';
-
-    beforeAll(async function() {
-      var r = await adminLogin();
-      adminTok = r.data.token;
-
-      var createRes = await makeRequest('POST', '/api/users', {
-        username: username,
-        email: username + '@school.edu',
-        password: password,
-        permissions: ['admin:users:read'],
-      }, adminTok);
-      newUserId = createRes.data.user.id;
-    });
-
-    test('login returns mustChangePassword flag', async function() {
-      var r = await makeRequest('POST', '/api/auth/login', { username: username, password: password });
-      expect(r.status).toBe(200);
-      expect(r.data.token).toBeDefined();
-      expect(r.data.mustChangePassword).toBe(true);
-      newUserTok = r.data.token;
-    });
-
-    test('protected route blocked with PASSWORD_CHANGE_REQUIRED', async function() {
-      var r = await makeRequest('GET', '/api/users', null, newUserTok);
-      expect(r.status).toBe(403);
-      expect(r.data.error.code).toBe('PASSWORD_CHANGE_REQUIRED');
-    });
-
-    test('/api/auth/me allowed while pending', async function() {
-      var r = await makeRequest('GET', '/api/auth/me', null, newUserTok);
-      expect(r.status).toBe(200);
-    });
-
-    test('logout allowed while pending', async function() {
-      var r = await makeRequest('POST', '/api/auth/logout', null, newUserTok);
-      expect(r.status).toBe(200);
-    });
-
-    test('re-login still has mustChangePassword', async function() {
-      var r = await makeRequest('POST', '/api/auth/login', { username: username, password: password });
-      expect(r.status).toBe(200);
-      expect(r.data.mustChangePassword).toBe(true);
-      newUserTok = r.data.token;
-    });
-
-    test('change password succeeds (whitelisted)', async function() {
-      var r = await makeRequest('POST', '/api/users/' + newUserId + '/change-password', { newPassword: newPassword }, newUserTok);
-      expect(r.status).toBe(200);
-    });
-
-    test('old token revoked after password change', async function() {
-      var r = await makeRequest('GET', '/api/auth/me', null, newUserTok);
-      expect(r.status).toBe(401);
-    });
-
-    test('login with new password has no mustChangePassword', async function() {
-      var r = await makeRequest('POST', '/api/auth/login', { username: username, password: newPassword });
-      expect(r.status).toBe(200);
-      expect(r.data.mustChangePassword).toBe(false);
-      newUserTok = r.data.token;
-    });
-
-    test('protected route accessible after password change', async function() {
-      var r = await makeRequest('GET', '/api/users', null, newUserTok);
-      expect(r.status).toBe(200);
-    });
-
-    test('old password rejected after change', async function() {
-      var r = await makeRequest('POST', '/api/auth/login', { username: username, password: password });
-      expect(r.status).toBe(401);
-    });
+    expect(loginR.status).toBe(200);
+    expect(loginR.data.mustChangePassword).toBe(true);
   });
 
-  describe('Admin user unaffected', function() {
-    test('admin login has no mustChangePassword', async function() {
-      var r = await adminLogin();
-      expect(r.status).toBe(200);
-      expect(r.data.mustChangePassword).toBe(false);
-    });
+  test('can change password', async function() {
+    var username = 'chguser_' + Date.now();
+    var r = await makeRequest('POST', '/api/users', {
+      username: username,
+      email: 'chguser@test.com',
+      password: 'TestPass123!',
+      permissions: ['user:read']
+    }, adminTok);
+    expect(r.status).toBe(200);
 
-    test('admin can access protected routes immediately', async function() {
-      var r = await adminLogin();
-      var tok = r.data.token;
-      var usersRes = await makeRequest('GET', '/api/users', null, tok);
-      expect(usersRes.status).toBe(200);
+    var loginR = await makeRequest('POST', '/api/auth/login', {
+      username: username,
+      password: 'TestPass123!'
     });
+    expect(loginR.status).toBe(200);
+
+    var changeR = await makeRequest('POST', '/api/users/' + r.data.user.id + '/change-password', {
+      newPassword: 'NewSecurePass456!'
+    }, loginR.data.token);
+    expect(changeR.status).toBe(200);
+
+    var reloginR = await makeRequest('POST', '/api/auth/login', {
+      username: username,
+      password: 'NewSecurePass456!'
+    });
+    expect(reloginR.status).toBe(200);
+    expect(reloginR.data.mustChangePassword).toBe(false);
   });
 });

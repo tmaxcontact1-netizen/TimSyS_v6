@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-20T04:09:25Z
+Generated: 2026-07-20T14:47:41Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 10603B | 2026-07-19 20:39:18 |
-| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-20 11:09:25 |
-| `HANDOVER.md` | ✅ | 20862B | 2026-07-19 20:39:18 |
+| `CONTEXT.md` | ✅ | 10897B | 2026-07-20 11:12:31 |
+| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-20 21:47:41 |
+| `HANDOVER.md` | ✅ | 20862B | 2026-07-20 11:12:31 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -65,6 +65,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./migrations/003_rate_limit.sql
 ./migrations/004_recommendations.sql
 ./migrations/005_route_permissions.sql
+./migrations/006_refresh_tokens.sql
 ./modules
 ./modules/builder
 ./modules/builder/index.js
@@ -73,8 +74,11 @@ Path: `/home/tmax/TimSyS_v6`
 ./modules/builder/module.json
 ./modules/.gitkeep
 ./modules/system_health
+./modules/system_health/handlers
+./modules/system_health/handlers/staging.js
 ./modules/system_health/index.js
 ./modules/system_health/module.json
+./modules/system_health/module.json.bak
 ./modules/user_management
 ./modules/user_management/index.js
 ./modules/user_management/migrations
@@ -131,20 +135,25 @@ Path: `/home/tmax/TimSyS_v6`
 ./shared/services/log.js
 ./shared/services/metrics.js
 ./shared/services/ratelimit.js
+./shared/services/refresh.js
 ./shared/services/session.js
 ./shared/services/validate.js
+./TEST_PROTOCOL.md
 ./test-results.txt
 ./tests
 ./tests/e2e
 ./tests/e2e/boot-sequence.test.js
 ./tests/e2e/boot.test.js
 ./tests/e2e/.gitkeep
+./tests/helpers
+./tests/helpers/test-server.js
 ./tests/integration
 ./tests/integration/http
 ./tests/integration/http/auth.test.js
 ./tests/integration/http/password-prompt.test.js
+./tests/integration/http/refresh-token.test.js
 ./tests/integration/http/security.test.js
-./tests/integration/http/'use strict';.js
+./tests/integration/http/staging.test.js
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
 ./tests/integration/staging/pipeline.test.js
@@ -187,7 +196,7 @@ Location: `/shared/services/`
 |------|--------|------|---------------|
 | `db.js` | ✅ | 1840B | 2026-07-17 16:23:17 |
 | `cache.js` | ✅ | 3439B | 2026-07-17 06:56:18 |
-| `auth.js` | ✅ | 3095B | 2026-07-18 12:39:45 |
+| `auth.js` | ✅ | 3609B | 2026-07-20 15:28:06 |
 | `log.js` | ✅ | 1103B | 2026-07-16 21:39:58 |
 | `validate.js` | ✅ | 1493B | 2026-07-16 21:40:14 |
 | `events.js` | ✅ | 2263B | 2026-07-16 21:40:26 |

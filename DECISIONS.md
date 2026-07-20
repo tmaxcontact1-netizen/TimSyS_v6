@@ -363,3 +363,78 @@
 **Test Results:** 181/181 passing
 
 **Status:** IMPLEMENTED
+
+---
+
+## Session: 2026-07-20
+
+**Author:** Tim  
+**Status:** Active
+
+### Decision: Staging HTTP Endpoints Implementation
+
+**Problem:** Constitution Phase 5 required three HTTP endpoints for module staging that did not exist:
+- `GET /staging/modules`
+- `POST /staging/modules`
+- `DELETE /staging/modules/{id}`
+
+Pipeline functions existed but were not exposed as HTTP routes.
+
+**Decision:** Implement staging endpoints in `modules/system_health` as they handle platform introspection and management operations.
+
+**Implementation:**
+- Created `modules/system_health/handlers/staging.js` with three handlers
+- Wired handlers to `modules/system_health/index.js`
+- Updated `module.json` to register routes and function exports
+- All endpoints require authentication (`auth_required: true`)
+- Dynamic unstaging limited — restart required for full cleanup (documented warning)
+
+**Trade-offs:**
+- Positive: Consistent with existing module architecture
+- Positive: Staging logic lives with platform health monitoring
+- Negative: Cannot fully unstage modules at runtime without server restart
+
+### Decision: Refresh Token Mechanism
+
+**Problem:** Open Decision #2 from CONTEXT.md — JWT 24h expiry with no refresh mechanism. For production deployment, token rotation is required for security.
+
+**Decision:** Implement refresh token pattern with rotation on every use.
+
+**Implementation:**
+- Migration `migrations/006_refresh_tokens.sql` — refresh token table with SHA-256 hashed tokens
+- Service `shared/services/refresh.js` — issue, verify, rotate, revoke functions
+- Updated `shared/services/auth.js` — integrated refresh token methods
+- Handler `/api/auth/refresh` in `user_management/index.js` — exchanges refresh for new access + refresh tokens
+- Login returns both `accessToken` and `refreshToken`
+- Logout accepts optional `refreshToken` for revocation
+- Token rotation on every use (old token revoked, new issued)
+
+**Trade-offs:**
+- Positive: Improved security via short-lived access tokens
+- Positive: Client maintains session without re-authentication
+- Positive: Automatic token rotation limits replay attack window
+- Negative: Increased complexity in token lifecycle management
+- Negative: Requires secure storage of both token types on client
+
+### Decision: Test Protocol Standards
+
+**Problem:** Test suite suffered from port collisions and shared database state when running in parallel. Manual intervention required to serialize tests or fix failures.
+
+**Decision:** Mandate dynamic port allocation and isolated databases for all integration tests.
+
+**Implementation:**
+- Created `TEST_PROTOCOL.md` — mandatory testing standards document
+- Created `tests/helpers/test-server.js` — shared infrastructure with `PORT=0` dynamic allocation
+- All HTTP test suites migrated to use `createTestServer()` helper
+- Each test file uses unique database suffix (`test_<suite>.sqlite`)
+- Added `adminLogin()` helper to eliminate login boilerplate
+- Full suite passes: 172/172 tests across 16 suites
+
+**Trade-offs:**
+- Positive: Parallel execution now safe
+- Positive: No manual intervention required
+- Positive: Deterministic test results
+- Negative: Additional abstraction layer to learn
+- Negative: New test files must follow protocol or fail
+
+---

@@ -144,12 +144,9 @@ Nothing queued.
 
 ## Open Decisions
 
-1. **Token revocation strategy:** Implemented via SQLite table (token_revocation). Bloom filter optimization deferred.
-2. **Session duration policy:** JWT TTL 24h, no refresh token. Needs policy before production with real users.
-3. **Request/reply timeout defaults:** Not specified — defer to Phase 9 (EventBus impl)
-4. **Rate limiting persistence:** In-memory Map, resets on restart. Consider Redis or DB-backed before production.
-5. **Graceful shutdown:** Signal handlers interfere with Jest test isolation. Need alternative approach.
-6. **Input validation middleware:** Blocked test requests when implemented. Root cause investigation needed.
+1. **Token revocation strategy:** Implemented via SQLite table (token_revocation). Bloom filter optimization deferred. Design choice — no action needed.
+2. **Session duration policy:** JWT access token 24h TTL with refresh token rotation (7d). Refresh tokens stored in SQLite with SHA-256 hashing. Rotation on every use. RESOLVED.
+3. **Production secrets:** JWT_SECRET and REFRESH_TOKEN_SECRET must be set in production environment. No defaults in production mode.
 
 ## Session Protocol
 
@@ -159,7 +156,7 @@ Nothing queued.
 
 ---
 
-Last updated: 2026-07-18
+Last updated: 2026-07-20
 
 
 ### Tier 7: Authorization Middleware (COMPLETE)
