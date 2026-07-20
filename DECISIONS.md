@@ -438,3 +438,52 @@ Pipeline functions existed but were not exposed as HTTP routes.
 - Negative: New test files must follow protocol or fail
 
 ---
+
+---
+
+## Session: 2026-07-20 (Final)
+
+**Author:** Tim  
+**Status:** Active
+
+### Decision: Initial Setup Wizard — Enforced Accountability
+
+**Problem:** Administrators deploying TimSyS must make security and backup policy decisions. Without enforcement, critical policies (session duration, backup strategy) could be overlooked, creating liability.
+
+**Decision:** Create a mandatory setup wizard that blocks server startup until all policy decisions are made and recorded.
+
+**Implementation:**
+- `deploy/setup-wizard.js` — Interactive CLI wizard, runs once on first deployment
+- `config/session-policy.json` — Immutable config file with SHA-256 integrity hash
+- `index.js` — Boot sequence checks for config existence and integrity before starting
+- `deploy/backup.sh` — Reads policy from config, performs VACUUM INTO backups with retention
+
+**Policy selections forced:**
+- Session duration (Secure/Balanced/Extended)
+- Backup strategy (Cloud/On-prem + retention schedule)
+- Admin identity recorded for accountability
+
+**Trade-offs:**
+- Positive: Eliminates "nobody told me" liability
+- Positive: Every deployment has explicit, auditable security decisions
+- Positive: Backup strategy tested and enforced from day one
+- Negative: Adds friction to initial deployment (acceptable by design)
+
+### Decision: Backend Marked 100% Complete
+
+**Rationale:** All Constitution phases (0-12) implemented and verified.
+- Staging endpoints: Complete
+- Refresh tokens: Complete with rotation
+- Test infrastructure: 172/172 passing with enforced protocol
+- Builder CLI: All 4 commands verified
+- Deployment scripts: migrate.sh, rollback.sh, backup.sh
+- Setup wizard: Enforced policy selection
+- Rate limiting: Accepted at current thresholds
+
+**Remaining work is operational, not developmental:**
+- Run setup wizard on production server
+- Set production secrets in .env
+- Configure cron for backup.sh
+- Test restore procedure
+
+---

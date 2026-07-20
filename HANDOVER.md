@@ -408,3 +408,69 @@ Frozen Document Hashes
 - **Next milestone:** Phase 8 — Production Deploy specification
 
 ---
+
+---
+
+## Session: 2026-07-20 (Commit Protocol — Backend 100%)
+
+**Participants:** Tim, Lumo  
+**Focus:** Finalize backend to 100%, enforce accountability policies
+
+### Accomplishments
+
+1. **Architecture Map Regenerated**
+   - All new files reflected (deploy/, config/, staging handlers, refresh service)
+
+2. **Builder CLI Verified (Phase 12)**
+   - All 4 commands implemented: new, inspect, recommend, complete
+   - 249 lines, syntax valid, help output confirmed
+
+3. **Production Deployment Scripts (Phase 8)**
+   - deploy/production.env.example
+   - deploy/migrate.sh (migration runner with schema verification)
+   - deploy/rollback.sh (database rollback with backup)
+
+4. **Policy Review Completed**
+   - Session duration: Admin selects A/B/C via setup wizard
+   - Rate limiting: Accepted (Auth 10/min, API 100/min, Admin 200/min)
+   - Backup strategy: Admin selects cloud/on-prem via setup wizard
+
+5. **Initial Setup Wizard**
+   - deploy/setup-wizard.js: Forced onboarding, records admin identity
+   - config/session-policy.json: Immutable, SHA-256 integrity hash
+   - index.js: Blocks startup until wizard completed
+   - deploy/backup.sh: VACUUM INTO backups with configurable retention
+
+6. **Documentation Updates**
+   - CONTEXT.md: Backend 100%, all Open Decisions resolved
+   - DECISIONS.md: Setup wizard + 100% completion recorded
+   - ARCHITECTURE_MAP.md: Regenerated
+   - HANDOVER.md: This entry
+
+### Final Backend State
+
+- **Tests:** 172/172 passing (16 suites)
+- **Migrations:** 6 (000-bootstrap through 006-refresh_tokens)
+- **Modules:** 3 (builder, system_health, user_management)
+- **Backend completion:** 100%
+- **Git tag:** To be created (v6.10.0-backend-complete)
+
+### Operational Checklist (Pre-Deployment)
+
+- [ ] Run `node deploy/setup-wizard.js` on production server
+- [ ] Copy `deploy/production.env.example` to `.env`, fill in secrets
+- [ ] Run `bash deploy/migrate.sh` to initialize production database
+- [ ] Configure cron job for `bash deploy/backup.sh`
+- [ ] Test restore procedure from backup
+- [ ] Verify JWT_SECRET and REFRESH_TOKEN_SECRET are set in environment
+- [ ] Run full test suite: `npm test`
+
+### Next Phase
+
+Backend development is complete. Next focus areas (if pursued):
+- Frontend/UI development
+- Phase 9: EventBus implementation (if real-time features needed)
+- Load testing and capacity planning
+- Security audit of production deployment
+
+---

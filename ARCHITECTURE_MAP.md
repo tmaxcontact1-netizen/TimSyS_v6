@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-20T14:47:41Z
+Generated: 2026-07-20T15:24:24Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,9 +16,9 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 10897B | 2026-07-20 11:12:31 |
-| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-20 21:47:41 |
-| `HANDOVER.md` | ✅ | 20862B | 2026-07-20 11:12:31 |
+| `CONTEXT.md` | ✅ | 10715B | 2026-07-20 21:54:32 |
+| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-20 22:24:24 |
+| `HANDOVER.md` | ✅ | 22775B | 2026-07-20 21:52:02 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
 
@@ -28,6 +28,7 @@ Path: `/home/tmax/TimSyS_v6`
 (tree command not available — using find)
 .
 ./ARCHITECTURE_MAP.md
+./config
 ./CONSTITUTION_V6.0.md
 ./CONTEXT.md
 ./contracts
@@ -43,6 +44,12 @@ Path: `/home/tmax/TimSyS_v6`
 ./data/timsys.sqlite-shm
 ./data/timsys.sqlite-wal
 ./DECISIONS.md
+./deploy
+./deploy/backup.sh
+./deploy/migrate.sh
+./deploy/production.env.example
+./deploy/rollback.sh
+./deploy/setup-wizard.js
 ./engine
 ./engine/gap-analysis
 ./engine/gap-analysis/calculator.js

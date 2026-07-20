@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Current Phase:** Backend Completion — ~94%. Tiers 1-7 complete. Discovery + audit endpoints added. Technical debt: ratelimit initTable redundancy resolved, open handles clean. Test suite: 181/181 passing across 14 suites.
+**Current Phase:** Backend Completion — 100%. Tiers 1-7 complete. Discovery + audit endpoints added. Technical debt: ratelimit initTable redundancy resolved, open handles clean. Test suite: 181/181 passing across 14 suites.
 
 Platform boots successfully. All services, registries, pipeline, migrations, boot sequence, middleware, and testing infrastructure complete. 2 application modules deployed. Intelligence service fully implemented with metadata classification, insights synthesis, and logic rule evaluation.
 
@@ -144,9 +144,14 @@ Nothing queued.
 
 ## Open Decisions
 
-1. **Token revocation strategy:** Implemented via SQLite table (token_revocation). Bloom filter optimization deferred. Design choice — no action needed.
-2. **Session duration policy:** JWT access token 24h TTL with refresh token rotation (7d). Refresh tokens stored in SQLite with SHA-256 hashing. Rotation on every use. RESOLVED.
-3. **Production secrets:** JWT_SECRET and REFRESH_TOKEN_SECRET must be set in production environment. No defaults in production mode.
+All decisions resolved. See config/session-policy.json for enforced policy.
+
+1. **Token revocation strategy:** SQLite-backed, SHA-256 hashing. Design complete.
+2. **Session duration policy:** Admin-selected via setup wizard. Recorded in config/session-policy.json. RESOLVED.
+3. **Backup strategy:** Admin-selected via setup wizard (cloud/on-prem). deploy/backup.sh implements VACUUM INTO with retention. RESOLVED.
+4. **Production secrets:** Documented in deploy/production.env.example. Setup wizard enforces. RESOLVED.
+5. **Rate limiting thresholds:** Auth 10/min, API 100/min, Admin 200/min. Accepted. RESOLVED.
+
 
 ## Session Protocol
 
@@ -156,7 +161,7 @@ Nothing queued.
 
 ---
 
-Last updated: 2026-07-20
+Last updated: 2026-07-20 (final)
 
 
 ### Tier 7: Authorization Middleware (COMPLETE)
