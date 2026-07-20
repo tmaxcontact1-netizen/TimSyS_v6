@@ -11,11 +11,11 @@
     { "path": "/api/auth/me", "method": "GET", "handler": "user_management_getMe", "auth_required": true },
     { "path": "/api/auth/forgot-password", "method": "POST", "handler": "user_management_forgotPassword", "auth_required": false },
     { "path": "/api/auth/reset-password", "method": "POST", "handler": "user_management_resetPassword", "auth_required": false },
-    { "path": "/api/users", "method": "GET", "handler": "user_management_listUsers", "auth_required": true },
-    { "path": "/api/users", "method": "POST", "handler": "user_management_createUser", "auth_required": true },
-    { "path": "/api/users/:id", "method": "GET", "handler": "user_management_getUser", "auth_required": true },
-    { "path": "/api/users/:id", "method": "PUT", "handler": "user_management_updateUser", "auth_required": true },
-    { "path": "/api/users/:id", "method": "DELETE", "handler": "user_management_deleteUser", "auth_required": true },
+    { "path": "/api/users", "method": "GET", "handler": "user_management_listUsers", "auth_required": true, "permissions": ["admin:users:read"] },
+    { "path": "/api/users", "method": "POST", "handler": "user_management_createUser", "auth_required": true, "permissions": ["admin:users:write"] },
+    { "path": "/api/users/:id", "method": "GET", "handler": "user_management_getUser", "auth_required": true, "permissions": ["admin:users:read"] },
+    { "path": "/api/users/:id", "method": "PUT", "handler": "user_management_updateUser", "auth_required": true, "permissions": ["admin:users:write"] },
+    { "path": "/api/users/:id", "method": "DELETE", "handler": "user_management_deleteUser", "auth_required": true, "permissions": ["admin:users:write"] },
     { "path": "/api/users/:id/change-password", "method": "POST", "handler": "user_management_changePassword", "auth_required": true }
   ],
   "functions": [

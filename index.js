@@ -33,8 +33,6 @@ var RATE_LIMIT_WINDOW = 60000;
 var RATE_LIMIT_DEFAULT = parseInt(process.env.RATE_LIMIT_DEFAULT, 10) || 100;
 var RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;
 
-// In-memory rate limiting replaced by SQLite-backed service
-
 async function bootPlatform() {
   log.info('=== Platform Boot Starting ===');
 
@@ -46,7 +44,7 @@ async function bootPlatform() {
 
   log.info('Services initialized');
 
-    await runMigrations();
+  await runMigrations();
   verifyTables();
   log.info('Migrations complete');
 
@@ -229,6 +227,24 @@ function authenticationMiddleware(req, res, route) {
   }
 }
 
+function authorizationMiddleware(req, res, route) {
+  if (!route.permissions || route.permissions.length === 0) {
+    return true;
+  }
+
+  for (var i = 0; i < route.permissions.length; i++) {
+    if (auth.checkPerm(req.user, route.permissions[i])) {
+      return true;
+    }
+  }
+
+  respond(res, 403, {
+    success: false,
+    error: { code: 'FORBIDDEN', message: 'Insufficient permissions for this resource' },
+  });
+  return false;
+}
+
 function sanitizationMiddleware(req) {
   if (req.body && typeof req.body === 'object') req.body = validation.sanitize(req.body);
   if (req.query && typeof req.query === 'object') req.query = validation.sanitize(req.query);
@@ -314,6 +330,7 @@ function createServer() {
       }
 
       if (!authenticationMiddleware(req, res, route)) return;
+      if (!authorizationMiddleware(req, res, route)) return;
 
       var body = {};
       if (['POST', 'PUT', 'PATCH'].indexOf(method) !== -1) {

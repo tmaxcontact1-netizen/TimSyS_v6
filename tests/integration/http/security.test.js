@@ -182,6 +182,110 @@ describe('Security Regression Tests', function() {
     });
   });
 
+    describe('Authorization Middleware', function() {
+    var adminTok = null;
+    var readOnlyTok = null;
+    var readOnlyUser = null;
+
+    beforeAll(async function() {
+      adminTok = (await adminLogin()).data.token;
+
+      var createRes = await makeRequest('POST', '/api/users', {
+        username: 'readonly_' + Date.now(),
+        email: 'ro@test.com',
+        password: 'RODemo123!',
+        permissions: ['admin:users:read'],
+      }, adminTok);
+      readOnlyUser = createRes.data.user;
+
+      // Login, change password to clear must_change_password, then login again
+      var firstLogin = await makeRequest('POST', '/api/auth/login', {
+        username: readOnlyUser.username,
+        password: 'RODemo123!',
+      });
+
+      await makeRequest('POST', '/api/users/' + readOnlyUser.id + '/change-password', {
+        newPassword: 'ROPass456!',
+      }, firstLogin.data.token);
+
+      var loginRes = await makeRequest('POST', '/api/auth/login', {
+        username: readOnlyUser.username,
+        password: 'ROPass456!',
+      });
+      readOnlyTok = loginRes.data.token;
+    });
+
+    test('read-only user can GET users (has admin:users:read)', async function() {
+      var res = await makeRequest('GET', '/api/users', null, readOnlyTok);
+      expect(res.status).toBe(200);
+    });
+
+    test('read-only user cannot POST users (needs admin:users:write)', async function() {
+      var res = await makeRequest('POST', '/api/users', {
+        username: 'blocked_' + Date.now(),
+        email: 'blocked@test.com',
+        password: 'Blocked123!',
+        permissions: [],
+      }, readOnlyTok);
+      expect(res.status).toBe(403);
+    });
+
+    test('read-only user cannot DELETE users (needs admin:users:write)', async function() {
+      var res = await makeRequest('DELETE', '/api/users/' + readOnlyUser.id, null, readOnlyTok);
+      expect(res.status).toBe(403);
+    });
+
+    test('read-only user cannot PUT users (needs admin:users:write)', async function() {
+      var res = await makeRequest('PUT', '/api/users/' + readOnlyUser.id, {
+        username: readOnlyUser.username + '_updated',
+      }, readOnlyTok);
+      expect(res.status).toBe(403);
+    });
+
+    test('admin wildcard (admin:*) passes all route permissions', async function() {
+      var res = await makeRequest('GET', '/api/users', null, adminTok);
+      expect(res.status).toBe(200);
+    });
+
+    test('route without permissions field passes through to handler', async function() {
+      var res = await makeRequest('GET', '/api/auth/me', null, readOnlyTok);
+      expect(res.status).toBe(200);
+    });
+
+    test('changePassword still enforces contextual check (self can change own password)', async function() {
+      // Re-login with current password to get fresh token
+      var freshLogin = await makeRequest('POST', '/api/auth/login', {
+        username: readOnlyUser.username,
+        password: 'ROPass456!',
+      });
+      var res = await makeRequest('POST', '/api/users/' + readOnlyUser.id + '/change-password', {
+        newPassword: 'NewSelfPass123!',
+      }, freshLogin.data.token);
+      expect(res.status).toBe(200);
+    });
+
+    test('changePassword blocks non-admin from changing OTHER user password', async function() {
+      // Re-login with the new password set in previous test
+      var freshLogin = await makeRequest('POST', '/api/auth/login', {
+        username: readOnlyUser.username,
+        password: 'NewSelfPass123!',
+      });
+
+      var createRes = await makeRequest('POST', '/api/users', {
+        username: 'target_' + Date.now(),
+        email: 'target@test.com',
+        password: 'Target123!',
+        permissions: [],
+      }, adminTok);
+      var targetUser = createRes.data.user;
+
+      var res = await makeRequest('POST', '/api/users/' + targetUser.id + '/change-password', {
+        newPassword: 'Hijacked123!',
+      }, freshLogin.data.token);
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('CSRF Enforcement', function() {
     test('POST without Bearer token OR XHR header returns 403', async function() {
       return new Promise(function(res) {

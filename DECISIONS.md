@@ -337,3 +337,29 @@
 - Technical debt items resolved: ratelimit initTable redundancy, open handles investigation, migration duplication verification
 - Backend completion: ~93%
 - Tests: 173/173
+
+
+# Session 2026-07-20 (Session 13)
+
+## Authorization Middleware — IMPLEMENTED
+
+**Decision:** Route-level permission declarations via optional `permissions` array in module.json routes.
+
+**Approach:**
+- Permissions passed through register.js -> routeRegistry -> DB + in-memory Map
+- Middleware checks route.permissions; OR logic (at least one match required)
+- Routes without permissions pass through to handler-level checks (zero breaking changes)
+- changePassword retains inline checkPerm (contextual: self OR admin)
+
+**Files Modified:**
+- migrations/005_route_permissions.sql
+- index.js
+- shared/pipeline/register.js
+- shared/registry/routeRegistry.js
+- modules/user_management/module.json
+- modules/user_management/index.js
+- tests/integration/http/security.test.js
+
+**Test Results:** 181/181 passing
+
+**Status:** IMPLEMENTED

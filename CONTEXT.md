@@ -2,7 +2,7 @@
 
 ## Current State
 
-**Current Phase:** Backend Completion — ~93%. Tiers 1-7 complete. Discovery + audit endpoints added. Technical debt: ratelimit initTable redundancy resolved, open handles clean. Test suite: 173/173 passing across 14 suites.
+**Current Phase:** Backend Completion — ~94%. Tiers 1-7 complete. Discovery + audit endpoints added. Technical debt: ratelimit initTable redundancy resolved, open handles clean. Test suite: 181/181 passing across 14 suites.
 
 Platform boots successfully. All services, registries, pipeline, migrations, boot sequence, middleware, and testing infrastructure complete. 2 application modules deployed. Intelligence service fully implemented with metadata classification, insights synthesis, and logic rule evaluation.
 
@@ -22,7 +22,7 @@ Platform boots successfully. All services, registries, pipeline, migrations, boo
 - 2 modules with full implementations: `system_health`, `user_management`
 - Module manifests follow `{module}_{operation}` naming convention with `exports` field
 - Staging pipeline: discover → validate → register → resolve → wire → boot → unstage
-- 14 unit test suites with per-suite database isolation (173 tests total, all passing)
+- 14 unit test suites with per-suite database isolation (181 tests total, all passing)
 - HTTP integration tests (10 total suites, 110+ tests, all passing)
 - Password change prompt test suite (12 tests covering full flow)
 - JWT_SECRET enforcement at boot
@@ -160,3 +160,7 @@ Nothing queued.
 ---
 
 Last updated: 2026-07-18
+
+
+### Tier 7: Authorization Middleware (COMPLETE)
+Route-level authorization middleware now enforces permissions declared in module.json. Five routes in user_management migrated to middleware-driven authorization. Inline checkPerm removed from handlers except changePassword (contextual logic).

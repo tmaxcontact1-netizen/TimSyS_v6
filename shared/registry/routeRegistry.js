@@ -2,18 +2,11 @@
 
 const db = require('../services/db');
 
-/**
- * RouteRegistry — Tracks HTTP routes and their handler bindings.
- */
 class RouteRegistry {
   constructor() {
-    this._routes = new Map(); // fullPath -> route metadata
+    this._routes = new Map();
   }
 
-  /**
-   * Register a route.
-   * @param {Object} route - { path, method, handler, auth, moduleName }
-   */
   register(route) {
     const fullPath = `${route.method.toUpperCase()} ${route.path}`;
 
@@ -21,92 +14,64 @@ class RouteRegistry {
       throw new Error(`Route conflict: ${fullPath} already registered`);
     }
 
-    this._routes.set(fullPath, {
-      ...route,
+    const routeObj = {
+      path: route.path,
+      method: route.method.toUpperCase(),
+      handler: route.handler,
+      auth_required: route.auth_required !== undefined ? route.auth_required : (route.auth || false),
+      moduleName: route.moduleName,
+      permissions: route.permissions || null,
       registeredAt: Date.now(),
-    });
+    };
 
+    this._routes.set(fullPath, routeObj);
+
+    const permissionsJson = route.permissions ? JSON.stringify(route.permissions) : null;
     db.query(
-      `INSERT INTO route_registry (method, path, handler, auth_required, module_name)
-       VALUES (?, ?, ?, ?, ?)`,
-      [route.method, route.path, route.handler, route.auth ? 1 : 0, route.moduleName]
+      `INSERT INTO route_registry (method, path, handler, auth_required, module_name, permissions)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [route.method.toUpperCase(), route.path, route.handler, route.auth_required ? 1 : 0, route.moduleName, permissionsJson]
     );
+
+    return routeObj;
   }
 
-  /**
-   * Unregister a route.
-   * @param {string} path
-   * @param {string} method
-   */
   unregister(path, method) {
     const fullPath = `${method.toUpperCase()} ${path}`;
     this._routes.delete(fullPath);
-    db.query(`DELETE FROM route_registry WHERE method = ? AND path = ?`, [method, path]);
+    db.query(`DELETE FROM route_registry WHERE method = ? AND path = ?`, [method.toUpperCase(), path]);
   }
 
-  /**
-   * Get route by path and method.
-   * @param {string} path
-   * @param {string} method
-   * @returns {Object|null}
-   */
   get(path, method) {
     const fullPath = `${method.toUpperCase()} ${path}`;
     return this._routes.get(fullPath) || null;
   }
 
-  /**
-   * Find routes matching a path pattern.
-   * @param {string} pathPattern - e.g. "/api/users/:id"
-   * @returns {Array<Object>}
-   */
   findByPathPrefix(pathPrefix) {
     return Array.from(this._routes.values()).filter((route) =>
       route.path.startsWith(pathPrefix)
     );
   }
 
-  /**
-   * Get all routes for a module.
-   * @param {string} moduleName
-   * @returns {Array<Object>}
-   */
   getRoutesByModule(moduleName) {
     return Array.from(this._routes.values()).filter(
       (route) => route.moduleName === moduleName
     );
   }
 
-  /**
-   * Check if route exists.
-   * @param {string} path
-   * @param {string} method
-   * @returns {boolean}
-   */
   exists(path, method) {
     const fullPath = `${method.toUpperCase()} ${path}`;
     return this._routes.has(fullPath);
   }
 
-  /**
-   * Get all registered routes.
-   * @returns {Array<Object>}
-   */
   getAll() {
     return Array.from(this._routes.values());
   }
 
-  /**
-   * Count total routes.
-   * @returns {number}
-   */
   count() {
     return this._routes.size;
   }
 
-  /**
-   * Clear registry (for testing).
-   */
   clear() {
     this._routes.clear();
   }

@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-19T13:39:26Z
+Generated: 2026-07-20T04:09:25Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -17,7 +17,7 @@ Path: `/home/tmax/TimSyS_v6`
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `CONTEXT.md` | ✅ | 10603B | 2026-07-19 20:39:18 |
-| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-19 20:39:26 |
+| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-20 11:09:25 |
 | `HANDOVER.md` | ✅ | 20862B | 2026-07-19 20:39:18 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
@@ -64,6 +64,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./migrations/002_intelligence.sql
 ./migrations/003_rate_limit.sql
 ./migrations/004_recommendations.sql
+./migrations/005_route_permissions.sql
 ./modules
 ./modules/builder
 ./modules/builder/index.js
@@ -143,6 +144,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./tests/integration/http/auth.test.js
 ./tests/integration/http/password-prompt.test.js
 ./tests/integration/http/security.test.js
+./tests/integration/http/'use strict';.js
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
 ./tests/integration/staging/pipeline.test.js
@@ -201,7 +203,7 @@ Location: `/shared/registry/`
 |------|--------|------|---------------|
 | `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 21:47:26 |
 | `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 21:43:03 |
-| `routeRegistry.js` | ✅ | 2635B | 2026-07-16 21:43:26 |
+| `routeRegistry.js` | ✅ | 2131B | 2026-07-20 10:47:58 |
 | `functionRegistry.js` | ✅ | 2575B | 2026-07-16 21:43:47 |
 | `capabilityRegistry.js` | ✅ | 2879B | 2026-07-16 21:45:09 |
 | `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 21:45:25 |
@@ -214,7 +216,7 @@ Location: `/shared/pipeline/`
 |------|--------|------|---------------|
 | `discover.js` | ✅ (shared/pipeline/discover.js) | 1225B | 2026-07-16 21:49:40 |
 | `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 12:19:29 |
-| `register.js` | ✅ (shared/pipeline/register.js) | 2848B | 2026-07-17 12:25:26 |
+| `register.js` | ✅ (shared/pipeline/register.js) | 2760B | 2026-07-20 10:47:36 |
 | `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2350B | 2026-07-18 16:07:29 |
 | `wire.js` | ✅ (shared/pipeline/wire.js) | 2084B | 2026-07-18 16:06:16 |
 | `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |

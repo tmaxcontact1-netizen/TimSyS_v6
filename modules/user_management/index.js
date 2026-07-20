@@ -159,10 +159,6 @@ async function resetPassword(req, ctx) {
 }
 
 async function listUsers(req, ctx) {
-  if (!ctx.auth.checkPerm(req.user, 'admin:users:read')) {
-    return { success: false, statusCode: 403, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } };
-  }
-
   var result = ctx.db.query('SELECT * FROM users ORDER BY created_at DESC');
   var users = result.rows.map(function(u) {
     return {
@@ -188,10 +184,6 @@ function isStrongPassword(pwd) {
 }
 
 async function createUser(req, ctx) {
-  if (!ctx.auth.checkPerm(req.user, 'admin:users:write')) {
-    return { success: false, statusCode: 403, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } };
-  }
-
   var username = req.body.username;
   var emailAddr = req.body.email;
   var password = req.body.password;
@@ -236,10 +228,6 @@ async function createUser(req, ctx) {
 }
 
 async function getUser(req, ctx) {
-  if (!ctx.auth.checkPerm(req.user, 'admin:users:read')) {
-    return { success: false, statusCode: 403, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } };
-  }
-
   var result = ctx.db.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
   if (result.rows.length === 0) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'User not found' } };
@@ -260,10 +248,6 @@ async function getUser(req, ctx) {
 }
 
 async function updateUser(req, ctx) {
-  if (!ctx.auth.checkPerm(req.user, 'admin:users:write')) {
-    return { success: false, statusCode: 403, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } };
-  }
-
   var existing = ctx.db.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
   if (existing.rows.length === 0) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'User not found' } };
@@ -301,10 +285,6 @@ async function updateUser(req, ctx) {
 }
 
 async function deleteUser(req, ctx) {
-  if (!ctx.auth.checkPerm(req.user, 'admin:users:write')) {
-    return { success: false, statusCode: 403, error: { code: 'FORBIDDEN', message: 'Insufficient permissions' } };
-  }
-
   var existing = ctx.db.query('SELECT * FROM users WHERE id = ?', [req.params.id]);
   if (existing.rows.length === 0) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'User not found' } };
