@@ -1,0 +1,202 @@
+{
+  "name": "user_management",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events"
+  ],
+  "provides": [
+    "capability:user.read",
+    "capability:user.write",
+    "capability:user.manage"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/api/auth/login",
+      "method": "POST",
+      "handler": "user_management_login",
+      "auth_required": false
+    },
+    {
+      "path": "/api/auth/logout",
+      "method": "POST",
+      "handler": "user_management_logout",
+      "auth_required": true
+    },
+    {
+      "path": "/api/auth/me",
+      "method": "GET",
+      "handler": "user_management_getMe",
+      "auth_required": true
+    },
+    {
+      "path": "/api/auth/forgot-password",
+      "method": "POST",
+      "handler": "user_management_forgotPassword",
+      "auth_required": false
+    },
+    {
+      "path": "/api/auth/reset-password",
+      "method": "POST",
+      "handler": "user_management_resetPassword",
+      "auth_required": false
+    },
+    {
+      "path": "/api/users",
+      "method": "GET",
+      "handler": "user_management_listUsers",
+      "auth_required": true,
+      "permissions": [
+        "admin:users:read"
+      ]
+    },
+    {
+      "path": "/api/users",
+      "method": "POST",
+      "handler": "user_management_createUser",
+      "auth_required": true,
+      "permissions": [
+        "admin:users:write"
+      ]
+    },
+    {
+      "path": "/api/users/:id",
+      "method": "GET",
+      "handler": "user_management_getUser",
+      "auth_required": true,
+      "permissions": [
+        "admin:users:read"
+      ]
+    },
+    {
+      "path": "/api/users/:id",
+      "method": "PUT",
+      "handler": "user_management_updateUser",
+      "auth_required": true,
+      "permissions": [
+        "admin:users:write"
+      ]
+    },
+    {
+      "path": "/api/users/:id",
+      "method": "DELETE",
+      "handler": "user_management_deleteUser",
+      "auth_required": true,
+      "permissions": [
+        "admin:users:write"
+      ]
+    },
+    {
+      "path": "/api/users/:id/change-password",
+      "method": "POST",
+      "handler": "user_management_changePassword",
+      "auth_required": true
+    },
+    {
+      "path": "/api/auth/refresh",
+      "method": "POST",
+      "handler": "user_management_refreshToken",
+      "auth_required": false
+    }
+  ],
+  "functions": [
+    {
+      "name": "user_management_login",
+      "exports": "login",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_logout",
+      "exports": "logout",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_getMe",
+      "exports": "getMe",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_forgotPassword",
+      "exports": "forgotPassword",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_resetPassword",
+      "exports": "resetPassword",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_listUsers",
+      "exports": "listUsers",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_createUser",
+      "exports": "createUser",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_getUser",
+      "exports": "getUser",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_updateUser",
+      "exports": "updateUser",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_deleteUser",
+      "exports": "deleteUser",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_changePassword",
+      "exports": "changePassword",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "user_management_refreshToken",
+      "exports": "refreshToken",
+      "params": [],
+      "returns": "any"
+    }
+  ],
+  "schema": {
+    "tables": [
+      "users",
+      "password_resets"
+    ],
+    "migrations": [
+      "001_users.sql",
+      "002_password_resets.sql",
+      "003_must_change_password.sql"
+    ]
+  },
+  "events": {
+    "publishes": [
+      "user.created",
+      "user.updated",
+      "user.deleted",
+      "user.password_changed"
+    ],
+    "subscribes": []
+  }
+}

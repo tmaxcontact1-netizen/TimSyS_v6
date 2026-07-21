@@ -1,0 +1,221 @@
+{
+  "name": "system_health",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events"
+  ],
+  "provides": [],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/health",
+      "method": "GET",
+      "handler": "system_health_getHealth",
+      "auth_required": false
+    },
+    {
+      "path": "/ready",
+      "method": "GET",
+      "handler": "system_health_getReady",
+      "auth_required": false
+    },
+    {
+      "path": "/introspect/platform",
+      "method": "GET",
+      "handler": "system_health_getPlatform",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/modules",
+      "method": "GET",
+      "handler": "system_health_getModules",
+      "auth_required": true
+    },
+    {
+      "path": "/metrics",
+      "method": "GET",
+      "handler": "system_health_getMetrics",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/registries",
+      "method": "GET",
+      "handler": "system_health_getRegistries",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/capabilities",
+      "method": "GET",
+      "handler": "system_health_getCapabilities",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/functions",
+      "method": "GET",
+      "handler": "system_health_getFunctions",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/routes",
+      "method": "GET",
+      "handler": "system_health_getRoutes",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/dependencies",
+      "method": "GET",
+      "handler": "system_health_getDependencies",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/gaps",
+      "method": "GET",
+      "handler": "system_health_getGaps",
+      "auth_required": true
+    },
+    {
+      "path": "/introspect/templates",
+      "method": "GET",
+      "handler": "system_health_getTemplates",
+      "auth_required": true
+    },
+    {
+      "path": "/audit/logs",
+      "method": "GET",
+      "handler": "system_health_getAuditLogs",
+      "auth_required": true
+    },
+    {
+      "path": "/audit/logs/:id",
+      "method": "GET",
+      "handler": "system_health_getAuditLog",
+      "auth_required": true
+    },
+    {
+      "path": "/discover/capabilities",
+      "method": "GET",
+      "handler": "system_health_discoverCapabilities",
+      "auth_required": true
+    },
+    {
+      "path": "/discover/functions",
+      "method": "GET",
+      "handler": "system_health_discoverFunctions",
+      "auth_required": true
+    }
+  ],
+  "functions": [
+    {
+      "name": "system_health_getHealth",
+      "exports": "getHealth",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getReady",
+      "exports": "getReady",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getPlatform",
+      "exports": "getPlatform",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getModules",
+      "exports": "getModules",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getMetrics",
+      "exports": "getMetrics",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getRegistries",
+      "exports": "getRegistries",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getCapabilities",
+      "exports": "getCapabilities",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getFunctions",
+      "exports": "getFunctions",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getRoutes",
+      "exports": "getRoutes",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getDependencies",
+      "exports": "getDependencies",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getGaps",
+      "exports": "getGaps",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getTemplates",
+      "exports": "getTemplates",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getAuditLogs",
+      "exports": "getAuditLogs",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_getAuditLog",
+      "exports": "getAuditLog",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_discoverCapabilities",
+      "exports": "discoverCapabilities",
+      "params": [],
+      "returns": "any"
+    },
+    {
+      "name": "system_health_discoverFunctions",
+      "exports": "discoverFunctions",
+      "params": [],
+      "returns": "any"
+    }
+  ],
+  "schema": {
+    "tables": [],
+    "migrations": []
+  },
+  "events": {
+    "publishes": [],
+    "subscribes": [
+      "platform.ready"
+    ]
+  }
+}
