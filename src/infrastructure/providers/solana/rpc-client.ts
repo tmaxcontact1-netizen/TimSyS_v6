@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import type { Timestamp } from "../../../domain/shared/types.js";
+import { asTimestamp } from "../../../domain/shared/types.js";
+import type { TransactionSimulationClient } from "../jupiter/adapter.js";
+import type { BoundedJsonHttpTransport } from "../http-json.js";
 
 export interface SolanaRpcTransportResponse {
   readonly status: number;
@@ -10,6 +13,17 @@ export interface SolanaRpcTransportResponse {
 
 export interface SolanaRpcTransport {
   post(body: unknown): Promise<SolanaRpcTransportResponse>;
+}
+
+export class SolanaRpcHttpTransport implements SolanaRpcTransport {
+  public constructor(
+    private readonly http: BoundedJsonHttpTransport,
+    private readonly endpoint: string,
+  ) {}
+
+  public post(body: unknown): Promise<SolanaRpcTransportResponse> {
+    return this.http.post(this.endpoint, body);
+  }
 }
 
 const envelope = z.object({
@@ -64,5 +78,33 @@ export class SolanaRpcClient {
       receivedAt: response.receivedAt,
       raw: response.body,
     });
+  }
+}
+
+/** Exposes only the execution-related RPC methods required by the application boundary. */
+export class SolanaExecutionRpc implements TransactionSimulationClient {
+  public constructor(private readonly client: SolanaRpcClient) {}
+
+  public async currentBlockHeight(): Promise<bigint> {
+    const response = await this.client.request("getBlockHeight", [{ commitment: "confirmed" }]);
+    if (!Number.isSafeInteger(response.result) || (response.result as number) < 0)
+      throw new SolanaRpcError("Malformed block height", false);
+    return BigInt(response.result as number);
+  }
+
+  public now(): Timestamp {
+    return asTimestamp(new Date());
+  }
+
+  public async simulateTransaction(serializedTransactionBase64: string) {
+    return this.client.request("simulateTransaction", [
+      serializedTransactionBase64,
+      {
+        encoding: "base64",
+        commitment: "confirmed",
+        replaceRecentBlockhash: false,
+        sigVerify: false,
+      },
+    ]);
   }
 }

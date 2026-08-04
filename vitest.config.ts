@@ -26,6 +26,7 @@ export default defineConfig({
       "tests/contract/solana.test.ts",
       "tests/contract/jupiter.test.ts",
       "tests/contract/helius.test.ts",
+      "tests/contract/provider-clients.test.ts",
       "tests/security/transaction-inspection.test.ts",
       "tests/security/startup-config.test.ts",
       "tests/security/http-transport.test.ts",
