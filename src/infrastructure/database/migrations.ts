@@ -1,0 +1,35 @@
+import type { Pool } from "pg";
+
+export interface DatabaseReadiness {
+  readonly serverVersion: string;
+  readonly schemaReady: true;
+}
+
+const requiredColumns = Object.freeze([
+  "audit_events.id",
+  "jobs.id",
+  "jobs.payload_json",
+  "jobs.state",
+  "jobs.available_at",
+  "jobs.version",
+  "jobs.last_error_json",
+  "jobs.last_error_at",
+]);
+
+/** Verifies connectivity and the exact runtime-owned schema without executing DDL. */
+export async function verifyRuntimeDatabase(pool: Pick<Pool, "query">): Promise<DatabaseReadiness> {
+  const version = await pool.query<{ readonly server_version: string }>("SHOW server_version");
+  const columns = await pool.query<{ readonly table_name: string; readonly column_name: string }>(
+    `SELECT table_name, column_name FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name = ANY($1::text[])`,
+    [["jobs", "audit_events"]],
+  );
+  const present = new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`));
+  const missing = requiredColumns.filter((column) => !present.has(column));
+  if (missing.length > 0)
+    throw new Error(`Runtime database schema is incomplete: ${missing.join(", ")}`);
+  const serverVersion = version.rows[0]?.server_version;
+  if (serverVersion === undefined || serverVersion.trim().length === 0)
+    throw new Error("Database did not report its server version");
+  return Object.freeze({ serverVersion, schemaReady: true });
+}

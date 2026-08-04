@@ -6,9 +6,10 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
-| File | Change | Reason | Status |
-|---|---|---|---|
-| `src/infrastructure/config/load-config.ts`; `tests/security/startup-config.test.ts`; `vitest.config.ts` | Added strict, mode-aware runtime parsing, credential minimization tests, and suite activation | Prevent partial or secret-leaking startup configuration | Authorized by operator |
+| File                                                                                                                                                 | Change                                                                                        | Reason                                                                          | Status                 |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ---------------------- |
+| `src/infrastructure/config/load-config.ts`; `tests/security/startup-config.test.ts`; `vitest.config.ts`                                              | Added strict, mode-aware runtime parsing, credential minimization tests, and suite activation | Prevent partial or secret-leaking startup configuration                         | Authorized by operator |
+| `src/infrastructure/database/pool.ts`; `src/infrastructure/database/migrations.ts`; `tests/integration/startup-database.test.ts`; `vitest.config.ts` | Added bounded TLS pool construction and read-only runtime schema readiness verification       | Fail startup before workers when connectivity or required migrations are absent | Authorized by operator |
 
 ## Unreleased — Phase 2 deterministic domain core
 
