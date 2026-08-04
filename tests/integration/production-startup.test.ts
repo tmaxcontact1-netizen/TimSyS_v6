@@ -33,6 +33,8 @@ const required = [
   "position_runtime_authority_snapshots.phase",
   "position_runtime_authority_snapshots.authority_kind",
   "position_runtime_authority_snapshots.payload_json",
+  "position_runtime_authority_baselines.position_id",
+  "position_runtime_authority_baselines.payload_json",
 ];
 function database(schemaReady = true) {
   const end = vi.fn(async () => undefined);

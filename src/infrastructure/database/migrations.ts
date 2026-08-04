@@ -36,6 +36,8 @@ const requiredColumns = Object.freeze([
   "position_runtime_authority_snapshots.phase",
   "position_runtime_authority_snapshots.authority_kind",
   "position_runtime_authority_snapshots.payload_json",
+  "position_runtime_authority_baselines.position_id",
+  "position_runtime_authority_baselines.payload_json",
 ]);
 
 /** Verifies connectivity and the exact runtime-owned schema without executing DDL. */
@@ -53,6 +55,7 @@ export async function verifyRuntimeDatabase(pool: Pick<Pool, "query">): Promise<
         "position_runtime_fact_observations",
         "position_runtime_contexts",
         "position_runtime_authority_snapshots",
+        "position_runtime_authority_baselines",
       ],
     ],
   );

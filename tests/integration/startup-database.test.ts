@@ -33,6 +33,8 @@ const columns = [
   "position_runtime_authority_snapshots.phase",
   "position_runtime_authority_snapshots.authority_kind",
   "position_runtime_authority_snapshots.payload_json",
+  "position_runtime_authority_baselines.position_id",
+  "position_runtime_authority_baselines.payload_json",
 ];
 
 function database(missing?: string) {
@@ -82,4 +84,8 @@ describe("runtime database startup", () => {
     await expect(
       verifyRuntimeDatabase(database("position_runtime_contexts.wallet") as never),
     ).rejects.toThrow(/position_runtime_contexts.wallet/));
+  it("rejects an unapplied runtime-authority baseline migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("position_runtime_authority_baselines.payload_json") as never),
+    ).rejects.toThrow(/position_runtime_authority_baselines.payload_json/));
 });
