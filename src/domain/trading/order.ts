@@ -13,6 +13,7 @@ import {
   asRuleId,
   type DecimalValue,
   type OrderId,
+  type PositionId,
   type RawAmount,
   type Timestamp,
 } from "../shared/types.js";
@@ -93,6 +94,52 @@ export interface EntryExecutionDecision {
   readonly realisedEntryPrice: DecimalValue | null;
   readonly results: readonly RuleResult[];
   readonly failedRuleIds: readonly string[];
+}
+
+export interface EmergencyExitIntent {
+  readonly order: Order;
+  readonly positionId: PositionId;
+  readonly positionVersion: bigint;
+  readonly emergencyRuleIds: readonly string[];
+  readonly requestedAmount: RawAmount;
+  readonly evidenceFingerprint: string;
+}
+
+export interface ExitReconciliation {
+  readonly evaluatedAt: Timestamp;
+  readonly transactionConfirmed: boolean | null;
+  readonly onChainError: boolean | null;
+  readonly tokenBalanceDecrease: RawAmount | null;
+  readonly reconciledRemainingAmount: RawAmount | null;
+  readonly solBalanceIncrease: RawAmount | null;
+  readonly feePaid: RawAmount | null;
+  readonly tipPaid: RawAmount | null;
+  readonly signature: string | null;
+  readonly expectedSignature: string;
+  readonly evidence: readonly EvidenceReference[];
+}
+
+export interface ExitExecutionDecision {
+  readonly reconciled: boolean;
+  readonly closed: boolean;
+  readonly requiresContinuation: boolean;
+  readonly soldAmount: RawAmount | null;
+  readonly remainingAmount: RawAmount | null;
+  readonly proceedsSol: DecimalValue | null;
+  readonly results: readonly RuleResult[];
+  readonly failedRuleIds: readonly string[];
+}
+
+export interface ExitRetryPlan {
+  readonly nextAttemptNumber: bigint;
+  readonly refreshQuote: true;
+  readonly refreshBlockhash: true;
+  readonly refreshPriorityFee: true;
+  readonly raisePriorityOneTier: boolean;
+  readonly useFallbackSubmission: boolean;
+  readonly criticalAlert: boolean;
+  readonly earliestRetryAt: Timestamp;
+  readonly latestAutomaticAttemptAt: Timestamp | null;
 }
 
 function requireText(value: string, label: string): void {
@@ -186,7 +233,7 @@ export function markAttemptFailed(
 }
 
 function rule(
-  input: EntryReconciliation,
+  input: Pick<EntryReconciliation, "evaluatedAt" | "evidence">,
   id: string,
   passes: boolean,
   reason: string,
@@ -290,6 +337,144 @@ export function evaluateSuccessfulEntry(input: EntryReconciliation): EntryExecut
     actualReceivedAmount: input.tokenBalanceIncrease,
     actualSolExpenditure: input.solBalanceDecrease,
     realisedEntryPrice: realisedPrice,
+    results,
+    failedRuleIds,
+  });
+}
+
+export function createEmergencyExitIntent(input: {
+  readonly orderId: OrderId;
+  readonly positionId: PositionId;
+  readonly positionVersion: bigint;
+  readonly currentAmount: RawAmount;
+  readonly quoteFingerprint: string;
+  readonly emergencyRuleIds: readonly string[];
+  readonly evidence: readonly EvidenceReference[];
+  readonly quoteFresh: boolean;
+  readonly sellRouteValid: boolean;
+  readonly simulationSucceeded: boolean;
+  readonly createdAt: Timestamp;
+}): EmergencyExitIntent {
+  if (input.positionVersion < 0n) throw new InvariantViolationError("Position version is invalid");
+  if (input.currentAmount <= 0n)
+    throw new InvariantViolationError("Emergency exit amount must be positive");
+  if (
+    input.emergencyRuleIds.length === 0 ||
+    input.emergencyRuleIds.some((id) => !/^EMG-\d{3}$/.test(id))
+  )
+    throw new InvariantViolationError("Emergency exit requires triggered emergency rules");
+  if (input.evidence.length === 0)
+    throw new InvariantViolationError("Emergency exit requires evidence");
+  if (!input.quoteFresh || !input.sellRouteValid || !input.simulationSucceeded)
+    throw new InvariantViolationError("Emergency exit requires a fresh valid simulated sell quote");
+  const evidenceFingerprint = [...input.evidence]
+    .map(
+      ({ id, provider, observedAt, sourceKey, slot }) =>
+        `${id}:${provider}:${observedAt}:${sourceKey}:${slot?.toString() ?? ""}`,
+    )
+    .sort()
+    .join("|");
+  const ruleBinding = [...new Set(input.emergencyRuleIds)].sort().join(",");
+  const idempotencyKey = `emergency:${input.positionId}:${input.positionVersion}:${ruleBinding}:${evidenceFingerprint}`;
+  return Object.freeze({
+    order: createOrder({
+      id: input.orderId,
+      side: "sell",
+      state: "planned",
+      intendedInputAmount: input.currentAmount,
+      quoteFingerprint: input.quoteFingerprint,
+      idempotencyKey,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+      version: 0n,
+    }),
+    positionId: input.positionId,
+    positionVersion: input.positionVersion,
+    emergencyRuleIds: Object.freeze([...new Set(input.emergencyRuleIds)].sort()),
+    requestedAmount: input.currentAmount,
+    evidenceFingerprint,
+  });
+}
+
+export function planExitRetry(
+  failedAttempts: readonly SubmissionAttempt[],
+  failedAt: Timestamp,
+): ExitRetryPlan {
+  if (failedAttempts.length === 0 || failedAttempts.some(({ state }) => state !== "failed"))
+    throw new InvariantViolationError("Exit retry requires failed attempts");
+  const ordered = [...failedAttempts].sort((a, b) => Number(a.attemptNumber - b.attemptNumber));
+  if (new Set(ordered.map(({ orderId }) => orderId)).size !== 1)
+    throw new InvariantViolationError("Failed exit attempts must belong to one order");
+  if (ordered.some(({ attemptNumber }, index) => attemptNumber !== BigInt(index + 1)))
+    throw new InvariantViolationError("Failed exit attempts must be contiguous");
+  const count = ordered.length;
+  const delay = count >= 5 ? 10_000 : 0;
+  return Object.freeze({
+    nextAttemptNumber: BigInt(count + 1),
+    refreshQuote: true,
+    refreshBlockhash: true,
+    refreshPriorityFee: true,
+    raisePriorityOneTier: count >= 2,
+    useFallbackSubmission: count >= 3,
+    criticalAlert: count >= 5,
+    earliestRetryAt: new Date(milliseconds(failedAt) + delay).toISOString() as Timestamp,
+    latestAutomaticAttemptAt:
+      count < 5 ? (new Date(milliseconds(failedAt) + 3_000).toISOString() as Timestamp) : null,
+  });
+}
+
+export function evaluateSuccessfulExit(
+  intent: EmergencyExitIntent,
+  input: ExitReconciliation,
+): ExitExecutionDecision {
+  if (input.evidence.length === 0)
+    throw new InvariantViolationError("Exit reconciliation requires evidence");
+  requireText(input.expectedSignature, "Expected transaction signature");
+  const confirmed = input.transactionConfirmed === true && input.onChainError === false;
+  const signatureMatches = input.signature !== null && input.signature === input.expectedSignature;
+  const amountsKnown =
+    input.tokenBalanceDecrease !== null &&
+    input.reconciledRemainingAmount !== null &&
+    input.solBalanceIncrease !== null &&
+    input.feePaid !== null &&
+    input.tipPaid !== null;
+  const balancesValid =
+    amountsKnown &&
+    input.tokenBalanceDecrease! > 0n &&
+    input.tokenBalanceDecrease! <= intent.requestedAmount &&
+    input.reconciledRemainingAmount! === intent.requestedAmount - input.tokenBalanceDecrease!;
+  const reconciled = confirmed && signatureMatches && amountsKnown && balancesValid;
+  const results = Object.freeze([
+    rule(
+      input,
+      "RET-006",
+      reconciled,
+      "Closure requires the submitted transaction and authoritative balances to reconcile",
+      [
+        { name: "transaction_confirmed", value: input.transactionConfirmed },
+        { name: "on_chain_error", value: input.onChainError },
+        { name: "signature_matches", value: signatureMatches },
+        { name: "amounts_known", value: amountsKnown },
+        { name: "balances_reconciled", value: balancesValid },
+        { name: "token_balance_decrease", value: input.tokenBalanceDecrease, unit: "raw" },
+        { name: "remaining_amount", value: input.reconciledRemainingAmount, unit: "raw" },
+      ],
+    ),
+  ]);
+  const failedRuleIds = Object.freeze(
+    results.filter(({ outcome }) => outcome !== "pass").map(({ ruleId }) => ruleId as string),
+  );
+  const closed = reconciled && input.reconciledRemainingAmount === 0n;
+  return Object.freeze({
+    reconciled,
+    closed,
+    requiresContinuation: reconciled && !closed,
+    soldAmount: reconciled ? input.tokenBalanceDecrease : null,
+    remainingAmount: reconciled ? input.reconciledRemainingAmount : null,
+    proceedsSol:
+      reconciled && input.solBalanceIncrease !== null
+        ? asDecimal(new Decimal(input.solBalanceIncrease.toString()).div(1_000_000_000))
+        : null,
     results,
     failedRuleIds,
   });

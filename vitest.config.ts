@@ -11,6 +11,7 @@ export default defineConfig({
       "tests/unit/order-state.test.ts",
       "tests/unit/position-exits.test.ts",
       "tests/unit/emergency-exits.test.ts",
+      "tests/unit/emergency-execution.test.ts",
       "tests/replay/determinism.test.ts",
     ],
     passWithNoTests: false,

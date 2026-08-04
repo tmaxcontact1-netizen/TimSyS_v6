@@ -148,20 +148,21 @@ describe("position lifecycle", () => {
     expect(value.firstTargetSatisfied).toBe(true);
   });
 
-  it("does not mark a full exit closed without reconciled zero balance", () => {
+  it("keeps a partially filled full exit active until reconciled zero balance", () => {
     const pending = markExitPending(position(), asTimestamp("2026-08-04T12:01:00Z"));
-    expect(() =>
-      reconcileExit(
-        pending,
-        {
-          soldAmount: asRawAmount(900n),
-          proceedsSol: asNonNegativeDecimal(9),
-          reconciledRemainingAmount: asRawAmount(100n),
-          confirmedAt: asTimestamp("2026-08-04T12:01:01Z"),
-        },
-        "full",
-      ),
-    ).toThrow("zero balance");
+    const value = reconcileExit(
+      pending,
+      {
+        soldAmount: asRawAmount(900n),
+        proceedsSol: asNonNegativeDecimal(9),
+        reconciledRemainingAmount: asRawAmount(100n),
+        confirmedAt: asTimestamp("2026-08-04T12:01:01Z"),
+      },
+      "full",
+    );
+    expect(value.state).toBe("partially_closed");
+    expect(value.currentAmount).toBe(100n);
+    expect(value.closedAt).toBeNull();
   });
 
   it("closes only after authoritative zero-balance reconciliation", () => {

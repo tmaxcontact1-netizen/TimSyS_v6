@@ -393,9 +393,6 @@ export function reconcileExit(
   const realised = position.realisedPnlSol.plus(input.proceedsSol).minus(allocatedCost);
   const remaining = input.reconciledRemainingAmount;
   const closed = remaining === 0n;
-  if (target === "full" && !closed)
-    throw new InvariantViolationError("Full exit cannot close without reconciled zero balance");
-
   const lots = Object.freeze(
     position.lots.map((lot) =>
       Object.freeze({
