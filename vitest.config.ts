@@ -19,6 +19,7 @@ export default defineConfig({
       "tests/unit/security-runtime-authority.test.ts",
       "tests/unit/execution-runtime-authority.test.ts",
       "tests/integration/execution.test.ts",
+      "tests/integration/candidate-discovery.test.ts",
       "tests/integration/position-worker.test.ts",
       "tests/integration/persistence.test.ts",
       "tests/integration/restart-recovery.test.ts",

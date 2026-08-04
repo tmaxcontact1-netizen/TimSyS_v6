@@ -1,5 +1,21 @@
 # Memecoined Changelog
 
+## Unreleased — Durable candidate discovery
+
+### 2026-08-04
+
+| File                                                 | Change                                                                  | Reason                                                | Status                 |
+| ---------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------- |
+| `src/domain/candidate/model.ts`                      | Added canonical discovered-candidate identity and provenance invariants | Establish the acquisition aggregate boundary          | Authorized by operator |
+| `src/application/ports/repositories.ts`              | Added atomic candidate-discovery persistence contract                   | Keep identity, provenance, and scheduling indivisible | Authorized by operator |
+| `src/application/services/discovery.ts`              | Added normalized, window-bound candidate discovery                      | Deduplicate retries without losing sources            | Authorized by operator |
+| `src/workers/discovery-worker.ts`                    | Added bounded deterministic discovery cycles                            | Create a controlled acquisition worker boundary       | Authorized by operator |
+| `src/infrastructure/database/candidate-discovery.ts` | Added transactional PostgreSQL discovery persistence                    | Prevent candidates without evaluation work            | Authorized by operator |
+| `migrations/0013_candidate_discovery.sql`            | Added candidate and candidate-source tables                             | Persist acquisition identity and provenance           | Authorized by operator |
+| `tests/integration/candidate-discovery.test.ts`      | Added validation, orchestration, commit, and rollback coverage          | Prove the discovery boundary fails closed             | Authorized by operator |
+| `vitest.config.ts`                                   | Registered the candidate-discovery suite                                | Keep the explicit test inventory complete             | Authorized by operator |
+| `CHANGELOG.md`                                       | Recorded the discovery batch                                            | Preserve file-touch history                           | Authorized by operator |
+
 ## Unreleased — Immediate position supervision
 
 ### 2026-08-04
