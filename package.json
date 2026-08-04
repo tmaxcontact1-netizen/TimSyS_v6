@@ -1,0 +1,37 @@
+{
+  "name": "memecoined",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@solana-program/token": "0.15.0",
+    "@solana/kit": "7.0.0",
+    "csv-stringify": "6.8.2",
+    "decimal.js": "10.6.0",
+    "grammy": "1.45.1",
+    "pg": "8.22.0",
+    "pino": "10.3.1",
+    "ws": "8.21.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/pg": "8.20.3",
+    "@types/ws": "8.18.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "eslint": "10.8.0",
+    "eslint-plugin-import-x": "4.17.1",
+    "prettier": "3.9.6",
+    "testcontainers": "12.0.4",
+    "tsx": "4.23.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}
