@@ -42,4 +42,23 @@ describe("migration execution", () => {
     ).rejects.toThrow(/modified/);
     expect(queries.at(-1)).toContain("pg_advisory_unlock");
   });
+
+  it("commits each schema body and history record atomically", async () => {
+    const queries: string[] = [];
+    const client = {
+      query: async (sql: string) => {
+        queries.push(sql);
+        return { rows: [], rowCount: 0 };
+      },
+    };
+    await expect(
+      applyMigrations(client as never, [
+        { name: "0001_first.sql", checksum: "a".repeat(64), sql: "BEGIN;\nSELECT 1;\nCOMMIT;" },
+      ]),
+    ).resolves.toEqual(["0001_first.sql"]);
+    expect(queries).toEqual(expect.arrayContaining(["BEGIN", "SELECT 1;", "COMMIT"]));
+    expect(
+      queries.findIndex((sql) => sql.startsWith("INSERT INTO schema_migrations")),
+    ).toBeLessThan(queries.indexOf("COMMIT"));
+  });
 });

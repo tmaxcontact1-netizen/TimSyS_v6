@@ -19,6 +19,15 @@ export interface MigrationClient {
 
 const migrationName = /^\d{4}_[a-z0-9_]+\.sql$/;
 
+function transactionalBody(file: MigrationFile): string {
+  const trimmed = file.sql.trim();
+  if (trimmed.length === 0) return "";
+  const match = /^BEGIN;\s*([\s\S]*?)\s*COMMIT;$/i.exec(trimmed);
+  if (match?.[1] === undefined)
+    throw new Error(`Migration ${file.name} must have one outer BEGIN/COMMIT boundary`);
+  return match[1];
+}
+
 export async function loadMigrationFiles(directory: string): Promise<readonly MigrationFile[]> {
   const names = (await readdir(directory)).filter((name) => migrationName.test(name)).sort();
   if (names.length === 0) throw new Error("No migration files were found");
@@ -62,11 +71,19 @@ export async function applyMigrations(
     const completed: string[] = [];
     for (const file of files) {
       if (known.has(file.name)) continue;
-      await client.query(file.sql);
-      await client.query("INSERT INTO schema_migrations (name, checksum) VALUES ($1, $2)", [
-        file.name,
-        file.checksum,
-      ]);
+      await client.query("BEGIN");
+      try {
+        const body = transactionalBody(file);
+        if (body.length > 0) await client.query(body);
+        await client.query("INSERT INTO schema_migrations (name, checksum) VALUES ($1, $2)", [
+          file.name,
+          file.checksum,
+        ]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
       completed.push(file.name);
     }
     return Object.freeze(completed);

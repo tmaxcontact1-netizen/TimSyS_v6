@@ -16,6 +16,12 @@ const required = [
   "position_runtime_facts.checkpoint_revision",
   "position_runtime_facts.phase",
   "position_runtime_facts.payload_json",
+  "position_observations.id",
+  "position_observations.position_id",
+  "position_observations.content_hash",
+  "position_observations.payload_json",
+  "position_runtime_fact_observations.runtime_fact_id",
+  "position_runtime_fact_observations.observation_id",
 ];
 function database(schemaReady = true) {
   const end = vi.fn(async () => undefined);

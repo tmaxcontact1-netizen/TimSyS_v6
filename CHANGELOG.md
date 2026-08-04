@@ -1,5 +1,16 @@
 # Memecoined Changelog
 
+## Unreleased — Atomic migration history
+
+### 2026-08-04
+
+| File                                           | Change                                                                             | Reason                                                                             | Status                 |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------- |
+| `scripts/migrate.ts`                           | Made the runner own the transaction around each migration body and checksum record | Eliminate the crash window between schema commit and migration-history persistence | Authorized by operator |
+| `tests/integration/migrations.test.ts`         | Added atomic body-and-history ordering coverage                                    | Prove migration history commits with its schema change                             | Authorized by operator |
+| `tests/integration/production-startup.test.ts` | Extended the ready-schema fixture through migration `0010`                         | Keep production lifecycle coverage aligned with the runtime readiness contract     | Authorized by operator |
+| `CHANGELOG.md`                                 | Recorded the atomic migration correction                                           | Preserve the required file-touch history                                           | Authorized by operator |
+
 ## Unreleased — Checkpoint-bound fact publishing
 
 ### 2026-08-04
