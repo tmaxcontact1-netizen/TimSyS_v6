@@ -20,6 +20,9 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 | `src/domain/token/security.ts`       | Added fail-closed evaluation for SEC-001–004, SEC-008, SEC-010, and SEC-015 with exact evidence and boundaries        | Implement the approved deterministic token-security subset                              | Authorized by operator |
 | `tests/unit/token-security.test.ts`  | Added identity, malformed-input, authority, program, extension, holder-boundary, missing-data, and immutability tests | Prove every implemented token-security decision at its approved boundaries              | Authorized by operator |
 | `vitest.config.ts`                   | Activated the Node test environment and explicit inventory of implemented test suites                                 | Run executable tests while excluding mapped future-phase placeholders until implemented | Authorized by operator |
+| `src/domain/market/model.ts`         | Added immutable, validated normalized market snapshots                                                                | Establish provider-neutral market facts for deterministic evaluation                    | Authorized by operator |
+| `src/domain/market/momentum.ts`      | Added UNI-001–004, SEC-005–007/011–012, and MOM-001–010 evaluations                                                   | Implement approved market eligibility, rejection, and momentum boundaries               | Authorized by operator |
+| `tests/unit/momentum.test.ts`        | Added missing-data, invariant, numerical-boundary, zero-sell, and immutability tests                                  | Prove deterministic fail-closed market decisions                                        | Authorized by operator |
 
 ## Unreleased — Pre-code specification
 
