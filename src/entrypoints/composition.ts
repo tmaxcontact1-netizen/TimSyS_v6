@@ -54,6 +54,10 @@ import { LiveCandidateDiscoverySource } from "../application/services/discovery.
 import { PostgresCandidateDiscoveryRepository } from "../infrastructure/database/candidate-discovery.js";
 import { runDiscoveryWorkerCycle } from "../workers/discovery-worker.js";
 import { asStrategyVersionId, asTimestamp } from "../domain/shared/types.js";
+import { runTrackedWalletObservationCycle } from "../application/services/tracked-wallet-observations.js";
+import { runTrackedWalletValuationCycle } from "../application/services/tracked-wallet-valuations.js";
+import { PostgresTrackedWalletObservationRepository } from "../infrastructure/database/tracked-wallet-observations.js";
+import { PostgresTrackedWalletValuationRepository } from "../infrastructure/database/tracked-wallet-valuations.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -119,6 +123,8 @@ export function composeProductionPositionRuntime(input: {
     deduplicationWindow: (at) => asTimestamp(at).slice(0, 16),
   });
   const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
+  const trackedWalletObservations = new PostgresTrackedWalletObservationRepository(input.database);
+  const trackedWalletValuations = new PostgresTrackedWalletValuationRepository(input.database);
   const publisherCheckpoints = new PostgresPositionWorkerCheckpointRepository(input.database);
   const observations = new PostgresPositionObservationStore(input.database);
   const publications = new PostgresPositionRuntimeFactPublisher(input.database);
@@ -222,11 +228,24 @@ export function composeProductionPositionRuntime(input: {
     ...runtime,
     supervisor: Object.freeze({
       ...runtime.supervisor,
-      beforeBatch: () =>
-        runDiscoveryWorkerCycle({
+      beforeBatch: async () => {
+        await runDiscoveryWorkerCycle({
           source: discoverySource,
           candidates: discoveryCandidates,
-        }).then(() => undefined),
+        });
+        await runTrackedWalletObservationCycle({
+          source: providers.trackedWalletPurchases,
+          repository: trackedWalletObservations,
+          now: () => clock.now(),
+        });
+        await runTrackedWalletValuationCycle({
+          repository: trackedWalletValuations,
+          market: providers.market,
+          balances: providers.balances,
+          now: () => clock.now(),
+          limit: 100,
+        });
+      },
     }),
   });
 }

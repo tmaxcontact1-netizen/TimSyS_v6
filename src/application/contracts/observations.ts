@@ -45,6 +45,7 @@ export interface PoolMarketObservation {
   readonly baseMint: MintAddress;
   readonly quoteMint: string;
   readonly pairCreatedAt: Timestamp | null;
+  readonly priceUsd: DecimalValue | null;
   readonly liquidityUsd: DecimalValue | null;
   readonly marketCapitalizationUsd: DecimalValue | null;
   readonly fullyDilutedValuationUsd: DecimalValue | null;

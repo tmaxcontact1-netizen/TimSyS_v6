@@ -35,6 +35,7 @@ const pairSchema = z.object({
   pairAddress: z.string().min(1),
   baseToken: z.object({ address: z.string().min(1) }),
   quoteToken: z.object({ address: z.string().min(1) }),
+  priceUsd: nullableNumber,
   priceChange: z.object({ m5: nullableNumber }).optional(),
   txns: z
     .object({
@@ -225,6 +226,7 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
           quoteMint:
             pair.baseToken.address === mint ? pair.quoteToken.address : pair.baseToken.address,
           pairCreatedAt,
+          priceUsd: decimal(pair.priceUsd),
           liquidityUsd: decimal(pair.liquidity?.usd),
           marketCapitalizationUsd: decimal(pair.marketCap),
           fullyDilutedValuationUsd: decimal(pair.fdv),

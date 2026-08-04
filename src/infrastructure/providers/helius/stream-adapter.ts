@@ -21,7 +21,10 @@ const responseSchema = z.array(
       z.object({
         mint: z.string(),
         toUserAccount: z.string().nullable().optional(),
-        rawTokenAmount: z.object({ tokenAmount: z.string().regex(/^\d+$/) }),
+        rawTokenAmount: z.object({
+          tokenAmount: z.string().regex(/^\d+$/),
+          decimals: z.number().int().min(0).max(18),
+        }),
       }),
     ),
     nativeTransfers: z.array(
@@ -87,6 +90,7 @@ export class HeliusTrackedWalletPurchaseAdapter implements TrackedWalletPurchase
             observedAt: response.receivedAt,
             slot: asSolanaSlot(BigInt(transaction.slot)),
             acquiredAmountRaw: asRawAmount(BigInt(transfer.rawTokenAmount.tokenAmount)),
+            tokenDecimals: transfer.rawTokenAmount.decimals,
             nativeSpentLamports: asRawAmount(spent),
             trace: Object.freeze({
               evidenceId: this.identities.createEvidenceId({

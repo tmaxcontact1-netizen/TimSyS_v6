@@ -44,8 +44,8 @@ export class PostgresTrackedWalletObservationRepository implements TrackedWallet
       for (const item of input.observations) {
         const result = await client.query(
           `INSERT INTO tracked_wallet_purchase_observations
-             (wallet_id,signature,mint,purchased_at,observed_at,slot,acquired_amount_raw,native_spent_lamports,evidence_json)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb)
+             (wallet_id,signature,mint,purchased_at,observed_at,slot,acquired_amount_raw,token_decimals,native_spent_lamports,evidence_json)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
            ON CONFLICT (wallet_id,signature,mint) DO NOTHING`,
           [
             item.walletId,
@@ -55,6 +55,7 @@ export class PostgresTrackedWalletObservationRepository implements TrackedWallet
             item.observedAt,
             item.slot.toString(),
             item.acquiredAmountRaw.toString(),
+            item.tokenDecimals,
             item.nativeSpentLamports.toString(),
             JSON.stringify(item.trace, (_k, v) => (typeof v === "bigint" ? v.toString() : v)),
           ],

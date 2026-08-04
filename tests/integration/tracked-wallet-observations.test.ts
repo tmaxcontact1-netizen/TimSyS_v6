@@ -43,6 +43,7 @@ const observation: TrackedWalletPurchaseObservation = {
   observedAt: now,
   slot: 1n as never,
   acquiredAmountRaw: 2n as never,
+  tokenDecimals: 6,
   nativeSpentLamports: 3n as never,
   trace: {
     evidenceId: asUuid<EvidenceId>("00000000-0000-4000-8000-000000001912"),

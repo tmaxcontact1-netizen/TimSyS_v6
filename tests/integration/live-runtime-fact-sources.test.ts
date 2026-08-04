@@ -6,6 +6,7 @@ import {
 } from "../../src/application/services/live-runtime-fact-sources.js";
 import {
   asDecimal,
+  asNonNegativeDecimal,
   asRawAmount,
   asSolanaSlot,
   asTimestamp,
@@ -37,6 +38,7 @@ describe("live runtime fact sources", () => {
           baseMint: mint,
           quoteMint: "SOL",
           pairCreatedAt: null,
+          priceUsd: asNonNegativeDecimal("0.25"),
           liquidityUsd: asDecimal("10000"),
           marketCapitalizationUsd: null,
           fullyDilutedValuationUsd: null,

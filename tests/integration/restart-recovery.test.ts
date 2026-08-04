@@ -143,6 +143,7 @@ function marketObservation(): PoolMarketObservation {
     baseMint: tokenMint,
     quoteMint: settlementMint,
     pairCreatedAt: null,
+    priceUsd: asNonNegativeDecimal("0.25"),
     liquidityUsd: asNonNegativeDecimal(90_000),
     marketCapitalizationUsd: asNonNegativeDecimal(1_000_000),
     fullyDilutedValuationUsd: asNonNegativeDecimal(1_000_000),

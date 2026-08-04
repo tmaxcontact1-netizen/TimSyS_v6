@@ -18,6 +18,7 @@ export interface TrackedWalletPurchaseObservation {
   readonly observedAt: Timestamp;
   readonly slot: SolanaSlot;
   readonly acquiredAmountRaw: RawAmount;
+  readonly tokenDecimals: number;
   readonly nativeSpentLamports: RawAmount;
   readonly trace: ObservationTrace;
 }

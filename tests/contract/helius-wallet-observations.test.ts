@@ -35,7 +35,7 @@ describe("Helius tracked-wallet observations", () => {
         timestamp: 1_775_500_000,
         transactionError: null,
         tokenTransfers: [
-          { mint, toUserAccount: wallet, rawTokenAmount: { tokenAmount: "2500000" } },
+          { mint, toUserAccount: wallet, rawTokenAmount: { tokenAmount: "2500000", decimals: 6 } },
         ],
         nativeTransfers: [{ fromUserAccount: wallet, amount: 500_000_000 }],
       },
@@ -50,6 +50,7 @@ describe("Helius tracked-wallet observations", () => {
     expect(result[0]).toMatchObject({
       signature: "sig-1",
       acquiredAmountRaw: 2_500_000n,
+      tokenDecimals: 6,
       nativeSpentLamports: 500_000_000n,
       slot: 123n,
     });
@@ -63,7 +64,9 @@ describe("Helius tracked-wallet observations", () => {
         slot: 1,
         timestamp: 1_775_500_000,
         transactionError: { message: "failed" },
-        tokenTransfers: [{ mint, toUserAccount: wallet, rawTokenAmount: { tokenAmount: "1" } }],
+        tokenTransfers: [
+          { mint, toUserAccount: wallet, rawTokenAmount: { tokenAmount: "1", decimals: 0 } },
+        ],
         nativeTransfers: [],
       },
       {
@@ -72,7 +75,11 @@ describe("Helius tracked-wallet observations", () => {
         timestamp: 1_775_500_000,
         transactionError: null,
         tokenTransfers: [
-          { mint, toUserAccount: "someone-else", rawTokenAmount: { tokenAmount: "1" } },
+          {
+            mint,
+            toUserAccount: "someone-else",
+            rawTokenAmount: { tokenAmount: "1", decimals: 0 },
+          },
         ],
         nativeTransfers: [],
       },
