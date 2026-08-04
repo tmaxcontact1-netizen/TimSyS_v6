@@ -17,6 +17,7 @@ import {
   type RawAmount,
   type Timestamp,
 } from "../shared/types.js";
+import type { ExitDecision } from "./exits.js";
 
 export type OrderSide = "buy" | "sell";
 export type OrderState =
@@ -100,10 +101,25 @@ export interface EmergencyExitIntent {
   readonly order: Order;
   readonly positionId: PositionId;
   readonly positionVersion: bigint;
+  readonly positionAmountBeforeExit: RawAmount;
   readonly emergencyRuleIds: readonly string[];
   readonly requestedAmount: RawAmount;
   readonly evidenceFingerprint: string;
 }
+
+export interface StandardExitIntent {
+  readonly order: Order;
+  readonly positionId: PositionId;
+  readonly positionVersion: bigint;
+  readonly positionAmountBeforeExit: RawAmount;
+  readonly originalPositionAmount: RawAmount;
+  readonly standardRuleId: string;
+  readonly action: "partial" | "full";
+  readonly requestedAmount: RawAmount;
+  readonly evidenceFingerprint: string;
+}
+
+export type ExitExecutionIntent = EmergencyExitIntent | StandardExitIntent;
 
 export interface ExitReconciliation {
   readonly evaluatedAt: Timestamp;
@@ -123,6 +139,7 @@ export interface ExitExecutionDecision {
   readonly reconciled: boolean;
   readonly closed: boolean;
   readonly requiresContinuation: boolean;
+  readonly requestedAmountSatisfied: boolean;
   readonly soldAmount: RawAmount | null;
   readonly remainingAmount: RawAmount | null;
   readonly proceedsSol: DecimalValue | null;
@@ -144,6 +161,16 @@ export interface ExitRetryPlan {
 
 function requireText(value: string, label: string): void {
   if (value.trim().length === 0) throw new InvariantViolationError(`${label} is required`);
+}
+
+function fingerprintEvidence(evidence: readonly EvidenceReference[]): string {
+  return [...evidence]
+    .map(
+      ({ id, provider, observedAt, sourceKey, slot }) =>
+        `${id}:${provider}:${observedAt}:${sourceKey}:${slot?.toString() ?? ""}`,
+    )
+    .sort()
+    .join("|");
 }
 
 function milliseconds(value: Timestamp): number {
@@ -367,13 +394,7 @@ export function createEmergencyExitIntent(input: {
     throw new InvariantViolationError("Emergency exit requires evidence");
   if (!input.quoteFresh || !input.sellRouteValid || !input.simulationSucceeded)
     throw new InvariantViolationError("Emergency exit requires a fresh valid simulated sell quote");
-  const evidenceFingerprint = [...input.evidence]
-    .map(
-      ({ id, provider, observedAt, sourceKey, slot }) =>
-        `${id}:${provider}:${observedAt}:${sourceKey}:${slot?.toString() ?? ""}`,
-    )
-    .sort()
-    .join("|");
+  const evidenceFingerprint = fingerprintEvidence(input.evidence);
   const ruleBinding = [...new Set(input.emergencyRuleIds)].sort().join(",");
   const idempotencyKey = `emergency:${input.positionId}:${input.positionVersion}:${ruleBinding}:${evidenceFingerprint}`;
   return Object.freeze({
@@ -390,8 +411,83 @@ export function createEmergencyExitIntent(input: {
     }),
     positionId: input.positionId,
     positionVersion: input.positionVersion,
+    positionAmountBeforeExit: input.currentAmount,
     emergencyRuleIds: Object.freeze([...new Set(input.emergencyRuleIds)].sort()),
     requestedAmount: input.currentAmount,
+    evidenceFingerprint,
+  });
+}
+
+export function createStandardExitIntent(input: {
+  readonly orderId: OrderId;
+  readonly positionId: PositionId;
+  readonly positionVersion: bigint;
+  readonly currentAmount: RawAmount;
+  readonly originalAmount: RawAmount;
+  readonly decision: ExitDecision;
+  readonly quoteFingerprint: string;
+  readonly evidence: readonly EvidenceReference[];
+  readonly quoteReceivedAt: Timestamp;
+  readonly sellRouteValid: boolean;
+  readonly simulationSucceeded: boolean;
+  readonly createdAt: Timestamp;
+}): StandardExitIntent {
+  if (input.positionVersion < 0n) throw new InvariantViolationError("Position version is invalid");
+  if (input.currentAmount <= 0n || input.originalAmount <= 0n)
+    throw new InvariantViolationError("Standard exit position amounts must be positive");
+  if (input.currentAmount > input.originalAmount)
+    throw new InvariantViolationError("Current position amount cannot exceed original amount");
+  if (input.decision.ruleId === null || !/^EXT-00[1-6]$/.test(input.decision.ruleId))
+    throw new InvariantViolationError("Standard exit requires one EXT rule");
+  if (input.decision.action === "none" || input.decision.requestedAmount <= 0n)
+    throw new InvariantViolationError("Standard exit requires an actionable decision");
+  if (input.evidence.length === 0)
+    throw new InvariantViolationError("Standard exit requires evidence");
+  if (
+    milliseconds(input.createdAt) - milliseconds(input.quoteReceivedAt) < 0 ||
+    milliseconds(input.createdAt) - milliseconds(input.quoteReceivedAt) > 2_000 ||
+    !input.sellRouteValid ||
+    !input.simulationSucceeded
+  )
+    throw new InvariantViolationError("Standard exit requires a fresh valid simulated sell quote");
+
+  const partial = input.decision.ruleId === "EXT-002" || input.decision.ruleId === "EXT-003";
+  const expectedAction = partial ? "partial" : "full";
+  const tranchePercent = input.decision.ruleId === "EXT-002" ? 40n : 30n;
+  const expectedAmount = partial
+    ? BigInt(
+        Decimal.min(
+          new Decimal(((input.originalAmount * tranchePercent) / 100n).toString()),
+          new Decimal(input.currentAmount.toString()),
+        ).toFixed(0, Decimal.ROUND_DOWN),
+      )
+    : input.currentAmount;
+  if (input.decision.action !== expectedAction || input.decision.requestedAmount !== expectedAmount)
+    throw new InvariantViolationError(
+      "Standard exit decision does not match its rule and position",
+    );
+
+  const evidenceFingerprint = fingerprintEvidence(input.evidence);
+  const idempotencyKey = `standard:${input.positionId}:${input.positionVersion}:${input.decision.ruleId}:${input.decision.requestedAmount}:${input.quoteFingerprint}:${evidenceFingerprint}`;
+  return Object.freeze({
+    order: createOrder({
+      id: input.orderId,
+      side: "sell",
+      state: "planned",
+      intendedInputAmount: input.decision.requestedAmount,
+      quoteFingerprint: input.quoteFingerprint,
+      idempotencyKey,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+      version: 0n,
+    }),
+    positionId: input.positionId,
+    positionVersion: input.positionVersion,
+    positionAmountBeforeExit: input.currentAmount,
+    originalPositionAmount: input.originalAmount,
+    standardRuleId: input.decision.ruleId,
+    action: expectedAction,
+    requestedAmount: input.decision.requestedAmount,
     evidenceFingerprint,
   });
 }
@@ -424,7 +520,7 @@ export function planExitRetry(
 }
 
 export function evaluateSuccessfulExit(
-  intent: EmergencyExitIntent,
+  intent: ExitExecutionIntent,
   input: ExitReconciliation,
 ): ExitExecutionDecision {
   if (input.evidence.length === 0)
@@ -442,7 +538,8 @@ export function evaluateSuccessfulExit(
     amountsKnown &&
     input.tokenBalanceDecrease! > 0n &&
     input.tokenBalanceDecrease! <= intent.requestedAmount &&
-    input.reconciledRemainingAmount! === intent.requestedAmount - input.tokenBalanceDecrease!;
+    input.reconciledRemainingAmount! ===
+      intent.positionAmountBeforeExit - input.tokenBalanceDecrease!;
   const reconciled = confirmed && signatureMatches && amountsKnown && balancesValid;
   const results = Object.freeze([
     rule(
@@ -465,10 +562,13 @@ export function evaluateSuccessfulExit(
     results.filter(({ outcome }) => outcome !== "pass").map(({ ruleId }) => ruleId as string),
   );
   const closed = reconciled && input.reconciledRemainingAmount === 0n;
+  const requestedAmountSatisfied =
+    reconciled && input.tokenBalanceDecrease === intent.requestedAmount;
   return Object.freeze({
     reconciled,
     closed,
-    requiresContinuation: reconciled && !closed,
+    requiresContinuation: reconciled && !requestedAmountSatisfied,
+    requestedAmountSatisfied,
     soldAmount: reconciled ? input.tokenBalanceDecrease : null,
     remainingAmount: reconciled ? input.reconciledRemainingAmount : null,
     proceedsSol:

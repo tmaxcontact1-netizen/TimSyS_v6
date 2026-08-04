@@ -201,6 +201,7 @@ describe("emergency exit execution", () => {
     expect(decision.reconciled).toBe(true);
     expect(decision.closed).toBe(false);
     expect(decision.requiresContinuation).toBe(true);
+    expect(decision.requestedAmountSatisfied).toBe(false);
     const opened = createReconciledPosition({
       id: positionId,
       tokenId: asUuid<TokenId>("00000000-0000-4000-8000-000000000094"),
@@ -229,6 +230,7 @@ describe("emergency exit execution", () => {
     expect(decision.reconciled).toBe(true);
     expect(decision.closed).toBe(true);
     expect(decision.requiresContinuation).toBe(false);
+    expect(decision.requestedAmountSatisfied).toBe(true);
     expect(decision.proceedsSol?.toString()).toBe("2");
   });
 });
