@@ -90,6 +90,7 @@ function preparation(overrides: Partial<ExitPreparation> = {}): ExitPreparation 
     execution: Object.freeze({
       transactionFingerprint: "transaction-runtime-1",
       quoteFingerprint: "sell-runtime-q1",
+      quoteReceivedAt: asTimestamp("2026-08-04T10:00:58Z"),
       wallet: "Wallet111111111111111111111111111111111111" as never,
       serializedTransactionBase64: Buffer.from("transaction-runtime-1").toString("base64"),
       lastValidBlockHeight: 1_000n,

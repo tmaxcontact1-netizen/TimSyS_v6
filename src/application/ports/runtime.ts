@@ -11,6 +11,11 @@ import type {
 } from "../../domain/shared/types.js";
 import type { PendingPositionAction, PositionWorkerCheckpoint } from "./repositories.js";
 import type { PositionRuntimeStep } from "../services/position-monitor.js";
+import type {
+  LocalSignerPort,
+  TransactionInspectorPort,
+  TransactionSubmissionPort,
+} from "./signer.js";
 
 export interface PositionMonitoringFacts {
   readonly stepId: string;
@@ -46,4 +51,16 @@ export interface PositionRuntimeStepSource {
 /** Dispatch must be idempotent on deliveryId. */
 export interface PositionRuntimeActionDispatcher {
   dispatch(pending: PendingPositionAction): Promise<void>;
+}
+
+export interface ExecutionAuthorityPort {
+  currentBlockHeight(): Promise<bigint>;
+  now(): Timestamp;
+}
+
+export interface PositionActionDispatcherDependencies {
+  readonly inspector: TransactionInspectorPort;
+  readonly signer: LocalSignerPort;
+  readonly submission: TransactionSubmissionPort;
+  readonly authority: ExecutionAuthorityPort;
 }

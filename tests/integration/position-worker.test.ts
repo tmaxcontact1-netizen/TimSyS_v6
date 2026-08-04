@@ -106,6 +106,7 @@ function monitoringStep(): PositionRuntimeStep {
       execution: Object.freeze({
         transactionFingerprint: "position-worker-transaction-1",
         quoteFingerprint: "position-worker-quote-1",
+        quoteReceivedAt: asTimestamp("2026-08-04T11:59:59Z"),
         wallet: "Wallet111111111111111111111111111111111111" as never,
         serializedTransactionBase64: Buffer.from("position-worker-transaction-1").toString(
           "base64",

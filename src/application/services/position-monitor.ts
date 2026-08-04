@@ -55,6 +55,7 @@ export interface ExitPreparation {
 export interface PreparedExitExecution {
   readonly transactionFingerprint: string;
   readonly quoteFingerprint: string;
+  readonly quoteReceivedAt: Timestamp;
   readonly wallet: WalletAddress;
   readonly serializedTransactionBase64: string;
   readonly lastValidBlockHeight: bigint;
@@ -144,6 +145,7 @@ function stepFingerprint(step: PositionRuntimeStep): string {
       String(step.preparation?.simulationSucceeded ?? ""),
       step.preparation?.execution.transactionFingerprint ?? "",
       step.preparation?.execution.quoteFingerprint ?? "",
+      step.preparation?.execution.quoteReceivedAt ?? "",
       step.preparation?.execution.wallet ?? "",
       step.preparation?.execution.serializedTransactionBase64 ?? "",
       step.preparation?.execution.lastValidBlockHeight.toString() ?? "",
@@ -280,7 +282,10 @@ function monitor(state: PositionRuntimeState, step: MonitorPositionStep): Positi
     throw new InvariantViolationError("Actionable exit requires execution preparation");
   if (step.preparation.evidence.length === 0)
     throw new InvariantViolationError("Exit execution preparation requires evidence");
-  const preparedExecution = step.preparation.execution;
+  const preparedExecution = Object.freeze({
+    ...step.preparation.execution,
+    quoteReceivedAt: step.preparation.quoteReceivedAt,
+  });
   requireText(preparedExecution.transactionFingerprint, "Prepared transaction fingerprint");
   requireText(preparedExecution.serializedTransactionBase64, "Prepared transaction payload");
   if (preparedExecution.quoteFingerprint !== step.preparation.quoteFingerprint)

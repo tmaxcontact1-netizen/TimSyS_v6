@@ -3,10 +3,12 @@ import { Decimal } from "decimal.js";
 import type { ObservationTrace } from "../contracts/observations.js";
 import type { ChainObservationPort } from "../ports/chain.js";
 import type { MarketObservationPort } from "../ports/market.js";
-import type { PositionWorkerCheckpoint } from "../ports/repositories.js";
+import type { PendingPositionAction, PositionWorkerCheckpoint } from "../ports/repositories.js";
 import type {
+  PositionActionDispatcherDependencies,
   PositionMonitoringFacts,
   PositionMonitoringFactsSource,
+  PositionRuntimeActionDispatcher,
   PositionRuntimeStepSource,
 } from "../ports/runtime.js";
 import type { SwapFailure, SwapPort } from "../ports/swap.js";
@@ -242,6 +244,7 @@ export class ObservedPositionRuntimeStepSource implements PositionRuntimeStepSou
         execution: Object.freeze({
           transactionFingerprint: constructionResult.value.fingerprint,
           quoteFingerprint: constructionResult.value.quoteFingerprint,
+          quoteReceivedAt: quote.receivedAt,
           wallet: constructionResult.value.wallet,
           serializedTransactionBase64: constructionResult.value.serializedTransactionBase64,
           lastValidBlockHeight: constructionResult.value.lastValidBlockHeight,
@@ -253,5 +256,50 @@ export class ObservedPositionRuntimeStepSource implements PositionRuntimeStepSou
         exitRequestedEventId: facts.exitRequestedEventId,
       }),
     });
+  }
+}
+
+/** Executes only durable submit actions. Submission acknowledgement never implies confirmation. */
+export class DurablePositionActionDispatcher implements PositionRuntimeActionDispatcher {
+  private readonly completed = new Map<string, string>();
+
+  public constructor(private readonly dependencies: PositionActionDispatcherDependencies) {}
+
+  public async dispatch(pending: PendingPositionAction): Promise<void> {
+    if (pending.deliveryId.trim().length === 0)
+      throw new InvariantViolationError("Pending action delivery ID is required");
+    if (pending.action.type !== "submit_exit") return;
+    const execution = pending.action.execution;
+    const existing = this.completed.get(pending.deliveryId);
+    if (existing !== undefined) {
+      if (existing !== execution.transactionFingerprint)
+        throw new InvariantViolationError(
+          "Delivery ID was reused for a different exit transaction",
+        );
+      return;
+    }
+    const signingAt = this.dependencies.authority.now();
+    const quoteAge = new Date(signingAt).getTime() - new Date(execution.quoteReceivedAt).getTime();
+    if (quoteAge < 0 || quoteAge > 2_000)
+      throw new InvariantViolationError("Exit quote is not fresh at signing");
+    const publicIdentity = await this.dependencies.signer.publicIdentity();
+    if (publicIdentity !== execution.wallet)
+      throw new InvariantViolationError("Configured signer does not match prepared exit wallet");
+    const inspected = await this.dependencies.inspector.inspect({
+      serializedTransactionBase64: execution.serializedTransactionBase64,
+      transactionFingerprint: execution.transactionFingerprint,
+      expectedWallet: execution.wallet,
+      currentBlockHeight: await this.dependencies.authority.currentBlockHeight(),
+      lastValidBlockHeight: execution.lastValidBlockHeight,
+      prioritizationFeeLamports: execution.prioritizationFeeLamports,
+    });
+    const signed = await this.dependencies.signer.sign(inspected);
+    if (
+      signed.wallet !== execution.wallet ||
+      signed.unsignedTransactionFingerprint !== execution.transactionFingerprint
+    )
+      throw new InvariantViolationError("Signed transaction does not match inspected exit");
+    await this.dependencies.submission.submit(signed, pending.deliveryId);
+    this.completed.set(pending.deliveryId, execution.transactionFingerprint);
   }
 }
