@@ -1,13 +1,24 @@
 {
   "name": "memecoined",
-  "version": "1.0.0",
-  "main": "index.js",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.18.1",
+    "npm": "11.9.0"
+  },
+  "packageManager": "npm@11.9.0",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "description": "",
   "dependencies": {
     "@solana-program/token": "0.15.0",
