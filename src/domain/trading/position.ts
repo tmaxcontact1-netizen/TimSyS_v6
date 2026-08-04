@@ -6,6 +6,7 @@ import {
   asDecimal,
   asRawAmount,
   type DecimalValue,
+  type AuditEventId,
   type OrderId,
   type PositionId,
   type RawAmount,
@@ -64,6 +65,198 @@ export interface ExitReconciliation {
   readonly proceedsSol: DecimalValue;
   readonly reconciledRemainingAmount: RawAmount;
   readonly confirmedAt: Timestamp;
+}
+
+interface PositionEventBase {
+  readonly eventId: AuditEventId;
+  readonly positionId: PositionId;
+  readonly aggregateVersion: bigint;
+  readonly occurredAt: Timestamp;
+}
+
+export interface PositionOpenedEvent extends PositionEventBase {
+  readonly type: "position:opened";
+  readonly tokenId: TokenId;
+  readonly entryOrderId: OrderId;
+  readonly acquiredAmount: RawAmount;
+  readonly costBasisSol: DecimalValue;
+}
+
+export interface PositionExecutablePeakRecordedEvent extends PositionEventBase {
+  readonly type: "position:executable-peak-recorded";
+  readonly executableValueSol: DecimalValue;
+}
+
+export interface PositionExitRequestedEvent extends PositionEventBase {
+  readonly type: "position:exit-requested";
+}
+
+export interface PositionExitReconciledEvent extends PositionEventBase {
+  readonly type: "position:exit-reconciled";
+  readonly target: "first" | "second" | "full";
+  readonly soldAmount: RawAmount;
+  readonly proceedsSol: DecimalValue;
+  readonly reconciledRemainingAmount: RawAmount;
+}
+
+export type PositionEvent =
+  | PositionOpenedEvent
+  | PositionExecutablePeakRecordedEvent
+  | PositionExitRequestedEvent
+  | PositionExitReconciledEvent;
+
+export interface AppliedPositionEvent {
+  readonly eventId: AuditEventId;
+  readonly fingerprint: string;
+}
+
+export interface PositionLifecycle {
+  readonly position: Position | null;
+  readonly appliedEvents: readonly AppliedPositionEvent[];
+  readonly lastEventAt: Timestamp | null;
+  readonly version: bigint;
+}
+
+export function createEmptyPositionLifecycle(): PositionLifecycle {
+  return Object.freeze({
+    position: null,
+    appliedEvents: Object.freeze([]),
+    lastEventAt: null,
+    version: -1n,
+  });
+}
+
+export function restorePositionLifecycle(input: PositionLifecycle): PositionLifecycle {
+  if (input.version < -1n)
+    throw new InvariantViolationError("Position lifecycle version is invalid");
+  if (
+    new Set(input.appliedEvents.map(({ eventId }) => eventId)).size !== input.appliedEvents.length
+  )
+    throw new InvariantViolationError("Position lifecycle event IDs must be unique");
+  if (input.position === null) {
+    if (input.version !== -1n || input.lastEventAt !== null || input.appliedEvents.length !== 0)
+      throw new InvariantViolationError("Empty position lifecycle cannot contain event state");
+  } else {
+    const restored = restorePosition(input.position);
+    if (restored.version !== input.version)
+      throw new InvariantViolationError("Position lifecycle version must match position version");
+    if (input.lastEventAt === null || time(input.lastEventAt) !== time(restored.updatedAt))
+      throw new InvariantViolationError("Position lifecycle event time must match position update");
+    if (BigInt(input.appliedEvents.length - 1) !== input.version)
+      throw new InvariantViolationError("Position lifecycle event count must match version");
+  }
+  return Object.freeze({
+    ...input,
+    position: input.position === null ? null : restorePosition(input.position),
+    appliedEvents: Object.freeze(input.appliedEvents.map((event) => Object.freeze({ ...event }))),
+  });
+}
+
+function positionEventFingerprint(event: PositionEvent): string {
+  const common = [
+    event.type,
+    event.eventId,
+    event.positionId,
+    event.aggregateVersion.toString(),
+    event.occurredAt,
+  ];
+  switch (event.type) {
+    case "position:opened":
+      return [
+        ...common,
+        event.tokenId,
+        event.entryOrderId,
+        event.acquiredAmount.toString(),
+        event.costBasisSol.toString(),
+      ].join("|");
+    case "position:executable-peak-recorded":
+      return [...common, event.executableValueSol.toString()].join("|");
+    case "position:exit-requested":
+      return common.join("|");
+    case "position:exit-reconciled":
+      return [
+        ...common,
+        event.target,
+        event.soldAmount.toString(),
+        event.proceedsSol.toString(),
+        event.reconciledRemainingAmount.toString(),
+      ].join("|");
+  }
+}
+
+export function applyPositionEvent(
+  lifecycle: PositionLifecycle,
+  event: PositionEvent,
+): PositionLifecycle {
+  const current = restorePositionLifecycle(lifecycle);
+  const fingerprint = positionEventFingerprint(event);
+  const duplicate = current.appliedEvents.find(({ eventId }) => eventId === event.eventId);
+  if (duplicate !== undefined) {
+    if (duplicate.fingerprint !== fingerprint)
+      throw new InvariantViolationError("Position event ID was reused with different content");
+    return current;
+  }
+  if (event.aggregateVersion !== current.version + 1n)
+    throw new InvariantViolationError("Position event version is not the next aggregate version");
+  if (current.lastEventAt !== null && time(event.occurredAt) < time(current.lastEventAt))
+    throw new InvariantViolationError("Position event time cannot move backwards");
+  if (current.position !== null && event.positionId !== current.position.id)
+    throw new InvariantViolationError("Position event targets a different aggregate");
+
+  let position: Position;
+  switch (event.type) {
+    case "position:opened":
+      if (current.position !== null || event.aggregateVersion !== 0n)
+        throw new InvariantViolationError("Position opened event must start an empty lifecycle");
+      position = createReconciledPosition({
+        id: event.positionId,
+        tokenId: event.tokenId,
+        entryOrderId: event.entryOrderId,
+        acquiredAmount: event.acquiredAmount,
+        costBasisSol: event.costBasisSol,
+        reconciledAt: event.occurredAt,
+      });
+      break;
+    case "position:executable-peak-recorded":
+      if (current.position === null)
+        throw new InvariantViolationError("Position event requires an opened position");
+      position = recordExecutablePeak(current.position, event.executableValueSol, event.occurredAt);
+      break;
+    case "position:exit-requested":
+      if (current.position === null)
+        throw new InvariantViolationError("Position event requires an opened position");
+      position = markExitPending(current.position, event.occurredAt);
+      break;
+    case "position:exit-reconciled":
+      if (current.position === null)
+        throw new InvariantViolationError("Position event requires an opened position");
+      position = reconcileExit(
+        current.position,
+        {
+          soldAmount: event.soldAmount,
+          proceedsSol: event.proceedsSol,
+          reconciledRemainingAmount: event.reconciledRemainingAmount,
+          confirmedAt: event.occurredAt,
+        },
+        event.target,
+      );
+      break;
+  }
+  if (position.version !== event.aggregateVersion)
+    throw new InvariantViolationError("Position mutation version does not match event version");
+  return restorePositionLifecycle({
+    position,
+    appliedEvents: Object.freeze([
+      ...current.appliedEvents,
+      Object.freeze({ eventId: event.eventId, fingerprint }),
+    ]),
+    lastEventAt: event.occurredAt,
+    version: event.aggregateVersion,
+  });
+}
+
+export function replayPositionEvents(events: readonly PositionEvent[]): PositionLifecycle {
+  return events.reduce(applyPositionEvent, createEmptyPositionLifecycle());
 }
 
 const time = (value: Timestamp): number => new Date(value).getTime();

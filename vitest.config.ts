@@ -10,6 +10,7 @@ export default defineConfig({
       "tests/unit/quote.test.ts",
       "tests/unit/order-state.test.ts",
       "tests/unit/position-exits.test.ts",
+      "tests/replay/determinism.test.ts",
     ],
     passWithNoTests: false,
   },
