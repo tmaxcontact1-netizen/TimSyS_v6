@@ -1,5 +1,16 @@
 # Memecoined Changelog
 
+## Unreleased — Migration execution tooling
+
+### 2026-08-04
+
+| File                                   | Change                                                                                     | Reason                                                                                 | Status                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- | ---------------------- |
+| `scripts/migrate.ts`                   | Added ordered checksum-bound migration execution under an exclusive database advisory lock | Apply forward migrations with separate authority and reject gaps or modified history   | Authorized by operator |
+| `tests/integration/migrations.test.ts` | Added sequence, reserved-slot, checksum-drift, and lock-release coverage                   | Prove migration execution fails closed while retaining approved empty historical slots | Authorized by operator |
+| `package.json`                         | Added the `npm run migrate` command                                                        | Expose the migration entrypoint without granting schema authority to runtime startup   | Authorized by operator |
+| `CHANGELOG.md`                         | Recorded the migration tooling slice                                                       | Preserve the required file-touch history                                               | Authorized by operator |
+
 All material file touches are recorded here. Dates use UTC. Entries identify the file, change, reason, and authorization state.
 
 ## Unreleased — Runtime implementation
