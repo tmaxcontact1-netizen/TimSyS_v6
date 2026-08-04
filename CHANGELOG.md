@@ -6,6 +6,15 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                              | Change                                                                                                     | Reason                                                                                 | Status                 |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------- |
+| `src/application/ports/swap.ts`                   | Added provider-independent exact-input quote, construction, simulation, result, and failure contracts      | Isolate executable swap acquisition from provider-native payloads                      | Authorized by operator |
+| `src/infrastructure/providers/jupiter/client.ts`  | Added authenticated Swap API v1 transport with explicit HTTP and network-failure classification            | Keep supported Jupiter transport and retry semantics behind one strict boundary        | Authorized by operator |
+| `src/infrastructure/providers/jupiter/adapter.ts` | Added exact quote validation, deterministic identity, exact construction binding, and RPC simulation       | Supply immutable executable quotes and simulated transactions without trusting Jupiter | Authorized by operator |
+| `tests/contract/jupiter.test.ts`                  | Added quote, schema, status, identity, construction, tampering, transaction, and simulation contract tests | Prove the Jupiter boundary fails closed and preserves exact execution intent           | Authorized by operator |
+| `vitest.config.ts`                                | Activated the Jupiter provider contract suite                                                              | Include executable swap acquisition in every verification run                          | Authorized by operator |
+| `CHANGELOG.md`                                    | Recorded the deterministic Jupiter adapter slice                                                           | Maintain the required file-touch audit                                                 | Authorized by operator |
+
 | File                                                   | Change                                                                                         | Reason                                                                                | Status                 |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------- |
 | `src/application/contracts/observations.ts`            | Added normalized market/chain observation, trace, identity, result, and failure contracts      | Prevent provider-native data and ambiguous failures from reaching strategy logic      | Authorized by operator |

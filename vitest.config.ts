@@ -18,6 +18,7 @@ export default defineConfig({
       "tests/integration/persistence.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
+      "tests/contract/jupiter.test.ts",
       "tests/replay/determinism.test.ts",
     ],
     passWithNoTests: false,
