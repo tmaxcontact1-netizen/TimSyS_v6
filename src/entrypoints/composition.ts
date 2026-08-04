@@ -30,6 +30,7 @@ import { PostgresReconciliationJobStore } from "../infrastructure/database/job-s
 import { PostgresPositionWorkerCheckpointRepository } from "../infrastructure/database/repositories.js";
 import { PostgresPositionObservationStore } from "../infrastructure/database/position-observations.js";
 import { PostgresPositionRuntimeAuthorityRepository } from "../infrastructure/database/runtime-authority.js";
+import { PostgresRuntimeAuthorityBaselineSource } from "../infrastructure/database/runtime-authority-baselines.js";
 import { PostgresPositionRuntimeFactPublisher } from "../infrastructure/database/runtime-facts.js";
 import { runLivePositionRuntimeFactCycle } from "../application/services/runtime-fact-publisher.js";
 import { RuntimeFactFragmentProducer } from "../application/services/runtime-fact-producers.js";
@@ -41,6 +42,14 @@ import {
 import { SystemSchedulerClock } from "../infrastructure/runtime/system-clock.js";
 import { runReconciliationWorkerCycle } from "../workers/reconciliation-worker.js";
 import type { PositionJobSupervisorDependencies } from "../workers/supervisor.js";
+import {
+  produceMonitoringRuntimeAuthority,
+  produceReconciliationRuntimeAuthority,
+} from "../application/services/runtime-authority-production.js";
+import {
+  LiveMonitoringRuntimeAuthorityInputSource,
+  LiveReconciliationRuntimeAuthorityInputSource,
+} from "../application/services/live-runtime-authority-inputs.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -103,6 +112,16 @@ export function composeProductionPositionRuntime(input: {
   const observations = new PostgresPositionObservationStore(input.database);
   const publications = new PostgresPositionRuntimeFactPublisher(input.database);
   const authority = new PostgresPositionRuntimeAuthorityRepository(input.database);
+  const baselines = new PostgresRuntimeAuthorityBaselineSource(input.database);
+  const monitoringAuthority = new LiveMonitoringRuntimeAuthorityInputSource(
+    baselines,
+    providers.balances,
+    providers.mintSecurity,
+  );
+  const reconciliationAuthority = new LiveReconciliationRuntimeAuthorityInputSource(
+    baselines,
+    providers.transactions,
+  );
   const producer = new RuntimeFactFragmentProducer(observations);
   const marketFacts = new LiveMarketRuntimeFactSource(authority, providers.market);
   const chainFacts = new LiveChainRuntimeFactSource(authority, providers.balances);
@@ -152,8 +171,25 @@ export function composeProductionPositionRuntime(input: {
       escalation: new StructuredReconciliationEscalation(
         createRuntimeLogger(input.config.logLevel),
       ),
-      beforeCycle: async (positionId: PositionId) =>
-        void (await runLivePositionRuntimeFactCycle(positionId, {
+      beforeCycle: async (positionId: PositionId) => {
+        const checkpoint = await publisherCheckpoints.load(positionId);
+        const observedAt = clock.now();
+        if (checkpoint.runtimeState.pendingExit === null) {
+          await produceMonitoringRuntimeAuthority({
+            checkpoint,
+            observedAt,
+            source: monitoringAuthority,
+            sink: authority,
+          });
+        } else {
+          await produceReconciliationRuntimeAuthority({
+            checkpoint,
+            observedAt,
+            source: reconciliationAuthority,
+            sink: authority,
+          });
+        }
+        await runLivePositionRuntimeFactCycle(positionId, {
           checkpoints: publisherCheckpoints,
           observations,
           publications,
@@ -166,8 +202,9 @@ export function composeProductionPositionRuntime(input: {
             executionFacts,
           ]),
           reconciliationSources: Object.freeze([chainFacts, executionFacts]),
-          now: () => clock.now(),
-        })),
+          now: () => observedAt,
+        });
+      },
     }),
   });
 }
