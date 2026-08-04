@@ -5,7 +5,9 @@ import type { PoolClient, QueryResult } from "pg";
 
 import type {
   AcknowledgePositionAction,
+  InitializePositionWorkerCheckpoint,
   PendingPositionAction,
+  PositionOpeningRepository,
   PositionWorkerCheckpoint,
   PositionWorkerCheckpointRepository,
   SavePositionWorkerTransition,
@@ -14,6 +16,7 @@ import { restorePositionRuntimeState } from "../../application/services/position
 import { InvariantViolationError } from "../../domain/shared/errors.js";
 import { asUuid, type PositionId } from "../../domain/shared/types.js";
 import type { PositionEvent } from "../../domain/trading/position.js";
+import { prepareRuntimeAuthorityBaseline } from "./runtime-authority-baselines.js";
 
 interface DatabasePort {
   connect(): Promise<Pick<PoolClient, "query" | "release">>;
@@ -136,29 +139,65 @@ async function rollback(client: Pick<PoolClient, "query">): Promise<void> {
   }
 }
 
-export class PostgresPositionWorkerCheckpointRepository implements PositionWorkerCheckpointRepository {
+export class PostgresPositionWorkerCheckpointRepository
+  implements PositionOpeningRepository, PositionWorkerCheckpointRepository
+{
   public constructor(private readonly database: DatabasePort) {}
 
   public async initialize(
-    checkpoint: Omit<PositionWorkerCheckpoint, "revision" | "pendingAction">,
+    checkpoint: InitializePositionWorkerCheckpoint,
   ): Promise<PositionWorkerCheckpoint> {
+    const runtimeState = restorePositionRuntimeState(checkpoint.runtimeState);
+    const position = runtimeState.lifecycle.position;
+    if (position === null || position.id !== checkpoint.positionId)
+      throw new InvariantViolationError("Position opening requires the reconciled position");
+    if (checkpoint.authorityBaseline.capturedAt < position.openedAt)
+      throw new InvariantViolationError("Authority baseline cannot predate the opened position");
+    const baseline = prepareRuntimeAuthorityBaseline(checkpoint.authorityBaseline);
     const payload = serializePayload({ ...checkpoint, pendingAction: null });
-    const result = await this.database.query<JobRow>(
-      `INSERT INTO jobs
-         (id, job_type, idempotency_key, payload_json, state, version)
-       VALUES ($1, $2, $3, $4::jsonb, 'completed', 0)
-       ON CONFLICT (id) DO NOTHING
-       RETURNING id, version, payload_json`,
-      [
-        checkpoint.positionId,
-        JOB_TYPE,
-        `${JOB_TYPE}:${checkpoint.positionId}`,
-        JSON.stringify(payload),
-      ],
-    );
-    if (result.rowCount !== 1 || result.rows[0] === undefined)
-      throw new InvariantViolationError("Position worker checkpoint already exists");
-    return checkpointFromRow(result.rows[0]);
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(
+        `INSERT INTO position_runtime_contexts
+           (position_id, token_id, wallet, token_mint, settlement_mint)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          checkpoint.positionId,
+          position.tokenId,
+          checkpoint.authorityBaseline.wallet,
+          checkpoint.authorityBaseline.tokenMint,
+          checkpoint.authorityBaseline.settlementMint,
+        ],
+      );
+      await client.query(
+        `INSERT INTO position_runtime_authority_baselines
+           (position_id, captured_at, content_hash, payload_json)
+         VALUES ($1, $2, $3, $4::jsonb)`,
+        [checkpoint.positionId, baseline.capturedAt, baseline.contentHash, baseline.serialized],
+      );
+      const result = await client.query<JobRow>(
+        `INSERT INTO jobs
+           (id, job_type, idempotency_key, payload_json, state, version)
+         VALUES ($1, $2, $3, $4::jsonb, 'completed', 0)
+         RETURNING id, version, payload_json`,
+        [
+          checkpoint.positionId,
+          JOB_TYPE,
+          `${JOB_TYPE}:${checkpoint.positionId}`,
+          JSON.stringify(payload),
+        ],
+      );
+      if (result.rowCount !== 1 || result.rows[0] === undefined)
+        throw new InvariantViolationError("Position worker checkpoint was not initialized");
+      await client.query("COMMIT");
+      return checkpointFromRow(result.rows[0]);
+    } catch (error) {
+      await rollback(client);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   public async load(positionId: PositionId): Promise<PositionWorkerCheckpoint> {

@@ -166,6 +166,15 @@ function baselinePayload(baseline: PositionRuntimeAuthorityBaseline): z.infer<ty
   return parsed.data;
 }
 
+export function prepareRuntimeAuthorityBaseline(baseline: PositionRuntimeAuthorityBaseline) {
+  const serialized = canonical(baselinePayload(baseline));
+  return Object.freeze({
+    capturedAt: baseline.capturedAt,
+    contentHash: createHash("sha256").update(serialized).digest("hex"),
+    serialized,
+  });
+}
+
 export class PostgresRuntimeAuthorityBaselineSource
   implements RuntimeAuthorityBaselineSource, RuntimeAuthorityBaselineSink
 {
@@ -175,9 +184,7 @@ export class PostgresRuntimeAuthorityBaselineSource
     positionId: PositionId,
     baseline: PositionRuntimeAuthorityBaseline,
   ): Promise<void> {
-    const payload = baselinePayload(baseline);
-    const serialized = canonical(payload);
-    const contentHash = createHash("sha256").update(serialized).digest("hex");
+    const { capturedAt, contentHash, serialized } = prepareRuntimeAuthorityBaseline(baseline);
     const result = await (this.database as DatabasePort).query<Row>(
       `WITH inserted AS (
          INSERT INTO position_runtime_authority_baselines
@@ -189,7 +196,7 @@ export class PostgresRuntimeAuthorityBaselineSource
        SELECT * FROM inserted UNION ALL
        SELECT captured_at, content_hash, payload_json
        FROM position_runtime_authority_baselines WHERE position_id = $1 LIMIT 1`,
-      [positionId, baseline.capturedAt, contentHash, serialized],
+      [positionId, capturedAt, contentHash, serialized],
     );
     const row = result.rows[0];
     if (

@@ -3,6 +3,7 @@ import type { PoolClient, QueryResult } from "pg";
 import { describe, expect, it } from "vitest";
 
 import type { PendingPositionAction } from "../../src/application/ports/repositories.js";
+import type { PositionRuntimeAuthorityBaseline } from "../../src/application/ports/runtime-authority-inputs.js";
 import { createPositionRuntimeState } from "../../src/application/services/position-monitor.js";
 import {
   asNonNegativeDecimal,
@@ -11,6 +12,7 @@ import {
   asUuid,
   type AuditEventId,
   type Brand,
+  type EvidenceId,
   type OrderId,
   type PositionId,
   type TokenId,
@@ -40,6 +42,44 @@ const opened = {
 
 function runtimeState() {
   return createPositionRuntimeState(applyPositionEvent(createEmptyPositionLifecycle(), opened));
+}
+
+const authorityEvidence = Object.freeze({
+  id: uuid<EvidenceId>(405),
+  provider: "solana_rpc" as const,
+  observedAt: opened.occurredAt,
+  sourceKey: "position-opening:entry-security",
+});
+
+function authorityBaseline(): PositionRuntimeAuthorityBaseline {
+  return Object.freeze({
+    capturedAt: opened.occurredAt,
+    wallet: "trader" as never,
+    tokenMint: "token-mint" as never,
+    settlementMint: "settlement-mint" as never,
+    developerRelated: Object.freeze([]),
+    originatingTierA: null,
+    confirmingTierB: null,
+    excludedHolderTokenAccounts: new Set<string>(),
+    entrySecurity: Object.freeze({
+      observedAt: opened.occurredAt,
+      evidence: Object.freeze([authorityEvidence]),
+      directlyVerifiedOnChain: true,
+      program: "spl_token",
+      mintAuthority: "revoked",
+      freezeAuthority: "revoked",
+      extensions: Object.freeze([]),
+      extensionsVerified: true,
+      holders: null,
+    }),
+    history: Object.freeze({
+      liquidityUsdTenMinutesAgo: null,
+      priorFullExitPriceImpactPercentages: Object.freeze([]),
+      marketDataUnavailableSince: null,
+      allChainAccessUnavailableSince: null,
+      evidence: Object.freeze([]),
+    }),
+  });
 }
 
 const action: PendingPositionAction = Object.freeze({
@@ -106,18 +146,64 @@ function result(rows: Record<string, unknown>[]): QueryResult<Record<string, unk
 }
 
 describe("PostgreSQL position checkpoint repository", () => {
-  it("initializes exactly one completed checkpoint at revision zero", async () => {
+  it("atomically opens the position with its context, baseline, and checkpoint", async () => {
     const database = new ScriptedDatabase();
-    database.responses.push(result([row(0n, null)]));
+    database.responses.push(
+      result([]),
+      result([]),
+      result([]),
+      result([row(0n, null)]),
+      result([]),
+    );
     const repository = new PostgresPositionWorkerCheckpointRepository(database);
-    const checkpoint = await repository.initialize({ positionId, runtimeState: runtimeState() });
+    const checkpoint = await repository.initialize({
+      positionId,
+      runtimeState: runtimeState(),
+      authorityBaseline: authorityBaseline(),
+    });
     expect(checkpoint).toMatchObject({ positionId, revision: 0n, pendingAction: null });
-    expect(database.queries[0]?.values.slice(0, 3)).toEqual([
+    expect(database.queries.map(({ text }) => text.trim().split(/\s+/)[0])).toEqual([
+      "BEGIN",
+      "INSERT",
+      "INSERT",
+      "INSERT",
+      "COMMIT",
+    ]);
+    expect(database.queries[1]?.values).toEqual([
+      positionId,
+      opened.tokenId,
+      "trader",
+      "token-mint",
+      "settlement-mint",
+    ]);
+    expect(database.queries[2]?.values[2]).toMatch(/^[0-9a-f]{64}$/);
+    expect(database.queries[3]?.values.slice(0, 3)).toEqual([
       positionId,
       "position_runtime",
       `position_runtime:${positionId}`,
     ]);
-    expect(database.queries[0]?.text).toContain("ON CONFLICT (id) DO NOTHING");
+    expect(database.released).toBe(true);
+  });
+
+  it("rolls back the entire opening when baseline persistence fails", async () => {
+    const database = new ScriptedDatabase();
+    database.responses.push(result([]), result([]));
+    const failure = new Error("baseline insert failed");
+    database.responses.push(Promise.reject(failure) as never);
+    const repository = new PostgresPositionWorkerCheckpointRepository(database);
+    await expect(
+      repository.initialize({
+        positionId,
+        runtimeState: runtimeState(),
+        authorityBaseline: authorityBaseline(),
+      }),
+    ).rejects.toThrow("baseline insert failed");
+    expect(database.queries.map(({ text }) => text.trim().split(/\s+/)[0])).toEqual([
+      "BEGIN",
+      "INSERT",
+      "INSERT",
+      "ROLLBACK",
+    ]);
   });
 
   it("loads and validates tagged bigint and decimal state", async () => {

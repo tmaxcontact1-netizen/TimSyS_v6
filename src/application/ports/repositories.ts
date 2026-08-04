@@ -1,6 +1,17 @@
 import type { PositionRuntimeAction, PositionRuntimeState } from "../services/position-monitor.js";
 import type { PositionEvent } from "../../domain/trading/position.js";
 import type { PositionId } from "../../domain/shared/types.js";
+import type { PositionRuntimeAuthorityBaseline } from "./runtime-authority-inputs.js";
+
+export interface InitializePositionWorkerCheckpoint {
+  readonly positionId: PositionId;
+  readonly runtimeState: PositionRuntimeState;
+  readonly authorityBaseline: PositionRuntimeAuthorityBaseline;
+}
+
+export interface PositionOpeningRepository {
+  initialize(input: InitializePositionWorkerCheckpoint): Promise<PositionWorkerCheckpoint>;
+}
 
 export interface PendingPositionAction {
   readonly deliveryId: string;

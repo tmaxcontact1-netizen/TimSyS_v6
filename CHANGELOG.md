@@ -1,5 +1,17 @@
 # Memecoined Changelog
 
+## Unreleased — Atomic position opening
+
+### 2026-08-04
+
+| File                                                         | Change                                                                            | Reason                                                                                        | Status                 |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------- |
+| `src/application/ports/repositories.ts`                      | Added the position-opening persistence contract                                   | Require every new runtime checkpoint to carry its immutable entry authority                   | Authorized by operator |
+| `src/infrastructure/database/runtime-authority-baselines.ts` | Exposed validated canonical baseline preparation                                  | Reuse one content-addressing contract inside standalone capture and transactional opening     | Authorized by operator |
+| `src/infrastructure/database/repositories.ts`                | Made context, authority baseline, and initial checkpoint creation one transaction | Eliminate a crash window in which an opened position could exist without monitoring authority | Authorized by operator |
+| `tests/integration/persistence.test.ts`                      | Added atomic opening, persisted identity, content hash, and rollback coverage     | Prove incomplete position openings cannot commit                                              | Authorized by operator |
+| `CHANGELOG.md`                                               | Recorded the atomic position-opening slice                                        | Preserve the required file-touch history                                                      | Authorized by operator |
+
 ## Unreleased — Runtime authority baseline capture
 
 ### 2026-08-04
