@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { runPositionRuntimeFactPublisherCycle } from "../../src/application/services/runtime-fact-publisher.js";
+import {
+  runLivePositionRuntimeFactCycle,
+  runPositionRuntimeFactPublisherCycle,
+} from "../../src/application/services/runtime-fact-publisher.js";
+import { RuntimeFactFragmentProducer } from "../../src/application/services/runtime-fact-producers.js";
 import {
   asTimestamp,
   asUuid,
@@ -80,5 +84,51 @@ describe("runtime fact publisher worker", () => {
       now: () => now,
     });
     expect(result.phase).toBe("reconcile");
+  });
+
+  it("produces every monitoring authority before publishing the same revision", async () => {
+    const checkpoint = {
+      positionId,
+      revision: 6n,
+      runtimeState: { pendingExit: null },
+    } as never;
+    const ingested: string[] = [];
+    const kinds = ["market", "chain", "wallet", "security", "execution"] as const;
+    const observations = kinds.map((kind, index) => ({
+      id: asUuid<EvidenceId>(`00000000-0000-4000-8000-0000000022${10 + index}`),
+      positionId,
+      observedAt: now,
+      payload: {
+        schemaVersion: 1,
+        checkpointRevision: "6",
+        phase: "monitor",
+        facts: { [kind]: true },
+      },
+    }));
+    const result = await runLivePositionRuntimeFactCycle(positionId, {
+      checkpoints: { load: vi.fn(async () => checkpoint) } as never,
+      producer: new RuntimeFactFragmentProducer({
+        ingest: vi.fn(async (input) => {
+          ingested.push(input.kind);
+          return { contentHash: "a".repeat(64) };
+        }),
+      }),
+      monitoringSources: kinds.map((kind) => ({
+        collect: async () => ({
+          kind,
+          provider: "solana_rpc" as const,
+          sourceKey: kind,
+          observedAt: now,
+          phase: "monitor" as const,
+          facts: { [kind]: true } as never,
+        }),
+      })),
+      reconciliationSources: [],
+      observations: { listRuntimeFactObservations: async () => observations },
+      publications: { publish: vi.fn(async () => undefined) },
+      now: () => now,
+    });
+    expect(ingested).toEqual(kinds);
+    expect(result.checkpointRevision).toBe(6n);
   });
 });

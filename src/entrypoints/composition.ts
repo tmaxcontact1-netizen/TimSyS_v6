@@ -29,8 +29,15 @@ import { composeProductionProviders } from "./providers.js";
 import { PostgresReconciliationJobStore } from "../infrastructure/database/job-store.js";
 import { PostgresPositionWorkerCheckpointRepository } from "../infrastructure/database/repositories.js";
 import { PostgresPositionObservationStore } from "../infrastructure/database/position-observations.js";
+import { PostgresPositionRuntimeAuthorityRepository } from "../infrastructure/database/runtime-authority.js";
 import { PostgresPositionRuntimeFactPublisher } from "../infrastructure/database/runtime-facts.js";
-import { runPositionRuntimeFactPublisherCycle } from "../application/services/runtime-fact-publisher.js";
+import { runLivePositionRuntimeFactCycle } from "../application/services/runtime-fact-publisher.js";
+import { RuntimeFactFragmentProducer } from "../application/services/runtime-fact-producers.js";
+import {
+  AuthoritativeRuntimeFactSnapshotSource,
+  LiveChainRuntimeFactSource,
+  LiveMarketRuntimeFactSource,
+} from "../application/services/live-runtime-fact-sources.js";
 import { SystemSchedulerClock } from "../infrastructure/runtime/system-clock.js";
 import { runReconciliationWorkerCycle } from "../workers/reconciliation-worker.js";
 import type { PositionJobSupervisorDependencies } from "../workers/supervisor.js";
@@ -95,6 +102,19 @@ export function composeProductionPositionRuntime(input: {
   const publisherCheckpoints = new PostgresPositionWorkerCheckpointRepository(input.database);
   const observations = new PostgresPositionObservationStore(input.database);
   const publications = new PostgresPositionRuntimeFactPublisher(input.database);
+  const authority = new PostgresPositionRuntimeAuthorityRepository(input.database);
+  const producer = new RuntimeFactFragmentProducer(observations);
+  const marketFacts = new LiveMarketRuntimeFactSource(authority, providers.market);
+  const chainFacts = new LiveChainRuntimeFactSource(authority, providers.balances);
+  const walletFacts = new AuthoritativeRuntimeFactSnapshotSource(
+    authority.source("wallet", "solana_rpc"),
+  );
+  const securityFacts = new AuthoritativeRuntimeFactSnapshotSource(
+    authority.source("security", "solana_rpc"),
+  );
+  const executionFacts = new AuthoritativeRuntimeFactSnapshotSource(
+    authority.source("execution", "solana_rpc"),
+  );
   const monitoring = new ObservedPositionRuntimeStepSource(
     new PostgresPositionMonitoringFactsSource(input.database),
     providers.market,
@@ -133,10 +153,19 @@ export function composeProductionPositionRuntime(input: {
         createRuntimeLogger(input.config.logLevel),
       ),
       beforeCycle: async (positionId: PositionId) =>
-        void (await runPositionRuntimeFactPublisherCycle(positionId, {
+        void (await runLivePositionRuntimeFactCycle(positionId, {
           checkpoints: publisherCheckpoints,
           observations,
           publications,
+          producer,
+          monitoringSources: Object.freeze([
+            marketFacts,
+            chainFacts,
+            walletFacts,
+            securityFacts,
+            executionFacts,
+          ]),
+          reconciliationSources: Object.freeze([chainFacts, executionFacts]),
           now: () => clock.now(),
         })),
     }),
