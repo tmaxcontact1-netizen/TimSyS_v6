@@ -109,8 +109,12 @@ export class PostgresPositionObservationStore {
        FROM position_observations
        WHERE position_id = $1 AND observed_at <= $2
        ORDER BY observed_at, id LIMIT $3`,
-      [input.positionId, input.evaluatedAt, limit],
+      [input.positionId, input.evaluatedAt, limit + 1],
     );
+    if (result.rows.length > limit)
+      throw new InvariantViolationError(
+        "Runtime fact observation window exceeded its deterministic limit",
+      );
     return Object.freeze(
       result.rows.map((row) => {
         if (row.position_id !== input.positionId)

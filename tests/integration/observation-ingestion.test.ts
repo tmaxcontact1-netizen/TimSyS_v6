@@ -93,4 +93,32 @@ describe("position observation ingestion", () => {
       }),
     ).rejects.toThrow(/JSON-compatible/);
   });
+
+  it("loads fact evidence in database order and fails closed on a truncated window", async () => {
+    const secondId = asUuid<EvidenceId>("00000000-0000-4000-8000-000000001004");
+    const rows = [
+      { ...row("a".repeat(64)), payload_json: { value: 1 } },
+      {
+        ...row("b".repeat(64), { id: secondId, observed_at: "2026-08-04T12:00:01.000Z" }),
+        payload_json: { value: 2 },
+      },
+    ];
+    const database = {
+      query: async (_sql: string, values: readonly unknown[]) => ({
+        rows: rows.slice(0, values[2] as number),
+        rowCount: rows.length,
+      }),
+    };
+    const store = new PostgresPositionObservationStore(database as never);
+    await expect(
+      store.listRuntimeFactObservations({
+        positionId,
+        evaluatedAt: asTimestamp("2026-08-04T12:00:02.000Z"),
+        limit: 2,
+      }),
+    ).resolves.toMatchObject([{ id }, { id: secondId }]);
+    await expect(
+      store.listRuntimeFactObservations({ positionId, evaluatedAt: observedAt, limit: 1 }),
+    ).rejects.toThrow(/exceeded/);
+  });
 });
