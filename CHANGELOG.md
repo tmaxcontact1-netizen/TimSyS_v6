@@ -6,6 +6,13 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                          | Change                                                                           | Reason                                                      | Status                 |
+| --------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------- |
+| `migrations/0006_operations.sql`              | Added durable jobs and append-only audit events                                  | Provide the worker persistence substrate                    | Authorized by operator |
+| `src/infrastructure/database/repositories.ts` | Added transactional PostgreSQL position checkpoint persistence                   | Make worker recovery durable and compare-and-swap protected | Authorized by operator |
+| `tests/integration/persistence.test.ts`       | Added serialization, atomicity, rollback, concurrency, and acknowledgement tests | Prove persistence fails closed                              | Authorized by operator |
+| `vitest.config.ts`                            | Activated the persistence integration suite                                      | Include persistence in every verification run               | Authorized by operator |
+
 | File                                        | Change                                                                                                              | Reason                                                                                             | Status                 |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------- |
 | `src/application/ports/repositories.ts`     | Added compare-and-swap position checkpoint, atomic transition, event, pending-action, and acknowledgement contracts | Prevent split persistence and duplicate concurrent advancement                                     | Authorized by operator |
