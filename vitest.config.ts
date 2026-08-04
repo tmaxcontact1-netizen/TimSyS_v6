@@ -9,6 +9,7 @@ export default defineConfig({
       "tests/unit/position-sizing.test.ts",
       "tests/unit/quote.test.ts",
       "tests/unit/order-state.test.ts",
+      "tests/unit/position-exits.test.ts",
     ],
     passWithNoTests: false,
   },
