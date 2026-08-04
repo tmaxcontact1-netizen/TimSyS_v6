@@ -65,6 +65,26 @@ export interface ChainBalanceObservation {
   readonly traces: readonly ObservationTrace[];
 }
 
+export type TransactionConfirmationState = "pending" | "confirmed" | "failed";
+
+/** Raw wallet deltas reconstructed from the authoritative Solana transaction metadata. */
+export interface ChainTransactionObservation {
+  readonly signature: string;
+  readonly state: TransactionConfirmationState;
+  readonly slot: SolanaSlot | null;
+  readonly onChainError: boolean | null;
+  readonly wallet: WalletAddress;
+  readonly mint: MintAddress;
+  readonly tokenBalanceBeforeRaw: RawAmount | null;
+  readonly tokenBalanceAfterRaw: RawAmount | null;
+  readonly nativeBalanceBeforeLamports: RawAmount | null;
+  readonly nativeBalanceAfterLamports: RawAmount | null;
+  readonly feeLamports: RawAmount | null;
+  readonly tipLamports: RawAmount | null;
+  readonly agreeingProviders: readonly ProviderId[];
+  readonly traces: readonly ObservationTrace[];
+}
+
 export interface ObservationIdentityFactory {
   createEvidenceId(input: {
     readonly provider: ProviderId;

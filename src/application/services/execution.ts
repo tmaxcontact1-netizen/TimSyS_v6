@@ -261,22 +261,28 @@ export class ObservedPositionRuntimeStepSource implements PositionRuntimeStepSou
 
 /** Executes only durable submit actions. Submission acknowledgement never implies confirmation. */
 export class DurablePositionActionDispatcher implements PositionRuntimeActionDispatcher {
-  private readonly completed = new Map<string, string>();
+  private readonly completed = new Map<
+    string,
+    {
+      fingerprint: string;
+      receipt: Awaited<ReturnType<PositionActionDispatcherDependencies["submission"]["submit"]>>;
+    }
+  >();
 
   public constructor(private readonly dependencies: PositionActionDispatcherDependencies) {}
 
-  public async dispatch(pending: PendingPositionAction): Promise<void> {
+  public async dispatch(pending: PendingPositionAction) {
     if (pending.deliveryId.trim().length === 0)
       throw new InvariantViolationError("Pending action delivery ID is required");
     if (pending.action.type !== "submit_exit") return;
     const execution = pending.action.execution;
     const existing = this.completed.get(pending.deliveryId);
     if (existing !== undefined) {
-      if (existing !== execution.transactionFingerprint)
+      if (existing.fingerprint !== execution.transactionFingerprint)
         throw new InvariantViolationError(
           "Delivery ID was reused for a different exit transaction",
         );
-      return;
+      return existing.receipt;
     }
     const signingAt = this.dependencies.authority.now();
     const quoteAge = new Date(signingAt).getTime() - new Date(execution.quoteReceivedAt).getTime();
@@ -299,7 +305,11 @@ export class DurablePositionActionDispatcher implements PositionRuntimeActionDis
       signed.unsignedTransactionFingerprint !== execution.transactionFingerprint
     )
       throw new InvariantViolationError("Signed transaction does not match inspected exit");
-    await this.dependencies.submission.submit(signed, pending.deliveryId);
-    this.completed.set(pending.deliveryId, execution.transactionFingerprint);
+    const receipt = await this.dependencies.submission.submit(signed, pending.deliveryId);
+    this.completed.set(pending.deliveryId, {
+      fingerprint: execution.transactionFingerprint,
+      receipt,
+    });
+    return receipt;
   }
 }

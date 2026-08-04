@@ -28,6 +28,7 @@ export interface AcknowledgePositionAction {
   readonly positionId: PositionId;
   readonly expectedRevision: bigint;
   readonly deliveryId: string;
+  readonly runtimeState: PositionRuntimeState;
 }
 
 /**

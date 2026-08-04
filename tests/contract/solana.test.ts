@@ -9,6 +9,7 @@ import {
   SolanaRpcClient,
   type SolanaRpcTransport,
 } from "../../src/infrastructure/providers/solana/rpc-client.js";
+import { SolanaTransactionObservationAdapter } from "../../src/infrastructure/providers/solana/transaction-parser.js";
 
 const mint = asMintAddress("So11111111111111111111111111111111111111112");
 const wallet = "11111111111111111111111111111111" as WalletAddress;
@@ -132,5 +133,158 @@ describe("Solana chain observation contract", () => {
     const wrongMint = transport(2_000, "9000", 900, "different-mint");
     const result = await adapter(wrongMint, wrongMint).observeBalances(wallet, mint, receivedAt);
     expect(result.ok).toBe(false);
+  });
+});
+
+const signature = "signature-600";
+
+function transactionTransport(
+  options: {
+    pending?: boolean;
+    postToken?: string;
+    signature?: string;
+    error?: unknown;
+    tip?: { destination: string; lamports: number };
+  } = {},
+): SolanaRpcTransport {
+  return {
+    post: async (request) => {
+      const value = request as { id: number; method: string };
+      const result =
+        value.method === "getSignatureStatuses"
+          ? {
+              context: { slot: 999 },
+              value: options.pending
+                ? [null]
+                : [{ slot: 998, err: options.error ?? null, confirmationStatus: "confirmed" }],
+            }
+          : {
+              slot: 998,
+              transaction: {
+                signatures: [options.signature ?? signature],
+                message: {
+                  accountKeys: [{ pubkey: wallet, signer: true }, "other"],
+                  instructions:
+                    options.tip === undefined
+                      ? []
+                      : [
+                          {
+                            program: "system",
+                            parsed: {
+                              type: "transfer",
+                              info: { source: wallet, ...options.tip },
+                            },
+                          },
+                        ],
+                },
+              },
+              meta: {
+                err: options.error ?? null,
+                fee: 5_000,
+                preBalances: [1_000_000_000, 0],
+                postBalances: [1_500_000_000, 0],
+                preTokenBalances: [
+                  { accountIndex: 1, mint, owner: wallet, uiTokenAmount: { amount: "9000" } },
+                ],
+                postTokenBalances: [
+                  {
+                    accountIndex: 1,
+                    mint,
+                    owner: wallet,
+                    uiTokenAmount: { amount: options.postToken ?? "0" },
+                  },
+                ],
+              },
+            };
+      return {
+        status: 200,
+        body: { jsonrpc: "2.0", id: value.id, result },
+        receivedAt,
+      };
+    },
+  };
+}
+
+function transactionAdapter(
+  primary: SolanaRpcTransport = transactionTransport(),
+  fallback: SolanaRpcTransport = transactionTransport(),
+) {
+  return new SolanaTransactionObservationAdapter(
+    new SolanaRpcClient(primary),
+    new SolanaRpcClient(fallback),
+    identities,
+  );
+}
+
+describe("Solana transaction observation contract", () => {
+  it("requires two agreeing confirmed transaction reconstructions", async () => {
+    const result = await transactionAdapter().observeTransaction(
+      signature,
+      wallet,
+      mint,
+      receivedAt,
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({
+      signature,
+      state: "confirmed",
+      onChainError: false,
+      tokenBalanceBeforeRaw: 9_000n,
+      tokenBalanceAfterRaw: 0n,
+      nativeBalanceBeforeLamports: 1_000_000_000n,
+      nativeBalanceAfterLamports: 1_500_000_000n,
+      feeLamports: 5_000n,
+      tipLamports: 0n,
+      agreeingProviders: ["helius", "solana_rpc"],
+    });
+  });
+
+  it("keeps an absent signature pending without fabricating transaction data", async () => {
+    const result = await transactionAdapter(
+      transactionTransport({ pending: true }),
+      transactionTransport({ pending: true }),
+    ).observeTransaction(signature, wallet, mint, receivedAt);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({ state: "pending", slot: null, feeLamports: null });
+  });
+
+  it("rejects contradictory post-token balances", async () => {
+    const result = await transactionAdapter(
+      transactionTransport(),
+      transactionTransport({ postToken: "1" }),
+    ).observeTransaction(signature, wallet, mint, receivedAt);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("contradictory");
+  });
+
+  it("rejects confirmed transaction data bound to another signature", async () => {
+    const wrong = transactionTransport({ signature: "different" });
+    const result = await transactionAdapter(wrong, wrong).observeTransaction(
+      signature,
+      wallet,
+      mint,
+      receivedAt,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("unavailable");
+  });
+
+  it("reconstructs an allowlisted Sender tip instead of assuming zero", async () => {
+    const tipRecipient = "Tip1111111111111111111111111111111111111";
+    const transport = transactionTransport({
+      tip: { destination: tipRecipient, lamports: 1_000_000 },
+    });
+    const adapter = new SolanaTransactionObservationAdapter(
+      new SolanaRpcClient(transport),
+      new SolanaRpcClient(transport),
+      identities,
+      new Set([tipRecipient]),
+    );
+    const result = await adapter.observeTransaction(signature, wallet, mint, receivedAt);
+    expect(result.ok && result.value.tipLamports).toBe(1_000_000n);
   });
 });

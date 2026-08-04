@@ -361,9 +361,14 @@ describe("observed position runtime step source", () => {
         return this.current;
       }
       public async acknowledgeAction(
-        _input: AcknowledgePositionAction,
+        input: AcknowledgePositionAction,
       ): Promise<PositionWorkerCheckpoint> {
-        this.current = Object.freeze({ ...this.current, revision: 2n, pendingAction: null });
+        this.current = Object.freeze({
+          ...this.current,
+          revision: 2n,
+          runtimeState: input.runtimeState,
+          pendingAction: null,
+        });
         return this.current;
       }
     }
@@ -372,7 +377,16 @@ describe("observed position runtime step source", () => {
     const result = await runPositionWorkerCycle(positionId, {
       checkpoints: repository,
       steps: value.source,
-      actions: { dispatch: async (pending) => void delivered.push(pending) },
+      actions: {
+        dispatch: async (pending) => {
+          delivered.push(pending);
+          return Object.freeze({
+            provider: "helius" as const,
+            signature: "signature-801",
+            acknowledgedAt: evaluatedAt,
+          });
+        },
+      },
     });
     expect(result.action.type).toBe("submit_exit");
     expect(repository.saved?.emittedEvents.map(({ type }) => type)).toEqual([
@@ -390,6 +404,7 @@ describe("observed position runtime step source", () => {
       },
     });
     expect(result.checkpoint).toMatchObject({ revision: 2n, pendingAction: null });
+    expect(result.checkpoint.runtimeState.pendingExit?.submission?.signature).toBe("signature-801");
   });
 
   it("does not claim simulation success when the provider reports failure", async () => {

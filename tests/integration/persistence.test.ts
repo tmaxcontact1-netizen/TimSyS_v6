@@ -220,6 +220,7 @@ describe("PostgreSQL position checkpoint repository", () => {
       positionId,
       expectedRevision: 1n,
       deliveryId: action.deliveryId,
+      runtimeState: runtimeState(),
     });
     expect(checkpoint).toMatchObject({ revision: 2n, pendingAction: null });
     expect(database.queries[0]?.values).toEqual([
@@ -227,6 +228,7 @@ describe("PostgreSQL position checkpoint repository", () => {
       "position_runtime",
       "1",
       action.deliveryId,
+      expect.any(String),
     ]);
   });
 

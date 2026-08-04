@@ -16,6 +16,7 @@ import type {
   TransactionInspectorPort,
   TransactionSubmissionPort,
 } from "./signer.js";
+import type { SubmissionReceipt } from "./signer.js";
 
 export interface PositionMonitoringFacts {
   readonly stepId: string;
@@ -50,7 +51,20 @@ export interface PositionRuntimeStepSource {
 
 /** Dispatch must be idempotent on deliveryId. */
 export interface PositionRuntimeActionDispatcher {
-  dispatch(pending: PendingPositionAction): Promise<void>;
+  dispatch(pending: PendingPositionAction): Promise<SubmissionReceipt | void>;
+}
+
+export interface PositionReconciliationFacts {
+  readonly stepId: string;
+  readonly observationRequestedAt: Timestamp;
+  readonly evaluatedAt: Timestamp;
+  readonly wallet: WalletAddress;
+  readonly tokenMint: MintAddress;
+  readonly eventId: AuditEventId;
+}
+
+export interface PositionReconciliationFactsSource {
+  loadFacts(checkpoint: PositionWorkerCheckpoint): Promise<PositionReconciliationFacts>;
 }
 
 export interface ExecutionAuthorityPort {

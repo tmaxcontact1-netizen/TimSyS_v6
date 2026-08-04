@@ -5,6 +5,7 @@ import {
   restorePositionRuntimeState,
   type PositionRuntimeAction,
 } from "../application/services/position-monitor.js";
+import { recordExitSubmission } from "../application/services/position-monitor.js";
 import type {
   PendingPositionAction,
   PositionWorkerCheckpoint,
@@ -82,11 +83,16 @@ async function dispatchAndAcknowledge(
   const pending = checkpoint.pendingAction;
   if (pending === null)
     throw new InvariantViolationError("Cannot dispatch a checkpoint without a pending action");
-  await dependencies.actions.dispatch(pending);
+  const receipt = await dependencies.actions.dispatch(pending);
+  const runtimeState =
+    pending.action.type === "submit_exit"
+      ? recordExitSubmission(checkpoint.runtimeState, receipt)
+      : checkpoint.runtimeState;
   const acknowledged = await dependencies.checkpoints.acknowledgeAction({
     positionId: checkpoint.positionId,
     expectedRevision: checkpoint.revision,
     deliveryId: pending.deliveryId,
+    runtimeState,
   });
   const validated = validateCheckpoint(acknowledged, checkpoint.positionId);
   if (validated.pendingAction !== null)

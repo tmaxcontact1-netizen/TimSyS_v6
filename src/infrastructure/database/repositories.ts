@@ -233,14 +233,28 @@ export class PostgresPositionWorkerCheckpointRepository implements PositionWorke
   public async acknowledgeAction(
     input: AcknowledgePositionAction,
   ): Promise<PositionWorkerCheckpoint> {
+    const runtimeState = restorePositionRuntimeState(input.runtimeState);
+    if (runtimeState.lifecycle.position?.id !== input.positionId)
+      throw new InvariantViolationError("Acknowledged runtime targets a different position");
+    const payload = serializePayload({
+      positionId: input.positionId,
+      runtimeState,
+      pendingAction: null,
+    });
     const result = await this.database.query<JobRow>(
       `UPDATE jobs
-       SET payload_json = jsonb_set(payload_json, '{pendingAction}', 'null'::jsonb),
+       SET payload_json = $5::jsonb,
            state = 'completed', updated_at = now(), version = version + 1
        WHERE id = $1 AND job_type = $2 AND version = $3
          AND payload_json #>> '{pendingAction,deliveryId}' = $4
        RETURNING id, version, payload_json`,
-      [input.positionId, JOB_TYPE, input.expectedRevision.toString(), input.deliveryId],
+      [
+        input.positionId,
+        JOB_TYPE,
+        input.expectedRevision.toString(),
+        input.deliveryId,
+        JSON.stringify(payload),
+      ],
     );
     if (result.rowCount !== 1 || result.rows[0] === undefined)
       throw new InvariantViolationError("Position action acknowledgement conflict");

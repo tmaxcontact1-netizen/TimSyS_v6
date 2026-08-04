@@ -7,6 +7,7 @@ import type {
   Timestamp,
   WalletAddress,
 } from "../../domain/shared/types.js";
+import type { SubmissionReceipt } from "../ports/signer.js";
 import { evaluateExit, type ExitDecision, type ExitSnapshot } from "../../domain/trading/exits.js";
 import {
   createEmergencyExitIntent,
@@ -32,6 +33,7 @@ export interface ProcessedRuntimeStep {
 export interface PendingExit {
   readonly intent: ExitExecutionIntent;
   readonly decision: ExitDecision;
+  readonly submission: SubmissionReceipt | null;
 }
 
 export interface PositionRuntimeState {
@@ -203,6 +205,10 @@ function freezeState(input: PositionRuntimeState): PositionRuntimeState {
         : Object.freeze({
             intent: input.pendingExit.intent,
             decision: input.pendingExit.decision,
+            submission:
+              input.pendingExit.submission === null
+                ? null
+                : Object.freeze({ ...input.pendingExit.submission }),
           }),
     processedSteps: Object.freeze(input.processedSteps.map((step) => Object.freeze({ ...step }))),
   });
@@ -214,6 +220,28 @@ export function createPositionRuntimeState(lifecycle: PositionLifecycle): Positi
 
 export function restorePositionRuntimeState(input: PositionRuntimeState): PositionRuntimeState {
   return freezeState(input);
+}
+
+/** Bind the exact submission acknowledgement into the durable pending-exit state. */
+export function recordExitSubmission(
+  input: PositionRuntimeState,
+  receipt: SubmissionReceipt | void,
+): PositionRuntimeState {
+  const state = restorePositionRuntimeState(input);
+  if (state.pendingExit === null)
+    throw new InvariantViolationError("Exit submission requires a pending exit");
+  if (receipt === undefined)
+    throw new InvariantViolationError("Exit submission did not return an acknowledgement");
+  requireText(receipt.signature, "Submitted transaction signature");
+  if (state.pendingExit.submission !== null) {
+    if (state.pendingExit.submission.signature !== receipt.signature)
+      throw new InvariantViolationError("Pending exit was acknowledged with another signature");
+    return state;
+  }
+  return freezeState({
+    ...state,
+    pendingExit: Object.freeze({ ...state.pendingExit, submission: Object.freeze({ ...receipt }) }),
+  });
 }
 
 function completeStep(
@@ -333,7 +361,7 @@ function monitor(state: PositionRuntimeState, step: MonitorPositionStep): Positi
   });
   lifecycle = applyPositionEvent(lifecycle, requested);
   events.push(requested);
-  const pendingExit = Object.freeze({ intent, decision });
+  const pendingExit = Object.freeze({ intent, decision, submission: null });
   return completeStep(
     state,
     step,

@@ -22,6 +22,7 @@ export default defineConfig({
       "tests/contract/jupiter.test.ts",
       "tests/contract/helius.test.ts",
       "tests/security/transaction-inspection.test.ts",
+      "tests/failure/reconciliation.test.ts",
       "tests/replay/determinism.test.ts",
     ],
     passWithNoTests: false,
