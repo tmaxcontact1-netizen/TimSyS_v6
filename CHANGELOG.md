@@ -1,5 +1,12 @@
 # Memecoined Changelog
 
+## Unreleased — Durable trusted-wallet authority
+
+- Implemented evidence-backed wallet qualification for Tiers A, B, C, and ineligible wallets.
+- Enforced independent, fresh, retained, sufficiently sized, price-bounded purchase confirmation.
+- Added immutable qualification and candidate-confirmation persistence in migration 0018.
+- Registered the previously empty wallet performance and classifier suites.
+
 ## Unreleased — Durable candidate evaluation work
 
 - Added transactional evaluation-job leasing with candidate identity hydration.

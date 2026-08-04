@@ -26,6 +26,8 @@ export default defineConfig({
       "tests/integration/entry-preparation.test.ts",
       "tests/integration/entry-submission.test.ts",
       "tests/unit/candidate-scoring.test.ts",
+      "tests/unit/wallet-performance.test.ts",
+      "tests/unit/wallet-classifier.test.ts",
       "tests/integration/position-worker.test.ts",
       "tests/integration/persistence.test.ts",
       "tests/integration/restart-recovery.test.ts",
