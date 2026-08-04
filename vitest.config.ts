@@ -29,6 +29,7 @@ export default defineConfig({
       "tests/integration/migrations.test.ts",
       "tests/integration/observation-ingestion.test.ts",
       "tests/integration/runtime-fact-publishing.test.ts",
+      "tests/integration/runtime-fact-publisher-worker.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/jupiter.test.ts",

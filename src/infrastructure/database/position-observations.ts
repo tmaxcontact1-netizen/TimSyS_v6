@@ -4,6 +4,8 @@ import type { Pool, QueryResult } from "pg";
 
 import { InvariantViolationError } from "../../domain/shared/errors.js";
 import type { EvidenceId, PositionId, ProviderId, Timestamp } from "../../domain/shared/types.js";
+import { asTimestamp, asUuid } from "../../domain/shared/types.js";
+import type { RuntimeFactObservation } from "../../application/services/runtime-fact-aggregation.js";
 
 export type PositionObservationKind = "market" | "chain" | "wallet" | "security" | "execution";
 
@@ -25,6 +27,7 @@ interface ObservationRow extends Record<string, unknown> {
   readonly source_key: string;
   readonly observed_at: Date | string;
   readonly content_hash: string;
+  readonly payload_json?: unknown;
 }
 
 interface DatabasePort {
@@ -89,6 +92,39 @@ export class PostgresPositionObservationStore {
     )
       throw new InvariantViolationError("Observation identity conflicts with different evidence");
     return Object.freeze({ contentHash });
+  }
+
+  /** Returns an immutable, deterministic evidence prefix bounded by evaluation time. */
+  public async listRuntimeFactObservations(input: {
+    readonly positionId: PositionId;
+    readonly evaluatedAt: Timestamp;
+    readonly limit?: number;
+  }): Promise<readonly RuntimeFactObservation[]> {
+    const limit = input.limit ?? 1_000;
+    if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 10_000)
+      throw new InvariantViolationError("Observation query limit must be between 1 and 10000");
+    const result = await (this.database as DatabasePort).query<ObservationRow>(
+      `SELECT id, position_id, observation_kind, provider, source_key, observed_at,
+              content_hash, payload_json
+       FROM position_observations
+       WHERE position_id = $1 AND observed_at <= $2
+       ORDER BY observed_at, id LIMIT $3`,
+      [input.positionId, input.evaluatedAt, limit],
+    );
+    return Object.freeze(
+      result.rows.map((row) => {
+        if (row.position_id !== input.positionId)
+          throw new InvariantViolationError("Observation query returned a different position");
+        return Object.freeze({
+          id: asUuid<EvidenceId>(row.id),
+          positionId: asUuid<PositionId>(row.position_id),
+          observedAt: asTimestamp(
+            row.observed_at instanceof Date ? row.observed_at.toISOString() : row.observed_at,
+          ),
+          payload: row.payload_json,
+        });
+      }),
+    );
   }
 
   private async load(id: EvidenceId): Promise<ObservationRow> {
