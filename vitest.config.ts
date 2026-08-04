@@ -8,6 +8,7 @@ export default defineConfig({
       "tests/unit/momentum.test.ts",
       "tests/unit/position-sizing.test.ts",
       "tests/unit/quote.test.ts",
+      "tests/unit/order-state.test.ts",
     ],
     passWithNoTests: false,
   },
