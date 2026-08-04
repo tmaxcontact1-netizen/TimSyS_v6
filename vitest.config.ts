@@ -19,6 +19,7 @@ export default defineConfig({
       "tests/integration/persistence.test.ts",
       "tests/integration/restart-recovery.test.ts",
       "tests/integration/reconciliation-locking.test.ts",
+      "tests/integration/publisher-lease-ordering.test.ts",
       "tests/integration/job-runner.test.ts",
       "tests/integration/supervisor.test.ts",
       "tests/integration/startup-database.test.ts",

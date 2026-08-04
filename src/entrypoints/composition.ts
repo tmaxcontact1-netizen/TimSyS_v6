@@ -28,6 +28,9 @@ import {
 import { composeProductionProviders } from "./providers.js";
 import { PostgresReconciliationJobStore } from "../infrastructure/database/job-store.js";
 import { PostgresPositionWorkerCheckpointRepository } from "../infrastructure/database/repositories.js";
+import { PostgresPositionObservationStore } from "../infrastructure/database/position-observations.js";
+import { PostgresPositionRuntimeFactPublisher } from "../infrastructure/database/runtime-facts.js";
+import { runPositionRuntimeFactPublisherCycle } from "../application/services/runtime-fact-publisher.js";
 import { SystemSchedulerClock } from "../infrastructure/runtime/system-clock.js";
 import { runReconciliationWorkerCycle } from "../workers/reconciliation-worker.js";
 import type { PositionJobSupervisorDependencies } from "../workers/supervisor.js";
@@ -36,6 +39,7 @@ export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
   readonly actions: PositionRuntimeActionDispatcher;
   readonly escalation: ReconciliationEscalationPort;
+  readonly beforeCycle?: (positionId: PositionId) => Promise<void>;
 }
 export interface PositionRuntimeComposition {
   readonly checkpoints: PositionWorkerCheckpointRepository;
@@ -62,6 +66,9 @@ export function composePositionRuntime(input: {
     escalation: input.services.escalation,
     ownerId: input.config.instanceId,
     now: () => clock.now(),
+    ...(input.services.beforeCycle === undefined
+      ? {}
+      : { beforeCycle: input.services.beforeCycle }),
   };
   return Object.freeze({
     checkpoints,
@@ -84,6 +91,10 @@ export function composeProductionPositionRuntime(input: {
   if (input.config.execution === null)
     throw new Error("Production position runtime requires execution configuration");
   const providers = composeProductionProviders(input.config);
+  const clock = new SystemSchedulerClock();
+  const publisherCheckpoints = new PostgresPositionWorkerCheckpointRepository(input.database);
+  const observations = new PostgresPositionObservationStore(input.database);
+  const publications = new PostgresPositionRuntimeFactPublisher(input.database);
   const monitoring = new ObservedPositionRuntimeStepSource(
     new PostgresPositionMonitoringFactsSource(input.database),
     providers.market,
@@ -121,6 +132,13 @@ export function composeProductionPositionRuntime(input: {
       escalation: new StructuredReconciliationEscalation(
         createRuntimeLogger(input.config.logLevel),
       ),
+      beforeCycle: async (positionId: PositionId) =>
+        void (await runPositionRuntimeFactPublisherCycle(positionId, {
+          checkpoints: publisherCheckpoints,
+          observations,
+          publications,
+          now: () => clock.now(),
+        })),
     }),
   });
 }

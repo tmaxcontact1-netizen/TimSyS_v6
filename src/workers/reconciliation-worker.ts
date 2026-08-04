@@ -19,6 +19,8 @@ export interface ReconciliationWorkerDependencies extends PositionWorkerDependen
   readonly maximumRetryDelayMs?: number;
   readonly monitoringIntervalMs?: number;
   readonly reconciliationIntervalMs?: number;
+  /** Runs after durable lease acquisition and before checkpoint fact consumption. */
+  readonly beforeCycle?: (positionId: PositionId) => Promise<void>;
 }
 
 export type ReconciliationWorkerCycleResult =
@@ -104,6 +106,7 @@ export async function runReconciliationWorkerCycle(
   };
 
   try {
+    await dependencies.beforeCycle?.(positionId);
     const cycle = await runPositionWorkerCycle(positionId, dependencies);
     if (cycle.action.type === "await_reconciliation")
       return schedule(
