@@ -1,5 +1,17 @@
 # Memecoined Changelog
 
+## Unreleased — Runtime authority baseline capture
+
+### 2026-08-04
+
+| File                                                         | Change                                                            | Reason                                                                                     | Status                 |
+| ------------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------- |
+| `src/application/ports/runtime-authority-inputs.ts`          | Added the immutable authority-baseline sink contract              | Expose baseline capture without coupling entry orchestration to PostgreSQL                 | Authorized by operator |
+| `src/infrastructure/database/runtime-authority-baselines.ts` | Added validated, content-addressed, idempotent baseline capture   | Make the existing immutable baseline schema writable without permitting conflicting replay | Authorized by operator |
+| `tests/integration/runtime-authority-baselines.test.ts`      | Added capture, replay, conflict, chronology, and round-trip tests | Prove baseline persistence fails closed                                                    | Authorized by operator |
+| `vitest.config.ts`                                           | Activated baseline persistence tests                              | Include the new boundary in every repository gate                                          | Authorized by operator |
+| `CHANGELOG.md`                                               | Recorded the baseline-capture slice                               | Preserve the required file-touch history                                                   | Authorized by operator |
+
 ## Unreleased — Atomic migration history
 
 ### 2026-08-04

@@ -1,6 +1,7 @@
 import type { TokenSecuritySnapshot } from "../../domain/token/security.js";
 import type {
   MintAddress,
+  PositionId,
   RawAmount,
   Timestamp,
   WalletAddress,
@@ -27,6 +28,10 @@ export interface PositionRuntimeAuthorityBaseline {
 
 export interface RuntimeAuthorityBaselineSource {
   load(positionId: string): Promise<PositionRuntimeAuthorityBaseline>;
+}
+
+export interface RuntimeAuthorityBaselineSink {
+  capture(positionId: PositionId, baseline: PositionRuntimeAuthorityBaseline): Promise<void>;
 }
 
 export interface MintSecurityObservationPort {

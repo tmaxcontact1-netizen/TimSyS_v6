@@ -3,7 +3,11 @@ import { createHash } from "node:crypto";
 import type { Pool, QueryResult } from "pg";
 import { z } from "zod";
 
-import type { RuntimeAuthorityBaselineSource } from "../../application/ports/runtime-authority-inputs.js";
+import type {
+  PositionRuntimeAuthorityBaseline,
+  RuntimeAuthorityBaselineSink,
+  RuntimeAuthorityBaselineSource,
+} from "../../application/ports/runtime-authority-inputs.js";
 import { InvariantViolationError } from "../../domain/shared/errors.js";
 import {
   asDecimal,
@@ -12,12 +16,20 @@ import {
   asTimestamp,
   asUuid,
   type EvidenceId,
+  type PositionId,
 } from "../../domain/shared/types.js";
 
 interface Row extends Record<string, unknown> {
   readonly captured_at: Date | string;
   readonly content_hash: string;
   readonly payload_json: unknown;
+}
+
+interface DatabasePort {
+  query<RowValue extends Record<string, unknown>>(
+    text: string,
+    values?: readonly unknown[],
+  ): Promise<QueryResult<RowValue>>;
 }
 
 const evidence = z.object({
@@ -90,8 +102,106 @@ function canonical(value: unknown): string {
   throw new InvariantViolationError("Authority baseline is not canonical JSON");
 }
 
-export class PostgresRuntimeAuthorityBaselineSource implements RuntimeAuthorityBaselineSource {
+function evidencePayload(
+  item: PositionRuntimeAuthorityBaseline["entrySecurity"]["evidence"][number],
+) {
+  return {
+    id: item.id,
+    provider: item.provider,
+    observedAt: item.observedAt,
+    sourceKey: item.sourceKey,
+    ...(item.slot === undefined ? {} : { slot: item.slot.toString() }),
+    ...(item.contentHash === undefined ? {} : { contentHash: item.contentHash }),
+  };
+}
+
+function baselinePayload(baseline: PositionRuntimeAuthorityBaseline): z.infer<typeof schema> {
+  const tracked = (item: PositionRuntimeAuthorityBaseline["developerRelated"][number]) => ({
+    wallet: item.wallet,
+    entryBalanceRaw: item.entryBalanceRaw.toString(),
+  });
+  const payload = {
+    wallet: baseline.wallet,
+    tokenMint: baseline.tokenMint,
+    settlementMint: baseline.settlementMint,
+    developerRelated: baseline.developerRelated.map(tracked),
+    originatingTierA:
+      baseline.originatingTierA === null ? null : tracked(baseline.originatingTierA),
+    confirmingTierB:
+      baseline.confirmingTierB === null
+        ? null
+        : [tracked(baseline.confirmingTierB[0]), tracked(baseline.confirmingTierB[1])],
+    excludedHolderTokenAccounts: [...baseline.excludedHolderTokenAccounts].sort(),
+    entrySecurity: {
+      ...baseline.entrySecurity,
+      evidence: baseline.entrySecurity.evidence.map(evidencePayload),
+      holders:
+        baseline.entrySecurity.holders === null
+          ? null
+          : {
+              topTenNormalPercentage:
+                baseline.entrySecurity.holders.topTenNormalPercentage.toString(),
+              largestNormalPercentage:
+                baseline.entrySecurity.holders.largestNormalPercentage.toString(),
+              exclusionsVerified: baseline.entrySecurity.holders.exclusionsVerified,
+            },
+    },
+    history: {
+      liquidityUsdTenMinutesAgo: baseline.history.liquidityUsdTenMinutesAgo?.toString() ?? null,
+      priorFullExitPriceImpactPercentages: baseline.history.priorFullExitPriceImpactPercentages.map(
+        (value) => value.toString(),
+      ),
+      marketDataUnavailableSince: baseline.history.marketDataUnavailableSince,
+      allChainAccessUnavailableSince: baseline.history.allChainAccessUnavailableSince,
+      evidence: baseline.history.evidence.map(evidencePayload),
+    },
+  };
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) throw new InvariantViolationError("Runtime authority baseline is malformed");
+  if (baseline.entrySecurity.observedAt > baseline.capturedAt)
+    throw new InvariantViolationError("Entry security evidence cannot be from the future");
+  const allEvidence = [...baseline.entrySecurity.evidence, ...baseline.history.evidence];
+  if (allEvidence.some(({ observedAt }) => observedAt > baseline.capturedAt))
+    throw new InvariantViolationError("Authority baseline evidence cannot be from the future");
+  return parsed.data;
+}
+
+export class PostgresRuntimeAuthorityBaselineSource
+  implements RuntimeAuthorityBaselineSource, RuntimeAuthorityBaselineSink
+{
   public constructor(private readonly database: Pick<Pool, "query">) {}
+
+  public async capture(
+    positionId: PositionId,
+    baseline: PositionRuntimeAuthorityBaseline,
+  ): Promise<void> {
+    const payload = baselinePayload(baseline);
+    const serialized = canonical(payload);
+    const contentHash = createHash("sha256").update(serialized).digest("hex");
+    const result = await (this.database as DatabasePort).query<Row>(
+      `WITH inserted AS (
+         INSERT INTO position_runtime_authority_baselines
+           (position_id, captured_at, content_hash, payload_json)
+         VALUES ($1, $2, $3, $4::jsonb)
+         ON CONFLICT (position_id) DO NOTHING
+         RETURNING captured_at, content_hash, payload_json
+       )
+       SELECT * FROM inserted UNION ALL
+       SELECT captured_at, content_hash, payload_json
+       FROM position_runtime_authority_baselines WHERE position_id = $1 LIMIT 1`,
+      [positionId, baseline.capturedAt, contentHash, serialized],
+    );
+    const row = result.rows[0];
+    if (
+      row === undefined ||
+      new Date(row.captured_at).toISOString() !== baseline.capturedAt ||
+      row.content_hash !== contentHash ||
+      canonical(row.payload_json) !== serialized
+    )
+      throw new InvariantViolationError(
+        "Runtime authority baseline conflicts with immutable evidence",
+      );
+  }
 
   public async load(positionId: string) {
     const result = (await this.database.query<Row>(
