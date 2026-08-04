@@ -39,6 +39,8 @@ function canonicalize(value: unknown): string {
   if (typeof value === "bigint") return JSON.stringify(value.toString());
   if (Array.isArray(value)) return `[${value.map(canonicalize).join(",")}]`;
   if (typeof value === "object") {
+    const serializable = value as { readonly toJSON?: () => unknown };
+    if (typeof serializable.toJSON === "function") return canonicalize(serializable.toJSON());
     const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
       left.localeCompare(right),
     );
@@ -75,10 +77,13 @@ function evidenceId(input: {
 function jsonValue(value: unknown): unknown {
   if (typeof value === "bigint") return value.toString();
   if (Array.isArray(value)) return value.map(jsonValue);
-  if (value !== null && typeof value === "object")
+  if (value !== null && typeof value === "object") {
+    const serializable = value as { readonly toJSON?: () => unknown };
+    if (typeof serializable.toJSON === "function") return jsonValue(serializable.toJSON());
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, jsonValue(item)]),
     );
+  }
   return value;
 }
 
