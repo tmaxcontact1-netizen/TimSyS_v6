@@ -3,6 +3,8 @@ import type { PositionEvent } from "../../domain/trading/position.js";
 import type { PositionId } from "../../domain/shared/types.js";
 import type { PositionRuntimeAuthorityBaseline } from "./runtime-authority-inputs.js";
 import type { DiscoveredCandidateInput, Candidate } from "../../domain/candidate/model.js";
+import type { CandidateEvaluationDecision } from "../../domain/candidate/evaluator.js";
+import type { CandidateId, SignalId, Timestamp } from "../../domain/shared/types.js";
 
 export interface InitializePositionWorkerCheckpoint {
   readonly positionId: PositionId;
@@ -23,6 +25,19 @@ export interface CandidateDiscoveryResult {
 /** Candidate identity, provenance, and evaluation scheduling are committed atomically. */
 export interface CandidateDiscoveryRepository {
   recordDiscovery(input: DiscoveredCandidateInput): Promise<CandidateDiscoveryResult>;
+}
+
+export interface PersistCandidateEvaluation {
+  readonly candidateId: CandidateId;
+  readonly evaluationRunId: string;
+  readonly signalId: SignalId | null;
+  readonly evaluatedAt: Timestamp;
+  readonly decision: CandidateEvaluationDecision;
+}
+
+/** Evaluation rows, terminal candidate state, signal/rejection, and job completion are atomic. */
+export interface CandidateEvaluationRepository {
+  saveEvaluation(input: PersistCandidateEvaluation): Promise<void>;
 }
 
 export interface PendingPositionAction {

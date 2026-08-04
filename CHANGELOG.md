@@ -1,5 +1,22 @@
 # Memecoined Changelog
 
+## Unreleased — Durable candidate evaluation
+
+### 2026-08-04
+
+| File                                                   | Change                                                            | Reason                                                        | Status                 |
+| ------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
+| `src/domain/candidate/scoring.ts`                      | Added deterministic SCR-001–012 component scoring                 | Apply the approved non-overlapping 95-point score model       | Authorized by operator |
+| `src/domain/candidate/evaluator.ts`                    | Added ordered security, market, and score aggregation             | Prevent score points from overriding any failed absolute gate | Authorized by operator |
+| `src/application/ports/repositories.ts`                | Added atomic candidate-evaluation persistence contract            | Keep evidence, score, outcome, and job completion indivisible | Authorized by operator |
+| `src/application/services/candidate-pipeline.ts`       | Added evaluate-and-persist orchestration                          | Connect normalized candidate facts to a durable decision      | Authorized by operator |
+| `src/infrastructure/database/candidate-evaluations.ts` | Added transactional decision, signal, and rejection persistence   | Preserve append-only evidence and terminal state atomically   | Authorized by operator |
+| `src/workers/candidate-worker.ts`                      | Added bounded deterministic candidate-evaluation cycles           | Establish the acquisition evaluation worker boundary          | Authorized by operator |
+| `migrations/0014_candidate_evaluations.sql`            | Added rule evaluation, score, signal, and rejection tables        | Persist versioned acquisition decisions                       | Authorized by operator |
+| `tests/unit/candidate-scoring.test.ts`                 | Added maximum, boundary, missing-data, and invalid-input coverage | Prove scoring is deterministic and fail-closed                | Authorized by operator |
+| `vitest.config.ts`                                     | Registered the candidate-scoring suite                            | Keep the explicit test inventory complete                     | Authorized by operator |
+| `CHANGELOG.md`                                         | Recorded the durable candidate-evaluation batch                   | Preserve file-touch history                                   | Authorized by operator |
+
 ## Unreleased — Durable candidate discovery
 
 ### 2026-08-04
