@@ -18,6 +18,7 @@ export interface PositionJobSupervisorDependencies extends PositionJobRunnerDepe
   readonly wait: SupervisorWaitPort;
   readonly signal: AbortSignal;
   readonly pollIntervalMs?: number;
+  readonly beforeBatch?: () => Promise<void>;
 }
 
 export interface StartupRecoveryResult {
@@ -36,6 +37,7 @@ export interface PositionJobSupervisorResult {
   readonly recoveredPositionIds: readonly PositionId[];
   readonly batchesCompleted: number;
   readonly jobsVisited: number;
+  readonly acquisitionCyclesCompleted: number;
 }
 
 function batchSize(value: number | undefined): number {
@@ -91,7 +93,12 @@ export async function runPositionJobSupervisor(
   const recovery = await recoverPositionJobsAtStartup(dependencies);
   let batchesCompleted = 0;
   let jobsVisited = 0;
+  let acquisitionCyclesCompleted = 0;
   while (!dependencies.signal.aborted) {
+    if (dependencies.beforeBatch !== undefined) {
+      await dependencies.beforeBatch();
+      acquisitionCyclesCompleted += 1;
+    }
     const batch = await runDuePositionJobBatch(dependencies);
     batchesCompleted += 1;
     jobsVisited += batch.results.length;
@@ -102,5 +109,6 @@ export async function runPositionJobSupervisor(
     recoveredPositionIds: recovery.recoveredPositionIds,
     batchesCompleted,
     jobsVisited,
+    acquisitionCyclesCompleted,
   });
 }

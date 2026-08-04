@@ -47,8 +47,37 @@ describe("position job supervisor", () => {
       recoveredPositionIds: [positionId],
       batchesCompleted: 2,
       jobsVisited: 1,
+      acquisitionCyclesCompleted: 0,
     });
     expect(jobs.recoveryCalls).toBe(1);
+  });
+
+  it("runs acquisition before each position batch", async () => {
+    const jobs = new Jobs();
+    const controller = new AbortController();
+    const order: string[] = [];
+    const result = await runPositionJobSupervisor({
+      jobs: {
+        recoverAbandoned: () => jobs.recoverAbandoned(),
+        findDue: async () => {
+          order.push("positions");
+          return jobs.findDue();
+        },
+      },
+      now: () => now,
+      signal: controller.signal,
+      wait: {
+        wait: async () => {
+          controller.abort();
+        },
+      },
+      beforeBatch: async () => {
+        order.push("acquisition");
+      },
+      run: async () => Object.freeze({ status: "locked" as const }),
+    });
+    expect(order).toEqual(["acquisition", "positions"]);
+    expect(result.acquisitionCyclesCompleted).toBe(1);
   });
 
   it("does not hide fatal worker failures", async () => {

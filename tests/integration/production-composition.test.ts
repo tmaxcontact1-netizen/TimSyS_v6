@@ -32,6 +32,7 @@ describe("zero-placeholder position composition", () => {
     expect(runtime.checkpoints).toBeDefined();
     expect(runtime.supervisor.jobs).toBeDefined();
     expect(runtime.supervisor.run).toBeTypeOf("function");
+    expect(runtime.supervisor.beforeBatch).toBeTypeOf("function");
   });
 
   it("rejects a non-execution configuration", () => {

@@ -33,6 +33,7 @@ export async function runProductionProcess(
           recoveredPositionIds: Object.freeze([]),
           batchesCompleted: 0,
           jobsVisited: 0,
+          acquisitionCyclesCompleted: 0,
         }),
       });
     return Object.freeze({

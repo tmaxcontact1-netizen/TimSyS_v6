@@ -50,6 +50,10 @@ import {
   LiveMonitoringRuntimeAuthorityInputSource,
   LiveReconciliationRuntimeAuthorityInputSource,
 } from "../application/services/live-runtime-authority-inputs.js";
+import { LiveCandidateDiscoverySource } from "../application/services/discovery.js";
+import { PostgresCandidateDiscoveryRepository } from "../infrastructure/database/candidate-discovery.js";
+import { runDiscoveryWorkerCycle } from "../workers/discovery-worker.js";
+import { asStrategyVersionId, asTimestamp } from "../domain/shared/types.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -108,6 +112,13 @@ export function composeProductionPositionRuntime(input: {
     throw new Error("Production position runtime requires execution configuration");
   const providers = composeProductionProviders(input.config);
   const clock = new SystemSchedulerClock();
+  const discoverySource = new LiveCandidateDiscoverySource({
+    provider: providers.discovery,
+    strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
+    now: () => clock.now(),
+    deduplicationWindow: (at) => asTimestamp(at).slice(0, 16),
+  });
+  const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
   const publisherCheckpoints = new PostgresPositionWorkerCheckpointRepository(input.database);
   const observations = new PostgresPositionObservationStore(input.database);
   const publications = new PostgresPositionRuntimeFactPublisher(input.database);
@@ -163,7 +174,7 @@ export function composeProductionPositionRuntime(input: {
     submission: providers.submission,
     authority: providers.authority,
   });
-  return composePositionRuntime({
+  const runtime = composePositionRuntime({
     ...input,
     services: Object.freeze({
       steps,
@@ -205,6 +216,17 @@ export function composeProductionPositionRuntime(input: {
           now: () => observedAt,
         });
       },
+    }),
+  });
+  return Object.freeze({
+    ...runtime,
+    supervisor: Object.freeze({
+      ...runtime.supervisor,
+      beforeBatch: () =>
+        runDiscoveryWorkerCycle({
+          source: discoverySource,
+          candidates: discoveryCandidates,
+        }).then(() => undefined),
     }),
   });
 }

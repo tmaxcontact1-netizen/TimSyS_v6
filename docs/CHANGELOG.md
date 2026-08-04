@@ -55,3 +55,8 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 - Coupled files appear in the same dated entry.
 - Released entries use semantic version headings.
 - Historical entries are append-only except correction of a factual recording error, which itself requires a new correction entry.
+
+# Unreleased
+
+- Schedule live candidate discovery from the production supervisor before each position batch,
+  persisting retry-safe candidates and evaluation work through the existing atomic repository.
