@@ -55,6 +55,16 @@ export class PostgresCandidateEvaluationRepository implements CandidateEvaluatio
            SELECT $1, id, 'eligible', strategy_version_id, $3, $2 FROM candidates WHERE id=$4`,
           [input.signalId, input.evaluationRunId, input.evaluatedAt, input.candidateId],
         );
+        await client.query(
+          `INSERT INTO jobs (id, job_type, idempotency_key, payload_json, state, available_at)
+           VALUES ($1, 'risk_evaluation', $2, $3::jsonb, 'available', $4)`,
+          [
+            input.signalId,
+            `risk_evaluation:${input.signalId}`,
+            JSON.stringify({ signalId: input.signalId }),
+            input.evaluatedAt,
+          ],
+        );
       } else {
         for (const ruleId of input.decision.failedRuleIds)
           await client.query(

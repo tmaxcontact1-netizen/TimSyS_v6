@@ -4,6 +4,8 @@ import type { PositionId } from "../../domain/shared/types.js";
 import type { PositionRuntimeAuthorityBaseline } from "./runtime-authority-inputs.js";
 import type { DiscoveredCandidateInput, Candidate } from "../../domain/candidate/model.js";
 import type { CandidateEvaluationDecision } from "../../domain/candidate/evaluator.js";
+import type { PositionSizingDecision } from "../../domain/portfolio/sizing.js";
+import type { CircuitBreakerDecision } from "../../domain/portfolio/breakers.js";
 import type { CandidateId, SignalId, Timestamp } from "../../domain/shared/types.js";
 
 export interface InitializePositionWorkerCheckpoint {
@@ -38,6 +40,19 @@ export interface PersistCandidateEvaluation {
 /** Evaluation rows, terminal candidate state, signal/rejection, and job completion are atomic. */
 export interface CandidateEvaluationRepository {
   saveEvaluation(input: PersistCandidateEvaluation): Promise<void>;
+}
+
+export interface PersistRiskDecision {
+  readonly signalId: SignalId;
+  readonly riskRunId: string;
+  readonly evaluatedAt: Timestamp;
+  readonly sizing: PositionSizingDecision;
+  readonly breakers: CircuitBreakerDecision;
+}
+
+/** Risk evidence, signal state, entry plan, and follow-up job are committed atomically. */
+export interface RiskDecisionRepository {
+  saveRiskDecision(input: PersistRiskDecision): Promise<void>;
 }
 
 export interface PendingPositionAction {

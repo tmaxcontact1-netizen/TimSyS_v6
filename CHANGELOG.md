@@ -1,5 +1,24 @@
 # Memecoined Changelog
 
+## Unreleased — Durable risk approval
+
+### 2026-08-04
+
+| File                                                   | Change                                                             | Reason                                                                               | Status                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ---------------------- |
+| `src/domain/portfolio/breakers.ts`                     | Added deterministic CBR-001–008 evaluation and lock classification | Block new entries on loss, drawdown, reconciliation, security, or authority failures | Authorized by operator |
+| `src/application/services/risk-monitor.ts`             | Composed synchronized sizing and circuit-breaker decisions         | Require one coherent risk instant before approval                                    | Authorized by operator |
+| `src/application/services/entry-planner.ts`            | Added risk assessment persistence orchestration                    | Keep domain policy independent of PostgreSQL                                         | Authorized by operator |
+| `src/application/ports/repositories.ts`                | Added atomic risk decision contract                                | Bind approval, sizing, and follow-up scheduling                                      | Authorized by operator |
+| `src/infrastructure/database/candidate-evaluations.ts` | Scheduled risk evaluation after eligible signals                   | Continue the durable acquisition pipeline                                            | Authorized by operator |
+| `src/infrastructure/database/risk-decisions.ts`        | Added transactional approval/rejection persistence                 | Prevent partial entry authorization                                                  | Authorized by operator |
+| `src/workers/risk-worker.ts`                           | Added bounded deterministic risk cycles                            | Process claimable signals without unbounded work                                     | Authorized by operator |
+| `migrations/0015_risk_decisions.sql`                   | Added risk decisions and entry plans                               | Preserve exact sizing and approval authority                                         | Authorized by operator |
+| `tests/unit/circuit-breakers.test.ts`                  | Added threshold, clear-state, and fail-closed coverage             | Prove all eight breaker boundaries                                                   | Authorized by operator |
+| `tests/integration/risk-pipeline.test.ts`              | Added approval, rejection, chronology, and rollback coverage       | Prove atomic risk-to-entry handoff                                                   | Authorized by operator |
+| `vitest.config.ts`                                     | Activated risk suites                                              | Include risk authorization in every gate                                             | Authorized by operator |
+| `CHANGELOG.md`                                         | Recorded durable risk approval work                                | Maintain the required file-touch audit                                               | Authorized by operator |
+
 ## Unreleased — Durable candidate evaluation
 
 ### 2026-08-04
