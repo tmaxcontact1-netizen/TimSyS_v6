@@ -77,6 +77,23 @@ describe("runtime fact aggregation", () => {
     ).toThrow(/No observations match/);
   });
 
+  it("unions cross-source provenance without changing ordinary field semantics", () => {
+    const marketEvidence = { id: "market", provider: "dexscreener" };
+    const executionEvidence = { id: "execution", provider: "solana_rpc" };
+    const result = aggregatePositionRuntimeFacts({
+      checkpoint,
+      phase: "monitor",
+      evaluatedAt: asTimestamp("2026-08-04T12:00:03.000Z"),
+      observations: [
+        observation(first, "2026-08-04T12:00:02.000Z", { evidence: [marketEvidence] }),
+        observation(second, "2026-08-04T12:00:02.000Z", {
+          evidence: [marketEvidence, executionEvidence],
+        }),
+      ],
+    });
+    expect(result.facts).toEqual({ evidence: [marketEvidence, executionEvidence] });
+  });
+
   it("rejects future evidence and contradictory simultaneous values", () => {
     expect(() =>
       aggregatePositionRuntimeFacts({

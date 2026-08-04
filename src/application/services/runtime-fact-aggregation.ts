@@ -66,6 +66,21 @@ function deterministicId(input: {
   );
 }
 
+function mergeEvidence(previous: unknown, current: unknown): readonly unknown[] {
+  if (!Array.isArray(current) || (previous !== undefined && !Array.isArray(previous)))
+    throw new InvariantViolationError("Runtime fact evidence must be an array");
+  const merged = previous === undefined ? [] : [...(previous as readonly unknown[])];
+  const identities = new Set(merged.map(canonicalize));
+  for (const item of current) {
+    const identity = canonicalize(item);
+    if (!identities.has(identity)) {
+      merged.push(item);
+      identities.add(identity);
+    }
+  }
+  return Object.freeze(merged);
+}
+
 /** Merges only fragments explicitly bound to the current checkpoint revision. */
 export function aggregatePositionRuntimeFacts(input: {
   readonly checkpoint: PositionWorkerCheckpoint;
@@ -101,6 +116,13 @@ export function aggregatePositionRuntimeFacts(input: {
       throw new InvariantViolationError("Runtime fact fragment cannot be empty");
     for (const [key, value] of Object.entries(fragment)) {
       const previous = fields.get(key);
+      if (key === "evidence") {
+        fields.set(key, {
+          value: mergeEvidence(previous?.value, value),
+          observedAt: observation.observedAt,
+        });
+        continue;
+      }
       if (
         previous?.observedAt === observation.observedAt &&
         canonicalize(previous.value) !== canonicalize(value)
