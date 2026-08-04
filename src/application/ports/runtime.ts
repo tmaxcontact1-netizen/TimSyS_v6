@@ -99,12 +99,30 @@ export interface ReconciliationJobStore {
     readonly now: Timestamp;
   }): Promise<ReconciliationJobLease | null>;
   complete(lease: ReconciliationJobLease): Promise<void>;
+  reschedule(lease: ReconciliationJobLease, availableAt: Timestamp): Promise<void>;
   retry(
     lease: ReconciliationJobLease,
     availableAt: Timestamp,
     failure: ReconciliationJobFailure,
   ): Promise<void>;
   fail(lease: ReconciliationJobLease, failure: ReconciliationJobFailure): Promise<void>;
+}
+
+export interface DuePositionJob {
+  readonly positionId: PositionId;
+  readonly availableAt: Timestamp;
+  readonly failedAttempts: number;
+}
+
+export interface PositionJobSchedulerStore {
+  recoverAbandoned(input: {
+    readonly now: Timestamp;
+    readonly limit: number;
+  }): Promise<readonly PositionId[]>;
+  findDue(input: {
+    readonly now: Timestamp;
+    readonly limit: number;
+  }): Promise<readonly DuePositionJob[]>;
 }
 
 export interface ReconciliationEscalationPort {

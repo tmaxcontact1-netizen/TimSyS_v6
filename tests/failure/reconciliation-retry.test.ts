@@ -31,6 +31,9 @@ class Jobs implements ReconciliationJobStore {
   public async complete(): Promise<void> {
     throw new Error("not expected");
   }
+  public async reschedule(): Promise<void> {
+    throw new Error("not expected");
+  }
   public async retry(
     _lease: ReconciliationJobLease,
     availableAt: ReturnType<typeof asTimestamp>,

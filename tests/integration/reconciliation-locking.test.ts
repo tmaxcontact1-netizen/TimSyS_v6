@@ -37,6 +37,32 @@ function dueJob(attempts = 0) {
 }
 
 describe("PostgreSQL reconciliation job locking", () => {
+  it("returns due available jobs in database order", async () => {
+    const database = new SessionDatabase();
+    database.responses.push(
+      result([{ id: positionId, attempts: 2, state: "available", available_at: now }]),
+    );
+    const store = new PostgresReconciliationJobStore(database);
+    await expect(store.findDue({ now, limit: 10 })).resolves.toEqual([
+      { positionId, availableAt: now, failedAttempts: 2 },
+    ]);
+    expect(database.queries[0]?.text).toContain("state = 'available'");
+    expect(database.released).toBe(true);
+  });
+
+  it("atomically reclaims expired row leases", async () => {
+    const database = new SessionDatabase();
+    database.responses.push(result([]), result([{ id: positionId }]), result([]));
+    const store = new PostgresReconciliationJobStore(database);
+    await expect(store.recoverAbandoned({ now, limit: 10 })).resolves.toEqual([positionId]);
+    expect(database.queries.map(({ text }) => text.trim())).toEqual([
+      "BEGIN",
+      expect.stringContaining("FOR UPDATE SKIP LOCKED"),
+      "COMMIT",
+    ]);
+    expect(database.released).toBe(true);
+  });
+
   it("returns locked and releases its session when another worker owns the advisory lock", async () => {
     const database = new SessionDatabase();
     database.responses.push(result([{ locked: false }]));
@@ -86,6 +112,28 @@ describe("PostgreSQL reconciliation job locking", () => {
     ]);
     expect(database.queries[3]?.text).toContain("pg_advisory_unlock");
     expect(database.released).toBe(true);
+  });
+
+  it("reschedules successful non-terminal work without incrementing attempts", async () => {
+    const database = new SessionDatabase();
+    database.responses.push(
+      result([{ locked: true }]),
+      result([dueJob(1)]),
+      result([{}]),
+      result([{}]),
+    );
+    const store = new PostgresReconciliationJobStore(database);
+    const lease = await store.tryAcquire({ positionId, ownerId: "worker-a", now });
+    const availableAt = asTimestamp("2026-08-04T15:00:05Z");
+    await store.reschedule(lease!, availableAt);
+    expect(database.queries[2]?.values.slice(0, 6)).toEqual([
+      positionId,
+      "position_runtime",
+      "available",
+      0,
+      availableAt,
+      1,
+    ]);
   });
 
   it("releases the lock even when durable completion conflicts", async () => {

@@ -17,6 +17,8 @@ export interface ReconciliationWorkerDependencies extends PositionWorkerDependen
   readonly maximumAttempts?: number;
   readonly baseRetryDelayMs?: number;
   readonly maximumRetryDelayMs?: number;
+  readonly monitoringIntervalMs?: number;
+  readonly reconciliationIntervalMs?: number;
 }
 
 export type ReconciliationWorkerCycleResult =
@@ -70,6 +72,14 @@ export async function runReconciliationWorkerCycle(
     dependencies.maximumRetryDelayMs ?? 30_000,
     "Maximum retry delay",
   );
+  const monitoringInterval = requirePositiveInteger(
+    dependencies.monitoringIntervalMs ?? 5_000,
+    "Monitoring interval",
+  );
+  const reconciliationInterval = requirePositiveInteger(
+    dependencies.reconciliationIntervalMs ?? 1_000,
+    "Reconciliation interval",
+  );
   const startedAt = dependencies.now();
   const lease = await dependencies.jobs.tryAcquire({
     positionId,
@@ -100,7 +110,15 @@ export async function runReconciliationWorkerCycle(
         unresolvedFailure(dependencies.now(), cycle.action.reason),
         cycle.action.reason !== "on_chain_failure",
       );
-    await dependencies.jobs.complete(lease);
+    if (cycle.action.type === "position_closed") await dependencies.jobs.complete(lease);
+    else {
+      const interval =
+        cycle.action.type === "continue_monitoring" ? monitoringInterval : reconciliationInterval;
+      await dependencies.jobs.reschedule(
+        lease,
+        asTimestamp(new Date(new Date(dependencies.now()).getTime() + interval)),
+      );
+    }
     return Object.freeze({ status: "completed", cycle });
   } catch (error) {
     if (error instanceof PositionReconciliationUnavailableError) {

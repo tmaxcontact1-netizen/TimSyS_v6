@@ -18,6 +18,7 @@ export default defineConfig({
       "tests/integration/persistence.test.ts",
       "tests/integration/restart-recovery.test.ts",
       "tests/integration/reconciliation-locking.test.ts",
+      "tests/integration/job-runner.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/jupiter.test.ts",

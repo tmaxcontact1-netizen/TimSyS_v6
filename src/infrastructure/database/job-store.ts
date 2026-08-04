@@ -1,12 +1,19 @@
 import type { PoolClient } from "pg";
 
 import type {
+  DuePositionJob,
+  PositionJobSchedulerStore,
   ReconciliationJobFailure,
   ReconciliationJobLease,
   ReconciliationJobStore,
 } from "../../application/ports/runtime.js";
 import { InvariantViolationError } from "../../domain/shared/errors.js";
-import type { PositionId, Timestamp } from "../../domain/shared/types.js";
+import {
+  asTimestamp as domainTimestamp,
+  asUuid,
+  type PositionId,
+  type Timestamp,
+} from "../../domain/shared/types.js";
 
 interface DatabasePort {
   connect(): Promise<Pick<PoolClient, "query" | "release">>;
@@ -16,6 +23,10 @@ interface JobStateRow extends Record<string, unknown> {
   readonly attempts: number;
   readonly state: string;
   readonly available_at: Date | string;
+}
+
+interface ScheduledJobRow extends JobStateRow {
+  readonly id: string;
 }
 
 const JOB_TYPE = "position_runtime";
@@ -33,7 +44,9 @@ function requireLease(lease: ReconciliationJobLease): void {
 }
 
 /** Holds a PostgreSQL session advisory lock for the complete reconciliation cycle. */
-export class PostgresReconciliationJobStore implements ReconciliationJobStore {
+export class PostgresReconciliationJobStore
+  implements ReconciliationJobStore, PositionJobSchedulerStore
+{
   private readonly sessions = new Map<
     string,
     Readonly<{
@@ -156,6 +169,74 @@ export class PostgresReconciliationJobStore implements ReconciliationJobStore {
     return this.finish(lease, "completed", null, null);
   }
 
+  public reschedule(lease: ReconciliationJobLease, availableAt: Timestamp): Promise<void> {
+    return this.finish(lease, "available", availableAt, null);
+  }
+
+  public async recoverAbandoned(input: {
+    readonly now: Timestamp;
+    readonly limit: number;
+  }): Promise<readonly PositionId[]> {
+    requireLimit(input.limit);
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query<{ readonly id: string }>(
+        `WITH abandoned AS (
+           SELECT id FROM jobs
+           WHERE job_type = $1 AND state = 'leased' AND lease_expires_at <= $2
+           ORDER BY lease_expires_at, id
+           FOR UPDATE SKIP LOCKED LIMIT $3
+         )
+         UPDATE jobs AS job
+         SET state = 'available', available_at = $2, lease_owner = NULL,
+             lease_expires_at = NULL, updated_at = $2, version = version + 1
+         FROM abandoned
+         WHERE job.id = abandoned.id
+         RETURNING job.id`,
+        [JOB_TYPE, input.now, input.limit],
+      );
+      await client.query("COMMIT");
+      return Object.freeze(result.rows.map(({ id }) => asPositionId(id)));
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  public async findDue(input: {
+    readonly now: Timestamp;
+    readonly limit: number;
+  }): Promise<readonly DuePositionJob[]> {
+    requireLimit(input.limit);
+    const client = await this.database.connect();
+    try {
+      const result = await client.query<ScheduledJobRow>(
+        `SELECT id, attempts, state, available_at FROM jobs
+         WHERE job_type = $1 AND state = 'available' AND available_at <= $2
+         ORDER BY available_at, id LIMIT $3`,
+        [JOB_TYPE, input.now, input.limit],
+      );
+      return Object.freeze(
+        result.rows.map((row) => {
+          if (!Number.isSafeInteger(row.attempts) || row.attempts < 0)
+            throw new InvariantViolationError("Persisted job attempts are invalid");
+          return Object.freeze({
+            positionId: asPositionId(row.id),
+            availableAt: asTimestamp(row.available_at),
+            failedAttempts: row.attempts,
+          });
+        }),
+      );
+    } finally {
+      client.release();
+    }
+  }
+
   public retry(
     lease: ReconciliationJobLease,
     availableAt: Timestamp,
@@ -167,4 +248,17 @@ export class PostgresReconciliationJobStore implements ReconciliationJobStore {
   public fail(lease: ReconciliationJobLease, failure: ReconciliationJobFailure): Promise<void> {
     return this.finish(lease, "failed", null, failure);
   }
+}
+
+function requireLimit(limit: number): void {
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 1_000)
+    throw new InvariantViolationError("Job query limit must be between 1 and 1000");
+}
+
+function asPositionId(value: string): PositionId {
+  return asUuid<PositionId>(value);
+}
+
+function asTimestamp(value: Date | string): Timestamp {
+  return domainTimestamp(value);
 }

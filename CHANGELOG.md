@@ -6,6 +6,18 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                               | Change                                                                            | Reason                                                          | Status                 |
+| -------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
+| `src/application/ports/runtime.ts`                 | Added durable due-job and startup-recovery contracts plus successful rescheduling | Separate queue enumeration from exclusive worker ownership      | Authorized by operator |
+| `src/infrastructure/database/job-store.ts`         | Added due-job queries, expired-lease reclamation, and non-terminal rescheduling   | Recover abandoned work and keep active positions scheduled      | Authorized by operator |
+| `src/workers/reconciliation-worker.ts`             | Rescheduled successful active positions at deterministic monitoring intervals     | Prevent successful cycles from permanently removing active work | Authorized by operator |
+| `src/workers/supervisor.ts`                        | Added bounded startup recovery and deterministic due-position batch execution     | Establish the durable job-runner boundary                       | Authorized by operator |
+| `tests/integration/job-runner.test.ts`             | Added recovery, stable-order, duplicate, and batch-boundary tests                 | Prove scheduling fails closed before worker execution           | Authorized by operator |
+| `tests/integration/reconciliation-locking.test.ts` | Added due-query, abandoned-lease, and successful-reschedule database tests        | Prove queue state changes preserve ownership rules              | Authorized by operator |
+| `tests/failure/reconciliation-retry.test.ts`       | Extended the fake job store with the successful rescheduling contract             | Keep retry policy tests aligned with the runtime port           | Authorized by operator |
+| `vitest.config.ts`                                 | Activated the durable job-runner integration suite                                | Include scheduling and startup recovery in every gate           | Authorized by operator |
+| `CHANGELOG.md`                                     | Recorded durable scheduling and startup-recovery work                             | Maintain the required file-touch audit                          | Authorized by operator |
+
 | File                                               | Change                                                                                   | Reason                                                             | Status                 |
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------- |
 | `src/application/ports/runtime.ts`                 | Added reconciliation lease, retry-failure, job-store, and critical-escalation contracts  | Keep retry policy independent of PostgreSQL and operator delivery  | Authorized by operator |
