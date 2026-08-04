@@ -14,6 +14,7 @@ export default defineConfig({
       "tests/unit/emergency-execution.test.ts",
       "tests/unit/standard-execution.test.ts",
       "tests/unit/runtime-fact-aggregation.test.ts",
+      "tests/unit/runtime-fact-producers.test.ts",
       "tests/integration/execution.test.ts",
       "tests/integration/position-worker.test.ts",
       "tests/integration/persistence.test.ts",
