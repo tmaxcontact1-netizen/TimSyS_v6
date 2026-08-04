@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  InitializePositionWorkerCheckpoint,
+  PositionOpeningRepository,
+  PositionWorkerCheckpoint,
+} from "../../src/application/ports/repositories.js";
+import type { PositionRuntimeAuthorityBaseline } from "../../src/application/ports/runtime-authority-inputs.js";
+import { openReconciledPosition } from "../../src/application/services/execution.js";
 import {
   createPositionRuntimeState,
   processPositionRuntimeStep,
@@ -20,7 +27,7 @@ import {
   type PositionId,
   type TokenId,
 } from "../../src/domain/shared/types.js";
-import type { ExitReconciliation } from "../../src/domain/trading/order.js";
+import type { EntryReconciliation, ExitReconciliation } from "../../src/domain/trading/order.js";
 import {
   applyPositionEvent,
   createEmptyPositionLifecycle,
@@ -324,5 +331,154 @@ describe("deterministic position runtime orchestration", () => {
         monitor(8, { preparation: null }),
       ),
     ).toThrow("execution preparation");
+  });
+});
+
+const entryEvaluatedAt = asTimestamp("2026-08-04T17:00:00Z");
+const entryPositionId = uuid<PositionId>(501);
+const entryTokenId = uuid<TokenId>(502);
+const entryOrderId = uuid<OrderId>(503);
+const entryOpenedEventId = uuid<AuditEventId>(504);
+const entryEvidence: readonly EvidenceReference[] = Object.freeze([
+  Object.freeze({
+    id: uuid<EvidenceId>(505),
+    provider: "solana_rpc",
+    observedAt: entryEvaluatedAt,
+    sourceKey: "entry-opening:reconciliation",
+  }),
+]);
+
+function entryReconciliation(overrides: Partial<EntryReconciliation> = {}): EntryReconciliation {
+  return Object.freeze({
+    evaluatedAt: entryEvaluatedAt,
+    transactionConfirmed: true,
+    onChainError: false,
+    tokenBalanceIncrease: asRawAmount(2_000n),
+    solBalanceDecrease: asRawAmount(1_500_000_000n),
+    feePaid: asRawAmount(5_000n),
+    tipPaid: asRawAmount(0n),
+    minimumOutputAmount: asRawAmount(1_900n),
+    signature: "entry-signature",
+    evidence: entryEvidence,
+    ...overrides,
+  });
+}
+
+function entryBaseline(capturedAt = entryEvaluatedAt): PositionRuntimeAuthorityBaseline {
+  return Object.freeze({
+    capturedAt,
+    wallet: "trader" as never,
+    tokenMint: "token-mint" as never,
+    settlementMint: "settlement-mint" as never,
+    developerRelated: Object.freeze([]),
+    originatingTierA: null,
+    confirmingTierB: null,
+    excludedHolderTokenAccounts: new Set<string>(),
+    entrySecurity: Object.freeze({
+      observedAt: entryEvaluatedAt,
+      evidence: entryEvidence,
+      directlyVerifiedOnChain: true,
+      program: "spl_token",
+      mintAuthority: "revoked",
+      freezeAuthority: "revoked",
+      extensions: Object.freeze([]),
+      extensionsVerified: true,
+      holders: null,
+    }),
+    history: Object.freeze({
+      liquidityUsdTenMinutesAgo: null,
+      priorFullExitPriceImpactPercentages: Object.freeze([]),
+      marketDataUnavailableSince: null,
+      allChainAccessUnavailableSince: null,
+      evidence: Object.freeze([]),
+    }),
+  });
+}
+
+class RecordingOpeningRepository implements PositionOpeningRepository {
+  public calls: InitializePositionWorkerCheckpoint[] = [];
+  public failure: Error | null = null;
+
+  public async initialize(
+    input: InitializePositionWorkerCheckpoint,
+  ): Promise<PositionWorkerCheckpoint> {
+    this.calls.push(input);
+    if (this.failure !== null) throw this.failure;
+    return Object.freeze({
+      positionId: input.positionId,
+      revision: 0n,
+      runtimeState: input.runtimeState,
+      pendingAction: null,
+    });
+  }
+}
+
+const entryOpeningInput = (
+  overrides: Partial<Parameters<typeof openReconciledPosition>[0]> = {},
+) => ({
+  positionId: entryPositionId,
+  tokenId: entryTokenId,
+  entryOrderId,
+  openedEventId: entryOpenedEventId,
+  reconciliation: entryReconciliation(),
+  authorityBaseline: entryBaseline(),
+  ...overrides,
+});
+
+describe("reconciled entry position opening", () => {
+  it("creates the exact reconciled position and delegates one atomic initialization", async () => {
+    const repository = new RecordingOpeningRepository();
+    const opening = entryOpeningInput();
+    const result = await openReconciledPosition(opening, repository);
+
+    expect(repository.calls).toHaveLength(1);
+    expect(result.openedEvent).toMatchObject({
+      positionId: entryPositionId,
+      tokenId: entryTokenId,
+      entryOrderId,
+      acquiredAmount: 2_000n,
+    });
+    expect(result.openedEvent.costBasisSol.toString()).toBe("1.5");
+    expect(result.checkpoint.runtimeState.lifecycle.position).toMatchObject({
+      id: entryPositionId,
+      state: "open",
+      originalAmount: 2_000n,
+    });
+    expect(repository.calls[0]?.authorityBaseline).toBe(opening.authorityBaseline);
+  });
+
+  it("rejects an unsuccessful entry without invoking persistence", async () => {
+    const repository = new RecordingOpeningRepository();
+    await expect(
+      openReconciledPosition(
+        entryOpeningInput({
+          reconciliation: entryReconciliation({ transactionConfirmed: false }),
+        }),
+        repository,
+      ),
+    ).rejects.toThrow(/successful reconciled entry/);
+    expect(repository.calls).toHaveLength(0);
+  });
+
+  it("rejects a baseline not captured at reconciliation", async () => {
+    const repository = new RecordingOpeningRepository();
+    await expect(
+      openReconciledPosition(
+        entryOpeningInput({
+          authorityBaseline: entryBaseline(asTimestamp("2026-08-04T17:00:01Z")),
+        }),
+        repository,
+      ),
+    ).rejects.toThrow(/captured at entry reconciliation/);
+    expect(repository.calls).toHaveLength(0);
+  });
+
+  it("propagates atomic repository failure without returning an opened position", async () => {
+    const repository = new RecordingOpeningRepository();
+    repository.failure = new Error("opening transaction failed");
+    await expect(openReconciledPosition(entryOpeningInput(), repository)).rejects.toThrow(
+      "opening transaction failed",
+    );
+    expect(repository.calls).toHaveLength(1);
   });
 });

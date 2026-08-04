@@ -4,6 +4,8 @@ import type { ObservationTrace } from "../contracts/observations.js";
 import type { ChainObservationPort } from "../ports/chain.js";
 import type { MarketObservationPort } from "../ports/market.js";
 import type { PendingPositionAction, PositionWorkerCheckpoint } from "../ports/repositories.js";
+import type { PositionOpeningRepository } from "../ports/repositories.js";
+import type { PositionRuntimeAuthorityBaseline } from "../ports/runtime-authority-inputs.js";
 import type {
   PositionActionDispatcherDependencies,
   PositionMonitoringFacts,
@@ -14,11 +16,81 @@ import type {
 import type { SwapFailure, SwapPort } from "../ports/swap.js";
 import type { EvidenceReference } from "../../domain/shared/evidence.js";
 import { InvariantViolationError } from "../../domain/shared/errors.js";
-import { asBasisPoints, asNonNegativeDecimal, type ProviderId } from "../../domain/shared/types.js";
+import {
+  asBasisPoints,
+  asNonNegativeDecimal,
+  type AuditEventId,
+  type OrderId,
+  type PositionId,
+  type ProviderId,
+  type TokenId,
+} from "../../domain/shared/types.js";
+import { evaluateSuccessfulEntry, type EntryReconciliation } from "../../domain/trading/order.js";
+import {
+  applyPositionEvent,
+  createEmptyPositionLifecycle,
+  type PositionOpenedEvent,
+} from "../../domain/trading/position.js";
 import type { PositionRuntimeStep } from "./position-monitor.js";
+import { createPositionRuntimeState } from "./position-monitor.js";
 
 const EXIT_SLIPPAGE_BASIS_POINTS = asBasisPoints(150n);
 const LAMPORTS_PER_SOL = new Decimal(1_000_000_000);
+
+export interface OpenReconciledPositionInput {
+  readonly positionId: PositionId;
+  readonly tokenId: TokenId;
+  readonly entryOrderId: OrderId;
+  readonly openedEventId: AuditEventId;
+  readonly reconciliation: EntryReconciliation;
+  readonly authorityBaseline: PositionRuntimeAuthorityBaseline;
+}
+
+export interface OpenReconciledPositionResult {
+  readonly checkpoint: PositionWorkerCheckpoint;
+  readonly openedEvent: PositionOpenedEvent;
+}
+
+/** Converts only a fully reconciled entry into an atomically supervised position. */
+export async function openReconciledPosition(
+  input: OpenReconciledPositionInput,
+  positions: PositionOpeningRepository,
+): Promise<OpenReconciledPositionResult> {
+  const decision = evaluateSuccessfulEntry(input.reconciliation);
+  if (
+    !decision.successfulEntry ||
+    decision.actualReceivedAmount === null ||
+    decision.actualSolExpenditure === null
+  )
+    throw new InvariantViolationError(
+      `Position opening requires a successful reconciled entry: ${decision.failedRuleIds.join(",")}`,
+    );
+  if (input.authorityBaseline.capturedAt !== input.reconciliation.evaluatedAt)
+    throw new InvariantViolationError(
+      "Position authority baseline must be captured at entry reconciliation",
+    );
+
+  const openedEvent: PositionOpenedEvent = Object.freeze({
+    type: "position:opened",
+    eventId: input.openedEventId,
+    positionId: input.positionId,
+    aggregateVersion: 0n,
+    occurredAt: input.reconciliation.evaluatedAt,
+    tokenId: input.tokenId,
+    entryOrderId: input.entryOrderId,
+    acquiredAmount: decision.actualReceivedAmount,
+    costBasisSol: asNonNegativeDecimal(
+      new Decimal(decision.actualSolExpenditure.toString()).div(LAMPORTS_PER_SOL),
+    ),
+  });
+  const lifecycle = applyPositionEvent(createEmptyPositionLifecycle(), openedEvent);
+  const checkpoint = await positions.initialize({
+    positionId: input.positionId,
+    runtimeState: createPositionRuntimeState(lifecycle),
+    authorityBaseline: input.authorityBaseline,
+  });
+  return Object.freeze({ checkpoint, openedEvent });
+}
 
 export type PositionStepFailureStage =
   "market_observation" | "chain_observation" | "quote" | "construction" | "simulation";
