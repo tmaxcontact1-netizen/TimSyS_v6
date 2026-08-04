@@ -2,6 +2,14 @@
 
 All material file touches are recorded here. Dates use UTC. Entries identify the file, change, reason, and authorization state.
 
+## Unreleased — Runtime implementation
+
+### 2026-08-04
+
+| File | Change | Reason | Status |
+|---|---|---|---|
+| `src/infrastructure/config/load-config.ts`; `tests/security/startup-config.test.ts`; `vitest.config.ts` | Added strict, mode-aware runtime parsing, credential minimization tests, and suite activation | Prevent partial or secret-leaking startup configuration | Authorized by operator |
+
 ## Unreleased — Phase 2 deterministic domain core
 
 ### 2026-08-04
