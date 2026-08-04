@@ -1,5 +1,15 @@
 # Memecoined Changelog
 
+## Unreleased — Immediate position supervision
+
+### 2026-08-04
+
+| File                                          | Change                                                                    | Reason                                                                                | Status                 |
+| --------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ---------------------- |
+| `src/infrastructure/database/repositories.ts` | Scheduled newly initialized position checkpoints as immediately available | Ensure every atomically opened position enters the supervisor's durable polling queue | Authorized by operator |
+| `tests/integration/persistence.test.ts`       | Required the initial checkpoint job to be available rather than completed | Prove position opening cannot silently terminate supervision before its first cycle   | Authorized by operator |
+| `CHANGELOG.md`                                | Recorded the immediate position-supervision correction                    | Preserve the required file-touch history                                              | Authorized by operator |
+
 ## Unreleased — Atomic position opening
 
 ### 2026-08-04

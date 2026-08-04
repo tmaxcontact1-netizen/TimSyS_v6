@@ -179,7 +179,7 @@ export class PostgresPositionWorkerCheckpointRepository
       const result = await client.query<JobRow>(
         `INSERT INTO jobs
            (id, job_type, idempotency_key, payload_json, state, version)
-         VALUES ($1, $2, $3, $4::jsonb, 'completed', 0)
+         VALUES ($1, $2, $3, $4::jsonb, 'available', 0)
          RETURNING id, version, payload_json`,
         [
           checkpoint.positionId,

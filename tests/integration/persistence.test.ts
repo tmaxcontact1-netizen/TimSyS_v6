@@ -182,6 +182,8 @@ describe("PostgreSQL position checkpoint repository", () => {
       "position_runtime",
       `position_runtime:${positionId}`,
     ]);
+    expect(database.queries[3]?.text).toContain("'available'");
+    expect(database.queries[3]?.text).not.toContain("'completed'");
     expect(database.released).toBe(true);
   });
 
