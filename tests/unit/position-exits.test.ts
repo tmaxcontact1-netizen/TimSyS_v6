@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateExit, type ExitSnapshot } from "../../src/domain/trading/exits.js";
+import {
+  evaluateExit,
+  type EmergencyExitSnapshot,
+  type ExitSnapshot,
+} from "../../src/domain/trading/exits.js";
 import {
   createReconciledPosition,
   markExitPending,
@@ -46,12 +50,34 @@ function position(): Position {
 function snapshot(
   value: string | null,
   at = "2026-08-04T12:01:00.000Z",
-  emergencyExit = false,
+  emergencyOverride: Partial<EmergencyExitSnapshot> = {},
 ): ExitSnapshot {
+  const evaluatedAt = asTimestamp(at);
+  const emergency: EmergencyExitSnapshot = {
+    evaluatedAt,
+    liquidityUsd: asNonNegativeDecimal(100_000),
+    liquidityUsdTenMinutesAgo: asNonNegativeDecimal(100_000),
+    developerRelatedSoldPercentage: asNonNegativeDecimal(0),
+    originatingTierASoldPercentage: asNonNegativeDecimal(0),
+    confirmingTierBSoldPercentages: [asNonNegativeDecimal(0), asNonNegativeDecimal(0)],
+    dangerousSecurityChangeDetected: false,
+    fullExitPriceImpactPercentages: [
+      asNonNegativeDecimal(1),
+      asNonNegativeDecimal(1),
+      asNonNegativeDecimal(1),
+    ],
+    unexplainedBalanceDiscrepancy: false,
+    marketDataUnavailableSince: null,
+    marketDataAvailabilityKnown: true,
+    allChainAccessUnavailableSince: null,
+    chainAccessAvailabilityKnown: true,
+    evidence,
+    ...emergencyOverride,
+  };
   return {
-    evaluatedAt: asTimestamp(at),
+    evaluatedAt,
     executableValueSol: value === null ? null : asNonNegativeDecimal(value),
-    emergencyExit,
+    emergency,
     evidence,
   };
 }
@@ -201,7 +227,10 @@ describe("standard exit decisions", () => {
   });
 
   it("gives emergency and full exits priority and fails closed without executable value", () => {
-    expect(evaluateExit(position(), snapshot("15", undefined, true)).ruleId).toBe("EMERGENCY");
+    expect(
+      evaluateExit(position(), snapshot("15", undefined, { dangerousSecurityChangeDetected: true }))
+        .ruleId,
+    ).toBe("EMG-006");
     expect(evaluateExit(position(), snapshot(null)).action).toBe("none");
   });
 
