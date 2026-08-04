@@ -14,6 +14,7 @@ export default defineConfig({
       "tests/unit/emergency-execution.test.ts",
       "tests/unit/standard-execution.test.ts",
       "tests/integration/execution.test.ts",
+      "tests/integration/position-worker.test.ts",
       "tests/replay/determinism.test.ts",
     ],
     passWithNoTests: false,

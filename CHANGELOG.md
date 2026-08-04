@@ -6,6 +6,14 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                        | Change                                                                                                              | Reason                                                                                             | Status                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------------- |
+| `src/application/ports/repositories.ts`     | Added compare-and-swap position checkpoint, atomic transition, event, pending-action, and acknowledgement contracts | Prevent split persistence and duplicate concurrent advancement                                     | Authorized by operator |
+| `src/application/ports/runtime.ts`          | Added deterministic step-source and idempotent action-dispatch contracts                                            | Isolate provider acquisition and external effects from the pure runtime                            | Authorized by operator |
+| `src/workers/position-worker.ts`            | Added checkpoint-first worker execution, pending-action recovery, dispatch acknowledgement, and validation          | Connect the pure position runtime to durable persistence and provider adapters without unsafe gaps | Authorized by operator |
+| `tests/integration/position-worker.test.ts` | Added atomicity, concurrency, crash-recovery, duplicate-dispatch, and corrupt-checkpoint tests                      | Prove the worker resumes safely across each persistence and dispatch boundary                      | Authorized by operator |
+| `vitest.config.ts`                          | Activated the deterministic position-worker integration suite                                                       | Include the worker boundary in every verification run                                              | Authorized by operator |
+
 | File                                           | Change                                                                                 | Reason                                                                                        | Status                 |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------- |
 | `src/application/services/position-monitor.ts` | Added a pure, restart-safe monitoring and exit orchestration cycle                     | Connect exit evidence, intent creation, reconciliation, and position events deterministically | Authorized by operator |
