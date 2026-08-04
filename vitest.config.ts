@@ -21,6 +21,7 @@ export default defineConfig({
       "tests/integration/job-runner.test.ts",
       "tests/integration/supervisor.test.ts",
       "tests/integration/startup-database.test.ts",
+      "tests/integration/production-startup.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/jupiter.test.ts",
