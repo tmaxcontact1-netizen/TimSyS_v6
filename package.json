@@ -9,6 +9,7 @@
   },
   "packageManager": "npm@11.9.0",
   "scripts": {
+    "start": "node dist/src/entrypoints/worker.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
