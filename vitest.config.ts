@@ -28,6 +28,7 @@ export default defineConfig({
       "tests/contract/helius.test.ts",
       "tests/security/transaction-inspection.test.ts",
       "tests/security/startup-config.test.ts",
+      "tests/security/http-transport.test.ts",
       "tests/failure/reconciliation.test.ts",
       "tests/failure/reconciliation-retry.test.ts",
       "tests/replay/determinism.test.ts",
