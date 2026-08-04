@@ -220,7 +220,7 @@ describe("authoritative exit reconciliation", () => {
       balances,
     ).nextStep(checkpoint());
     const result = processPositionRuntimeStep(checkpoint().runtimeState, step);
-    expect(result.action.type).toBe("await_reconciliation");
+    expect(result.action).toMatchObject({ type: "await_reconciliation", reason: "pending" });
     expect(balanceReads).toBe(0);
   });
 
@@ -230,9 +230,10 @@ describe("authoritative exit reconciliation", () => {
       { ok: true, value: transaction({ tokenBalanceAfterRaw: asRawAmount(0n) }) },
       { ok: true, value: balance(1n) },
     ).nextStep(current);
-    expect(processPositionRuntimeStep(current.runtimeState, step).action.type).toBe(
-      "await_reconciliation",
-    );
+    expect(processPositionRuntimeStep(current.runtimeState, step).action).toMatchObject({
+      type: "await_reconciliation",
+      reason: "balance_mismatch",
+    });
   });
 
   it("does not treat an on-chain failure as a successful exit", async () => {
@@ -241,9 +242,10 @@ describe("authoritative exit reconciliation", () => {
       ok: true,
       value: transaction({ state: "failed", onChainError: true }),
     }).nextStep(current);
-    expect(processPositionRuntimeStep(current.runtimeState, step).action.type).toBe(
-      "await_reconciliation",
-    );
+    expect(processPositionRuntimeStep(current.runtimeState, step).action).toMatchObject({
+      type: "await_reconciliation",
+      reason: "on_chain_failure",
+    });
   });
 
   it("classifies total transaction-provider failure without fabricating a step", async () => {

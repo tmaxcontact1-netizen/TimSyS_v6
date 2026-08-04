@@ -6,6 +6,19 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                               | Change                                                                                   | Reason                                                             | Status                 |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------- |
+| `src/application/ports/runtime.ts`                 | Added reconciliation lease, retry-failure, job-store, and critical-escalation contracts  | Keep retry policy independent of PostgreSQL and operator delivery  | Authorized by operator |
+| `src/application/services/position-monitor.ts`     | Classified unresolved reconciliation outcomes                                            | Prevent finalized failures from being retried as pending evidence  | Authorized by operator |
+| `src/workers/reconciliation-worker.ts`             | Added exclusive cycles, deterministic retry scheduling, terminal failure, and escalation | Prevent concurrent reconciliation and endless automatic retries    | Authorized by operator |
+| `src/infrastructure/database/job-store.ts`         | Added session advisory locking and durable retry/failure state                           | Preserve crash-safe ownership across checkpoint writes             | Authorized by operator |
+| `migrations/0008_reconciliation_jobs.sql`          | Added paired durable job error metadata                                                  | Retain the exact reason for retry or escalation                    | Authorized by operator |
+| `tests/failure/reconciliation-retry.test.ts`       | Added lock, backoff, terminal, ordering, and unknown-failure tests                       | Prove retry orchestration fails closed                             | Authorized by operator |
+| `tests/failure/reconciliation.test.ts`             | Asserted pending, balance-mismatch, and on-chain-failure classifications                 | Bind retryability to authoritative reconciliation evidence         | Authorized by operator |
+| `tests/integration/reconciliation-locking.test.ts` | Added PostgreSQL session-lock, scheduling, and conflict-release tests                    | Prove one worker owns reconciliation and locks are always released | Authorized by operator |
+| `vitest.config.ts`                                 | Activated retry and locking suites                                                       | Include reconciliation recovery in every repository gate           | Authorized by operator |
+| `CHANGELOG.md`                                     | Recorded failed-exit retry, escalation, and locking slice                                | Maintain the required file-touch audit                             | Authorized by operator |
+
 | File                                                        | Change                                                                                    | Reason                                                               | Status                 |
 | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------- |
 | `src/application/contracts/observations.ts`                 | Added normalized confirmed-transaction and raw wallet-delta evidence                      | Keep reconciliation independent of RPC-native payloads               | Authorized by operator |

@@ -78,3 +78,39 @@ export interface PositionActionDispatcherDependencies {
   readonly submission: TransactionSubmissionPort;
   readonly authority: ExecutionAuthorityPort;
 }
+
+export interface ReconciliationJobLease {
+  readonly positionId: PositionId;
+  readonly ownerId: string;
+  readonly failedAttempts: number;
+}
+
+export interface ReconciliationJobFailure {
+  readonly stage: "transaction" | "balance" | "confirmation";
+  readonly code: string;
+  readonly reason: string;
+  readonly occurredAt: Timestamp;
+}
+
+export interface ReconciliationJobStore {
+  tryAcquire(input: {
+    readonly positionId: PositionId;
+    readonly ownerId: string;
+    readonly now: Timestamp;
+  }): Promise<ReconciliationJobLease | null>;
+  complete(lease: ReconciliationJobLease): Promise<void>;
+  retry(
+    lease: ReconciliationJobLease,
+    availableAt: Timestamp,
+    failure: ReconciliationJobFailure,
+  ): Promise<void>;
+  fail(lease: ReconciliationJobLease, failure: ReconciliationJobFailure): Promise<void>;
+}
+
+export interface ReconciliationEscalationPort {
+  critical(input: {
+    readonly positionId: PositionId;
+    readonly attempts: number;
+    readonly failure: ReconciliationJobFailure;
+  }): Promise<void>;
+}

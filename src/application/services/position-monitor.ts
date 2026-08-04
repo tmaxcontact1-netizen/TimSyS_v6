@@ -89,7 +89,11 @@ export type PositionRuntimeAction =
       decision: ExitDecision;
       execution: PreparedExitExecution;
     }>
-  | Readonly<{ type: "await_reconciliation"; decision: ExitExecutionDecision }>
+  | Readonly<{
+      type: "await_reconciliation";
+      reason: "pending" | "on_chain_failure" | "balance_mismatch";
+      decision: ExitExecutionDecision;
+    }>
   | Readonly<{ type: "refresh_exit"; decision: ExitExecutionDecision }>
   | Readonly<{ type: "exit_reconciled"; decision: ExitExecutionDecision }>
   | Readonly<{ type: "position_closed"; decision: ExitExecutionDecision }>;
@@ -385,7 +389,16 @@ function reconcile(
       step,
       state.lifecycle,
       state.pendingExit,
-      Object.freeze({ type: "await_reconciliation", decision: execution }),
+      Object.freeze({
+        type: "await_reconciliation",
+        reason:
+          step.reconciliation.onChainError === true
+            ? "on_chain_failure"
+            : step.reconciliation.transactionConfirmed === true
+              ? "balance_mismatch"
+              : "pending",
+        decision: execution,
+      }),
       [],
     );
 
