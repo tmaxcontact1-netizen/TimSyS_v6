@@ -16,6 +16,7 @@ export default defineConfig({
       "tests/integration/execution.test.ts",
       "tests/integration/position-worker.test.ts",
       "tests/integration/persistence.test.ts",
+      "tests/integration/restart-recovery.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/jupiter.test.ts",

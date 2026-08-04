@@ -87,6 +87,15 @@ function preparation(overrides: Partial<ExitPreparation> = {}): ExitPreparation 
     quoteReceivedAt: asTimestamp("2026-08-04T10:00:58Z"),
     sellRouteValid: true,
     simulationSucceeded: true,
+    execution: Object.freeze({
+      transactionFingerprint: "transaction-runtime-1",
+      quoteFingerprint: "sell-runtime-q1",
+      wallet: "Wallet111111111111111111111111111111111111" as never,
+      serializedTransactionBase64: Buffer.from("transaction-runtime-1").toString("base64"),
+      lastValidBlockHeight: 1_000n,
+      prioritizationFeeLamports: asRawAmount(5_000n),
+      evidence,
+    }),
     evidence,
     peakEventId: uuid<AuditEventId>(7),
     exitRequestedEventId: uuid<AuditEventId>(8),
@@ -149,6 +158,11 @@ describe("deterministic position runtime orchestration", () => {
     expect(result.state.pendingExit?.decision.ruleId).toBe("EXT-002");
     expect(result.state.pendingExit?.intent.positionVersion).toBe(1n);
     expect(result.state.lifecycle.position?.state).toBe("exit_pending");
+    expect(result.action.type === "submit_exit" && result.action.execution).toMatchObject({
+      transactionFingerprint: "transaction-runtime-1",
+      quoteFingerprint: "sell-runtime-q1",
+      lastValidBlockHeight: 1_000n,
+    });
   });
 
   it("gives emergency evidence precedence over a simultaneous profit target", () => {

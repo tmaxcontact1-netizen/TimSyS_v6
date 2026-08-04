@@ -1,6 +1,12 @@
 import { InvariantViolationError } from "../../domain/shared/errors.js";
 import type { EvidenceReference } from "../../domain/shared/evidence.js";
-import type { AuditEventId, OrderId, Timestamp } from "../../domain/shared/types.js";
+import type {
+  AuditEventId,
+  OrderId,
+  RawAmount,
+  Timestamp,
+  WalletAddress,
+} from "../../domain/shared/types.js";
 import { evaluateExit, type ExitDecision, type ExitSnapshot } from "../../domain/trading/exits.js";
 import {
   createEmergencyExitIntent,
@@ -40,9 +46,20 @@ export interface ExitPreparation {
   readonly quoteReceivedAt: Timestamp;
   readonly sellRouteValid: boolean;
   readonly simulationSucceeded: boolean;
+  readonly execution: PreparedExitExecution;
   readonly evidence: readonly EvidenceReference[];
   readonly peakEventId: AuditEventId;
   readonly exitRequestedEventId: AuditEventId;
+}
+
+export interface PreparedExitExecution {
+  readonly transactionFingerprint: string;
+  readonly quoteFingerprint: string;
+  readonly wallet: WalletAddress;
+  readonly serializedTransactionBase64: string;
+  readonly lastValidBlockHeight: bigint;
+  readonly prioritizationFeeLamports: RawAmount;
+  readonly evidence: readonly EvidenceReference[];
 }
 
 export interface MonitorPositionStep {
@@ -63,7 +80,12 @@ export type PositionRuntimeStep = MonitorPositionStep | ReconcilePositionStep;
 
 export type PositionRuntimeAction =
   | Readonly<{ type: "continue_monitoring"; decision: ExitDecision }>
-  | Readonly<{ type: "submit_exit"; intent: ExitExecutionIntent; decision: ExitDecision }>
+  | Readonly<{
+      type: "submit_exit";
+      intent: ExitExecutionIntent;
+      decision: ExitDecision;
+      execution: PreparedExitExecution;
+    }>
   | Readonly<{ type: "await_reconciliation"; decision: ExitExecutionDecision }>
   | Readonly<{ type: "refresh_exit"; decision: ExitExecutionDecision }>
   | Readonly<{ type: "exit_reconciled"; decision: ExitExecutionDecision }>
@@ -120,6 +142,13 @@ function stepFingerprint(step: PositionRuntimeStep): string {
       step.preparation?.quoteReceivedAt ?? "",
       String(step.preparation?.sellRouteValid ?? ""),
       String(step.preparation?.simulationSucceeded ?? ""),
+      step.preparation?.execution.transactionFingerprint ?? "",
+      step.preparation?.execution.quoteFingerprint ?? "",
+      step.preparation?.execution.wallet ?? "",
+      step.preparation?.execution.serializedTransactionBase64 ?? "",
+      step.preparation?.execution.lastValidBlockHeight.toString() ?? "",
+      step.preparation?.execution.prioritizationFeeLamports.toString() ?? "",
+      step.preparation === null ? "" : evidenceFingerprint(step.preparation.execution.evidence),
       step.preparation === null ? "" : evidenceFingerprint(step.preparation.evidence),
       step.preparation?.peakEventId ?? "",
       step.preparation?.exitRequestedEventId ?? "",
@@ -251,6 +280,15 @@ function monitor(state: PositionRuntimeState, step: MonitorPositionStep): Positi
     throw new InvariantViolationError("Actionable exit requires execution preparation");
   if (step.preparation.evidence.length === 0)
     throw new InvariantViolationError("Exit execution preparation requires evidence");
+  const preparedExecution = step.preparation.execution;
+  requireText(preparedExecution.transactionFingerprint, "Prepared transaction fingerprint");
+  requireText(preparedExecution.serializedTransactionBase64, "Prepared transaction payload");
+  if (preparedExecution.quoteFingerprint !== step.preparation.quoteFingerprint)
+    throw new InvariantViolationError("Prepared transaction quote does not match exit preparation");
+  if (preparedExecution.lastValidBlockHeight < 0n)
+    throw new InvariantViolationError("Prepared transaction block height must be non-negative");
+  if (preparedExecution.evidence.length === 0)
+    throw new InvariantViolationError("Prepared transaction requires evidence");
 
   const age = time(step.snapshot.evaluatedAt) - time(step.preparation.quoteReceivedAt);
   const quoteFresh = age >= 0 && age <= 2_000;
@@ -296,7 +334,7 @@ function monitor(state: PositionRuntimeState, step: MonitorPositionStep): Positi
     step,
     lifecycle,
     pendingExit,
-    Object.freeze({ type: "submit_exit", intent, decision }),
+    Object.freeze({ type: "submit_exit", intent, decision, execution: preparedExecution }),
     events,
   );
 }

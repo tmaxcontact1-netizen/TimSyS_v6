@@ -103,6 +103,17 @@ function monitoringStep(): PositionRuntimeStep {
       quoteReceivedAt: asTimestamp("2026-08-04T11:59:59Z"),
       sellRouteValid: true,
       simulationSucceeded: true,
+      execution: Object.freeze({
+        transactionFingerprint: "position-worker-transaction-1",
+        quoteFingerprint: "position-worker-quote-1",
+        wallet: "Wallet111111111111111111111111111111111111" as never,
+        serializedTransactionBase64: Buffer.from("position-worker-transaction-1").toString(
+          "base64",
+        ),
+        lastValidBlockHeight: 1_000n,
+        prioritizationFeeLamports: asRawAmount(5_000n),
+        evidence,
+      }),
       evidence,
       peakEventId: uuid<AuditEventId>(107),
       exitRequestedEventId: uuid<AuditEventId>(108),
