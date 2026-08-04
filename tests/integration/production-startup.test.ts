@@ -11,6 +11,11 @@ const required = [
   "jobs.version",
   "jobs.last_error_json",
   "jobs.last_error_at",
+  "position_runtime_facts.id",
+  "position_runtime_facts.position_id",
+  "position_runtime_facts.checkpoint_revision",
+  "position_runtime_facts.phase",
+  "position_runtime_facts.payload_json",
 ];
 function database(schemaReady = true) {
   const end = vi.fn(async () => undefined);
