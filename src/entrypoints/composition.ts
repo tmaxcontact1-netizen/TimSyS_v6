@@ -1,5 +1,8 @@
 import type { Pool } from "pg";
-import type { PositionWorkerCheckpointRepository } from "../application/ports/repositories.js";
+import type {
+  PositionWorkerCheckpoint,
+  PositionWorkerCheckpointRepository,
+} from "../application/ports/repositories.js";
 import type {
   PositionRuntimeActionDispatcher,
   PositionRuntimeStepSource,
@@ -7,6 +10,22 @@ import type {
 } from "../application/ports/runtime.js";
 import type { RuntimeConfig } from "../infrastructure/config/load-config.js";
 import type { PositionId } from "../domain/shared/types.js";
+import {
+  ObservedPositionRuntimeStepSource,
+  DurablePositionActionDispatcher,
+} from "../application/services/execution.js";
+import { ObservedPositionReconciliationStepSource } from "../application/services/reconciliation.js";
+import {
+  PostgresPositionMonitoringFactsSource,
+  PostgresPositionReconciliationFactsSource,
+} from "../infrastructure/database/runtime-facts.js";
+import { TransactionInspector } from "../infrastructure/security/transaction-inspector.js";
+import { SolanaWireTransactionInspectionParser } from "../infrastructure/providers/solana/instruction-parser.js";
+import {
+  createRuntimeLogger,
+  StructuredReconciliationEscalation,
+} from "../infrastructure/runtime/escalation.js";
+import { composeProductionProviders } from "./providers.js";
 import { PostgresReconciliationJobStore } from "../infrastructure/database/job-store.js";
 import { PostgresPositionWorkerCheckpointRepository } from "../infrastructure/database/repositories.js";
 import { SystemSchedulerClock } from "../infrastructure/runtime/system-clock.js";
@@ -52,6 +71,56 @@ export function composePositionRuntime(input: {
       run: (positionId: PositionId) => runReconciliationWorkerCycle(positionId, worker),
       wait: clock,
       signal: input.signal,
+    }),
+  });
+}
+
+/** Builds the completed production position subsystem without preconstructed application services. */
+export function composeProductionPositionRuntime(input: {
+  readonly config: RuntimeConfig;
+  readonly database: Pool;
+  readonly signal: AbortSignal;
+}): PositionRuntimeComposition {
+  if (input.config.execution === null)
+    throw new Error("Production position runtime requires execution configuration");
+  const providers = composeProductionProviders(input.config);
+  const monitoring = new ObservedPositionRuntimeStepSource(
+    new PostgresPositionMonitoringFactsSource(input.database),
+    providers.market,
+    providers.balances,
+    providers.swap,
+  );
+  const reconciliation = new ObservedPositionReconciliationStepSource(
+    new PostgresPositionReconciliationFactsSource(input.database),
+    providers.transactions,
+    providers.balances,
+  );
+  const steps: PositionRuntimeStepSource = Object.freeze({
+    nextStep: (checkpoint: PositionWorkerCheckpoint) =>
+      checkpoint.runtimeState.pendingExit === null
+        ? monitoring.nextStep(checkpoint)
+        : reconciliation.nextStep(checkpoint),
+  });
+  const policy = input.config.execution;
+  const actions = new DurablePositionActionDispatcher({
+    inspector: new TransactionInspector(new SolanaWireTransactionInspectionParser(), {
+      allowedProgramIds: policy.allowedProgramIds,
+      allowedFeeRecipients: policy.allowedFeeRecipients,
+      allowedDestinationOwners: policy.allowedDestinationOwners,
+      maximumPrioritizationFeeLamports: policy.maximumPrioritizationFeeLamports as never,
+    }),
+    signer: providers.signer,
+    submission: providers.submission,
+    authority: providers.authority,
+  });
+  return composePositionRuntime({
+    ...input,
+    services: Object.freeze({
+      steps,
+      actions,
+      escalation: new StructuredReconciliationEscalation(
+        createRuntimeLogger(input.config.logLevel),
+      ),
     }),
   });
 }

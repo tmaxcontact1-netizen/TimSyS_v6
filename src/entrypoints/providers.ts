@@ -60,7 +60,12 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
   return Object.freeze({
     market: new DexScreenerMarketAdapter(publicHttp, identities),
     balances: new SolanaChainObservationAdapter(primary, fallback, identities),
-    transactions: new SolanaTransactionObservationAdapter(primary, fallback, identities),
+    transactions: new SolanaTransactionObservationAdapter(
+      primary,
+      fallback,
+      identities,
+      config.execution.allowedFeeRecipients,
+    ),
     swap: new JupiterSwapAdapter(
       new JupiterSwapApiClient(publicHttp, config.execution.jupiterApiKey),
       authority,

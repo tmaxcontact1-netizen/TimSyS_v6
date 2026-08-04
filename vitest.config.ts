@@ -22,6 +22,7 @@ export default defineConfig({
       "tests/integration/supervisor.test.ts",
       "tests/integration/startup-database.test.ts",
       "tests/integration/production-startup.test.ts",
+      "tests/integration/production-composition.test.ts",
       "tests/integration/runtime-facts.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",

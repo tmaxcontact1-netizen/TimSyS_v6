@@ -41,6 +41,10 @@ const schema = z
     HELIUS_API_KEY: nonempty.optional(),
     JUPITER_API_KEY: nonempty.optional(),
     TRADING_WALLET_SECRET_FILE: absolutePath.optional(),
+    TRANSACTION_ALLOWED_PROGRAM_IDS: nonempty.optional(),
+    TRANSACTION_ALLOWED_FEE_RECIPIENTS: nonempty.optional(),
+    TRANSACTION_ALLOWED_DESTINATIONS: nonempty.optional(),
+    TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS: z.string().regex(/^\d+$/).optional(),
   })
   .passthrough();
 
@@ -60,6 +64,10 @@ export interface RuntimeConfig {
     heliusApiKey: string;
     jupiterApiKey: string;
     walletSecretFile: string;
+    allowedProgramIds: ReadonlySet<string>;
+    allowedFeeRecipients: ReadonlySet<string>;
+    allowedDestinationOwners: ReadonlySet<string>;
+    maximumPrioritizationFeeLamports: bigint;
   }>;
 }
 
@@ -76,6 +84,16 @@ const liveExecution = new Set<OperatingMode>(["supervised_live", "limited_auto",
 function required(value: string | undefined, name: string): string {
   if (value === undefined) throw new Error(`${name} is required for the selected mode`);
   return value;
+}
+
+function requiredSet(value: string | undefined, name: string): ReadonlySet<string> {
+  const items = required(value, name)
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (items.length === 0 || new Set(items).size !== items.length)
+    throw new Error(`${name} must contain unique comma-separated values`);
+  return new Set(items);
 }
 
 export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig {
@@ -99,6 +117,24 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
         heliusApiKey: required(value.HELIUS_API_KEY, "HELIUS_API_KEY"),
         jupiterApiKey: required(value.JUPITER_API_KEY, "JUPITER_API_KEY"),
         walletSecretFile: required(value.TRADING_WALLET_SECRET_FILE, "TRADING_WALLET_SECRET_FILE"),
+        allowedProgramIds: requiredSet(
+          value.TRANSACTION_ALLOWED_PROGRAM_IDS,
+          "TRANSACTION_ALLOWED_PROGRAM_IDS",
+        ),
+        allowedFeeRecipients: requiredSet(
+          value.TRANSACTION_ALLOWED_FEE_RECIPIENTS,
+          "TRANSACTION_ALLOWED_FEE_RECIPIENTS",
+        ),
+        allowedDestinationOwners: requiredSet(
+          value.TRANSACTION_ALLOWED_DESTINATIONS,
+          "TRANSACTION_ALLOWED_DESTINATIONS",
+        ),
+        maximumPrioritizationFeeLamports: BigInt(
+          required(
+            value.TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS,
+            "TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS",
+          ),
+        ),
       })
     : null;
   return Object.freeze({
