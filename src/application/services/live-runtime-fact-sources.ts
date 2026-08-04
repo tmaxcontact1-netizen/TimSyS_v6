@@ -11,6 +11,7 @@ import type {
 } from "../../domain/shared/types.js";
 import type {
   MonitoringFactFragment,
+  ReconciliationFactFragment,
   RuntimeFactFragmentSnapshot,
   RuntimeFactSnapshotSource,
 } from "./runtime-fact-producers.js";
@@ -30,7 +31,10 @@ export interface AuthoritativeRuntimeFactSource {
   load(
     checkpoint: PositionWorkerCheckpoint,
     observedAt: Timestamp,
-  ): Promise<{ readonly sourceKey: string; readonly facts: MonitoringFactFragment }>;
+  ): Promise<{
+    readonly sourceKey: string;
+    readonly facts: MonitoringFactFragment | ReconciliationFactFragment;
+  }>;
 }
 
 function traceEvidence(trace: {
@@ -115,9 +119,10 @@ export class AuthoritativeRuntimeFactSnapshotSource implements RuntimeFactSnapsh
     checkpoint: PositionWorkerCheckpoint,
     observedAt: Timestamp,
   ): Promise<RuntimeFactFragmentSnapshot> {
-    if (checkpoint.runtimeState.pendingExit !== null)
+    const phase = checkpoint.runtimeState.pendingExit === null ? "monitor" : "reconcile";
+    if (phase === "reconcile" && this.source.kind !== "execution")
       throw new InvariantViolationError(
-        "Monitoring intelligence cannot produce reconciliation facts",
+        "Only execution authority can produce reconciliation facts",
       );
     const loaded = await this.source.load(checkpoint, observedAt);
     if (loaded.sourceKey.trim().length === 0)
@@ -127,7 +132,7 @@ export class AuthoritativeRuntimeFactSnapshotSource implements RuntimeFactSnapsh
       provider: this.source.provider,
       sourceKey: loaded.sourceKey,
       observedAt,
-      phase: "monitor",
+      phase,
       facts: loaded.facts,
     });
   }
