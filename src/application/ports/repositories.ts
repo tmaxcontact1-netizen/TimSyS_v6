@@ -7,6 +7,9 @@ import type { CandidateEvaluationDecision } from "../../domain/candidate/evaluat
 import type { PositionSizingDecision } from "../../domain/portfolio/sizing.js";
 import type { CircuitBreakerDecision } from "../../domain/portfolio/breakers.js";
 import type { CandidateId, SignalId, Timestamp } from "../../domain/shared/types.js";
+import type { OrderId } from "../../domain/shared/types.js";
+import type { EntryGateDecision, EntryGateSnapshot } from "../../domain/trading/quote.js";
+import type { ConstructedSwap } from "./swap.js";
 
 export interface InitializePositionWorkerCheckpoint {
   readonly positionId: PositionId;
@@ -53,6 +56,19 @@ export interface PersistRiskDecision {
 /** Risk evidence, signal state, entry plan, and follow-up job are committed atomically. */
 export interface RiskDecisionRepository {
   saveRiskDecision(input: PersistRiskDecision): Promise<void>;
+}
+
+export interface PersistEntryPreparation {
+  readonly signalId: SignalId;
+  readonly orderId: OrderId;
+  readonly evaluatedAt: Timestamp;
+  readonly snapshot: EntryGateSnapshot;
+  readonly decision: EntryGateDecision;
+  readonly constructedSwap: ConstructedSwap | null;
+}
+
+export interface EntryPreparationRepository {
+  saveEntryPreparation(input: PersistEntryPreparation): Promise<void>;
 }
 
 export interface PendingPositionAction {

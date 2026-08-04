@@ -1,5 +1,11 @@
 # Memecoined Changelog
 
+## Unreleased — Durable entry preparation
+
+- Enforced the complete entry quote gate before signing authority.
+- Atomically persisted gate evidence, prepared buy orders, plan state, and signing work.
+- Added migration 0016 and approval, rejection, binding, and rollback coverage.
+
 ## Unreleased — Durable risk approval
 
 ### 2026-08-04
