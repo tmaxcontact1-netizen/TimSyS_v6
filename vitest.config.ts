@@ -7,6 +7,7 @@ export default defineConfig({
       "tests/unit/token-security.test.ts",
       "tests/unit/momentum.test.ts",
       "tests/unit/position-sizing.test.ts",
+      "tests/unit/quote.test.ts",
     ],
     passWithNoTests: false,
   },

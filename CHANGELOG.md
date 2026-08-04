@@ -27,6 +27,9 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 | `src/domain/portfolio/sizing.ts`     | Added UNI-005–007 and RSK-001–007 qualification, exact risk sizing, capacity caps, reserve enforcement, and fail-closed decisions | Implement approved portfolio entry and sizing rules                                     | Authorized by operator |
 | `tests/unit/position-sizing.test.ts` | Added sizing arithmetic, cap selection, exposure/reserve, re-entry, prohibition, missing-data, and immutability tests             | Prove deterministic portfolio decisions at every approved boundary                      | Authorized by operator |
 | `vitest.config.ts`                   | Added the implemented position-sizing suite to the executable test inventory                                                      | Include the new domain slice without activating future placeholders                     | Authorized by operator |
+| `src/domain/trading/quote.ts`        | Added immutable executable quotes, expiring approval bindings, and deterministic ENT-001–010 evaluation                           | Implement final quote, cost, simulation, recalculation, and supervised approval gates   | Authorized by operator |
+| `tests/unit/quote.test.ts`           | Added quote invariants, exact threshold, freshness, binding, simulation, fail-closed, renewal, and immutability tests             | Prove deterministic entry-gate behavior at every approved boundary                      | Authorized by operator |
+| `vitest.config.ts`                   | Added the implemented quote suite to the executable test inventory                                                                | Include the entry-gate slice without activating future placeholders                     | Authorized by operator |
 
 ## Unreleased — Pre-code specification
 
