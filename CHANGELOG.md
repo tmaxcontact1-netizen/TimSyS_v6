@@ -6,6 +6,14 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                         | Change                                                                    | Reason                                                        | Status                 |
+| -------------------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
+| `src/workers/supervisor.ts`                  | Added startup-first polling, abort-driven shutdown, and fatal propagation | Run durable jobs continuously without hiding invariant faults | Authorized by operator |
+| `src/infrastructure/runtime/system-clock.ts` | Added system time and abort-aware scheduling waits                        | Make production polling responsive to graceful shutdown       | Authorized by operator |
+| `tests/integration/supervisor.test.ts`       | Added recovery-once, repeated polling, fatal, shutdown, and bound tests   | Prove supervisor lifecycle and failure behavior               | Authorized by operator |
+| `vitest.config.ts`                           | Activated the supervisor integration suite                                | Include continuous job operation in every gate                | Authorized by operator |
+| `CHANGELOG.md`                               | Recorded continuous supervision and graceful shutdown                     | Maintain the required file-touch audit                        | Authorized by operator |
+
 | File                                               | Change                                                                            | Reason                                                          | Status                 |
 | -------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------- |
 | `src/application/ports/runtime.ts`                 | Added durable due-job and startup-recovery contracts plus successful rescheduling | Separate queue enumeration from exclusive worker ownership      | Authorized by operator |

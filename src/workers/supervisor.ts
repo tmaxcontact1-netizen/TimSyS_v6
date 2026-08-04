@@ -10,6 +10,16 @@ export interface PositionJobRunnerDependencies {
   readonly batchSize?: number;
 }
 
+export interface SupervisorWaitPort {
+  wait(delayMs: number, signal: AbortSignal): Promise<void>;
+}
+
+export interface PositionJobSupervisorDependencies extends PositionJobRunnerDependencies {
+  readonly wait: SupervisorWaitPort;
+  readonly signal: AbortSignal;
+  readonly pollIntervalMs?: number;
+}
+
 export interface StartupRecoveryResult {
   readonly recoveredPositionIds: readonly PositionId[];
 }
@@ -20,6 +30,12 @@ export interface PositionJobBatchResult {
     positionId: PositionId;
     result: ReconciliationWorkerCycleResult;
   }>[];
+}
+
+export interface PositionJobSupervisorResult {
+  readonly recoveredPositionIds: readonly PositionId[];
+  readonly batchesCompleted: number;
+  readonly jobsVisited: number;
 }
 
 function batchSize(value: number | undefined): number {
@@ -62,5 +78,29 @@ export async function runDuePositionJobBatch(
   return Object.freeze({
     duePositionIds: Object.freeze(duePositionIds),
     results: Object.freeze(results.map((item) => Object.freeze(item))),
+  });
+}
+
+/** Recovers once, polls serially, and propagates every unexpected worker failure. */
+export async function runPositionJobSupervisor(
+  dependencies: PositionJobSupervisorDependencies,
+): Promise<PositionJobSupervisorResult> {
+  const pollIntervalMs = dependencies.pollIntervalMs ?? 1_000;
+  if (!Number.isSafeInteger(pollIntervalMs) || pollIntervalMs <= 0)
+    throw new RangeError("Supervisor poll interval must be positive");
+  const recovery = await recoverPositionJobsAtStartup(dependencies);
+  let batchesCompleted = 0;
+  let jobsVisited = 0;
+  while (!dependencies.signal.aborted) {
+    const batch = await runDuePositionJobBatch(dependencies);
+    batchesCompleted += 1;
+    jobsVisited += batch.results.length;
+    if (!dependencies.signal.aborted)
+      await dependencies.wait.wait(pollIntervalMs, dependencies.signal);
+  }
+  return Object.freeze({
+    recoveredPositionIds: recovery.recoveredPositionIds,
+    batchesCompleted,
+    jobsVisited,
   });
 }
