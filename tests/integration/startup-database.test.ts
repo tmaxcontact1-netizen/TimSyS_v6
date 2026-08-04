@@ -22,6 +22,17 @@ const columns = [
   "position_observations.payload_json",
   "position_runtime_fact_observations.runtime_fact_id",
   "position_runtime_fact_observations.observation_id",
+  "position_runtime_contexts.position_id",
+  "position_runtime_contexts.token_id",
+  "position_runtime_contexts.wallet",
+  "position_runtime_contexts.token_mint",
+  "position_runtime_contexts.settlement_mint",
+  "position_runtime_authority_snapshots.id",
+  "position_runtime_authority_snapshots.position_id",
+  "position_runtime_authority_snapshots.checkpoint_revision",
+  "position_runtime_authority_snapshots.phase",
+  "position_runtime_authority_snapshots.authority_kind",
+  "position_runtime_authority_snapshots.payload_json",
 ];
 
 function database(missing?: string) {
@@ -67,4 +78,8 @@ describe("runtime database startup", () => {
     await expect(verifyRuntimeDatabase(database("jobs.last_error_json") as never)).rejects.toThrow(
       /jobs.last_error_json/,
     ));
+  it("rejects an unapplied runtime-authority migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("position_runtime_contexts.wallet") as never),
+    ).rejects.toThrow(/position_runtime_contexts.wallet/));
 });

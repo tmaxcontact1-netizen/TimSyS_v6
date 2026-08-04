@@ -22,6 +22,17 @@ const required = [
   "position_observations.payload_json",
   "position_runtime_fact_observations.runtime_fact_id",
   "position_runtime_fact_observations.observation_id",
+  "position_runtime_contexts.position_id",
+  "position_runtime_contexts.token_id",
+  "position_runtime_contexts.wallet",
+  "position_runtime_contexts.token_mint",
+  "position_runtime_contexts.settlement_mint",
+  "position_runtime_authority_snapshots.id",
+  "position_runtime_authority_snapshots.position_id",
+  "position_runtime_authority_snapshots.checkpoint_revision",
+  "position_runtime_authority_snapshots.phase",
+  "position_runtime_authority_snapshots.authority_kind",
+  "position_runtime_authority_snapshots.payload_json",
 ];
 function database(schemaReady = true) {
   const end = vi.fn(async () => undefined);
