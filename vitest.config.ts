@@ -16,6 +16,7 @@ export default defineConfig({
       "tests/unit/runtime-fact-aggregation.test.ts",
       "tests/unit/runtime-fact-producers.test.ts",
       "tests/unit/wallet-runtime-authority.test.ts",
+      "tests/unit/security-runtime-authority.test.ts",
       "tests/integration/execution.test.ts",
       "tests/integration/position-worker.test.ts",
       "tests/integration/persistence.test.ts",
