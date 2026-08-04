@@ -1,5 +1,12 @@
 # Memecoined Changelog
 
+## Unreleased — Durable candidate evaluation work
+
+- Added transactional evaluation-job leasing with candidate identity hydration.
+- Bound evaluation completion to the active lease owner.
+- Returned evidence-acquisition failures to the durable queue without evaluating partial facts.
+- Added claim, validation, retry, and lease-bound completion coverage.
+
 ## Unreleased — Durable entry submission
 
 - Bound inspection and signing to the prepared wallet, transaction, block height, and fee authority.

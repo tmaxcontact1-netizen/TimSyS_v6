@@ -21,6 +21,7 @@ export default defineConfig({
       "tests/unit/execution-runtime-authority.test.ts",
       "tests/integration/execution.test.ts",
       "tests/integration/candidate-discovery.test.ts",
+      "tests/integration/candidate-evaluation-work.test.ts",
       "tests/integration/risk-pipeline.test.ts",
       "tests/integration/entry-preparation.test.ts",
       "tests/integration/entry-submission.test.ts",

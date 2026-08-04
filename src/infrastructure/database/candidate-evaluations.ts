@@ -76,10 +76,15 @@ export class PostgresCandidateEvaluationRepository implements CandidateEvaluatio
         `UPDATE candidates SET state=$2, last_evaluated_at=$3, updated_at=$3, version=version+1 WHERE id=$1`,
         [input.candidateId, input.decision.eligible ? "eligible" : "rejected", input.evaluatedAt],
       );
-      await client.query(
-        `UPDATE jobs SET state='completed', updated_at=$2, version=version+1 WHERE id=$1 AND job_type='candidate_evaluation'`,
-        [input.candidateId, input.evaluatedAt],
+      const completed = await client.query(
+        `UPDATE jobs SET state='completed', lease_owner=NULL, lease_expires_at=NULL,
+                         updated_at=$2, version=version+1
+         WHERE id=$1 AND job_type='candidate_evaluation'
+           AND ($3::text IS NULL OR (state='leased' AND lease_owner=$3))`,
+        [input.candidateId, input.evaluatedAt, input.leaseOwner ?? null],
       );
+      if (input.leaseOwner !== undefined && completed.rowCount !== 1)
+        throw new Error("Candidate evaluation completion requires the active lease");
       await client.query("COMMIT");
     } catch (error) {
       try {

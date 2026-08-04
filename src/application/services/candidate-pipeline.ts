@@ -12,6 +12,7 @@ export async function evaluateAndPersistCandidate(input: {
   readonly signalId: SignalId;
   readonly facts: CandidateEvaluationInput;
   readonly repository: CandidateEvaluationRepository;
+  readonly leaseOwner?: string;
 }): Promise<CandidateEvaluationDecision> {
   if (input.evaluationRunId.trim().length === 0)
     throw new TypeError("Evaluation run ID is required");
@@ -22,6 +23,7 @@ export async function evaluateAndPersistCandidate(input: {
     signalId: decision.eligible ? input.signalId : null,
     evaluatedAt: input.facts.evaluatedAt,
     decision,
+    ...(input.leaseOwner === undefined ? {} : { leaseOwner: input.leaseOwner }),
   });
   return decision;
 }

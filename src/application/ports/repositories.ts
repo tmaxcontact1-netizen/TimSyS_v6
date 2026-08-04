@@ -40,6 +40,29 @@ export interface PersistCandidateEvaluation {
   readonly signalId: SignalId | null;
   readonly evaluatedAt: Timestamp;
   readonly decision: CandidateEvaluationDecision;
+  readonly leaseOwner?: string;
+}
+
+export interface CandidateEvaluationLease {
+  readonly candidateId: CandidateId;
+  readonly mint: Candidate["mint"];
+  readonly evaluationRunId: string;
+  readonly leaseOwner: string;
+  readonly failedAttempts: number;
+}
+
+export interface CandidateEvaluationWorkQueue {
+  claim(input: {
+    readonly ownerId: string;
+    readonly now: Timestamp;
+    readonly leaseExpiresAt: Timestamp;
+    readonly limit: number;
+  }): Promise<readonly CandidateEvaluationLease[]>;
+  retry(input: {
+    readonly lease: CandidateEvaluationLease;
+    readonly availableAt: Timestamp;
+    readonly reason: string;
+  }): Promise<void>;
 }
 
 /** Evaluation rows, terminal candidate state, signal/rejection, and job completion are atomic. */
