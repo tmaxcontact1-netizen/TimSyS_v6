@@ -6,6 +6,13 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-04
 
+| File                                           | Change                                                                                 | Reason                                                                                        | Status                 |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | ---------------------- |
+| `src/application/services/position-monitor.ts` | Added a pure, restart-safe monitoring and exit orchestration cycle                     | Connect exit evidence, intent creation, reconciliation, and position events deterministically | Authorized by operator |
+| `src/domain/trading/position.ts`               | Added an explicit continuation reconciliation target                                   | Preserve an unsatisfied profit target after a partial fill                                    | Authorized by operator |
+| `tests/integration/execution.test.ts`          | Added orchestration, precedence, idempotency, restart, partial-fill, and closure tests | Prove the connected runtime boundary is fail-closed                                           | Authorized by operator |
+| `vitest.config.ts`                             | Activated the orchestration integration suite                                          | Include runtime orchestration in every verification run                                       | Authorized by operator |
+
 | File                                     | Change                                                                                                                                 | Reason                                                                                   | Status                 |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
 | `src/domain/trading/order.ts`            | Added deterministic standard-exit intent binding, two-second quote gate, rule/amount validation, and generic reconciled sell execution | Execute EXT-001–006 decisions without weakening emergency execution or balance authority | Authorized by operator |

@@ -93,7 +93,7 @@ export interface PositionExitRequestedEvent extends PositionEventBase {
 
 export interface PositionExitReconciledEvent extends PositionEventBase {
   readonly type: "position:exit-reconciled";
-  readonly target: "first" | "second" | "full";
+  readonly target: "first" | "second" | "full" | "continuation";
   readonly soldAmount: RawAmount;
   readonly proceedsSol: DecimalValue;
   readonly reconciledRemainingAmount: RawAmount;
@@ -373,7 +373,7 @@ export function markExitPending(position: Position, at: Timestamp): Position {
 export function reconcileExit(
   position: Position,
   input: ExitReconciliation,
-  target: "first" | "second" | "full",
+  target: "first" | "second" | "full" | "continuation",
 ): Position {
   if (position.state !== "exit_pending")
     throw new InvariantViolationError("Exit reconciliation requires exit_pending state");
