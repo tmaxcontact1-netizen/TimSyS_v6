@@ -6,11 +6,13 @@ import type { CandidateDiscoveryPort, MarketObservationPort } from "../applicati
 import type { ExecutionAuthorityPort } from "../application/ports/runtime.js";
 import type { LocalSignerPort, TransactionSubmissionPort } from "../application/ports/signer.js";
 import type { SwapPort } from "../application/ports/swap.js";
+import type { TrackedWalletPurchasePort } from "../application/ports/stream.js";
 import type { RuntimeConfig } from "../infrastructure/config/load-config.js";
 import type { MintSecurityObservationPort } from "../application/ports/runtime-authority-inputs.js";
 import { DexScreenerMarketAdapter } from "../infrastructure/providers/dexscreener/adapter.js";
 import { HeliusSenderHttpTransport } from "../infrastructure/providers/helius/client.js";
 import { HeliusSubmissionAdapter } from "../infrastructure/providers/helius/submission-adapter.js";
+import { HeliusTrackedWalletPurchaseAdapter } from "../infrastructure/providers/helius/stream-adapter.js";
 import { BoundedJsonHttpTransport } from "../infrastructure/providers/http-json.js";
 import { JupiterSwapAdapter } from "../infrastructure/providers/jupiter/adapter.js";
 import { JupiterSwapApiClient } from "../infrastructure/providers/jupiter/client.js";
@@ -36,6 +38,7 @@ export interface ProductionProviderServices {
   readonly submission: TransactionSubmissionPort;
   readonly authority: ExecutionAuthorityPort;
   readonly mintSecurity: MintSecurityObservationPort;
+  readonly trackedWalletPurchases: TrackedWalletPurchasePort;
 }
 
 /** Constructs all completed live provider clients from validated configuration. */
@@ -59,6 +62,9 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
   });
   const senderHttp = new BoundedJsonHttpTransport({
     allowedOrigins: new Set(["https://sender.helius-rpc.com"]),
+  });
+  const heliusDataHttp = new BoundedJsonHttpTransport({
+    allowedOrigins: new Set(["https://api.helius.xyz"]),
   });
   const authority = new SolanaExecutionRpc(primary);
   const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
@@ -85,5 +91,10 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
     ),
     authority,
     mintSecurity: new SolanaMintSecurityAdapter(primary, fallback, identities),
+    trackedWalletPurchases: new HeliusTrackedWalletPurchaseAdapter(
+      heliusDataHttp,
+      config.execution.heliusApiKey,
+      identities,
+    ),
   });
 }

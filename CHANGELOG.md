@@ -1,5 +1,12 @@
 # Memecoined Changelog
 
+## Unreleased — Durable tracked-wallet observations
+
+- Added live Helius acquisition polling for qualified Tier A and Tier B wallets.
+- Persisted immutable raw token/native deltas without inventing USD valuation.
+- Advanced polling cursors atomically with deduplicated purchase evidence.
+- Added migration 0019 and provider, authority-binding, rollback, and collection coverage.
+
 ## Unreleased — Durable trusted-wallet authority
 
 - Implemented evidence-backed wallet qualification for Tiers A, B, C, and ineligible wallets.
