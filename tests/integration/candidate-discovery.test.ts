@@ -4,6 +4,7 @@ import type { CandidateDiscoveryRepository } from "../../src/application/ports/r
 import {
   candidateDeduplicationKey,
   discoverCandidate,
+  LiveCandidateDiscoverySource,
   type CandidateDiscoveryHint,
 } from "../../src/application/services/discovery.js";
 import type { DiscoveredCandidateInput } from "../../src/domain/candidate/model.js";
@@ -42,6 +43,47 @@ function hint(overrides: Partial<CandidateDiscoveryHint> = {}): CandidateDiscove
 }
 
 describe("candidate discovery", () => {
+  it("turns live observations into stable retry-safe identities", async () => {
+    const source = new LiveCandidateDiscoverySource({
+      provider: {
+        discoverLatestTokens: async () => ({
+          ok: true,
+          value: Object.freeze([
+            Object.freeze({
+              mint,
+              sourceReference: "profile:alpha",
+              observedAt,
+              trace: Object.freeze({
+                evidenceId,
+                provider: "dexscreener" as const,
+                method: "GET /token-profiles/latest/v1",
+                requestedAt: observedAt,
+                respondedAt: observedAt,
+                sourceTimestamp: null,
+                normalizedAt: observedAt,
+                sourceKey: "profile:alpha",
+                contentHash: "a".repeat(64),
+              }),
+            }),
+          ]),
+        }),
+      },
+      strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
+      now: () => observedAt,
+      deduplicationWindow: () => "2026-08-04T18:00Z",
+    });
+    const first = await source.nextBatch();
+    const retry = await source.nextBatch();
+    expect(first).toHaveLength(1);
+    expect(retry[0]?.candidateId).toBe(first[0]?.candidateId);
+    expect(retry[0]?.tokenId).toBe(first[0]?.tokenId);
+    expect(first[0]?.source).toMatchObject({
+      provider: "dexscreener",
+      sourceReference: "profile:alpha",
+      evidenceId,
+    });
+  });
+
   it("derives a stable mint, strategy, and window identity", () => {
     expect(
       candidateDeduplicationKey({

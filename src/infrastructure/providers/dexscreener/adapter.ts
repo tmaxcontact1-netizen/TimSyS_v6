@@ -9,9 +9,14 @@ import type {
   ObservationTrace,
   PoolMarketObservation,
 } from "../../../application/contracts/observations.js";
-import type { MarketObservationPort } from "../../../application/ports/market.js";
+import type {
+  CandidateDiscoveryObservation,
+  CandidateDiscoveryPort,
+  MarketObservationPort,
+} from "../../../application/ports/market.js";
 import { asDecimal, asNonNegativeDecimal, asTimestamp } from "../../../domain/shared/types.js";
 import type { MintAddress, PoolId, Timestamp } from "../../../domain/shared/types.js";
+import { asMintAddress } from "../../../domain/token/token.js";
 
 export interface HttpResponse {
   readonly status: number;
@@ -43,6 +48,12 @@ const pairSchema = z.object({
   pairCreatedAt: z.number().int().nonnegative().nullable().optional(),
 });
 const responseSchema = z.object({ pairs: z.array(pairSchema).nullable() });
+const profileSchema = z.object({
+  chainId: z.string(),
+  tokenAddress: z.string().min(1),
+  url: z.string().url(),
+});
+const profilesSchema = z.array(profileSchema);
 type Pair = z.infer<typeof pairSchema>;
 
 function hash(body: unknown): string {
@@ -90,12 +101,67 @@ function selectPool(pairs: readonly Pair[], mint: MintAddress): Pair | null {
   return eligible[0] ?? null;
 }
 
-export class DexScreenerMarketAdapter implements MarketObservationPort {
+export class DexScreenerMarketAdapter implements MarketObservationPort, CandidateDiscoveryPort {
   public constructor(
     private readonly http: JsonHttpClient,
     private readonly identities: ObservationIdentityFactory,
     private readonly baseUrl = "https://api.dexscreener.com",
   ) {}
+
+  public async discoverLatestTokens(
+    requestedAt: Timestamp,
+  ): Promise<ObservationResult<readonly CandidateDiscoveryObservation[]>> {
+    let response: HttpResponse;
+    try {
+      response = await this.http.get(`${this.baseUrl}/token-profiles/latest/v1`);
+    } catch {
+      return failure("unavailable", requestedAt, "DexScreener discovery request failed", true);
+    }
+    if (response.status === 429)
+      return failure("rate_limited", response.receivedAt, "DexScreener rate limit", true);
+    if (response.status < 200 || response.status >= 300)
+      return failure("unavailable", response.receivedAt, "DexScreener returned an error", true);
+    const parsed = profilesSchema.safeParse(response.body);
+    if (!parsed.success)
+      return failure("malformed", response.receivedAt, "Malformed DexScreener profiles", false);
+    const contentHash = hash(response.body);
+    const observations: CandidateDiscoveryObservation[] = [];
+    const seen = new Set<string>();
+    for (const profile of parsed.data) {
+      if (profile.chainId.toLowerCase() !== "solana" || seen.has(profile.tokenAddress)) continue;
+      let mint: MintAddress;
+      try {
+        mint = asMintAddress(profile.tokenAddress);
+      } catch {
+        return failure("malformed", response.receivedAt, "Invalid DexScreener profile mint", false);
+      }
+      seen.add(profile.tokenAddress);
+      const sourceKey = `dexscreener:token-profile:${profile.tokenAddress}:${profile.url}`;
+      observations.push(
+        Object.freeze({
+          mint,
+          sourceReference: profile.url,
+          observedAt: response.receivedAt,
+          trace: Object.freeze({
+            evidenceId: this.identities.createEvidenceId({
+              provider: "dexscreener",
+              sourceKey,
+              contentHash,
+            }),
+            provider: "dexscreener",
+            method: "GET /token-profiles/latest/v1",
+            requestedAt,
+            respondedAt: response.receivedAt,
+            sourceTimestamp: null,
+            normalizedAt: response.receivedAt,
+            sourceKey,
+            contentHash,
+          }),
+        }),
+      );
+    }
+    return Object.freeze({ ok: true, value: Object.freeze(observations) });
+  }
 
   public async observePrimaryPool(
     mint: MintAddress,

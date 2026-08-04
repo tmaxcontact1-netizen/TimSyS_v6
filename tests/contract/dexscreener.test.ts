@@ -43,6 +43,35 @@ function adapter(status: number, body: unknown) {
 }
 
 describe("DexScreener market observation contract", () => {
+  it("normalizes and deduplicates latest Solana token profiles", async () => {
+    const fixture = adapter(200, [
+      { chainId: "solana", tokenAddress: mint, url: `https://dexscreener.com/solana/${mint}` },
+      { chainId: "ethereum", tokenAddress: "0xabc", url: "https://dexscreener.com/ethereum/0xabc" },
+      { chainId: "solana", tokenAddress: mint, url: `https://dexscreener.com/solana/${mint}` },
+    ]);
+    const result = await fixture.value.discoverLatestTokens(asTimestamp("2026-08-04T12:00:00Z"));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toHaveLength(1);
+    expect(result.value[0]).toMatchObject({
+      mint,
+      sourceReference: `https://dexscreener.com/solana/${mint}`,
+      observedAt: receivedAt,
+    });
+    expect(result.value[0]?.trace.method).toBe("GET /token-profiles/latest/v1");
+    expect(fixture.calls[0]).toContain("/token-profiles/latest/v1");
+  });
+
+  it("rejects a malformed Solana profile mint", async () => {
+    const fixture = adapter(200, [
+      { chainId: "solana", tokenAddress: "not-a-mint", url: "https://dexscreener.com/solana/bad" },
+    ]);
+    const result = await fixture.value.discoverLatestTokens(receivedAt);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("malformed");
+  });
+
   it("selects the matching Solana pool by liquidity independent of response order", async () => {
     const first = adapter(200, {
       pairs: [

@@ -2,7 +2,7 @@ import type {
   ChainObservationPort,
   ChainTransactionObservationPort,
 } from "../application/ports/chain.js";
-import type { MarketObservationPort } from "../application/ports/market.js";
+import type { CandidateDiscoveryPort, MarketObservationPort } from "../application/ports/market.js";
 import type { ExecutionAuthorityPort } from "../application/ports/runtime.js";
 import type { LocalSignerPort, TransactionSubmissionPort } from "../application/ports/signer.js";
 import type { SwapPort } from "../application/ports/swap.js";
@@ -28,6 +28,7 @@ import { DeterministicEvidenceIdentityFactory } from "../infrastructure/runtime/
 
 export interface ProductionProviderServices {
   readonly market: MarketObservationPort;
+  readonly discovery: CandidateDiscoveryPort;
   readonly balances: ChainObservationPort;
   readonly transactions: ChainTransactionObservationPort;
   readonly swap: SwapPort;
@@ -60,8 +61,10 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
     allowedOrigins: new Set(["https://sender.helius-rpc.com"]),
   });
   const authority = new SolanaExecutionRpc(primary);
+  const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
   return Object.freeze({
-    market: new DexScreenerMarketAdapter(publicHttp, identities),
+    market: dexScreener,
+    discovery: dexScreener,
     balances: new SolanaChainObservationAdapter(primary, fallback, identities),
     transactions: new SolanaTransactionObservationAdapter(
       primary,
