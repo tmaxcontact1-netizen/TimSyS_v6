@@ -1,5 +1,18 @@
 # Memecoined Changelog
 
+## Unreleased — Immutable position observations
+
+### 2026-08-04
+
+| File                                                   | Change                                                                    | Reason                                                                     | Status                 |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ---------------------- |
+| `migrations/0010_position_observations.sql`            | Added append-only position observations and runtime-fact provenance links | Establish durable upstream evidence before derived snapshots are published | Authorized by operator |
+| `src/infrastructure/database/position-observations.ts` | Added canonical, content-addressed, idempotent observation ingestion      | Reject mutated replays and non-JSON evidence                               | Authorized by operator |
+| `src/infrastructure/database/migrations.ts`            | Required observation and provenance tables at runtime startup             | Prevent workers starting against an incomplete evidence schema             | Authorized by operator |
+| `tests/integration/observation-ingestion.test.ts`      | Added canonicalization, replay, conflict, and malformed-payload coverage  | Prove the observation boundary is immutable and fail-closed                | Authorized by operator |
+| `vitest.config.ts`                                     | Activated observation-ingestion tests                                     | Run the new persistence contract in every full gate                        | Authorized by operator |
+| `CHANGELOG.md`                                         | Recorded the observation-ingestion slice                                  | Preserve the required file-touch history                                   | Authorized by operator |
+
 ## Unreleased — Migration execution tooling
 
 ### 2026-08-04

@@ -19,6 +19,12 @@ const requiredColumns = Object.freeze([
   "position_runtime_facts.checkpoint_revision",
   "position_runtime_facts.phase",
   "position_runtime_facts.payload_json",
+  "position_observations.id",
+  "position_observations.position_id",
+  "position_observations.content_hash",
+  "position_observations.payload_json",
+  "position_runtime_fact_observations.runtime_fact_id",
+  "position_runtime_fact_observations.observation_id",
 ]);
 
 /** Verifies connectivity and the exact runtime-owned schema without executing DDL. */
@@ -27,7 +33,15 @@ export async function verifyRuntimeDatabase(pool: Pick<Pool, "query">): Promise<
   const columns = await pool.query<{ readonly table_name: string; readonly column_name: string }>(
     `SELECT table_name, column_name FROM information_schema.columns
      WHERE table_schema = current_schema() AND table_name = ANY($1::text[])`,
-    [["jobs", "audit_events", "position_runtime_facts"]],
+    [
+      [
+        "jobs",
+        "audit_events",
+        "position_runtime_facts",
+        "position_observations",
+        "position_runtime_fact_observations",
+      ],
+    ],
   );
   const present = new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`));
   const missing = requiredColumns.filter((column) => !present.has(column));

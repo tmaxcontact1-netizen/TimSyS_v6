@@ -26,6 +26,7 @@ export default defineConfig({
       "tests/integration/worker-entrypoint.test.ts",
       "tests/integration/runtime-facts.test.ts",
       "tests/integration/migrations.test.ts",
+      "tests/integration/observation-ingestion.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/jupiter.test.ts",
