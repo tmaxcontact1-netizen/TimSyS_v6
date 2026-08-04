@@ -1,5 +1,12 @@
 # Memecoined Changelog
 
+## Unreleased — Durable entry submission
+
+- Bound inspection and signing to the prepared wallet, transaction, block height, and fee authority.
+- Persisted deterministic signed authority before the external submission side effect.
+- Atomically recorded acknowledgement, completed signing work, and scheduled reconciliation.
+- Added migration 0017 and ordering, fail-closed, external-failure, and rollback coverage.
+
 ## Unreleased — Durable entry preparation
 
 - Enforced the complete entry quote gate before signing authority.

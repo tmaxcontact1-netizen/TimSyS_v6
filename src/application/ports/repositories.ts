@@ -10,6 +10,8 @@ import type { CandidateId, SignalId, Timestamp } from "../../domain/shared/types
 import type { OrderId } from "../../domain/shared/types.js";
 import type { EntryGateDecision, EntryGateSnapshot } from "../../domain/trading/quote.js";
 import type { ConstructedSwap } from "./swap.js";
+import type { SignedTransaction, SubmissionReceipt } from "./signer.js";
+import type { WalletAddress } from "../../domain/shared/types.js";
 
 export interface InitializePositionWorkerCheckpoint {
   readonly positionId: PositionId;
@@ -69,6 +71,35 @@ export interface PersistEntryPreparation {
 
 export interface EntryPreparationRepository {
   saveEntryPreparation(input: PersistEntryPreparation): Promise<void>;
+}
+
+export interface PersistEntrySigning {
+  readonly orderId: OrderId;
+  readonly deliveryId: string;
+  readonly signedAt: Timestamp;
+  readonly signedTransaction: SignedTransaction;
+}
+
+export interface PersistEntrySubmission {
+  readonly orderId: OrderId;
+  readonly deliveryId: string;
+  readonly submittedAt: Timestamp;
+  readonly receipt: SubmissionReceipt;
+}
+
+/** Signing intent is durable before submission; acknowledgement and reconciliation scheduling are atomic. */
+export interface EntrySubmissionRepository {
+  recordSigning(input: PersistEntrySigning): Promise<void>;
+  recordSubmission(input: PersistEntrySubmission): Promise<void>;
+}
+
+export interface PreparedEntryExecution {
+  readonly orderId: OrderId;
+  readonly wallet: WalletAddress;
+  readonly transactionFingerprint: string;
+  readonly serializedTransactionBase64: string;
+  readonly lastValidBlockHeight: bigint;
+  readonly prioritizationFeeLamports: bigint;
 }
 
 export interface PendingPositionAction {

@@ -35,8 +35,8 @@ export class PostgresEntryPreparationRepository implements EntryPreparationRepos
           throw new Error("Approved entry preparation is incomplete");
         await client.query(
           `INSERT INTO orders (id,signal_id,side,state,intended_input_amount,quote_fingerprint,transaction_fingerprint,
-           transaction_base64,last_valid_block_height,prioritization_fee_lamports,created_at,updated_at)
-           VALUES ($1,$2,'buy','approved',$3,$4,$5,$6,$7,$8,$9,$9)`,
+           transaction_base64,last_valid_block_height,prioritization_fee_lamports,wallet_address,created_at,updated_at)
+           VALUES ($1,$2,'buy','approved',$3,$4,$5,$6,$7,$8,$9,$10,$10)`,
           [
             input.orderId,
             input.signalId,
@@ -46,6 +46,7 @@ export class PostgresEntryPreparationRepository implements EntryPreparationRepos
             swap.serializedTransactionBase64,
             swap.lastValidBlockHeight.toString(),
             swap.prioritizationFeeLamports.toString(),
+            swap.wallet,
             input.evaluatedAt,
           ],
         );
