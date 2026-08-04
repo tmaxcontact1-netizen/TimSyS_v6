@@ -1,5 +1,5 @@
 import { Decimal } from "decimal.js";
-import type { Pool, QueryResult } from "pg";
+import type { Pool, PoolClient, QueryResult } from "pg";
 import { z } from "zod";
 
 import type { EvidenceReference } from "../../domain/shared/evidence.js";
@@ -35,6 +35,18 @@ interface DatabasePort {
 
 interface FactRow extends Record<string, unknown> {
   readonly payload_json: unknown;
+}
+
+interface TransactionalDatabasePort extends DatabasePort {
+  connect(): Promise<Pick<PoolClient, "query" | "release">>;
+}
+
+export interface PublishPositionRuntimeFacts {
+  readonly id: EvidenceId;
+  readonly checkpoint: PositionWorkerCheckpoint;
+  readonly phase: "monitor" | "reconcile";
+  readonly facts: PositionMonitoringFacts | PositionReconciliationFacts;
+  readonly observationIds: readonly EvidenceId[];
 }
 
 const uuid = z.string().uuid();
@@ -90,6 +102,30 @@ const reconciliationSchema = z.object({
   tokenMint: z.string().trim().min(1),
   eventId: uuid,
 });
+
+function encodeFact(value: unknown): unknown {
+  if (
+    value === null ||
+    typeof value === "boolean" ||
+    typeof value === "number" ||
+    typeof value === "string"
+  )
+    return value;
+  if (typeof value === "bigint") return value.toString();
+  if (value instanceof Decimal) return value.toString();
+  if (Array.isArray(value)) return value.map(encodeFact);
+  if (typeof value === "object")
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, encodeFact(item)]));
+  throw new InvariantViolationError("Runtime fact snapshot is not JSON-compatible");
+}
+
+async function rollback(client: Pick<PoolClient, "query">): Promise<void> {
+  try {
+    await client.query("ROLLBACK");
+  } catch {
+    // Preserve the original transaction failure.
+  }
+}
 
 function evidence(value: z.infer<typeof evidenceSchema>): EvidenceReference {
   return Object.freeze({
@@ -204,5 +240,84 @@ export class PostgresPositionReconciliationFactsSource
       tokenMint: value.tokenMint as MintAddress,
       eventId: asUuid<AuditEventId>(value.eventId),
     });
+  }
+}
+
+export class PostgresPositionRuntimeFactPublisher {
+  public constructor(private readonly database: TransactionalDatabasePort) {}
+
+  public async publish(input: PublishPositionRuntimeFacts): Promise<void> {
+    if (new Set(input.observationIds).size !== input.observationIds.length)
+      throw new InvariantViolationError("Runtime fact observation IDs must be unique");
+    const payload = encodeFact(input.facts);
+    const parsed =
+      input.phase === "monitor"
+        ? monitoringSchema.safeParse(payload)
+        : reconciliationSchema.safeParse(payload);
+    if (!parsed.success)
+      throw new InvariantViolationError(`${input.phase} runtime fact snapshot is malformed`);
+    if ("positionId" in input.facts && input.facts.positionId !== input.checkpoint.positionId)
+      throw new InvariantViolationError("Runtime facts target a different position");
+    const evaluatedAt = input.facts.evaluatedAt;
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      const checkpoint = await client.query<{ readonly version: string }>(
+        "SELECT version FROM jobs WHERE id = $1 AND job_type = 'position_runtime' FOR SHARE",
+        [input.checkpoint.positionId],
+      );
+      if (
+        checkpoint.rowCount !== 1 ||
+        checkpoint.rows[0]?.version.toString() !== input.checkpoint.revision.toString()
+      )
+        throw new InvariantViolationError("Runtime fact checkpoint revision is stale");
+      const observations = await client.query<{ readonly id: string }>(
+        `SELECT id FROM position_observations
+         WHERE position_id = $1 AND id = ANY($2::uuid[]) AND observed_at <= $3`,
+        [input.checkpoint.positionId, input.observationIds, evaluatedAt],
+      );
+      if (observations.rowCount !== input.observationIds.length)
+        throw new InvariantViolationError(
+          "Runtime facts require complete same-position non-future observations",
+        );
+      const inserted = await client.query<{ readonly id: string }>(
+        `WITH inserted AS (
+           INSERT INTO position_runtime_facts
+             (id, position_id, checkpoint_revision, phase, payload_json)
+           VALUES ($1, $2, $3, $4, $5::jsonb)
+           ON CONFLICT (position_id, checkpoint_revision, phase) DO NOTHING
+           RETURNING id
+         )
+         SELECT id FROM inserted
+         UNION ALL
+         SELECT id FROM position_runtime_facts
+         WHERE id = $1 AND position_id = $2 AND checkpoint_revision = $3
+           AND phase = $4 AND payload_json = $5::jsonb
+         LIMIT 1`,
+        [
+          input.id,
+          input.checkpoint.positionId,
+          input.checkpoint.revision.toString(),
+          input.phase,
+          JSON.stringify(payload),
+        ],
+      );
+      if (inserted.rowCount !== 1 || inserted.rows[0]?.id !== input.id)
+        throw new InvariantViolationError(
+          "Runtime fact snapshot conflicts with an existing publication",
+        );
+      for (const observationId of input.observationIds)
+        await client.query(
+          `INSERT INTO position_runtime_fact_observations (runtime_fact_id, observation_id)
+           VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [input.id, observationId],
+        );
+      await client.query("COMMIT");
+    } catch (error) {
+      await rollback(client);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

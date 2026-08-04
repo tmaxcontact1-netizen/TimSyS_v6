@@ -1,5 +1,16 @@
 # Memecoined Changelog
 
+## Unreleased — Checkpoint-bound fact publishing
+
+### 2026-08-04
+
+| File                                                | Change                                                                                                                | Reason                                                                             | Status                 |
+| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------- |
+| `src/infrastructure/database/runtime-facts.ts`      | Added transactional, revision-checked fact publication with immutable observation provenance                          | Prevent stale, future-dated, cross-position, or untraceable facts reaching workers | Authorized by operator |
+| `tests/integration/runtime-fact-publishing.test.ts` | Added successful publication, stale revision, missing provenance, duplicate evidence, conflict, and rollback coverage | Prove snapshot publication is atomic and fail-closed                               | Authorized by operator |
+| `vitest.config.ts`                                  | Activated runtime-fact publishing tests                                                                               | Run the publication contract in every full gate                                    | Authorized by operator |
+| `CHANGELOG.md`                                      | Recorded the fact-publishing slice                                                                                    | Preserve the required file-touch history                                           | Authorized by operator |
+
 ## Unreleased — Immutable position observations
 
 ### 2026-08-04
