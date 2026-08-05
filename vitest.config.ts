@@ -51,6 +51,7 @@ export default defineConfig({
       "tests/integration/runtime-authority-baselines.test.ts",
       "tests/integration/tracked-wallet-observations.test.ts",
       "tests/integration/tracked-wallet-valuations.test.ts",
+      "tests/integration/candidate-evaluation-facts.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/mint-security.test.ts",

@@ -16,6 +16,7 @@ const snapshot = (
 ): WalletPerformanceSnapshot => ({
   walletId: asUuid<WalletId>("00000000-0000-4000-8000-000000000901"),
   address: "11111111111111111111111111111111" as WalletAddress,
+  independentGroupId: "independent-wallet-1",
   evaluatedAt: asTimestamp("2026-08-04T20:00:00Z"),
   completedTrades: 100n,
   verifiableTradePercentage: asPercentage(80),

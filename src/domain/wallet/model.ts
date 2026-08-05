@@ -14,6 +14,8 @@ export type ManipulationFlag =
 export interface WalletPerformanceSnapshot {
   readonly walletId: WalletId;
   readonly address: WalletAddress;
+  /** Explicit common-control group; null means Tier-B independence is not established. */
+  readonly independentGroupId: string | null;
   readonly evaluatedAt: Timestamp;
   readonly completedTrades: bigint;
   readonly verifiableTradePercentage: Percentage;

@@ -52,13 +52,15 @@ export class PostgresWalletIntelligenceRepository implements WalletIntelligenceR
         ],
       );
       await client.query(
-        `INSERT INTO tracked_wallets (id, address, current_tier, qualified_at, updated_at)
-         VALUES ($1,$2,$3,$4,$4)
+        `INSERT INTO tracked_wallets (id, address, independent_group_id, current_tier, qualified_at, updated_at)
+         VALUES ($1,$2,$3,$4,$5,$5)
          ON CONFLICT (id) DO UPDATE SET address=EXCLUDED.address, current_tier=EXCLUDED.current_tier,
+           independent_group_id=EXCLUDED.independent_group_id,
            qualified_at=EXCLUDED.qualified_at, updated_at=EXCLUDED.updated_at`,
         [
           input.snapshot.walletId,
           input.snapshot.address,
+          input.snapshot.independentGroupId,
           input.qualification.tier,
           input.snapshot.evaluatedAt,
         ],

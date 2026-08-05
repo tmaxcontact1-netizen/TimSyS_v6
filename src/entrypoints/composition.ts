@@ -58,6 +58,15 @@ import { runTrackedWalletObservationCycle } from "../application/services/tracke
 import { runTrackedWalletValuationCycle } from "../application/services/tracked-wallet-valuations.js";
 import { PostgresTrackedWalletObservationRepository } from "../infrastructure/database/tracked-wallet-observations.js";
 import { PostgresTrackedWalletValuationRepository } from "../infrastructure/database/tracked-wallet-valuations.js";
+import { PostgresCandidateEvaluationWorkQueue } from "../infrastructure/database/candidate-evaluation-jobs.js";
+import { PostgresCandidateEvaluationRepository } from "../infrastructure/database/candidate-evaluations.js";
+import { PostgresCandidateWalletPurchaseSource } from "../infrastructure/database/candidate-wallet-confirmations.js";
+import { PostgresWalletIntelligenceRepository } from "../infrastructure/database/wallet-intelligence.js";
+import { runLeasedCandidateEvaluationCycle } from "../application/services/candidate-evaluation-work.js";
+import {
+  deterministicSignalId,
+  LiveCandidateEvaluationFactSource,
+} from "../application/services/live-candidate-evaluation-facts.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -125,6 +134,15 @@ export function composeProductionPositionRuntime(input: {
   const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
   const trackedWalletObservations = new PostgresTrackedWalletObservationRepository(input.database);
   const trackedWalletValuations = new PostgresTrackedWalletValuationRepository(input.database);
+  const evaluationQueue = new PostgresCandidateEvaluationWorkQueue(input.database);
+  const evaluationRepository = new PostgresCandidateEvaluationRepository(input.database);
+  const evaluationFacts = new LiveCandidateEvaluationFactSource(
+    providers.market,
+    providers.mintSecurity,
+    new PostgresCandidateWalletPurchaseSource(input.database),
+    new PostgresWalletIntelligenceRepository(input.database),
+    () => clock.now(),
+  );
   const publisherCheckpoints = new PostgresPositionWorkerCheckpointRepository(input.database);
   const observations = new PostgresPositionObservationStore(input.database);
   const publications = new PostgresPositionRuntimeFactPublisher(input.database);
@@ -244,6 +262,17 @@ export function composeProductionPositionRuntime(input: {
           balances: providers.balances,
           now: () => clock.now(),
           limit: 100,
+        });
+        await runLeasedCandidateEvaluationCycle({
+          queue: evaluationQueue,
+          facts: evaluationFacts,
+          repository: evaluationRepository,
+          ownerId: input.config.instanceId,
+          now: () => clock.now(),
+          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+          signalId: deterministicSignalId,
+          batchSize: 25,
         });
       },
     }),
