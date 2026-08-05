@@ -76,6 +76,7 @@ export interface PersistRiskDecision {
   readonly evaluatedAt: Timestamp;
   readonly sizing: PositionSizingDecision;
   readonly breakers: CircuitBreakerDecision;
+  readonly leaseOwner?: string;
 }
 
 /** Risk evidence, signal state, entry plan, and follow-up job are committed atomically. */

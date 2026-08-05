@@ -9,6 +9,7 @@ export async function assessAndPersistEntry(input: {
   readonly riskRunId: string;
   readonly portfolio: PortfolioSnapshot;
   readonly breakers: CircuitBreakerSnapshot;
+  readonly leaseOwner?: string;
   readonly repository: RiskDecisionRepository;
 }): Promise<RiskAssessment> {
   if (input.riskRunId.trim().length === 0) throw new TypeError("Risk run ID is required");
@@ -19,6 +20,7 @@ export async function assessAndPersistEntry(input: {
     evaluatedAt: input.portfolio.observedAt,
     sizing: assessment.sizing,
     breakers: assessment.breakers,
+    ...(input.leaseOwner === undefined ? {} : { leaseOwner: input.leaseOwner }),
   });
   return assessment;
 }

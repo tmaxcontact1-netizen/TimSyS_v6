@@ -23,6 +23,7 @@ export default defineConfig({
       "tests/integration/candidate-discovery.test.ts",
       "tests/integration/candidate-evaluation-work.test.ts",
       "tests/integration/risk-pipeline.test.ts",
+      "tests/integration/risk-evaluation-work.test.ts",
       "tests/integration/entry-preparation.test.ts",
       "tests/integration/entry-submission.test.ts",
       "tests/unit/candidate-scoring.test.ts",
