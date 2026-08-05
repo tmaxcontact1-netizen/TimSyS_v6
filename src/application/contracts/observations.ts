@@ -66,6 +66,22 @@ export interface ChainBalanceObservation {
   readonly traces: readonly ObservationTrace[];
 }
 
+export interface WalletTokenBalanceObservation {
+  readonly mint: MintAddress;
+  readonly amountRaw: RawAmount;
+  readonly decimals: number;
+}
+
+/** Complete spendable wallet inventory at one agreed chain slot. */
+export interface WalletInventoryObservation {
+  readonly wallet: WalletAddress;
+  readonly nativeBalanceLamports: RawAmount;
+  readonly tokens: readonly WalletTokenBalanceObservation[];
+  readonly slot: SolanaSlot;
+  readonly agreeingProviders: readonly ProviderId[];
+  readonly traces: readonly ObservationTrace[];
+}
+
 export type TransactionConfirmationState = "pending" | "confirmed" | "failed";
 
 /** Raw wallet deltas reconstructed from the authoritative Solana transaction metadata. */

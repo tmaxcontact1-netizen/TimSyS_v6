@@ -58,6 +58,7 @@ export default defineConfig({
       "tests/integration/candidate-evaluation-facts.test.ts",
       "tests/contract/dexscreener.test.ts",
       "tests/contract/solana.test.ts",
+      "tests/contract/solana-wallet-inventory.test.ts",
       "tests/contract/mint-security.test.ts",
       "tests/contract/jupiter.test.ts",
       "tests/contract/helius.test.ts",

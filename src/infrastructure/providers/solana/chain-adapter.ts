@@ -7,8 +7,12 @@ import type {
   ObservationIdentityFactory,
   ObservationResult,
   ObservationTrace,
+  WalletInventoryObservation,
 } from "../../../application/contracts/observations.js";
-import type { ChainObservationPort } from "../../../application/ports/chain.js";
+import type {
+  ChainObservationPort,
+  WalletInventoryObservationPort,
+} from "../../../application/ports/chain.js";
 import {
   asRawAmount,
   asSolanaSlot,
@@ -33,6 +37,26 @@ const tokenAccountsSchema = z.object({
             info: z.object({
               mint: z.string(),
               tokenAmount: z.object({ amount: z.string().regex(/^\d+$/) }),
+            }),
+          }),
+        }),
+      }),
+    }),
+  ),
+});
+const walletTokenAccountsSchema = z.object({
+  context: z.object({ slot: z.number().int().safe().nonnegative() }),
+  value: z.array(
+    z.object({
+      account: z.object({
+        data: z.object({
+          parsed: z.object({
+            info: z.object({
+              mint: z.string().min(1),
+              tokenAmount: z.object({
+                amount: z.string().regex(/^\d+$/),
+                decimals: z.number().int().min(0).max(255),
+              }),
             }),
           }),
         }),
@@ -90,7 +114,9 @@ async function read(
   });
 }
 
-export class SolanaChainObservationAdapter implements ChainObservationPort {
+export class SolanaChainObservationAdapter
+  implements ChainObservationPort, WalletInventoryObservationPort
+{
   public constructor(
     private readonly primary: SolanaRpcClient,
     private readonly fallback: SolanaRpcClient,
@@ -171,6 +197,137 @@ export class SolanaChainObservationAdapter implements ChainObservationPort {
         nativeBalanceLamports: asRawAmount(selected.native),
         tokenBalanceRaw: asRawAmount(selected.token),
         slot: asSolanaSlot(slot),
+        agreeingProviders: Object.freeze(successful.map(({ provider }) => provider)),
+        traces: Object.freeze(traces),
+      }),
+    });
+  }
+
+  public async observeWalletInventory(
+    wallet: WalletAddress,
+    requestedAt: Timestamp,
+  ): Promise<ObservationResult<WalletInventoryObservation>> {
+    const readInventory = async (provider: ProviderId, client: SolanaRpcClient) => {
+      const [nativeResponse, tokenResponse] = await Promise.all([
+        client.request("getBalance", [wallet, { commitment: "confirmed" }]),
+        client.request("getTokenAccountsByOwner", [
+          wallet,
+          { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
+          { encoding: "jsonParsed", commitment: "confirmed" },
+        ]),
+      ]);
+      const native = balanceSchema.safeParse(nativeResponse.result);
+      const tokens = walletTokenAccountsSchema.safeParse(tokenResponse.result);
+      if (!native.success || !tokens.success) throw new Error("Malformed wallet inventory");
+      const byMint = new Map<string, { amount: bigint; decimals: number }>();
+      for (const account of tokens.data.value) {
+        const { mint, tokenAmount } = account.account.data.parsed.info;
+        const existing = byMint.get(mint);
+        if (existing !== undefined && existing.decimals !== tokenAmount.decimals)
+          throw new Error("Contradictory token decimals");
+        byMint.set(mint, {
+          amount: (existing?.amount ?? 0n) + BigInt(tokenAmount.amount),
+          decimals: tokenAmount.decimals,
+        });
+      }
+      const normalizedTokens = [...byMint.entries()]
+        .filter(([, value]) => value.amount > 0n)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([mint, value]) => ({ mint, amount: value.amount, decimals: value.decimals }));
+      return Object.freeze({
+        provider,
+        native: BigInt(native.data.value),
+        tokens: normalizedTokens,
+        slot: BigInt(Math.min(native.data.context.slot, tokens.data.context.slot)),
+        receivedAt:
+          nativeResponse.receivedAt > tokenResponse.receivedAt
+            ? nativeResponse.receivedAt
+            : tokenResponse.receivedAt,
+        raw: Object.freeze([nativeResponse.raw, tokenResponse.raw]),
+      });
+    };
+    const reads = await Promise.allSettled([
+      readInventory("helius", this.primary),
+      readInventory("solana_rpc", this.fallback),
+    ]);
+    const successful = reads
+      .filter(
+        (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof readInventory>>> =>
+          result.status === "fulfilled",
+      )
+      .map(({ value }) => value);
+    if (successful.length === 0)
+      return Object.freeze({
+        ok: false,
+        error: Object.freeze({
+          code: "unavailable",
+          provider: "solana_rpc",
+          occurredAt: requestedAt,
+          retryable: true,
+          reason: "Primary and fallback wallet inventories are unavailable",
+        }),
+      });
+    const canonical = (value: (typeof successful)[number]) =>
+      JSON.stringify({
+        native: value.native.toString(),
+        tokens: value.tokens.map((token) => ({
+          mint: token.mint,
+          amount: token.amount.toString(),
+          decimals: token.decimals,
+        })),
+      });
+    if (successful.length === 2 && canonical(successful[0]!) !== canonical(successful[1]!))
+      return Object.freeze({
+        ok: false,
+        error: Object.freeze({
+          code: "contradictory",
+          provider: "solana_rpc",
+          occurredAt: successful[1]!.receivedAt,
+          retryable: true,
+          reason: "Primary and fallback wallet inventories disagree",
+        }),
+      });
+    const selected = successful[0]!;
+    const traces = successful.map((item) => {
+      const contentHash = hash(item.raw);
+      const sourceKey = `${item.provider}:wallet-inventory:${wallet}`;
+      return Object.freeze({
+        evidenceId: this.identities.createEvidenceId({
+          provider: item.provider,
+          sourceKey,
+          contentHash,
+        }),
+        provider: item.provider,
+        method: "getBalance+getTokenAccountsByOwner",
+        requestedAt,
+        respondedAt: item.receivedAt,
+        sourceTimestamp: null,
+        normalizedAt: item.receivedAt,
+        sourceKey,
+        contentHash,
+        slot: asSolanaSlot(item.slot),
+      });
+    });
+    return Object.freeze({
+      ok: true,
+      value: Object.freeze({
+        wallet,
+        nativeBalanceLamports: asRawAmount(selected.native),
+        tokens: Object.freeze(
+          selected.tokens.map((token) =>
+            Object.freeze({
+              mint: token.mint as MintAddress,
+              amountRaw: asRawAmount(token.amount),
+              decimals: token.decimals,
+            }),
+          ),
+        ),
+        slot: asSolanaSlot(
+          successful.reduce(
+            (minimum, item) => (item.slot < minimum ? item.slot : minimum),
+            selected.slot,
+          ),
+        ),
         agreeingProviders: Object.freeze(successful.map(({ provider }) => provider)),
         traces: Object.freeze(traces),
       }),
