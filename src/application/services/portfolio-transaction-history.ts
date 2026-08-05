@@ -38,6 +38,26 @@ export interface PortfolioTransactionHistorySource {
   observe(requestedAt: Timestamp): Promise<PortfolioTransactionHistoryObservation>;
 }
 
+export interface WalletHistoryTransactionObservation extends WalletInitiatedTransaction {
+  readonly slot: bigint;
+}
+
+export interface WalletHistoryPage {
+  readonly wallet: WalletAddress;
+  readonly requestedAt: Timestamp;
+  readonly coverageStartedAt: Timestamp;
+  readonly transactions: readonly WalletHistoryTransactionObservation[];
+  readonly evidenceObservedAt: Timestamp;
+}
+
+export interface WalletHistoryObservationPort {
+  observe(input: {
+    readonly wallet: WalletAddress;
+    readonly coverageRequiredAt: Timestamp;
+    readonly requestedAt: Timestamp;
+  }): Promise<WalletHistoryPage>;
+}
+
 export interface ClassifiedPortfolioTransactionHistory {
   readonly observedAt: Timestamp;
   readonly wallet: WalletAddress;

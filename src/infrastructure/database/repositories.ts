@@ -280,23 +280,73 @@ export class PostgresPositionWorkerCheckpointRepository
       runtimeState,
       pendingAction: null,
     });
-    const result = await this.database.query<JobRow>(
-      `UPDATE jobs
+    const submission = runtimeState.pendingExit?.submission;
+    if (submission === null || submission === undefined) {
+      const result = await this.database.query<JobRow>(
+        `UPDATE jobs
+         SET payload_json = $5::jsonb,
+             state = 'completed', updated_at = now(), version = version + 1
+         WHERE id = $1 AND job_type = $2 AND version = $3
+           AND payload_json #>> '{pendingAction,deliveryId}' = $4
+         RETURNING id, version, payload_json`,
+        [
+          input.positionId,
+          JOB_TYPE,
+          input.expectedRevision.toString(),
+          input.deliveryId,
+          JSON.stringify(payload),
+        ],
+      );
+      if (result.rowCount !== 1 || result.rows[0] === undefined)
+        throw new InvariantViolationError("Position action acknowledgement conflict");
+      return checkpointFromRow(result.rows[0]);
+    }
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      const authority = await client.query<{ readonly matches: boolean }>(
+        `INSERT INTO exit_submission_authority
+             (position_id,delivery_id,signature,provider,acknowledged_at)
+           VALUES ($1,$2,$3,$4,$5)
+           ON CONFLICT (delivery_id) DO UPDATE SET delivery_id=EXCLUDED.delivery_id
+           RETURNING position_id=$1 AND signature=$3 AND provider=$4
+             AND acknowledged_at=$5 AS matches`,
+        [
+          input.positionId,
+          input.deliveryId,
+          submission.signature,
+          submission.provider,
+          submission.acknowledgedAt,
+        ],
+      );
+      if (authority.rows[0]?.matches !== true)
+        throw new InvariantViolationError(
+          "Exit submission authority conflicts with acknowledgement",
+        );
+      const result = await client.query<JobRow>(
+        `UPDATE jobs
        SET payload_json = $5::jsonb,
            state = 'completed', updated_at = now(), version = version + 1
        WHERE id = $1 AND job_type = $2 AND version = $3
          AND payload_json #>> '{pendingAction,deliveryId}' = $4
        RETURNING id, version, payload_json`,
-      [
-        input.positionId,
-        JOB_TYPE,
-        input.expectedRevision.toString(),
-        input.deliveryId,
-        JSON.stringify(payload),
-      ],
-    );
-    if (result.rowCount !== 1 || result.rows[0] === undefined)
-      throw new InvariantViolationError("Position action acknowledgement conflict");
-    return checkpointFromRow(result.rows[0]);
+        [
+          input.positionId,
+          JOB_TYPE,
+          input.expectedRevision.toString(),
+          input.deliveryId,
+          JSON.stringify(payload),
+        ],
+      );
+      if (result.rowCount !== 1 || result.rows[0] === undefined)
+        throw new InvariantViolationError("Position action acknowledgement conflict");
+      await client.query("COMMIT");
+      return checkpointFromRow(result.rows[0]);
+    } catch (error) {
+      await rollback(client);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }

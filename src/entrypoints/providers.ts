@@ -9,11 +9,13 @@ import type { LocalSignerPort, TransactionSubmissionPort } from "../application/
 import type { SwapPort } from "../application/ports/swap.js";
 import type { TrackedWalletPurchasePort } from "../application/ports/stream.js";
 import type { RuntimeConfig } from "../infrastructure/config/load-config.js";
+import type { WalletHistoryObservationPort } from "../application/services/portfolio-transaction-history.js";
 import type { MintSecurityObservationPort } from "../application/ports/runtime-authority-inputs.js";
 import { DexScreenerMarketAdapter } from "../infrastructure/providers/dexscreener/adapter.js";
 import { HeliusSenderHttpTransport } from "../infrastructure/providers/helius/client.js";
 import { HeliusSubmissionAdapter } from "../infrastructure/providers/helius/submission-adapter.js";
 import { HeliusTrackedWalletPurchaseAdapter } from "../infrastructure/providers/helius/stream-adapter.js";
+import { HeliusWalletHistoryAdapter } from "../infrastructure/providers/helius/wallet-history-adapter.js";
 import { BoundedJsonHttpTransport } from "../infrastructure/providers/http-json.js";
 import { JupiterSwapAdapter } from "../infrastructure/providers/jupiter/adapter.js";
 import { JupiterSwapApiClient } from "../infrastructure/providers/jupiter/client.js";
@@ -41,6 +43,7 @@ export interface ProductionProviderServices {
   readonly authority: ExecutionAuthorityPort;
   readonly mintSecurity: MintSecurityObservationPort;
   readonly trackedWalletPurchases: TrackedWalletPurchasePort;
+  readonly walletHistory: WalletHistoryObservationPort;
 }
 
 /** Constructs all completed live provider clients from validated configuration. */
@@ -96,6 +99,11 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
     authority,
     mintSecurity: new SolanaMintSecurityAdapter(primary, fallback, identities),
     trackedWalletPurchases: new HeliusTrackedWalletPurchaseAdapter(
+      heliusDataHttp,
+      config.execution.heliusApiKey,
+      identities,
+    ),
+    walletHistory: new HeliusWalletHistoryAdapter(
       heliusDataHttp,
       config.execution.heliusApiKey,
       identities,
