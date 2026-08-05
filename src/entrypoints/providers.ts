@@ -1,6 +1,7 @@
 import type {
   ChainObservationPort,
   ChainTransactionObservationPort,
+  WalletInventoryObservationPort,
 } from "../application/ports/chain.js";
 import type { CandidateDiscoveryPort, MarketObservationPort } from "../application/ports/market.js";
 import type { ExecutionAuthorityPort } from "../application/ports/runtime.js";
@@ -32,6 +33,7 @@ export interface ProductionProviderServices {
   readonly market: MarketObservationPort;
   readonly discovery: CandidateDiscoveryPort;
   readonly balances: ChainObservationPort;
+  readonly inventory: WalletInventoryObservationPort;
   readonly transactions: ChainTransactionObservationPort;
   readonly swap: SwapPort;
   readonly signer: LocalSignerPort;
@@ -68,10 +70,12 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
   });
   const authority = new SolanaExecutionRpc(primary);
   const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
+  const chain = new SolanaChainObservationAdapter(primary, fallback, identities);
   return Object.freeze({
     market: dexScreener,
     discovery: dexScreener,
-    balances: new SolanaChainObservationAdapter(primary, fallback, identities),
+    balances: chain,
+    inventory: chain,
     transactions: new SolanaTransactionObservationAdapter(
       primary,
       fallback,

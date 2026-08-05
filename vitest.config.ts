@@ -27,6 +27,7 @@ export default defineConfig({
       "tests/integration/risk-authority.test.ts",
       "tests/integration/portfolio-accounting.test.ts",
       "tests/integration/portfolio-accounting-producer.test.ts",
+      "tests/integration/portfolio-inventory-valuation.test.ts",
       "tests/integration/entry-preparation.test.ts",
       "tests/integration/entry-submission.test.ts",
       "tests/unit/candidate-scoring.test.ts",
