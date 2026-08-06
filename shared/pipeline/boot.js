@@ -2,6 +2,7 @@
 
 const dependencyGraph = require('../registry/dependencyGraph');
 const moduleRegistry = require('../registry/moduleRegistry');
+const componentScanner = require('../registry/componentScanner');
 const log = require('../services/log');
 
 /**
@@ -17,6 +18,10 @@ const log = require('../services/log');
 function boot(modules) {
   const results = [];
   const moduleMap = new Map(modules.map((m) => [m.manifest.name, m]));
+
+  // Scan for components (runs once, early in boot sequence)
+  const components = componentScanner.scan();
+  log.info('Discovered ' + components.length + ' component(s)', { components });
 
   // Compute boot order
   let bootOrder;

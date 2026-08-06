@@ -7,6 +7,8 @@ const auth = require('../services/auth');
 const validate = require('../services/validate');
 const events = require('../services/events');
 const intelligence = require('../services/intelligence');
+const gapAnalysis = require('../engine/gap-analysis');
+const recommendationEngine = require('../engine/recommendation');
 const routeRegistry = require('../registry/routeRegistry');
 const functionRegistry = require('../registry/functionRegistry');
 
@@ -24,6 +26,8 @@ function wireModule(registered) {
     validate: validate,
     events: events,
     intelligence: intelligence,
+    gapAnalysis: gapAnalysis,
+    recommendation: recommendationEngine,
     manifest: manifest,
   };
 

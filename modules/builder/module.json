@@ -45,6 +45,30 @@
       "method": "GET",
       "handler": "builder_templates",
       "auth_required": true
+    },
+    {
+      "path": "/builder/assemble",
+      "method": "POST",
+      "handler": "builder_assemble",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/components",
+      "method": "GET",
+      "handler": "builder_components",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/compose",
+      "method": "POST",
+      "handler": "builder_compose",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/validate",
+      "method": "POST",
+      "handler": "builder_validate",
+      "auth_required": true
     }
   ],
   "functions": [
@@ -77,6 +101,36 @@
       "exports": "templates",
       "params": [],
       "returns": "any"
+    },
+    {
+      "name": "builder_assemble",
+      "exports": "assemble",
+      "params": [
+        "spec"
+      ],
+      "returns": "assembly_result"
+    },
+    {
+      "name": "builder_components",
+      "exports": "components",
+      "params": [],
+      "returns": "component_list"
+    },
+    {
+      "name": "builder_compose",
+      "exports": "compose",
+      "params": [
+        "input"
+      ],
+      "returns": "composition_result"
+    },
+    {
+      "name": "builder_validate",
+      "exports": "validate",
+      "params": [
+        "input"
+      ],
+      "returns": "validation_result"
     }
   ],
   "schema": {

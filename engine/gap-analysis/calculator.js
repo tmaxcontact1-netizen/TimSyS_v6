@@ -6,11 +6,13 @@ const functionRegistry = require('../../shared/registry/functionRegistry');
 const routeRegistry = require('../../shared/registry/routeRegistry');
 const schemaRegistry = require('../../shared/registry/schemaRegistry');
 const dependencyGraph = require('../../shared/registry/dependencyGraph');
+const componentRegistry = require('../../shared/registry/componentRegistry');
 
 /**
  * Gap Analysis Calculator
  * Compares declared vs actual module artifacts.
  * Metrics weighted: capabilities 40%, functions 30%, routes 20%, schema 10%.
+ * Component availability is checked as a blocking prerequisite.
  */
 
 function calculate(moduleName) {
@@ -24,6 +26,7 @@ function calculate(moduleName) {
   var declaredFunctions = manifest.functions || [];
   var declaredRoutes = manifest.routes || [];
   var declaredSchema = manifest.schema || {};
+  var declaredComponents = manifest.components || [];
 
   // Actual registered artifacts
   var actualCapabilities = capabilityRegistry.getByModule(moduleName);
@@ -45,14 +48,27 @@ function calculate(moduleName) {
     ? actualTables.filter(function(t) { return declaredSchema.tables.indexOf(t) !== -1; }).length / declaredSchema.tables.length
     : 1;
 
+  // Component availability (prerequisite check, not scored)
+  var missingComponents = componentRegistry.getMissing(declaredComponents);
+  var componentAvailability = declaredComponents.length > 0
+    ? (declaredComponents.length - missingComponents.length) / declaredComponents.length
+    : 1;
+
   // Weighted score
   var score = Math.round((capCoverage * 0.4 + funcCoverage * 0.3 + routeCoverage * 0.2 + schemaCoverage * 0.1) * 100);
 
-  // Determine status
-  var status = score < 25 ? 'red' : score < 50 ? 'yellow' : 'green';
+  // Determine status — missing components force red regardless of score
+  var status = missingComponents.length > 0
+    ? 'red'
+    : score < 25 ? 'red' : score < 50 ? 'yellow' : 'green';
 
   // Identify gaps
   var gaps = [];
+
+  // Component gaps are checked first — they're blocking
+  if (missingComponents.length > 0) {
+    gaps.push({ category: 'component', missing: missingComponents, priority: 'blocking' });
+  }
 
   var missingCaps = declaredCapabilities.filter(function(c) { return actualCapabilities.indexOf(c) === -1; });
   if (missingCaps.length > 0) gaps.push({ category: 'capability', missing: missingCaps, priority: 'high' });
@@ -80,7 +96,11 @@ function calculate(moduleName) {
   var actions = [];
   for (var i = 0; i < gaps.length; i++) {
     var gap = gaps[i];
-    if (gap.category === 'function') {
+    if (gap.category === 'component') {
+      for (var c = 0; c < gap.missing.length; c++) {
+        actions.push('Build or register missing component: ' + gap.missing[c]);
+      }
+    } else if (gap.category === 'function') {
       for (var j = 0; j < gap.missing.length; j++) {
         actions.push('Implement ' + gap.missing[j] + ' in index.js');
       }
@@ -103,7 +123,13 @@ function calculate(moduleName) {
       capabilityCoverage: Math.round(capCoverage * 100),
       functionCompleteness: Math.round(funcCoverage * 100),
       routeCompleteness: Math.round(routeCoverage * 100),
-      schemaCompleteness: Math.round(schemaCoverage * 100)
+      schemaCompleteness: Math.round(schemaCoverage * 100),
+      componentAvailability: Math.round(componentAvailability * 100)
+    },
+    components: {
+      required: declaredComponents,
+      missing: missingComponents,
+      available: declaredComponents.filter(function(name) { return componentRegistry.exists(name); })
     },
     gaps: gaps,
     recommendedActions: actions

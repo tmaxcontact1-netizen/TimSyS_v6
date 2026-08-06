@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-07-20T15:24:24Z
+Generated: 2026-08-06T18:06:40Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -16,11 +16,11 @@ Path: `/home/tmax/TimSyS_v6`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 10715B | 2026-07-20 21:54:32 |
-| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-07-20 22:24:24 |
-| `HANDOVER.md` | ✅ | 22775B | 2026-07-20 21:52:02 |
-| `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 12:34:40 |
-| `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 12:34:51 |
+| `CONTEXT.md` | ✅ | 10870B | 2026-07-20 18:26:38 |
+| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-08-06 21:06:40 |
+| `HANDOVER.md` | ✅ | 19600B | 2026-08-06 16:10:21 |
+| `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 08:34:40 |
+| `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-07-17 08:34:51 |
 
 ## Directory Tree
 
@@ -41,8 +41,6 @@ Path: `/home/tmax/TimSyS_v6`
 ./contracts/validate.js
 ./data
 ./data/timsys.sqlite
-./data/timsys.sqlite-shm
-./data/timsys.sqlite-wal
 ./DECISIONS.md
 ./deploy
 ./deploy/backup.sh
@@ -73,12 +71,15 @@ Path: `/home/tmax/TimSyS_v6`
 ./migrations/004_recommendations.sql
 ./migrations/005_route_permissions.sql
 ./migrations/006_refresh_tokens.sql
+./migrations/007_builder.sql
 ./modules
 ./modules/builder
+./modules/builder/assembler.js
 ./modules/builder/index.js
 ./modules/builder/migrations
 ./modules/builder/migrations/.gitkeep
 ./modules/builder/module.json
+./modules/builder/templates.js
 ./modules/.gitkeep
 ./modules/system_health
 ./modules/system_health/handlers
@@ -121,6 +122,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./shared/pipeline/wire.js
 ./shared/registry
 ./shared/registry/capabilityRegistry.js
+./shared/registry/componentRegistry.js
 ./shared/registry/dependencyGraph.js
 ./shared/registry/functionRegistry.js
 ./shared/registry/moduleRegistry.js
@@ -179,6 +181,7 @@ Path: `/home/tmax/TimSyS_v6`
 ./tests/unit/services/.gitkeep
 ./tests/unit/services/validate.test.js
 ./Tools
+./Tools/spawn_app.sh
 ./Tools/update_architecture_map.sh
 ```
 
@@ -188,12 +191,12 @@ Location: `/contracts/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ✅ | 1976B | 2026-07-16 21:04:09 |
-| `cache.js` | ✅ | 1540B | 2026-07-16 21:04:27 |
-| `auth.js` | ✅ | 3905B | 2026-07-16 21:04:43 |
-| `log.js` | ✅ | 1607B | 2026-07-16 21:04:56 |
-| `validate.js` | ✅ | 1275B | 2026-07-16 21:05:07 |
-| `events.js` | ✅ | 1876B | 2026-07-16 21:05:19 |
+| `db.js` | ✅ | 1976B | 2026-07-16 17:04:09 |
+| `cache.js` | ✅ | 1540B | 2026-07-16 17:04:27 |
+| `auth.js` | ✅ | 3905B | 2026-07-16 17:04:43 |
+| `log.js` | ✅ | 1607B | 2026-07-16 17:04:56 |
+| `validate.js` | ✅ | 1275B | 2026-07-16 17:05:07 |
+| `events.js` | ✅ | 1876B | 2026-07-16 17:05:19 |
 
 ## Phase 1.1: Persistence / Service Layer
 
@@ -201,15 +204,15 @@ Location: `/shared/services/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ✅ | 1840B | 2026-07-17 16:23:17 |
-| `cache.js` | ✅ | 3439B | 2026-07-17 06:56:18 |
-| `auth.js` | ✅ | 3609B | 2026-07-20 15:28:06 |
-| `log.js` | ✅ | 1103B | 2026-07-16 21:39:58 |
-| `validate.js` | ✅ | 1493B | 2026-07-16 21:40:14 |
-| `events.js` | ✅ | 2263B | 2026-07-16 21:40:26 |
-| `session.js` | ✅ | 2717B | 2026-07-16 21:39:15 |
-| `audit.js` | ✅ | 2248B | 2026-07-16 21:39:29 |
-| `metrics.js` | ✅ | 4338B | 2026-07-16 21:39:45 |
+| `db.js` | ✅ | 1840B | 2026-07-17 12:23:17 |
+| `cache.js` | ✅ | 3439B | 2026-07-17 02:56:18 |
+| `auth.js` | ✅ | 3609B | 2026-07-20 11:28:06 |
+| `log.js` | ✅ | 1103B | 2026-07-16 17:39:58 |
+| `validate.js` | ✅ | 1493B | 2026-07-16 17:40:14 |
+| `events.js` | ✅ | 2263B | 2026-07-16 17:40:26 |
+| `session.js` | ✅ | 2717B | 2026-07-16 17:39:15 |
+| `audit.js` | ✅ | 2248B | 2026-07-16 17:39:29 |
+| `metrics.js` | ✅ | 4338B | 2026-07-16 17:39:45 |
 
 ## Phase 1.2: Registry Layer
 
@@ -217,12 +220,12 @@ Location: `/shared/registry/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 21:47:26 |
-| `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 21:43:03 |
-| `routeRegistry.js` | ✅ | 2131B | 2026-07-20 10:47:58 |
-| `functionRegistry.js` | ✅ | 2575B | 2026-07-16 21:43:47 |
-| `capabilityRegistry.js` | ✅ | 2879B | 2026-07-16 21:45:09 |
-| `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 21:45:25 |
+| `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 17:47:26 |
+| `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 17:43:03 |
+| `routeRegistry.js` | ✅ | 2131B | 2026-07-20 06:47:58 |
+| `functionRegistry.js` | ✅ | 2575B | 2026-07-16 17:43:47 |
+| `capabilityRegistry.js` | ✅ | 2879B | 2026-07-16 17:45:09 |
+| `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 17:45:25 |
 
 ## Phase 1.3: Staging Pipeline
 
@@ -230,13 +233,13 @@ Location: `/shared/pipeline/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `discover.js` | ✅ (shared/pipeline/discover.js) | 1225B | 2026-07-16 21:49:40 |
-| `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 12:19:29 |
-| `register.js` | ✅ (shared/pipeline/register.js) | 2760B | 2026-07-20 10:47:36 |
-| `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2350B | 2026-07-18 16:07:29 |
-| `wire.js` | ✅ (shared/pipeline/wire.js) | 2084B | 2026-07-18 16:06:16 |
-| `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 21:52:24 |
-| `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 21:53:03 |
+| `discover.js` | ✅ (shared/pipeline/discover.js) | 1225B | 2026-07-16 17:49:40 |
+| `validate.js` | ✅ (shared/pipeline/validate.js) | 3803B | 2026-07-17 08:19:29 |
+| `register.js` | ✅ (shared/pipeline/register.js) | 2760B | 2026-07-20 06:47:36 |
+| `resolve.js` | ✅ (shared/pipeline/resolve.js) | 2350B | 2026-07-18 12:07:29 |
+| `wire.js` | ✅ (shared/pipeline/wire.js) | 2278B | 2026-08-06 20:07:24 |
+| `boot.js` | ✅ (shared/pipeline/boot.js) | 2929B | 2026-07-16 17:52:24 |
+| `unstage.js` | ✅ (shared/pipeline/unstage.js) | 3124B | 2026-07-16 17:53:03 |
 
 ## Modules
 

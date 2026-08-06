@@ -7,15 +7,17 @@ const http = require('http');
 var serverPort = process.env.PORT || 3000;
 var serverHost = process.env.HOST || 'localhost';
 
-function makeRequest(requestPath, token, callback) {
+function makeRequest(requestPath, token, callback, method, body) {
   var options = {
     hostname: serverHost,
     port: serverPort,
     path: requestPath,
-    method: 'GET',
+    method: method || 'GET',
     headers: {}
   };
   if (token) options.headers['Authorization'] = 'Bearer ' + token;
+  if (body) options.headers['Content-Type'] = 'application/json';
+  
   var req = http.request(options, function(res) {
     var data = '';
     res.on('data', function(chunk) { data += chunk; });
@@ -25,6 +27,7 @@ function makeRequest(requestPath, token, callback) {
     });
   });
   req.on('error', function(err) { callback(err, null); });
+  if (body) req.write(JSON.stringify(body));
   req.end();
 }
 
@@ -199,6 +202,191 @@ function completeModule(name, token) {
   });
 }
 
+function listComponents(token) {
+  makeRequest('/builder/components', token, function(err, result) {
+    if (err) {
+      console.error('Error: Cannot connect to server at ' + serverHost + ':' + serverPort);
+      console.error('Make sure TimSyS is running.');
+      process.exit(1);
+    }
+    if (!result.success) {
+      console.error('Error: ' + (result.error ? result.error.message : 'Unknown error'));
+      process.exit(1);
+    }
+    var comps = result.components;
+    console.log('\nRegistered Components (' + (comps.length || 0) + '):');
+    console.log('=========================');
+    console.log('');
+    if (!comps || comps.length === 0) {
+      console.log('No components registered. Run component scanner or register components manually.\n');
+      return;
+    }
+    for (var i = 0; i < comps.length; i++) {
+      var c = comps[i];
+      console.log('  ' + (i + 1) + '. ' + c.name);
+      console.log('     Type: ' + c.type);
+      console.log('     Owner: ' + (c.ownerModule || 'none'));
+      console.log('     Dependencies: ' + (c.dependencies ? c.dependencies.length : 0));
+      console.log('');
+    }
+  });
+}
+
+function composeModule(name, componentList, token) {
+  var input = {
+    name: name,
+    components: componentList.split(',')
+  };
+  
+  makeRequest('/builder/compose', token, function(err, result) {
+    if (err) {
+      console.error('Error: Cannot connect to server at ' + serverHost + ':' + serverPort);
+      console.error('Make sure TimSyS is running.');
+      process.exit(1);
+    }
+    if (!result.success) {
+      console.error('Error composing module: ' + (result.error ? result.error.message : 'Unknown error'));
+      if (result.error && result.error.missingComponents) {
+        console.log('\nMissing components: ' + result.error.missingComponents.join(', '));
+      }
+      process.exit(1);
+    }
+    
+    var spec = result.spec;
+    console.log('\nComposition Result:');
+    console.log('==================');
+    console.log('Module: ' + spec.manifest.name);
+    console.log('Version: ' + spec.manifest.version);
+    console.log('Components: ' + spec.components.length);
+    console.log('');
+    
+    if (spec.warnings && spec.warnings.length > 0) {
+      console.log('Warnings:');
+      spec.warnings.forEach(function(w) {
+        console.log('  ⚠ ' + w);
+      });
+      console.log('');
+    }
+    
+    if (spec.conflicts && spec.conflicts.length > 0) {
+      console.log('Conflicts:');
+      spec.conflicts.forEach(function(c) {
+        console.log('  ✖ ' + c.details);
+      });
+      console.log('');
+    }
+    
+    console.log('Manifest Preview:');
+    console.log(JSON.stringify(spec.manifest, null, 2));
+    console.log('');
+  }, 'POST', input);
+}
+
+function validateModule(name, componentList, token) {
+  var input = {
+    name: name,
+    components: componentList.split(',')
+  };
+  
+  makeRequest('/builder/validate', token, function(err, result) {
+    if (err) {
+      console.error('Error: Cannot connect to server at ' + serverHost + ':' + serverPort);
+      console.error('Make sure TimSyS is running.');
+      process.exit(1);
+    }
+    if (!result.success) {
+      console.error('Error validating module: ' + (result.error ? result.error.message : 'Unknown error'));
+      process.exit(1);
+    }
+    
+    var validation = result.validated;
+    console.log('\nValidation Result:');
+    console.log('================');
+    
+    if (!validation.composition.success) {
+      console.log('✖ Composition failed: ' + (validation.composition.error ? validation.composition.error.message : 'Unknown error'));
+      process.exit(1);
+    }
+    
+    if (!validation.assemblyPreview.success) {
+      console.log('✖ Assembly failed: ' + (validation.assemblyPreview.error ? validation.assemblyPreview.error.message : 'Unknown error'));
+      process.exit(1);
+    }
+    
+    console.log('✔ Composition valid');
+    console.log('✔ Assembly preview passed');
+    console.log('');
+    console.log('Module: ' + (input.name || 'test-module'));
+    console.log('Components: ' + validation.composition.spec.components.length);
+    console.log('Routes: ' + validation.composition.spec.manifest.routes.length);
+    console.log('Tables: ' + validation.composition.spec.manifest.schema.tables.length);
+    console.log('');
+  }, 'POST', input);
+}
+
+function buildModule(name, componentList, token, dryRun) {
+  var input = {
+    name: name,
+    components: componentList.split(',')
+  };
+  
+  // First compose
+  makeRequest('/builder/compose', token, function(err, composeResult) {
+    if (err) {
+      console.error('Error: Cannot connect to server at ' + serverHost + ':' + serverPort);
+      process.exit(1);
+    }
+    if (!composeResult.success) {
+      console.error('Error: Composition failed');
+      process.exit(1);
+    }
+    
+    var spec = {
+      name: input.name,
+      components: input.components,
+      routes: composeResult.spec.manifest.routes,
+      schema: composeResult.spec.manifest.schema,
+      events: composeResult.spec.manifest.events
+    };
+    
+    var path = '/builder/assemble' + (dryRun ? '?dryRun=true' : '');
+    makeRequest(path, token, function(err, result) {
+      if (err) {
+        console.error('Error: Cannot connect to server at ' + serverHost + ':' + serverPort);
+        process.exit(1);
+      }
+      if (!result.success) {
+        console.error('Error: Assembly failed');
+        if (result.error) console.error(result.error.message);
+        process.exit(1);
+      }
+      
+      console.log('\nBuild Result:');
+      console.log('=============');
+      if (dryRun) {
+        console.log('Dry run complete. Nothing written.');
+        console.log('Would create module: ' + result.module.name);
+        console.log('Would create files:');
+        result.module.filesCreated.forEach(function(f) {
+          console.log('  - ' + f);
+        });
+      } else {
+        console.log('Module assembled successfully!');
+        console.log('Path: ' + result.module.path);
+        console.log('Files created:');
+        result.module.filesCreated.forEach(function(f) {
+          console.log('  - ' + f);
+        });
+        console.log('');
+        console.log('Next steps:');
+        result.nextSteps.forEach(function(step) {
+          console.log('  ' + step);
+        });
+      }
+    }, 'POST', spec);
+  }, 'POST', input);
+}
+
 function main() {
   var args = process.argv.slice(2);
   var cmd = args[0];
@@ -209,6 +397,11 @@ function main() {
     console.log('  inspect <module>       Show gap analysis (requires running server)');
     console.log('  recommend [intent]     Show recommended builds (requires running server)');
     console.log('  complete <module>      Show remaining work to 100% (requires running server)');
+    console.log('  components               List all registered components (requires running server)');
+    console.log('  compose <name> <comps> Compose module from comma-separated components (requires running server)');
+    console.log('  validate <name> <comps> Validate composition before build (requires running server)');
+    console.log('  build <name> <comps>   Assemble module from components (requires running server)');
+    console.log('  build-dryrun <name> <comps> Preview build without writing files (requires running server)');
     console.log('');
     console.log('Options:');
     console.log('  --port <number>        Server port (default: 3000)');
@@ -240,6 +433,29 @@ function main() {
     case 'complete':
       if (!positional[0]) { console.error('Error: Module name required.'); process.exit(1); }
       completeModule(positional[0], token);
+      break;
+    case 'components':
+      listComponents(token);
+      break;
+    case 'compose':
+      if (!positional[0]) { console.error('Error: Module name required.'); process.exit(1); }
+      if (!positional[1]) { console.error('Error: Components required (comma-separated).'); process.exit(1); }
+      composeModule(positional[0], positional[1], token);
+      break;
+    case 'validate':
+      if (!positional[0]) { console.error('Error: Module name required.'); process.exit(1); }
+      if (!positional[1]) { console.error('Error: Components required (comma-separated).'); process.exit(1); }
+      validateModule(positional[0], positional[1], token);
+      break;
+    case 'build':
+      if (!positional[0]) { console.error('Error: Module name required.'); process.exit(1); }
+      if (!positional[1]) { console.error('Error: Components required (comma-separated).'); process.exit(1); }
+      buildModule(positional[0], positional[1], token, false);
+      break;
+    case 'build-dryrun':
+      if (!positional[0]) { console.error('Error: Module name required.'); process.exit(1); }
+      if (!positional[1]) { console.error('Error: Components required (comma-separated).'); process.exit(1); }
+      buildModule(positional[0], positional[1], token, true);
       break;
     default:
       console.error('Unknown command: ' + cmd);
