@@ -1,0 +1,41 @@
+{
+  "name": "student_registry",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": [
+    "capability:student.read",
+    "capability:student.write",
+    "capability:student_contacts.read",
+    "capability:student_enrollment_history.read"
+  ],
+  "requires": [],
+  "routes": [
+    { "path": "/students", "method": "GET", "handler": "student_registry_listStudents", "auth_required": true, "permissions": ["admin:students:read"] },
+    { "path": "/students", "method": "POST", "handler": "student_registry_createStudent", "auth_required": true, "permissions": ["admin:students:write"] },
+    { "path": "/students/:id", "method": "GET", "handler": "student_registry_readStudent", "auth_required": true, "permissions": ["admin:students:read"] },
+    { "path": "/students/:id", "method": "PUT", "handler": "student_registry_updateStudent", "auth_required": true, "permissions": ["admin:students:write"] },
+    { "path": "/students/:id", "method": "DELETE", "handler": "student_registry_deleteStudent", "auth_required": true, "permissions": ["admin:students:delete"] },
+    { "path": "/students/:id/contacts", "method": "GET", "handler": "student_registry_listContacts", "auth_required": true, "permissions": ["admin:students:read"] },
+    { "path": "/students/:id/contacts", "method": "POST", "handler": "student_registry_addContact", "auth_required": true, "permissions": ["admin:students:write"] },
+    { "path": "/students/:id/enrollment-history", "method": "GET", "handler": "student_registry_getEnrollmentHistory", "auth_required": true, "permissions": ["admin:students:read"] }
+  ],
+  "functions": [
+    { "name": "student_registry_listStudents", "exports": "listStudents", "params": ["filter", "page", "limit"], "returns": "Student[]" },
+    { "name": "student_registry_createStudent", "exports": "createStudent", "params": ["data"], "returns": "Student" },
+    { "name": "student_registry_readStudent", "exports": "readStudent", "params": ["id"], "returns": "Student" },
+    { "name": "student_registry_updateStudent", "exports": "updateStudent", "params": ["id", "data"], "returns": "Student" },
+    { "name": "student_registry_deleteStudent", "exports": "deleteStudent", "params": ["id"], "returns": "boolean" },
+    { "name": "student_registry_listContacts", "exports": "listContacts", "params": ["studentId"], "returns": "StudentContact[]" },
+    { "name": "student_registry_addContact", "exports": "addContact", "params": ["studentId", "data"], "returns": "StudentContact" },
+    { "name": "student_registry_getEnrollmentHistory", "exports": "getEnrollmentHistory", "params": ["studentId"], "returns": "StudentEnrollmentHistory[]" }
+  ],
+  "schema": {
+    "tables": ["students", "student_contacts", "student_enrollment_history"],
+    "migrations": ["migrations/001_students.sql"]
+  },
+  "events": {
+    "publishes": ["student.created", "student.updated", "student.withdrawn", "student.contact_added", "student.enrollment_changed"],
+    "subscribes": []
+  }
+}

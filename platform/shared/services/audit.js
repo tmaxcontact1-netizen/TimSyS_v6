@@ -89,4 +89,7 @@ class AuditWriter {
 
 const auditWriter = new AuditWriter();
 
+// Alias for compatibility (handlers expect .action() not .write())
+auditWriter.action = auditWriter.write.bind(auditWriter);
+
 module.exports = auditWriter;

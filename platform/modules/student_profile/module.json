@@ -1,0 +1,19 @@
+{
+  "name": "student_profile",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["capability:student_profile.read"],
+  "requires": ["capability:student.read"],
+  "routes": [
+    { "path": "/students/:id/profile", "method": "GET", "handler": "student_profile_getProfile", "auth_required": true, "permissions": ["admin:students:read"] }
+  ],
+  "functions": [
+    { "name": "student_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StudentProfile" }
+  ],
+  "schema": {},
+  "events": {
+    "publishes": [],
+    "subscribes": []
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "staff_profile",
+  "version": "1.0.0",
+  "type": "profile",
+  "capabilities": [
+    "capability:staff_profile.read"
+  ],
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "routes": [
+    {
+      "path": "/staff/:id/profile",
+      "method": "GET",
+      "handler": "staff_profile_getProfile",
+      "auth_required": true,
+      "permissions": ["admin:staff:read"]
+    }
+  ],
+  "functions": [
+    {
+      "name": "staff_profile_getProfile",
+      "exports": "getProfile",
+      "params": ["id"],
+      "returns": "StaffProfile"
+    }
+  ],
+  "schema": {},
+  "events": {
+    "publishes": [],
+    "subscribes": []
+  }
+}
