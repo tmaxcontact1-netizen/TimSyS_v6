@@ -1,9 +1,7 @@
 // Path: /home/tmax/TimSyS_v6/platform/modules/staff_profile/index.js
-// Total lines: ~85
+// Total lines: 95
 
 'use strict';
-
-const functionRegistry = require('../../shared/registry/functionRegistry');
 
 function boot(ctx) {
   ctx.log.info('staff_profile booting', { module: 'staff_profile' });
@@ -15,41 +13,51 @@ function teardown(ctx) {
 
 async function getProfile(req, ctx) {
   var id = req.params.id;
-
-  var subReq = { params: { id: id }, query: {}, body: {}, user: req.user };
-
-  var staffFn = functionRegistry.get('staff_registry_readStaff');
-  if (!staffFn) {
-    return { success: false, statusCode: 500, error: { code: 'DEPENDENCY_MISSING', message: 'staff_registry_readStaff not available' } };
+  
+  var staffFunc = ctx.functionRegistry.get('staff_registry_readStaff');
+  if (!staffFunc || typeof staffFunc.implementation !== 'function') {
+    return { success: false, statusCode: 500, error: { code: 'INTERNAL_ERROR', message: 'staff_registry not available' } };
   }
-  var staffResult = await staffFn.implementation(subReq, ctx);
+  
+  var staffReq = { params: { id: id } };
+  var staffResult = await staffFunc.implementation(staffReq, ctx);
+  
   if (!staffResult.success) {
     return staffResult;
   }
-
-  var certsFn = functionRegistry.get('staff_registry_listCertifications');
-  var certsResult = null;
-  if (certsFn) {
-    certsResult = await certsFn.implementation(subReq, ctx);
-  }
-
+  
   var profile = {
     staff: staffResult.staff,
-    certifications: certsResult && certsResult.success ? certsResult.certifications : []
+    certifications: [],
+    metadata: null,
+    insights: []
   };
-
-  if (ctx.audit) {
-    ctx.audit.action('staff_profile.view', req.user.id, {
-      entityType: 'staff',
-      entityId: staffResult.staff.id
-    });
+  
+  var certsFunc = ctx.functionRegistry.get('staff_registry_listCertifications');
+  if (certsFunc && typeof certsFunc.implementation === 'function') {
+    var certsResult = await certsFunc.implementation({ params: { id: id } }, ctx);
+    if (certsResult && certsResult.success) {
+      profile.certifications = certsResult.certifications;
+    }
   }
-
+  
+  if (ctx.intelligence) {
+    var staffEntityId = staffResult.staff.id !== undefined ? staffResult.staff.id.toString() : (staffResult.staff.staff_id || id);
+    
+    try {
+      profile.metadata = await ctx.intelligence.getMetadata('staff', staffEntityId);
+    } catch (e) {
+      ctx.log.warn('Failed to fetch metadata', { error: e.message });
+    }
+    
+    try {
+      profile.insights = await ctx.intelligence.getInsights('staff', staffEntityId);
+    } catch (e) {
+      ctx.log.warn('Failed to fetch insights', { error: e.message });
+    }
+  }
+  
   return { success: true, profile: profile };
 }
 
-module.exports = {
-  boot: boot,
-  teardown: teardown,
-  getProfile: getProfile
-};
+module.exports = { boot: boot, teardown: teardown, getProfile: getProfile };

@@ -1,8 +1,10 @@
-# TimSyS Backend Constitution v6.0
+# TimSyS Backend Constitution v6.1
 
 ## Core Principle
 
 A module is a self-describing unit. If it declares its schema, capabilities, dependencies, and routes in a standard format, the system wires it automatically. No code edits after deployment.
+
+A component is an atomic building block assembled into modules by the composition model. Components lack independent boot logic — they are wired and booted as part of a parent Module's lifecycle. Components declare their type (`registry`, `profile`) in `component.json`.
 
 ---
 
@@ -10,20 +12,27 @@ A module is a self-describing unit. If it declares its schema, capabilities, dep
 
 ### Deliverable: Shared Service API Specifications
 
-Define the contracts before implementing anything. Modules consume services through these interfaces only.
+Define the contracts before implementing anything. Modules consume services through these interfaces only. Contracts live in `/platform/contracts/`.
 
-| Service | Contract | Methods | Notes |
-|---------|----------|---------|-------|
-| Database | DBService | query(sql, params), transaction(fn), poolAcquire(), poolRelease(conn) | Sync wrapper over better-sqlite3 |
-| Cache | CacheService | get(key), set(key, val, ttl), invalidate(pattern), flush() | LRU + pattern matching |
-| Auth | AuthService | issueToken(user), verifyToken(token), revokeToken(token), revokeAllUserTokens(userId), createSession(userId, payload), getSession(sessId), destroySession(sessId), destroyUserSessions(userId, reason), getActiveSessions(userId), rotateSession(sessId), forceLogout(userId, reason), checkPerm(user, perm) | JWT + session store + revocation |
-| Logging | LogService | info(msg, ctx), warn(msg, ctx), error(msg, ctx), audit(action, userId, meta) | Structured JSON logs |
-| Validation | ValidationService | validate(schema, data), sanitize(input) | Zod schemas |
-| Event Bus | EventBus | publish(channel, payload), subscribe(channel, handler), unsubscribe(channel, handler), request(channel, payload, timeout) | In-memory pub/sub + request/reply |
+| Service | Contract File | Methods | Notes |
+|---------|--------------|---------|-------|
+| Database | `db.js` | query(sql, params), exec(sql), scalar(sql, params), transaction(fn), getConnection() | Sync wrapper over better-sqlite3, single connection with manual transaction control |
+| Cache | `cache.js` | get(key), set(key, val, ttl), invalidate(pattern), flush() | LRU + glob pattern invalidation |
+| Auth | `auth.js` | issueToken(user, sessionId), verifyToken(token), revokeToken(token), revokeAllUserTokens(userId), createSession(userId, payload), getSession(sessId), destroySession(sessId), destroyUserSessions(userId), getActiveSessions(userId), checkPerm(permissions, routePermissions), isPermissionGranted(user, permission) | JWT + session store + wildcard token revocation |
+| Logging | `log.js` | info(msg, ctx), warn(msg, ctx), error(msg, ctx), audit(action, userId, meta) | Structured JSON to stdout |
+| Validation | `validate.js` | validate(schema, data), sanitize(input) | Zod schemas + recursive sanitization |
+| Event Bus | `events.js` | publish(channel, payload), subscribe(channel, handler), unsubscribe(channel, handler), request(channel, payload, timeout) | In-memory pub/sub + request/reply with error isolation |
+| Session | `session.js` | (inherited from auth contract) | Session lifecycle management, TTL-based expiration |
+| Audit | `audit.js` | logAction(action, userId, entityType, entityId, oldVal, newVal), getLogs(filter, pagination) | Immutable append-only audit log |
+| Metrics | `metrics.js` | increment(name, value), histogram(name, duration), gauge(name, value), export() | Counters/histograms/gauges, Prometheus export |
+| Email | `email.js` | send(to, subject, html), sendTemplate(template, data) | Nodemailer wrapper |
+| Rate Limit | `ratelimit.js` | checkLimit(identifier, tier), recordHit(identifier), reset(identifier) | SQLite-backed sliding window |
+| Refresh | `refresh.js` | issueRefreshToken(userId), verifyRefreshToken(token), rotateRefreshToken(oldToken), revokeRefreshToken(token), revokeAllUserRefreshTokens(userId) | Rotation on every use |
+| Intelligence | `intelligence.js` | storeMetadata(entityType, entityId, tags, classifications, confidence), suggest(context), synthesize(functionName), evaluateRules(rules, context) | Metadata storage, entity classification, synthesis engine, rule evaluation |
 
 ### Output
 
-One file per service: `/contracts/db.js`, `/contracts/cache.js`, `/contracts/auth.js`, `/contracts/log.js`, `/contracts/validate.js`, `/contracts/events.js`. Each exports interface shape. No implementation yet.
+13 contract files: `db.js`, `cache.js`, `auth.js`, `log.js`, `validate.js`, `events.js`, `session.js`, `audit.js`, `metrics.js`, `email.js`, `ratelimit.js`, `refresh.js`, `intelligence.js`. Each exports interface shape. No implementation yet. Contracts are frozen — modifications require constitutional amendment.
 
 ---
 
@@ -31,49 +40,70 @@ One file per service: `/contracts/db.js`, `/contracts/cache.js`, `/contracts/aut
 
 ### Stage 1.1: Persistence Layer
 
-Build the services that modules will use.
+Build the services that modules will use. Services live in `/platform/shared/services/`.
 
 | File | Responsibility |
 |------|----------------|
-| `/shared/services/db.js` | Connection pool (sync, round-robin), query wrapper, transaction builder |
-| `/shared/services/cache.js` | LRU cache (configurable size/ttl), pattern invalidation, redis adapter stub |
-| `/shared/services/session.js` | Session store (sqlite-backed), token management, expiry cleanup |
-| `/shared/services/audit.js` | Audit log writer, immutable append-only log, retention policy |
-| `/shared/services/metrics.js` | Internal metrics (request counts, latencies, errors) |
-| `/shared/services/auth.js` | JWT issuance/validation, revocation list, session lifecycle |
-| `/shared/services/log.js` | Structured logging, log aggregation interface |
-| `/shared/services/validate.js` | Schema validation, input sanitization |
-| `/shared/services/events.js` | EventBus pub/sub, request/reply orchestration |
+| `/platform/shared/services/db.js` | Single SQLite connection, manual transaction control, `getConnection/exec/query/scalar` methods |
+| `/platform/shared/services/cache.js` | LRU cache (configurable size/TTL), glob pattern invalidation, TTL expiration timer |
+| `/platform/shared/services/session.js` | SQLite-backed sessions, auto-cleanup timer, session metadata |
+| `/platform/shared/services/audit.js` | Audit log writer, append-only log, paginated retrieval, retention purge |
+| `/platform/shared/services/metrics.js` | Counters/histograms/gauges, in-memory aggregation, Prometheus export |
+| `/platform/shared/services/auth.js` | JWT issuance/validation, session management, token revocation (specific + wildcard), `checkPerm()` with wildcard permissions |
+| `/platform/shared/services/log.js` | Structured JSON logging to stdout |
+| `/platform/shared/services/validate.js` | Zod `safeParse`, recursive sanitization |
+| `/platform/shared/services/events.js` | EventBus pub/sub, request/reply, error isolation for subscribers |
+| `/platform/shared/services/email.js` | Nodemailer wrapper |
+| `/platform/shared/services/ratelimit.js` | SQLite-backed sliding window rate limiter, persistent across restarts |
+| `/platform/shared/services/refresh.js` | Refresh token issuance, verification, rotation, revocation |
+| `/platform/shared/services/intelligence/` | Intelligence service package (5 sub-modules) |
+
+### Intelligence Service Package
+
+Located at `/platform/shared/services/intelligence/`:
+
+| File | Responsibility |
+|------|----------------|
+| `index.js` | Facade, delegates to sub-modules, injected into Context |
+| `store.js` | SQLite persistence for metadata, insights, rules (3 tables) |
+| `metadata.js` | Entity tagging and classification, rule-based pattern detection, confidence scoring |
+| `insights.js` | Synthesis via `functionRegistry` discovery, DB-backed aggregation, alerts, trends |
+| `logic.js` | Rule evaluation engine with 9 operators (`==`, `!=`, `<`, `>`, `<=`, `>=`, `contains`, `in`, `not_in`, `exists`), dot notation field access, priority scoring |
 
 ### Schema Migrations
 
-`/migrations/001_initial.sql` through `/migrations/NNN_.sql`. Auto-applied on boot. Track applied migrations in `schema_migrations` table.
+Migrations live in `/platform/migrations/` (platform-level) and `/platform/modules/{moduleName}/migrations/` (module-level). Applied in order during boot. Tracked in `schema_migrations` table. All migrations must be backward compatible — no destructive operations.
+
+Applied migrations: `000_bootstrap.sql` → `007_builder.sql` (8 total, 15 tables)
 
 ### Stage 1.2: Registry Layer
 
-What the system uses to discover and wire components.
+Platform-managed stores for tracking registered entities. Live in `/platform/shared/registry/`.
 
 | File | Responsibility |
 |------|----------------|
-| `/shared/registry/moduleRegistry.js` | Register/deregister modules, list all, query by capability |
-| `/shared/registry/schemaRegistry.js` | Register table schemas, track migrations, validate schema contracts |
-| `/shared/registry/routeRegistry.js` | Register HTTP routes, map paths to handlers, conflict detection |
-| `/shared/registry/functionRegistry.js` | Register callable functions, dependency injection for invocations |
-| `/shared/registry/capabilityRegistry.js` | Register what each module can do (by name), query by capability |
-| `/shared/registry/dependencyGraph.js` | Track module dependencies, compute boot order, detect cycles |
+| `/platform/shared/registry/moduleRegistry.js` | Register/deregister Modules, list all, query by capability |
+| `/platform/shared/registry/schemaRegistry.js` | Register table ownership, track migrations per module |
+| `/platform/shared/registry/routeRegistry.js` | Register HTTP routes, map paths to handlers, conflict detection, `:param` pattern matching |
+| `/platform/shared/registry/functionRegistry.js` | Register callable functions, implementation references, route handler mapping |
+| `/platform/shared/registry/capabilityRegistry.js` | Register capabilities, conflict detection, `check()` for availability |
+| `/platform/shared/registry/dependencyGraph.js` | Track module dependencies, topological sort for boot order, cycle detection via DFS |
+| `/platform/shared/registry/componentRegistry.js` | Register Components and their types (`registry`, `profile`, `standard`) |
+| `/platform/shared/registry/componentScanner.js` | Discover Components from `component.json` manifests, populate ComponentRegistry |
 
 ### Stage 1.3: Staging Pipeline
 
-The core plug-and-play mechanism located at `/shared/pipeline/`.
+The plug-and-play mechanism located at `/platform/shared/pipeline/`. Seven sequential stages.
 
 | Component | Responsibility |
 |-----------|----------------|
-| `/shared/pipeline/discover.js` | Scan `/modules` directory, find module.json manifests, parse declarations |
-| `/shared/pipeline/validate.js` | Validate manifest against schema, check required exports, verify dependency availability |
-| `/shared/pipeline/register.js` | Register validated module through all registries |
-| `/shared/pipeline/wire.js` | Connect routes to handlers, inject dependencies, set up event subscriptions |
-| `/shared/pipeline/boot.js` | Execute boot hooks in dependency order, capture failures, report status |
-| `/shared/pipeline/unstage.js` | Gracefully deregister module, remove routes, invalidate cache, run teardown hooks |
+| `/platform/shared/pipeline/discover.js` | Scan `/modules` directory, find `module.json` and `component.json` manifests, parse declarations |
+| `/platform/shared/pipeline/validate.js` | Validate Manifests against schema, check required exports, verify dependency availability, detect circular references |
+| `/platform/shared/pipeline/register.js` | Register validated Modules/Components through all Registries, map `auth_required` flags, register route permissions |
+| `/platform/shared/pipeline/resolve.js` | Resolve dependencies, check required capabilities/dependencies are available, add intelligence to PLATFORM_SERVICES set |
+| `/platform/shared/pipeline/wire.js` | Connect routes to handlers, inject services + `functionRegistry` into Context, set up event subscriptions |
+| `/platform/shared/pipeline/boot.js` | Execute `boot(ctx)` hooks in topological order, rollback on failure, capture failures, report status |
+| `/platform/shared/pipeline/unstage.js` | Gracefully deregister Modules/Components, remove routes, invalidate cache entries, run teardown hooks in reverse order |
 
 ---
 
@@ -81,158 +111,139 @@ The core plug-and-play mechanism located at `/shared/pipeline/`.
 
 ### Deliverable: The Module Manifest Spec
 
-Every module must provide this exact structure.
+Every Module must provide this exact structure. **File:** `/platform/modules/{moduleName}/module.json`
 
-**File:** `/modules/{moduleName}/module.json`
-
-```json
-{
-  "name": "{unique_module_id}",
-  "version": "1.0.0",
-  "author": "internal",
-  "dependencies": ["auth", "db", "cache"],
-  "provides": ["capability:read_records", "capability:write_records"],
-  "requires": ["capability:user_management.get_user"],
-  "routes": [
-    {"path": "/api/users", "method": "GET", "handler": "listUsers", "auth": true},
-    {"path": "/api/users/:id", "method": "POST", "handler": "createUser", "auth": true}
-  ],
-  "functions": [
-    {"name": "getUserById", "exports": "get_user_record", "params": ["userId"], "returns": "UserRecord"}
-  ],
-  "schema": {
-    "tables": ["users", "user_sessions"],
-    "migrations": ["migrations/001_users.sql"]
-  },
-  "events": {
-    "publishes": ["user.created", "user.updated"],
-    "subscribes": ["auth.login_success"]
-  }
-}
-
+json { "name": "{unique_module_id}", "version": "1.0.0", "author": "internal", "dependencies": ["auth", "db", "cache"], "provides": ["capability:read_records", "capability:write_records"], "requires": ["capability:user_management.get_user"], "routes": [ {"path": "/api/users", "method": "GET", "handler": "listUsers", "auth_required": true, "permissions": ["admin:users:read"]}, {"path": "/api/users/:id", "method": "POST", "handler": "createUser", "auth_required": true} ], "functions": [ {"name": "listUsers", "exports": "listUsers", "params": ["filter"], "returns": "UserRecord[]"}, {"name": "createUser", "exports": "createUser", "params": ["data"], "returns": "UserRecord"} ], "schema": { "tables": ["users", "user_sessions"], "migrations": ["migrations/001_users.sql"] }, "events": { "publishes": ["user.created", "user.updated"], "subscribes": ["auth.login_success"] } }
 Required Exports
 
-Every module must export:
+Every Module must export:
 
-    boot(ctx) — Called during staging, receives injected services context
+    boot(ctx) — Called during staging, receives injected services Context
     teardown(ctx) — Called during unstaging
     All functions declared in module.json.functions
 
 Naming Convention
 
-{module}_{operation}. Example: user_getById, user_create, user_update, user_delete.
+Functions follow {module}_{operation} (e.g., user_management_listUsers). Module names are lowercase with underscores separating words.
+PHASE 2.1: COMPONENT STANDARD
+Deliverable: The Component Manifest Spec
+
+Every Component must provide this exact structure. File: /platform/modules/{componentName}/component.json
+{
+  "name": "{unique_component_id}",
+  "type": "registry",
+  "version": "1.0.0",
+  "provides": ["capability:read_{entity}", "capability:write_{entity}"],
+  "functions": [
+    {"name": "listEntities", "exports": "listEntities", "params": ["filter"], "returns": "EntityRecord[]"},
+    {"name": "createEntity", "exports": "createEntity", "params": ["data"], "returns": "EntityRecord"}
+  ],
+  "schema": {
+    "tables": ["entities"],
+    "migrations": ["migrations/001_entities.sql"]
+  }
+}
+Component Types
+Type	Behavior	Examples
+registry	Provides atomic data storage and CRUD operations for a single entity type	student_registry, staff_registry, room_registry, inventory
+profile	Aggregates data from Registry Components at runtime, does not own tables	student_profile, staff_profile
+standard	Full Module with independent boot logic (no component.json)	builder, system_health, user_management
 PHASE 3: DATABASE SCHEMA DEFINITION
-Deliverable: Complete Schema Catalog
+Platform-Level Tables
+Table	Columns	Purpose
+schema_migrations	id, version, applied_at	Track applied migrations
+sessions	session_id, user_id, created_at, expires_at, payload	Active sessions
+audit_log	id, timestamp, user_id, action, entity_type, entity_id, old_value, new_value, ip_address	Immutable audit trail
+metrics	id, timestamp, metric_name, value, tags	Internal metrics storage
+token_revocation	id, token_hash, revoked_at, user_id, reason	Revoked JWT tracking
+rate_limit	id, identifier, endpoint, hit_count, window_start	Rate limiting persistence
+refresh_tokens	id, token_hash, user_id, created_at, expires_at	Refresh token rotation
+intelligence_metadata	id, entity_type, entity_id, tags, classifications, confidence, created_at, updated_at	Metadata storage
+intelligence_insights	id, insight_type, summary, metrics, alerts, created_at, ttl	Insights aggregation
+intelligence_rules	id, name, conditions, actions, priority, active	Rule definitions
+recommendations	id, type, payload, confidence, created_at, ttl	Recommendation storage
+route_permissions	id, route_path, route_method, permissions	Route-level permissions
+Module-Owned Tables
 
-All tables defined upfront. No implicit schemas.
-Table	Columns	PK	Indexes	Purpose
-schema_migrations	id, version, applied_at	id	-	Track applied migrations
-sessions	session_id, user_id, created_at, expires_at, payload	session_id	user_id, expires_at	Active sessions
-audit_log	id, timestamp, user_id, action, entity_type, entity_id, old_value, new_value, ip_address	id	timestamp, user_id, entity_type	Immutable audit trail
-metrics	id, timestamp, metric_name, value, tags	id	metric_name, timestamp	Internal metrics storage
-token_revocation	id, token_hash, revoked_at, user_id, reason	id	token_hash, user_id	Revoked JWT tracking
-
-(Application tables defined per-module, referenced through schemaRegistry)
-Module Schema Standard
-
-Each module's migrations live in /modules/{moduleName}/migrations/. First migration creates the module's primary tables. Subsequent migrations alter/add.
+Each Module owns its tables via migrations. Referenced through schemaRegistry. Examples: users, students, staff, rooms, inventory_items, password_resets, etc.
 PHASE 4: BOOT SEQUENCE
 Deliverable: Ordered Initialization Protocol
 Boot Order
 
-    Load shared contracts (Phase 0)
-    Initialize services (db, cache, session, audit, metrics, events, auth, log, validate)
-    Run database migrations (all, in order, skip already-applied)
-    Discover modules in /modules directory
-    Validate manifests against schema
-    Build dependency graph
+    Clear all Registries (fresh state)
+    Run database migrations (platform + module-level, all in order, skip already-applied)
+    Verify tables exist, load configuration
+    Discover Modules and Components from /modules directory
+    Validate all Manifests (module.json + component.json)
+    Build dependency graph (Module → Module, Component → Registry)
     Detect circular dependencies (fail immediately if found)
     Compute topological boot order
-    Register each module through all registries
-    Wire routes to handlers
-    Inject service dependencies into module boot(ctx) calls
-    Execute module boot hooks in order
-    Start HTTP server
-    Emit system.ready event
+    Register each Module/Component through all Registries
+    Resolve dependencies (verify required capabilities/services available)
+    Wire routes to handlers, inject Context with services + functionRegistry
+    Execute Module/Component boot hooks in order
+    Start HTTP server on configured PORT
+    Emit platform.ready event
 
 Failure Handling
 
-Any failure before step 13 aborts boot with detailed error log. Any failure during step 12 triggers graceful rollback of already-booted modules.
+    Any failure before step 14 aborts boot with detailed error log
+    Any failure during step 12 triggers graceful rollback of already-booted Modules/Components
+    Rollback runs unstage.js in reverse order
+
 PHASE 5: HTTP LAYER
 Deliverable: REST API Surface
-Endpoint Group	Paths	Auth Required
-Health	GET /health, GET /ready	No
-Metrics	GET /metrics	Yes (admin)
-Audit	GET /audit/logs, GET /audit/logs/:id	Yes (admin)
-Staging	GET /staging/modules, POST /staging/modules, DELETE /staging/modules/{id}	Yes (admin)
-Discovery	GET /discover/capabilities, GET /discover/functions	Yes
-Middleware Stack (in order)
+Endpoint Groups
+Group	Paths	Auth Required	Permissions
+Health	GET /health, GET /ready	No	None
+Metrics	GET /metrics	Yes	admin:metrics:read
+Audit	GET /audit/logs, GET /audit/logs/:id	Yes	admin:audit:read
+Staging	GET /staging/modules, POST /staging/modules, DELETE /staging/modules/{id}	Yes	admin:staging:manage
+Discovery	GET /discover/capabilities, GET /discover/functions	Yes	admin:discovery:read
+Auth	POST /api/auth/login, POST /api/auth/logout, POST /api/auth/refresh, GET /api/auth/me, POST /api/auth/forgot-password, POST /api/auth/reset-password	Mixed	Varies
+User Mgmt	GET/POST/PATCH/DELETE /api/users/*, POST /api/users/:id/change-password	Yes	admin:users:*
+Registry	GET/POST/PATCH/DELETE /api/{students,staff,rooms,inventory}/*	Yes	admin:{entity}:*
+Introspection	GET /introspect/*	Yes	admin:introspection:read
+Builder	GET/POST /builder/*	Yes	admin:builder:*
+Middleware Stack (Fixed Order)
 
-    CORS (configured origins only)
+    CORS (configured origins only, via CORS_ORIGINS env var)
     Body parsing (JSON limit: 1MB)
-    Cookie parser
-    CSRF protection (skip for API routes with auth header)
-    Authentication (JWT or session)
-    Authorization (permission check)
-    Rate limiting (per-user, configurable tiers)
-    Request logging
+    Cookie parser (populates req.cookies)
+    CSRF protection (state-changing requests require Bearer token OR X-Requested-With: XMLHttpRequest)
+    Authentication (JWT Bearer token, populates req.user with {id, permissions, mustChangePassword})
+    Authorization (route-level permission checks via route.permissions, OR logic)
+    Password change required middleware (blocks protected routes when must_change_password = true)
+    Rate limiting (sliding window, SQLite-backed)
+    Input sanitization (non-blocking, sanitizes req.body + req.query)
+    Request logging (method, path, userId)
 
 Response Standard
-
 {
   "success": true,
   "data": {},
   "meta": {"timestamp": "ISO8601", "requestId": "..."}
 }
-
 Errors
-
 {
   "success": false,
   "error": {"code": "VALIDATION_ERROR", "message": "...", "details": []},
   "meta": {"timestamp": "ISO8601", "requestId": "..."}
 }
+PHASE 6: REFERENCE IMPLEMENTATIONS
+Core Modules
 
-PHASE 6: APPLICATION MODULE TEMPLATE
-Deliverable: Reference Implementation
-
-/modules/userManagement/
-  ├── module.json
-  ├── index.js
-  ├── migrations/
-  │   └── 001_users.sql
-  ├── handlers/
-  │   ├── listUsers.js
-  │   └── createUser.js
-  └── schemas/
-      ├── user.json
-      └── permissions.json
-
-index.js:
-
-const moduleJson = require('./module.json');
-const db = require('../../shared/services/db');
-const cache = require('../../shared/services/cache');
-const log = require('../../shared/services/log');
-
-module.exports = {
-  boot(ctx) {
-    log.info('userManagement booting', { module: moduleJson.name });
-  },
-  
-  teardown(ctx) {
-    log.info('userManagement tearing down');
-  },
-  
-  get_user_record(userId) {},
-  create_user_record(data) {},
-  update_user_record(userId, data) {},
-  delete_user_record(userId) {},
-  list_user_records(filter) {}
-};
-
+user_management — User accounts, authentication, password management
+student_registry — Student records (Component: registry type)
+student_profile — Student aggregation (Component: profile type)
+staff_registry — Staff records (Component: registry type)
+staff_profile — Staff aggregation (Component: profile type)
+room_registry — Room management (Component: registry type)
+inventory — Item tracking (Component: registry type)
+builder — Module scaffolding and gap analysis (Standard Module)
+system_health — Platform introspection, staging endpoints (Standard Module)
 PHASE 7: TESTING LAYER
-Deliverable: Test Coverage Requirements
+Test Coverage Requirements
 Test Type	Scope	Minimum Coverage
 Unit	Shared services	90%
 Unit	Registries	100%
@@ -240,206 +251,185 @@ Integration	Module staging pipeline	100%
 Integration	HTTP endpoints	85%
 E2E	Boot sequence	Critical path 100%
 Security	Auth, CSRF, rate limit	100%
-Test Files
+Smoke	Endpoints + intelligence	100% (all 6 smoke tests)
+Test Infrastructure
 
-    /tests/unit/services/*
-    /tests/unit/registries/*
-    /tests/integration/staging/*
-    /tests/integration/http/*
-    /tests/e2e/boot.spec.js
+    Per-suite SQLite databases (unique DB_PATH)
+    Dynamic port allocation (PORT=0)
+    Test helper (createTestServer(), adminLogin())
+    Parallel execution safe
+    tests/helpers/test-server.js — shared infrastructure
+    TEST_PROTOCOL.md — mandatory testing standards
+
+Test Locations
+
+    /tests/unit/services/* — Service unit tests
+    /tests/unit/registries/* — Registry unit tests
+    /tests/integration/staging/* — Pipeline tests
+    /tests/integration/http/* — HTTP endpoint tests
+    /tests/e2e/* — Boot sequence tests
+    /tests/*.sh — Smoke tests
 
 PHASE 8: DEPLOYMENT
-Deliverable: Production Deployment Specification
 Environment Variables
-
 NODE_ENV=production|development|test
 PORT=3000
 LOG_LEVEL=info|debug|warn|error
-DB_PATH=/var/lib/timsys/database.sqlite
+DB_PATH=./data/timsys.sqlite
 CACHE_MAX_SIZE=10000
 CACHE_DEFAULT_TTL=300
-SESSION_SECRET=<generated>
 JWT_SECRET=<generated>
-RATE_LIMIT_TIER=default|admin|service
+SESSION_SECRET=<generated>
+CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
+RATE_LIMIT_AUTH=10/min
+RATE_LIMIT_API=100/min
+RATE_LIMIT_ADMIN=500/min
+Setup Wizard
+
+File: deploy/setup-wizard.js
+
+Mandatory first-run CLI that enforces:
+
+    Session duration policy (Secure/Balanced/Extended)
+    Backup strategy (Cloud/On-prem + retention schedule)
+    Admin identity recording
+    Writes config/session-policy.json with SHA-256 integrity hash
+
+Server startup blocked until wizard completes and session-policy.json exists.
+Backup Script
+
+File: deploy/backup.sh
+
+    Reads policy from session-policy.json
+    Performs VACUUM INTO backups
+    Applies retention policy (delete old backups)
+    Runs via cron
 
 Health Checks
 
-    /health — System alive (return 200)
-    /ready — System ready to accept traffic (all registries populated, DB connected, migrations applied)
+    GET /health — System alive (200 OK)
+    GET /ready — System ready (all registries populated, DB connected, migrations applied, setup wizard complete)
 
 Logging
 
-Structured JSON to stdout. Parseable by log aggregator.
+Structured JSON to stdout. Parseable by log aggregators.
 Metrics
 
 Prometheus-compatible /metrics endpoint for scraping.
 PHASE 9: INTROSPECTION LAYER
 Deliverable: Platform Self-Knowledge APIs
-Endpoint	Method	Description	Returns
-/introspect/platform	GET	Full platform state summary	Total modules, capabilities, functions, routes, dependencies, health
-/introspect/modules	GET	List all staged modules with metadata	Module name, version, capabilities provided/requires, routes, functions
-/introspect/capabilities	GET	Query available capabilities	Filter by name, module, dependency chains
-/introspect/functions	GET	Query callable functions	Filter by name, signature, required Capabilities
-/introspect/routes	GET	Query HTTP endpoints	Filter by path, auth requirement, module origin
-/introspect/dependencies	GET	Visualize dependency graph	Adjacency list, cycle warnings, boot order
-/introspect/gaps	GET	Query completion metrics	Per-module capability coverage, missing artifacts
-/introspect/templates	GET	Return module templates with gap analysis	Templates at 25%, 50%, 75%, 100% completion states
-Data Model
+Endpoint	Method	Returns
+/introspect/platform	GET	Total modules, components, capabilities, functions, routes, health
+/introspect/modules	GET	All staged Modules/Components with metadata
+/introspect/capabilities	GET	Filter by name, module, dependency chains
+/introspect/functions	GET	Filter by name, signature, required capabilities
+/introspect/routes	GET	Filter by path, auth requirement, module origin
+/introspect/dependencies	GET	Adjacency list, cycle warnings, boot order
+/introspect/gaps	GET	Completion metrics, missing artifacts
+/introspect/templates	GET	Recommended Module builds
 
-All introspection queries read from Registries. No direct filesystem access. Caching TTL: 5 minutes. Stale data triggers refresh.
+All queries read from Registries. No direct filesystem access. Caching TTL: 5 minutes.
 PHASE 10: GAP ANALYSIS ENGINE
 Deliverable: Completion Percentage Calculator
-Input
-
-Target Module Definition (ideal module.json + expected schema + expected routes)
-Output
-
-Gap Report with percentage completion and artifact list
-Metric	Calculation	Thresholds
-Capability Coverage	registered_capabilities / expected_capabilities	< 25% = red, < 50% = yellow, >= 50% = green
-Function Completeness	declared_functions_implemented / declared_functions	Same
-Route Completeness	wired_routes / declared_routes	Same
-Schema Completeness	migrations_applied / migrations_declared	Same
-Dependency Availability	dependencies_available / dependencies_declared	Any 0 = blocking
-Overall Score	Weighted average (capabilities 40%, functions 30%, routes 20%, schema 10%)	75%+ = "near completion"
+Scoring Formula
+Metric	Weight	Thresholds
+Capability Coverage	40%	< 25% red, < 50% yellow, ≥ 50% green
+Function Completeness	30%	Same
+Route Completeness	20%	Same
+Schema Completeness	10%	Same
 Gap Report Structure
-
 {
   "moduleName": "attendance_tracking",
   "completionScore": 73,
   "status": "yellow",
   "gaps": [
-    {"category": "function", "missing": ["record_entry"], "priority": "high"},
-    {"category": "route", "missing": ["POST /api/attendance"], "priority": "medium"},
-    {"category": "migration", "missing": ["003_attendance_details.sql"], "priority": "low"}
+    {"category": "function", "missing": ["recordEntry"], "priority": "high"},
+    {"category": "route", "missing": ["POST /api/attendance"], "priority": "medium"}
   ],
   "recommendedActions": [
     "Implement attendance_recordEntry in index.js",
-    "Wire route POST /api/attendance to attendance_recordEntry",
-    "Apply migration 003_attendance_details.sql"
+    "Wire route POST /api/attendance to attendance_recordEntry"
   ]
 }
-
 Execution
 
-Gap Analysis runs on-demand via API and nightly batch job. Results cached for 1 hour.
+Runs on-demand via API. Results cached for 1 hour.
+
+Files: /platform/engine/gap-analysis/calculator.js, /platform/engine/gap-analysis/index.js
 PHASE 11: RECOMMENDATION ENGINE
 Deliverable: Buildable Module Suggester
-Input
-
-Current platform capabilities + user intent (keywords/tags)
-Output
-
-Ranked list of suggested Modules with gap analysis
 Algorithm
 
-    Scan all available Capabilities across all Modules
-    Cluster Capabilities by functional area (identified via naming patterns, Manifest tags, or semantic clustering)
-    Identify "orphan" Capabilities (not yet exposed as Routes)
-    Identify "partial" Modules (Capabilities exist but Routes incomplete)
-    Identify "missing" Modules (capability clusters with no owning Module)
-    Rank suggestions by:
-        Number of existing Capabilities leveraged
-        Estimated effort (gap count x complexity factor)
-        User relevance (keyword match, past usage)
-        Dependency readiness (no missing prerequisites)
+    Scan all Capabilities across all Modules/Components
+    Cluster Capabilities by functional area (naming patterns, manifest tags)
+    Identify orphan Capabilities (not exposed as Routes)
+    Identify partial Modules (Capabilities exist but Routes incomplete)
+    Rank suggestions by existing capabilities leveraged, estimated effort, user relevance
 
 Output Structure
-
 {
   "suggestions": [
     {
       "moduleName": "student_portal",
       "confidence": 0.85,
-      "existingCapabilities": ["user_authentication", "profile_read", "schedule_query"],
+      "existingCapabilities": ["authentication", "profileRead"],
       "missingArtifacts": 4,
       "estimatedEffort": "2-3 days",
-      "recommendedNextSteps": [
-        "Create student_portal Module directory",
-        "Write module.json declaring 3 capabilities",
-        "Implement profile_read handler",
-        "Wire 2 routes to exposed functions"
-      ]
+      "recommendedNextSteps": [...]
     }
-  ],
-  "platformReadiness": {
-    "availableCapabilities": 127,
-    "stagedModules": 14,
-    "orphanCapabilities": 23,
-    "averageCompletionRate": 68
-  }
+  ]
 }
-
 Execution
 
-Runs nightly. Triggers on-demand via API. Recommendations persisted to recommendations table for audit.
+Runs nightly. Triggers on-demand. Persists to recommendations table.
+
+Files: /platform/engine/recommendation/analyzer.js, /platform/engine/recommendation/index.js
 PHASE 12: MODULE BUILDER INTERFACE
-Deliverable: Builder UI/CLI Specification
 CLI Commands
-
-timsys builder new <name>          # Scaffold new Module from template
-timsys builder inspect <module>    # Show gap analysis for Module
-timsys builder recommend           # Show recommended Module builds
-timsys builder complete <module>   # Show remaining work to reach 100%
-
-UI Pages
-
-    /builder/dashboard — Overall platform completion metrics
-    /builder/new-module — Form to scaffold new Module with auto-suggested structure
-    /builder/<module>/analysis — Detailed gap report with actionable checklist
-    /builder/recommendations — Ranked list of suggested Modules to build
-    /builder/templates — Library of Module templates with known completion states
-
+timsys builder new <name>           # Scaffold new Module from template
+timsys builder inspect <module>     # Show gap analysis for Module
+timsys builder recommend            # Show recommended Module builds
+timsys builder complete <module>    # Show remaining work to reach 100%
+HTTP Endpoints
+Endpoint	Method	Description
+/builder/dashboard	GET	Overall platform completion metrics
+/builder/new-module	POST	Form to scaffold new Module
+/builder/:module/analysis	GET	Detailed gap report
+/builder/recommendations	GET	Ranked list of suggested Modules
+/builder/templates	GET	Library of Module templates
 Builder Logic
 
-The Builder is an Application consuming the Introspection, Gap Analysis, and Recommendation APIs. It does not modify platform internals directly. It generates scaffolding code and module.json drafts for human review.
-ROADMAP
-Week	Phase	Milestone
-1	Phase 0	Contracts finalized, reviewed, frozen
-2-3	Phase 1	All shared services implemented and tested
-4	Phase 1.2-1.3	All registries and staging pipeline complete
-5	Phase 2	Module standard documented, template published
-6	Phase 3	All base migrations written, verified
-7	Phase 4	Boot sequence implemented, tested
-8	Phase 5	HTTP layer complete, middleware stack wired
-9-10	Phase 6	Core modules rewritten to standard (user, auth, audit)
-11	Phase 7	Full test suite passing
-12	Phase 8	Production deploy, monitoring live
-13-14	Phase 9	Introspection layer complete, APIs live
-15-16	Phase 10-11	Gap analysis and recommendation engines operational
-17-18	Phase 12	Module builder interface (CLI + UI) delivered
-WHAT IS DIFFERENT FROM V5
-Problem in V5	Fix in V6
-MODULE_MAP hand-coded	Manifest discovery + auto-registration
-Direct database_getConnection	All modules consume through ctx.db
-Silent safeRequire failures	Validation fails fast with detailed errors
-Dual boot sequence	Single ordered boot with dependency resolution
-No dependency tracking	DependencyGraph computes boot order
-Modules write raw SQL	Generic CRUD through db.query() + schema contracts
-Naming inconsistency	Strict {module}_{operation} enforced by validation
-No staging pipeline	/shared/pipeline/* handles full lifecycle
-Platform spine unused	Application modules register through registries
-Circular dependencies undetected	Cycle detection during graph build
-No platform self-awareness	Introspection APIs query all registries
-No build guidance	Gap analysis + recommendation engine + builder UI
-No completion tracking	Gap analysis engine calculates module completion percentages
-Inter-module tight coupling	EventBus-only communication (pub/sub + request/reply)
-No token revocation	JWT revocation list + session destruction
+The Builder is an Application consuming Introspection, Gap Analysis, and Recommendation APIs. Generates scaffolding code and module.json drafts for human review. Does not modify platform internals directly.
 NON-NEGOTIABLE RULES
 
-    No direct database imports. All database access goes through /shared/services/db.js
-    No manual route registration. Routes come from module.json, wired by /shared/pipeline/wire.js
+    No direct database imports. All database access via /platform/shared/services/db.js
+    No manual route registration. Routes come from module.json/component.json, wired by /platform/shared/pipeline/register.js and wire.js
     No silent failures. Any validation error aborts boot with full stack trace
-    No module can boot without its dependencies available (enforced by dependencyGraph)
-    No function without declaration in module.json (enforced by validation pipeline)
+    No Module/Component can boot without dependencies available (enforced by DependencyGraph)
+    No function without declaration in Manifest (enforced by validation pipeline)
     No route without authentication middleware (except health/discovery endpoints)
     No migration without version number and backward compatibility guarantee
-    No module imports platform internals directly — all access through injected Context
-    No inter-module direct calls — all communication through EventBus (pub/sub OR request/reply). FunctionRegistry maps routes to handlers only.
-    No registry modification outside the staging pipeline
-    All 6 contracts must be frozen before any service implementation begins
+    No Module/Component imports platform internals directly — all access through injected Context
+    No inter-module direct calls — all communication through EventBus (pub/sub OR request/reply). functionRegistry maps routes to handlers only.
+    No Registry modification outside the staging pipeline
+    All 13 contracts must be frozen before any service implementation begins
+    Setup wizard must complete before server starts
+    Frozen documents (CONSTITUTION, LEXICON) must maintain SHA-256 integrity
 
 VERSION HISTORY
 Version	Date	Change
-v6.0.0	TBD	Initial freeze — all changes consolidated, pipeline path corrected, full auth revocation added
-
+v6.0.0	2026-07-16	Initial freeze — contracts, pipeline, registries
+v6.1.0	2026-08-07	Added Component Manifest spec, component composition model, expanded Services (13), expanded Registries (8), expanded Pipeline (7 stages), intelligence stabilization, route permissions, refresh tokens, setup wizard enforcement
+WHAT CHANGED FROM V6.0.0
+Aspect	v6.0.0	v6.1.0
+Services	6 contracts	13 contracts
+Registries	6 registries	8 registries (added componentRegistry, componentScanner)
+Pipeline stages	5 stages	7 stages (added resolve, unstage)
+Module standard	Only module.json	Plus component.json for Components
+Component model	Not specified	Registry/Profile/Standard types
+Intelligence	Placeholder	Full implementation (metadata, insights, logic)
+Token handling	JWT only	JWT + refresh tokens with rotation
+Permissions	Per-handler inline	Declarative route-level permissions
+Security	In-memory rate limit	SQLite-backed rate limit
+Setup	No enforcement	Mandatory setup wizard
+Boot validation	Basic checks	Setup wizard + hash verification

@@ -1,9 +1,7 @@
 // Path: /home/tmax/TimSyS_v6/platform/modules/student_profile/index.js
-// Total lines: ~95
+// Total lines: 110
 
 'use strict';
-
-const functionRegistry = require('../../shared/registry/functionRegistry');
 
 function boot(ctx) {
   ctx.log.info('student_profile booting', { module: 'student_profile' });
@@ -15,48 +13,60 @@ function teardown(ctx) {
 
 async function getProfile(req, ctx) {
   var id = req.params.id;
-
-  var subReq = { params: { id: id }, query: {}, body: {}, user: req.user };
-
-  var studentFn = functionRegistry.get('student_registry_readStudent');
-  if (!studentFn) {
-    return { success: false, statusCode: 500, error: { code: 'DEPENDENCY_MISSING', message: 'student_registry_readStudent not available' } };
+  
+  var studentFunc = ctx.functionRegistry.get('student_registry_readStudent');
+  if (!studentFunc || typeof studentFunc.implementation !== 'function') {
+    return { success: false, statusCode: 500, error: { code: 'INTERNAL_ERROR', message: 'student_registry not available' } };
   }
-  var studentResult = await studentFn.implementation(subReq, ctx);
+  
+  var studentReq = { params: { id: id } };
+  var studentResult = await studentFunc.implementation(studentReq, ctx);
+  
   if (!studentResult.success) {
     return studentResult;
   }
-
-  var contactsFn = functionRegistry.get('student_registry_listContacts');
-  var contactsResult = null;
-  if (contactsFn) {
-    contactsResult = await contactsFn.implementation(subReq, ctx);
-  }
-
-  var historyFn = functionRegistry.get('student_registry_getEnrollmentHistory');
-  var historyResult = null;
-  if (historyFn) {
-    historyResult = await historyFn.implementation(subReq, ctx);
-  }
-
+  
   var profile = {
     student: studentResult.student,
-    contacts: contactsResult && contactsResult.success ? contactsResult.contacts : [],
-    enrollment_history: historyResult && historyResult.success ? historyResult.history : []
+    contacts: [],
+    enrollment_history: [],
+    metadata: null,
+    insights: []
   };
-
-  if (ctx.audit) {
-    ctx.audit.action('student_profile.view', req.user.id, {
-      entityType: 'student',
-      entityId: studentResult.student.id
-    });
+  
+  var contactsFunc = ctx.functionRegistry.get('student_registry_listContacts');
+  if (contactsFunc && typeof contactsFunc.implementation === 'function') {
+    var contactsResult = await contactsFunc.implementation({ params: { id: id } }, ctx);
+    if (contactsResult && contactsResult.success) {
+      profile.contacts = contactsResult.contacts;
+    }
   }
-
+  
+  var historyFunc = ctx.functionRegistry.get('student_registry_getEnrollmentHistory');
+  if (historyFunc && typeof historyFunc.implementation === 'function') {
+    var historyResult = await historyFunc.implementation({ params: { id: id } }, ctx);
+    if (historyResult && historyResult.success) {
+      profile.enrollment_history = historyResult.history;
+    }
+  }
+  
+  if (ctx.intelligence) {
+    var studentEntityId = studentResult.student.id !== undefined ? studentResult.student.id.toString() : (studentResult.student.student_id || id);
+    
+    try {
+      profile.metadata = await ctx.intelligence.getMetadata('student', studentEntityId);
+    } catch (e) {
+      ctx.log.warn('Failed to fetch metadata', { error: e.message });
+    }
+    
+    try {
+      profile.insights = await ctx.intelligence.getInsights('student', studentEntityId);
+    } catch (e) {
+      ctx.log.warn('Failed to fetch insights', { error: e.message });
+    }
+  }
+  
   return { success: true, profile: profile };
 }
 
-module.exports = {
-  boot: boot,
-  teardown: teardown,
-  getProfile: getProfile
-};
+module.exports = { boot: boot, teardown: teardown, getProfile: getProfile };

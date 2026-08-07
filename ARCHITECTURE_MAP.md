@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-08-07T09:17:04Z
+Generated: 2026-08-07T20:31:47Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -11,13 +11,15 @@ Run `bash Tools/update_architecture_map.sh` to regenerate after structural chang
 
 Path: `/home/tmax/TimSyS_v6`
 
+Platform Location: `/home/tmax/TimSyS_v6/platform`
+
 
 ## Root Documents
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `CONTEXT.md` | ✅ | 10870B | 2026-07-20 18:26:38 |
-| `ARCHITECTURE_MAP.md` | ✅ | 451B | 2026-08-07 12:17:04 |
+| `ARCHITECTURE_MAP.md` | ✅ | 503B | 2026-08-07 23:31:47 |
 | `HANDOVER.md` | ✅ | 19600B | 2026-08-06 16:10:21 |
 | `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 08:34:40 |
 | `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-08-07 12:14:19 |
@@ -52,7 +54,6 @@ Path: `/home/tmax/TimSyS_v6`
 ./CONSTITUTION_V6.0.md
 ./CONTEXT.md
 ./data
-./data/timsys.sqlite
 ./DECISIONS.md
 ./.git
 ./.gitignore
@@ -111,6 +112,40 @@ Path: `/home/tmax/TimSyS_v6`
 ./platform/modules/builder/module.json
 ./platform/modules/builder/templates.js
 ./platform/modules/.gitkeep
+./platform/modules/inventory
+./platform/modules/inventory/component.json
+./platform/modules/inventory/index.js
+./platform/modules/inventory/migrations
+./platform/modules/inventory/migrations/001_inventory.sql
+./platform/modules/inventory/module.json
+./platform/modules/room_registry
+./platform/modules/room_registry/component.json
+./platform/modules/room_registry/index.js
+./platform/modules/room_registry/migrations
+./platform/modules/room_registry/migrations/001_rooms.sql
+./platform/modules/room_registry/module.json
+./platform/modules/staff_profile
+./platform/modules/staff_profile/component.json
+./platform/modules/staff_profile/index.js
+./platform/modules/staff_profile/module.json
+./platform/modules/staff_registry
+./platform/modules/staff_registry/component.json
+./platform/modules/staff_registry/index.js
+./platform/modules/staff_registry/migrations
+./platform/modules/staff_registry/migrations/001_staff.sql
+./platform/modules/staff_registry/migrations/.gitkeep
+./platform/modules/staff_registry/module.json
+./platform/modules/student_profile
+./platform/modules/student_profile/component.json
+./platform/modules/student_profile/index.js
+./platform/modules/student_profile/module.json
+./platform/modules/student_registry
+./platform/modules/student_registry/component.json
+./platform/modules/student_registry/index.js
+./platform/modules/student_registry/migrations
+./platform/modules/student_registry/migrations/001_students.sql
+./platform/modules/student_registry/migrations/.gitkeep
+./platform/modules/student_registry/module.json
 ./platform/modules/system_health
 ./platform/modules/system_health/handlers
 ./platform/modules/system_health/handlers/staging.js
@@ -202,8 +237,14 @@ Path: `/home/tmax/TimSyS_v6`
 ./tests/integration/staging
 ./tests/integration/staging/.gitkeep
 ./tests/integration/staging/pipeline.test.js
+./tests/intelligence.smoke.sh
+./tests/inventory.endpoint_smoke.sh
+./tests/profile.endpoint_smoke.sh
+./tests/room.endpoint_smoke.sh
 ./tests/setup.js
 ./tests/smoke-test.js
+./tests/staff.endpoint_smoke.sh
+./tests/student.endpoint_smoke.sh
 ./tests/unit
 ./tests/unit/contracts-verification.test.js
 ./tests/unit/intelligence.test.js
@@ -221,65 +262,111 @@ Path: `/home/tmax/TimSyS_v6`
 
 ## Phase 0: Foundation Contracts
 
-Location: `/contracts/`
+Location: `/platform/contracts/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ❌ MISSING | - | - |
-| `cache.js` | ❌ MISSING | - | - |
-| `auth.js` | ❌ MISSING | - | - |
-| `log.js` | ❌ MISSING | - | - |
-| `validate.js` | ❌ MISSING | - | - |
-| `events.js` | ❌ MISSING | - | - |
+| `db.js` | ✅ | 1976B | 2026-07-16 17:04:09 |
+| `cache.js` | ✅ | 1540B | 2026-07-16 17:04:27 |
+| `auth.js` | ✅ | 3905B | 2026-07-16 17:04:43 |
+| `log.js` | ✅ | 1607B | 2026-07-16 17:04:56 |
+| `validate.js` | ✅ | 1275B | 2026-07-16 17:05:07 |
+| `events.js` | ✅ | 1876B | 2026-07-16 17:05:19 |
+| `intelligence.js` | ✅ | 2202B | 2026-07-18 12:00:55 |
 
 ## Phase 1.1: Persistence / Service Layer
 
-Location: `/shared/services/`
+Location: `/platform/shared/services/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `db.js` | ❌ MISSING | - | - |
-| `cache.js` | ❌ MISSING | - | - |
-| `auth.js` | ❌ MISSING | - | - |
-| `log.js` | ❌ MISSING | - | - |
-| `validate.js` | ❌ MISSING | - | - |
-| `events.js` | ❌ MISSING | - | - |
-| `session.js` | ❌ MISSING | - | - |
-| `audit.js` | ❌ MISSING | - | - |
-| `metrics.js` | ❌ MISSING | - | - |
+| `db.js` | ✅ | 1840B | 2026-07-17 12:23:17 |
+| `cache.js` | ✅ | 3439B | 2026-07-17 02:56:18 |
+| `auth.js` | ✅ | 3609B | 2026-07-20 11:28:06 |
+| `log.js` | ✅ | 1103B | 2026-07-16 17:39:58 |
+| `validate.js` | ✅ | 1493B | 2026-07-16 17:40:14 |
+| `events.js` | ✅ | 2263B | 2026-07-16 17:40:26 |
+| `session.js` | ✅ | 2717B | 2026-07-16 17:39:15 |
+| `audit.js` | ✅ | 2375B | 2026-08-07 17:41:05 |
+| `metrics.js` | ✅ | 4338B | 2026-07-16 17:39:45 |
+| `email.js` | ✅ | 1672B | 2026-07-17 07:10:32 |
+| `ratelimit.js` | ✅ | 1500B | 2026-07-18 19:45:41 |
+| `refresh.js` | ✅ | 4318B | 2026-07-20 16:27:38 |
+
+### Intelligence Service Package
+
+Location: `/platform/shared/services/intelligence/`
+
+| File | Exists | Size |
+|------|--------|------|
+| `index.js` | ✅ | 945B |
+| `metadata.js` | ✅ | 3592B |
+| `insights.js` | ✅ | 9783B |
+| `logic.js` | ✅ | 4729B |
+| `store.js` | ✅ | 6237B |
 
 ## Phase 1.2: Registry Layer
 
-Location: `/shared/registry/`
+Location: `/platform/shared/registry/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `moduleRegistry.js` | ❌ MISSING | - | - |
-| `schemaRegistry.js` | ❌ MISSING | - | - |
-| `routeRegistry.js` | ❌ MISSING | - | - |
-| `functionRegistry.js` | ❌ MISSING | - | - |
-| `capabilityRegistry.js` | ❌ MISSING | - | - |
-| `dependencyGraph.js` | ❌ MISSING | - | - |
+| `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 17:47:26 |
+| `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 17:43:03 |
+| `routeRegistry.js` | ✅ | 2131B | 2026-07-20 06:47:58 |
+| `functionRegistry.js` | ✅ | 2575B | 2026-07-16 17:43:47 |
+| `capabilityRegistry.js` | ✅ | 2879B | 2026-07-16 17:45:09 |
+| `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 17:45:25 |
+| `componentRegistry.js` | ✅ | 3735B | 2026-08-06 20:46:46 |
+| `componentScanner.js` | ✅ | 5067B | 2026-08-06 21:12:43 |
 
 ## Phase 1.3: Staging Pipeline
 
-Location: `NOT FOUND`
+Location: `/platform/shared/pipeline/`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `discover.js` | ❌ MISSING | - | - |
-| `validate.js` | ❌ MISSING | - | - |
-| `register.js` | ❌ MISSING | - | - |
-| `resolve.js` | ❌ MISSING | - | - |
-| `wire.js` | ❌ MISSING | - | - |
-| `boot.js` | ❌ MISSING | - | - |
-| `unstage.js` | ❌ MISSING | - | - |
+| `discover.js` | ✅ | 1225B | 2026-07-16 17:49:40 |
+| `validate.js` | ✅ | 3803B | 2026-07-17 08:19:29 |
+| `register.js` | ✅ | 2760B | 2026-07-20 06:47:36 |
+| `resolve.js` | ✅ | 2350B | 2026-07-18 12:07:29 |
+| `wire.js` | ✅ | 2347B | 2026-08-07 22:37:11 |
+| `boot.js` | ✅ | 3184B | 2026-08-06 21:13:12 |
+| `unstage.js` | ✅ | 3124B | 2026-07-16 17:53:03 |
+
+## Phase 5: HTTP Middleware
+
+Location: `/platform/shared/middleware/`
+
+| File | Exists | Size |
+|------|--------|------|
+| `passwordChangeRequired.js` | ✅ | 1017B |
 
 ## Modules
 
-Location: `/modules/`
+Location: `/platform/modules/`
 
-Directory does not exist.
+| Module | Manifest | Index | Component | Migrations | Type |
+|--------|----------|-------|-----------|------------|------|
+| `builder` | ✅ | ✅ | ❌ | 0 | standard |
+| `inventory` | ✅ | ✅ | ✅ | 1 | registry |
+| `room_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `staff_profile` | ✅ | ✅ | ✅ | 0 | profile |
+| `staff_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `student_profile` | ✅ | ✅ | ✅ | 0 | profile |
+| `student_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `system_health` | ✅ | ✅ | ❌ | 0 | standard |
+| `user_management` | ✅ | ✅ | ❌ | 3 | standard |
+
+## CLI Tools
+
+Location: `/platform/scripts/cli/`
+
+| File | Exists | Purpose |
+|------|--------|---------|
+| `migrate.js` | ✅ | Database migrations |
+| `scaffold.js` | ✅ | Module generation |
+| `builder.js` | ✅ | App assembly |
 
 ## Phase 7: Testing Layer
 
@@ -289,38 +376,43 @@ Directory does not exist.
 - `/tests/integration/http/` — 5 test file(s)
 - `/tests/e2e/` — 2 test file(s)
 
-## Tools
+### Smoke Tests
 
-Directory does not exist.
+- `student.endpoint_smoke.sh` ✅
+- `staff.endpoint_smoke.sh` ✅
+- `room.endpoint_smoke.sh` ✅
+- `inventory.endpoint_smoke.sh` ✅
+- `intelligence.smoke.sh` ✅
+- `profile.endpoint_smoke.sh` ✅
 
 ## Phase 10-11: Engine Layers
 
-**`/engine/gap-analysis/`** — Does not exist
-**`/engine/recommendation/`** — Does not exist
-
-## Phase 5: HTTP / Routes
-
-Directory does not exist.
+**`/engine/gap-analysis/`**
+- `calculator.js` (6153B)
+- `index.js` (737B)
+**`/engine/recommendation/`**
+- `analyzer.js` (5158B)
+- `index.js` (1155B)
 
 ## Data Layer
 
-- `timsys.sqlite` (348160B)
+- `timsys.sqlite` (618496B)
+
+## Applications
+
+| Application | Status |
+|-------------|--------|
+| `competeed` | ✅ Ready |
+| `principaled` | ✅ Ready |
+| `sanctifyed` | ✅ Ready |
 
 ---
 
 ## Drift Detection
 
-### Expected Directories
+### Expected Platform Directories
 
-- ❌ MISSING DIR: `/contracts/`
-- ❌ MISSING DIR: `/shared/services/`
-- ❌ MISSING DIR: `/shared/registry/`
-- ❌ MISSING DIR: `/shared/pipeline/`
-- ❌ MISSING DIR: `/modules/`
-- ❌ MISSING DIR: `/Tools/`
-- ❌ MISSING DIR: `/routes/`
-- ❌ MISSING DIR: `/engine/gap-analysis/`
-- ❌ MISSING DIR: `/engine/recommendation/`
+- ❌ MISSING DIR: `/platform/tests/`
 
 ### Frozen Document Integrity
 
@@ -330,8 +422,8 @@ Directory does not exist.
 
 ### Contract Freeze Status
 
-- Contracts present: 0/6
-- Status: 6 contract file(s) missing.
+- Contracts present: 7/7
+- Status: All contract files exist. Verify they are frozen and signed off.
 
 ---
 End of Architecture Map.

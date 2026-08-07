@@ -322,6 +322,16 @@ function shutdownPlatform(server) {
   });
 }
 
+function handleIntelligenceSynthesize(req, res) {
+  var intelligence = require('./shared/services/intelligence');
+  intelligence.synthesize(req.query).then(function(result) {
+    respond(res, 200, result);
+  }).catch(function(err) {
+    log.error('Intelligence synthesize failed', { error: err.message });
+    respond(res, 500, { success: false, error: { code: 'INTERNAL_ERROR', message: err.message } });
+  });
+}
+
 function createServer() {
   return http.createServer(async function(req, res) {
     var start = Date.now();
@@ -353,6 +363,11 @@ function createServer() {
           routeParams = match.params;
           break;
         }
+      }
+
+      if (pathname === '/api/intelligence/synthesize' && method === 'GET') {
+        return handleIntelligenceSynthesize(req, res);
+
       }
 
       if (!route) {

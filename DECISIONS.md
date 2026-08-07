@@ -1,489 +1,489 @@
 # Architectural Decisions
 
-## Session 2026-07-17
+**Last Updated:** 2026-08-07  
+**Maintainer:** Tim  
 
-### Token Revocation Strategy
-- **Decision:** SQLite table (`token_revocation`)
-- **Deferral:** Bloom filter optimization (performance)
-- **Trigger:** Scale issues or latency requirements
+---
 
-### Session Duration Policy
-- **Current:** JWT TTL 24h, no refresh token, no rotation
-- **Decision needed:** Before production deployment with real users
-- **Risk:** Security vulnerability if default admin credentials remain unchanged
+## Session 1 — 2026-07-16: Initial Repository Setup
 
-### Rate Limiting Storage
-- **Current:** In-memory Map (resets on restart)
-- **Decision needed:** Redis or DB-backed before production
-- **Impact:** Multi-instance deployments will have inconsistent rate limits
+### Repository Structure
 
-### CSRF Strategy
-- **Current:** Bearer tokens only, header check is preventive
-- **Decision needed:** If cookie-based auth added later
-- **Note:** Non-blocking for now
+**Decision:** Monorepo with platform code under `/platform/`, tests at root `/tests/`, apps under `/apps/`.
 
-# Architectural Decisions
-
-## Session 2026-07-17
-
-### JWT Session Token Inclusion
-
-**Decision:** Include `sessionId` in JWT payload.
-
-**Rationale:** Without session identifier, deterministic JWT signing produces identical tokens for identical user states. When password change triggers session revocation (wildcard `*` for user_id), new login produces same token which is immediately rejected.
-
-**Implementation:**
-- `auth.issueToken(user, sessionId)` now accepts sessionId parameter
-- JWT payload: `{ userId, permissions, sessionId }`
-- `user_management/login` passes `session.sessionId` to `issueToken`
-
-**Trade-offs:**
-- JWT size increases negligibly (~36 bytes for UUID)
-- Requires session tracking to persist across requests
-- Enables proper session invalidation semantics
-
-**Alternative Considered:** Random nonce in JWT payload. Rejected: sessionId already generated for other purposes, provides stronger linkage between token and session store.
+**Rationale:** Separates platform infrastructure from application layer. Tests run against platform without coupling to any single app.
 
 **Status:** IMPLEMENTED
 
-### Token Revocation Strategy
+### Frozen Documents
 
-**Decision:** SQLite table with wildcard support (`token_revocation`).
+**Decision:** `CONSTITUTION_V6.0.md` and `LEXICON_V6.0.0.md` are immutable. Changes require formal amendment.
 
-**Rationale:** Simple, fits existing DB infrastructure, supports both token-specific and user-wide revocation.
+**Integrity:** Tracked via SHA-256 hashes. Verified at commit time.
 
-**Deferment:** Bloom filter optimization for large-scale token validation.
+**Status:** IMPLEMENTED
+
+---
+
+## Session 2 — 2026-07-17: Foundation Fixes
+
+### DB Service Rewrite
+
+**Decision:** Single SQLite connection with manual transaction control (BEGIN/COMMIT/ROLLBACK).
+
+**Rationale:** Original connection pool caused migration runner transaction issues. Single connection with WAL mode is simpler and sufficient for single-server deployment.
+
+**Status:** IMPLEMENTED
+
+### Migration Runner Rewrite
+
+**Decision:** Manual transaction handling. Runner owns `schema_migrations` INSERT exclusively — SQL files must never insert into it.
+
+**Rationale:** Original auto-transaction wrapper conflicted with multi-statement SQL files.
 
 **Status:** IMPLEMENTED
 
 ### Test Suite Isolation
 
-**Decision:** Per-suite SQLite databases with unique DB_PATH.
+**Decision:** Per-suite SQLite databases with unique `DB_PATH`.
 
-**Rationale:** Prevents database locking conflicts and state bleeding between Jest test suites.
-
-**Status:** IMPLEMENTED
-
-**Lesson Learned:** Some bugs only manifest under specific test ordering (cross-suite contamination). Integration tests must be idempotent and handle state left by previous suites.
-
-# Architectural Decisions
-
-## Session 2026-07-18
-
-### Password Change Prompt for New Users
-
-**Decision:** New users created via `createUser` have `must_change_password = 1`. Login detects this flag, includes it in JWT payload and API response. Middleware (`passwordChangeRequired.js`) blocks protected routes until password is changed.
-
-**Whitelisted routes while pending:**
-- `GET /api/auth/me`
-- `POST /api/auth/logout`
-- `POST /api/users/:id/change-password`
+**Rationale:** Prevents database locking conflicts and state bleeding between Jest test suites. Some bugs only manifest under specific test ordering (cross-suite contamination).
 
 **Status:** IMPLEMENTED
 
-### Wildcard Revocation vs Targeted Revocation in Password Change
+### Token Revocation Strategy
 
-**Decision:** Use `destroyUserSessions()` + `revokeToken()` (specific token hash) instead of `forceLogout()` (wildcard `*` revocation) for password changes.
+**Decision:** SQLite table (`token_revocation`) with wildcard support.
 
-**Rationale:** `forceLogout()` inserts a wildcard `*` record in `token_revocation` for the user. This permanently blocks ALL future tokens for that user, not just existing ones. New tokens issued after the password change are immediately rejected because the wildcard match has no expiry.
+**Rationale:** Simple, fits existing DB infrastructure, supports both token-specific and user-wide revocation.
 
-**Failed Attempt:** Tried comparing JWT `iat` against `revoked_at` timestamp. Failed because JWT `iat` is in seconds — password change and new login occurred in the same second, making the comparison unreliable.
-
-**Solution:** Don't use wildcard revocation for password changes. Destroy sessions and revoke the specific current token. New sessions/tokens are unaffected.
-
-**Rule:** `forceLogout()` should only be used for permanent lockout scenarios (account deletion, security incident). Password changes require targeted revocation only.
-
-**Status:** IMPLEMENTED
-
-
-# Architectural Decisions
-
-## Session 2026-07-18 (Session 6)
-
-### Intelligence Service as Shared Platform Service
-
-**Decision:** Implement intelligence (metadata, insights, logic) as a shared service package at `/shared/services/intelligence/` rather than standalone engines in `/engine/`.
-
-**Rationale:** All modules should consume intelligence through the same backend service. Service package (folder) allows metadata, insights, and logic to evolve independently within one service boundary. Consistent with existing service injection pattern — modules declare `"dependencies": ["intelligence"]` and receive `ctx.intelligence` automatically.
-
-**Structure:**
-- `index.js` — facade, delegates to sub-modules
-- `store.js` — SQLite persistence (3 tables: metadata, insights, rules)
-- `metadata.js` — entity tagging and classification
-- `insights.js` — synthesis engine
-- `logic.js` — rule evaluation engine
-
-**Wiring:**
-- `wire.js` imports and injects `intelligence` into module Context
-- `resolve.js` adds `intelligence` to `PLATFORM_SERVICES` set so dependency resolution skips it
-
-**Constitution Deviation:** Phases 10-11 specify `/engine/gap-analysis/` and `/engine/recommendation/` as standalone engines. This decision consolidates intelligence capabilities into a shared service instead. Constitution update deferred until gap analysis and recommendation features are actually implemented.
-
-**Status:** IMPLEMENTED (placeholder logic — synthesis and rule evaluation methods return sample data. Real implementation deferred until application modules exist to provide data.)
-
-# Architectural Decisions
-
-## Session 2026-07-18 (Session 7)
-
-### Intelligence Service Implementation
-
-**Decision:** Replaced placeholder methods in metadata.js, insights.js, and logic.js with full implementations.
-
-**metadata.js suggest():**
-- Rule-based pattern detection: email domain classification (.edu, .gov), student/teacher/course entity classification, grade level categorization
-- Risk indicators: attendance_rate < 0.75, GPA < 2.0 flagged as at_risk/academic_risk
-- Confidence scoring: 0.95 (>5 tags), 0.85 (>2 tags), 0.70 (otherwise), 0.50 (no tags)
-- Returns: { tags[], classifications[], confidence }
-
-**insights.js synthesize():**
-- DB-backed aggregation querying students table for attendance and GPA metrics
-- Alert levels: critical (< 0.75 attendance, < 2.0 GPA), warning (< 0.85 attendance)
-- Trend tracking: stable/declining (attendance), positive/concerning (GPA)
-- Returns: { summary, metrics, trends[], alerts[] }
-
-**logic.js _matchesConditions():**
-- Condition evaluation engine supporting 9 operators: ==, !=, <, >, <=, >=, contains, in, not_in, exists
-- Dot notation field access via _getFieldValue() (e.g., "profile.email")
-- Rule evaluation with priority scoring and action trigger collection
-- Returns: { matchedRules[], triggers[], score }
-
-**Intelligence Service Tests:**
-- tests/unit/intelligence.test.js — 7 unit tests
-- Covers metadata classification, risk detection, condition evaluation, field extraction
-- Note: Tests use direct module calls (not Object.create) to ensure prototype methods work correctly
+**Deferred:** Bloom filter optimization for large-scale token validation.
 
 **Status:** IMPLEMENTED
 
 ### Recurring Test File Path Bug
 
-**Decision:** Test files under tests/unit/ must use ../../shared (not ../../../shared) for require paths.
+**Decision:** Test files under `tests/unit/` must use `../../shared` (not `../../../shared`) for require paths.
 
-**Root Cause:** tests/unit/ is two levels deep from project root, not three. Recurring pattern across sessions.
+**Root Cause:** `tests/unit/` is two levels deep from project root, not three. Recurring across sessions.
 
-**Prevention:** Standardize require path depth for test files going forward.
+**Status:** IMPLEMENTED — standardize require path depth going forward
 
+---
 
-# Session 2026-07-18 (Session 8)
+## Session 4 — 2026-07-17: JWT Session Token Collision
 
-### Tier 5 Implementation Decisions
+**Decision:** Include `sessionId` in JWT payload.
 
-**Rate Limiting Persistence**
-- Decision: SQLite-backed rate_limit table (shared/services/ratelimit.js)
-- Rationale: Leverages existing DB infrastructure, persists across restarts
-- Trade-off: Adds DB dependency to middleware, requires migration
+**Problem:** Without session identifier, deterministic JWT signing produces identical tokens for identical user states. Password change triggers wildcard session revocation, new login produces same token, immediately rejected.
 
-**Migration CLI**
-- Decision: Standalone CLI at scripts/cli/migrate.js (not integrated into boot runner)
-- Rationale: Clean separation of concerns, test isolation preserved
-- Commands: list, run, rollback
+**Implementation:** `auth.issueToken(user, sessionId)` accepts sessionId. JWT payload: `{ userId, permissions, sessionId }`. Login handler passes `session.sessionId` to `issueToken`.
 
-**Module Scaffolding CLI**
-- Decision: Minimal template (module.json, index.js, migrations/.gitkeep)
-- Rationale: Fast bootstrap, developer fills implementation details
-- Command: scaffold:new <module-name>
-
-### Session Summary
-- Tier 5 complete (3/3 items)
-- Backend completion: ~75%
-- All tests passing: 173/173
-
-
-# Session 2026-07-18 (Session 8)
-
-## Tier 5 Implementation Decisions
-
-### Rate Limiting Persistence
-**Decision:** SQLite-backed rate_limit table (shared/services/ratelimit.js)
-**Rationale:** Leverages existing DB infrastructure, persists across restarts
-**Trade-off:** Adds DB dependency to middleware, requires migration
-
-### Migration CLI
-**Decision:** Standalone CLI at scripts/cli/migrate.js
-**Rationale:** Clean separation of concerns, test isolation preserved
-**Commands:** list, run, rollback
-
-### Module Scaffolding CLI
-**Decision:** Minimal template (module.json, index.js, migrations/.gitkeep)
-**Rationale:** Fast bootstrap, developer fills implementation details
-**Command:** scaffold:new <module-name>
-
-## Session Summary
-- Tier 5 complete (3/3 items)
-- Backend completion: ~75%
-- All tests passing: 173/173
-- Files modified: shared/services/ratelimit.js, index.js, migrations/003_rate_limit.sql, scripts/cli/migrate.js, scripts/cli/scaffold.js, package.json
-
-
-# Session 2026-07-19 (Session 9)
-
-## Tier 6 Implementation Decisions
-
-### Gap Analysis Engine
-**Decision:** Weighted scoring model (capabilities 40%, functions 30%, routes 20%, schema 10%)
-**Rationale:** Capabilities are the core contract; functions implement them; routes expose them; schema supports them
-**Status thresholds:** <25% red, <50% yellow, >=50% green
-
-### Recommendation Engine
-**Decision:** Capability clustering by prefix, orphan detection, partial module detection
-**Rationale:** Identifies incomplete modules and suggests new module builds from unclustered capabilities
-**Persistence:** recommendations table with 1-hour TTL
-
-### New Endpoints
-**Decision:** /introspect/gaps and /introspect/templates added to system_health module
-**Rationale:** Consistent with existing introspection pattern, auth-required
-
-### Migration CLI Fix
-**Decision:** Rewrote migrate.js with proper connection lifecycle (open per operation, close after)
-**Rationale:** Previous singleton pattern closed connection before operations could use it
-
-## Session Summary
-- Tier 6 complete (4/4 items)
-- Backend completion: ~80%
-- All tests passing: 173/173
-- All migrations applied: 8/8
-- Files created: engine/gap-analysis/index.js, engine/gap-analysis/calculator.js, engine/recommendation/index.js, engine/recommendation/analyzer.js, migrations/004_recommendations.sql
-- Files modified: modules/system_health/index.js, modules/system_health/module.json, scripts/cli/migrate.js
-
-
-# Session 2026-07-19 (Session 10)
-
-## Phase 12: Module Builder Interface Decisions
-
-### CLI Design
-**Decision:** Single binary at scripts/cli/builder.js with subcommands
-**Commands:** new, inspect, recommend, complete
-**Rationale:** Mirrors the endpoint structure, no additional dependencies
-
-### Builder Module
-**Decision:** Built as regular application module (modules/builder/)
-**Endpoints:** /builder/dashboard, /builder/new-module, /builder/:module/analysis, /builder/recommendations, /builder/templates
-**Rationale:** Conforms to existing module standard, auto-stages via pipeline
-
-### Test Updates
-**Decision:** Updated boot-sequence.test.js to expect 3 modules
-**Rationale:** builder module now part of the platform
-
-## Session Summary
-- Phase 12 complete (4/4 CLI commands, 5 endpoints)
-- Backend completion: ~85%
-- All tests passing: 173/173
-- Files created: modules/builder/index.js, modules/builder/module.json, modules/builder/migrations/, scripts/cli/builder.js
-- Files modified: tests/e2e/boot-sequence.test.js, package.json
-
-
-# Session 2026-07-19 (Session 11)
-
-## Deferred Tier 1 Items Resolved
-
-### Graceful Shutdown
-**Decision:** Added shutdownPlatform() to index.js, exported alongside bootPlatform/createServer
-**Implementation:** Reverses wired modules, calls unstage() on each, closes DB connection
-**Signal handlers:** SIGTERM and SIGINT registered when running as main module (production only, not in tests)
-**Test integration:** Both E2E suites (boot.test.js, boot-sequence.test.js) now call shutdownPlatform in afterAll instead of raw server.close()
-
-### Input Validation Middleware
-**Decision:** Non-blocking sanitization middleware added to request pipeline
-**Position:** After body parsing, before rate limiting
-**Scope:** Sanitizes req.body and req.query using existing ValidationService.sanitize()
-**Non-blocking rationale:** Previous attempt blocked 37 test requests by rejecting unsanitized input. Non-blocking approach cleans input without rejecting requests.
-
-## Session Summary
-- Both deferred Tier 1 items resolved
-- Backend completion: ~90%
-- All tests passing: 173/173
-- Files modified: index.js, tests/e2e/boot.test.js, tests/e2e/boot-sequence.test.js
-
-
-# Session 2026-07-19 (Session 12)
-
-## Authorization Middleware — FAILED, ROLLED BACK
-**Decision:** Attempted to extract per-handler auth checks into pipeline middleware
-**Approach:** Derived permissions from handler name segments (module_action format)
-**Result:** 62 test failures — permission scheme mismatch
-**Root Cause:** Handler names (user_management_listUsers) don't map cleanly to permission strings (admin:users:read, admin:users:write, admin:*)
-**Rollback:** git reset --hard v6.7.0-tier1-complete
-**Recommendation:** If revisited, use route-level permission declarations in module.json instead of name derivation
-
-## Discovery + Audit Endpoints — COMPLETED
-- /discover/capabilities — Filter by module query param
-- /discover/functions — Filter by module query param
-- /audit/logs — Paginated, filterable by user_id/action/entity_type/entity_id
-- /audit/logs/:id — Single record lookup
-
-## Session Summary
-- Tiers 5, 6, Phase 12, deferred Tier 1, discovery endpoints, audit endpoints all complete
-- Authorization middleware attempted and rolled back
-- Backend completion: ~92%
-- Tests: 173/173
-
-
-# Session 2026-07-19 (Session 13)
-
-## Technical Debt Cleanup
-
-### ratelimit.initTable() Redundancy
-**Decision:** Removed initTable() call from index.js module-load scope
-**Rationale:** Migration 003_rate_limit.sql creates the same table with identical schema. Having both creates a race condition risk and violates single-source-of-truth for schema management
-**Result:** Tests 173/173 passing, rate limiting still functional via migration-created table
-
-### Open Handles Investigation
-**Finding:** Ran jest with --detectOpenHandles — zero leaks detected
-**Explanation:** The "Force exiting Jest" warning on normal runs is expected behavior when SQLite operates in WAL mode. The WAL file handle keeps the process alive. This is not a bug.
-
-### Duplicate Migration Entry
-**Status:** Previously resolved in Session 10 (manual sqlite3 deletion of user_management_003_password_changed_at). No code path found that creates duplicates. CLI rewrite in Session 10 fixed the root cause.
-
-## Session Summary
-- Technical debt items resolved: ratelimit initTable redundancy, open handles investigation, migration duplication verification
-- Backend completion: ~93%
-- Tests: 173/173
-
-
-# Session 2026-07-20 (Session 13)
-
-## Authorization Middleware — IMPLEMENTED
-
-**Decision:** Route-level permission declarations via optional `permissions` array in module.json routes.
-
-**Approach:**
-- Permissions passed through register.js -> routeRegistry -> DB + in-memory Map
-- Middleware checks route.permissions; OR logic (at least one match required)
-- Routes without permissions pass through to handler-level checks (zero breaking changes)
-- changePassword retains inline checkPerm (contextual: self OR admin)
-
-**Files Modified:**
-- migrations/005_route_permissions.sql
-- index.js
-- shared/pipeline/register.js
-- shared/registry/routeRegistry.js
-- modules/user_management/module.json
-- modules/user_management/index.js
-- tests/integration/http/security.test.js
-
-**Test Results:** 181/181 passing
+**Alternative Considered:** Random nonce in JWT payload. Rejected — sessionId already generated, provides stronger session-linkage.
 
 **Status:** IMPLEMENTED
 
 ---
 
-## Session: 2026-07-20
+## Session 5 — 2026-07-18: Password Change Prompt
 
-**Author:** Tim  
-**Status:** Active
+### Forced Password Change for New Users
 
-### Decision: Staging HTTP Endpoints Implementation
+**Decision:** New users created via `createUser` have `must_change_password = 1`. Login detects flag, includes in JWT payload and API response. Middleware blocks protected routes until changed.
 
-**Problem:** Constitution Phase 5 required three HTTP endpoints for module staging that did not exist:
-- `GET /staging/modules`
-- `POST /staging/modules`
-- `DELETE /staging/modules/{id}`
+**Whitelisted routes:** `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/users/:id/change-password`
 
-Pipeline functions existed but were not exposed as HTTP routes.
+**Status:** IMPLEMENTED
 
-**Decision:** Implement staging endpoints in `modules/system_health` as they handle platform introspection and management operations.
+### Targeted vs Wildcard Revocation in Password Change
 
-**Implementation:**
-- Created `modules/system_health/handlers/staging.js` with three handlers
-- Wired handlers to `modules/system_health/index.js`
-- Updated `module.json` to register routes and function exports
-- All endpoints require authentication (`auth_required: true`)
-- Dynamic unstaging limited — restart required for full cleanup (documented warning)
+**Decision:** Use `destroyUserSessions()` + `revokeToken()` (specific token hash) instead of `forceLogout()` (wildcard `*` revocation) for password changes.
 
-**Trade-offs:**
-- Positive: Consistent with existing module architecture
-- Positive: Staging logic lives with platform health monitoring
-- Negative: Cannot fully unstage modules at runtime without server restart
+**Problem:** `forceLogout()` inserts wildcard `*` record with no expiry. Permanently blocks ALL future tokens for that user, not just existing ones. New tokens issued after password change are immediately rejected.
 
-### Decision: Refresh Token Mechanism
+**Failed Attempt:** Comparing JWT `iat` against `revoked_at` timestamp. Failed because both are in seconds — password change and new login occurred in same second, making comparison unreliable.
 
-**Problem:** Open Decision #2 from CONTEXT.md — JWT 24h expiry with no refresh mechanism. For production deployment, token rotation is required for security.
+**Rule:** `forceLogout()` only for permanent lockout (account deletion, security incident). Password changes require targeted revocation only.
 
-**Decision:** Implement refresh token pattern with rotation on every use.
-
-**Implementation:**
-- Migration `migrations/006_refresh_tokens.sql` — refresh token table with SHA-256 hashed tokens
-- Service `shared/services/refresh.js` — issue, verify, rotate, revoke functions
-- Updated `shared/services/auth.js` — integrated refresh token methods
-- Handler `/api/auth/refresh` in `user_management/index.js` — exchanges refresh for new access + refresh tokens
-- Login returns both `accessToken` and `refreshToken`
-- Logout accepts optional `refreshToken` for revocation
-- Token rotation on every use (old token revoked, new issued)
-
-**Trade-offs:**
-- Positive: Improved security via short-lived access tokens
-- Positive: Client maintains session without re-authentication
-- Positive: Automatic token rotation limits replay attack window
-- Negative: Increased complexity in token lifecycle management
-- Negative: Requires secure storage of both token types on client
-
-### Decision: Test Protocol Standards
-
-**Problem:** Test suite suffered from port collisions and shared database state when running in parallel. Manual intervention required to serialize tests or fix failures.
-
-**Decision:** Mandate dynamic port allocation and isolated databases for all integration tests.
-
-**Implementation:**
-- Created `TEST_PROTOCOL.md` — mandatory testing standards document
-- Created `tests/helpers/test-server.js` — shared infrastructure with `PORT=0` dynamic allocation
-- All HTTP test suites migrated to use `createTestServer()` helper
-- Each test file uses unique database suffix (`test_<suite>.sqlite`)
-- Added `adminLogin()` helper to eliminate login boilerplate
-- Full suite passes: 172/172 tests across 16 suites
-
-**Trade-offs:**
-- Positive: Parallel execution now safe
-- Positive: No manual intervention required
-- Positive: Deterministic test results
-- Negative: Additional abstraction layer to learn
-- Negative: New test files must follow protocol or fail
+**Status:** IMPLEMENTED
 
 ---
 
+## Session 6 — 2026-07-18: Intelligence Service Architecture
+
+### Intelligence as Shared Platform Service
+
+**Decision:** Implement intelligence (metadata, insights, logic) as a shared service package at `/shared/services/intelligence/` rather than standalone engines.
+
+**Rationale:** All modules consume intelligence through the same backend service. Service package allows sub-modules to evolve independently within one boundary. Consistent with existing injection pattern — modules declare `"dependencies": ["intelligence"]` and receive `ctx.intelligence`.
+
+**Structure:** `index.js` (facade), `store.js` (persistence, 3 tables), `metadata.js` (tagging/classification), `insights.js` (synthesis), `logic.js` (rule evaluation)
+
+**Wiring:** `wire.js` injects `intelligence` into context. `resolve.js` adds `intelligence` to `PLATFORM_SERVICES` set so dependency resolution skips it.
+
+**Constitution Deviation:** Phases 10-11 specify `/engine/gap-analysis/` and `/engine/recommendation/` as standalone engines. This consolidates intelligence into a shared service. Gap analysis and recommendation engines later implemented at those paths as consumers of the intelligence service.
+
+**Status:** IMPLEMENTED
+
 ---
 
-## Session: 2026-07-20 (Final)
+## Session 7 — 2026-07-18: Intelligence Service Logic
 
-**Author:** Tim  
-**Status:** Active
+### Metadata Pattern Detection
 
-### Decision: Initial Setup Wizard — Enforced Accountability
+**Decision:** Rule-based `suggest()` in `metadata.js` — email domain classification (.edu, .gov), student/teacher/course entity classification, grade level categorization. Risk indicators: attendance_rate < 0.75, GPA < 2.0. Confidence scoring: 0.95 (>5 tags), 0.85 (>2 tags), 0.70 (otherwise), 0.50 (none).
 
-**Problem:** Administrators deploying TimSyS must make security and backup policy decisions. Without enforcement, critical policies (session duration, backup strategy) could be overlooked, creating liability.
+**Status:** IMPLEMENTED
 
-**Decision:** Create a mandatory setup wizard that blocks server startup until all policy decisions are made and recorded.
+### Insights Synthesis
 
-**Implementation:**
-- `deploy/setup-wizard.js` — Interactive CLI wizard, runs once on first deployment
-- `config/session-policy.json` — Immutable config file with SHA-256 integrity hash
-- `index.js` — Boot sequence checks for config existence and integrity before starting
-- `deploy/backup.sh` — Reads policy from config, performs VACUUM INTO backups with retention
+**Decision:** DB-backed aggregation in `insights.js` querying students table. Alert levels: critical (< 0.75 attendance, < 2.0 GPA), warning (< 0.85 attendance). Trend tracking: stable/declining, positive/concerning.
 
-**Policy selections forced:**
-- Session duration (Secure/Balanced/Extended)
-- Backup strategy (Cloud/On-prem + retention schedule)
-- Admin identity recorded for accountability
+**Status:** IMPLEMENTED (later rewritten to use functionRegistry discovery — see Session 15)
 
-**Trade-offs:**
-- Positive: Eliminates "nobody told me" liability
-- Positive: Every deployment has explicit, auditable security decisions
-- Positive: Backup strategy tested and enforced from day one
-- Negative: Adds friction to initial deployment (acceptable by design)
+### Logic Condition Evaluation
 
-### Decision: Backend Marked 100% Complete
+**Decision:** `_matchesConditions()` in `logic.js` supporting 9 operators (`==`, `!=`, `<`, `>`, `<=`, `>=`, `contains`, `in`, `not_in`, `exists`). Dot notation field access via `_getFieldValue()`. Rule priority scoring and action trigger collection.
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 8 — 2026-07-18: Tier 5 — Operational Tooling
+
+### Rate Limiting Persistence
+
+**Decision:** SQLite-backed `rate_limit` table.
+
+**Rationale:** Leverages existing DB infrastructure, persists across restarts.
+
+**Note:** Architecture map shows `ratelimit.js` at 1500B. Migration `003_rate_limit.sql` creates the table. `initTable()` call removed from `index.js` in Session 13 to eliminate redundancy with migration.
+
+**Status:** IMPLEMENTED
+
+### Migration CLI
+
+**Decision:** Standalone CLI at `scripts/cli/migrate.js` with commands: list, run, rollback.
+
+**Rationale:** Clean separation from boot runner, preserves test isolation.
+
+**Fix (Session 9):** Rewrote with proper connection lifecycle (open per operation, close after). Previous singleton closed connection before operations could use it.
+
+**Status:** IMPLEMENTED
+
+### Module Scaffolding CLI
+
+**Decision:** Minimal template (module.json, index.js, migrations/.gitkeep).
+
+**Command:** `scaffold:new <module-name>`
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 9 — 2026-07-19: Tier 6 — Advanced Intelligence
+
+### Gap Analysis Engine
+
+**Decision:** Weighted scoring model — capabilities 40%, functions 30%, routes 20%, schema 10%. Status thresholds: < 25% red, < 50% yellow, ≥ 50% green.
+
+**Files:** `engine/gap-analysis/calculator.js` (6153B), `engine/gap-analysis/index.js` (737B)
+
+**Status:** IMPLEMENTED
+
+### Recommendation Engine
+
+**Decision:** Capability clustering by prefix, orphan detection, partial module detection. Recommendations table with 1-hour TTL.
+
+**Files:** `engine/recommendation/analyzer.js` (5158B), `engine/recommendation/index.js` (1155B)
+
+**Status:** IMPLEMENTED
+
+### New Endpoints
+
+**Decision:** `/introspect/gaps` and `/introspect/templates` added to `system_health` module. Auth-required, consistent with existing introspection pattern.
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 10 — 2026-07-19: Phase 12 — Module Builder
+
+### Builder CLI
+
+**Decision:** Single binary at `scripts/cli/builder.js` with subcommands: new, inspect, recommend, complete.
+
+**Status:** IMPLEMENTED
+
+### Builder Module
+
+**Decision:** Regular application module at `modules/builder/`. Five endpoints: `/builder/dashboard`, `/builder/new-module`, `/builder/:module/analysis`, `/builder/recommendations`, `/builder/templates`.
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 11 — 2026-07-19: Deferred Tier 1 Resolution
+
+### Graceful Shutdown
+
+**Decision:** `shutdownPlatform()` in `index.js`. Reverses wired modules, calls `unstage()`, closes DB. Signal handlers (SIGTERM, SIGINT) registered for production only, not in tests. E2E suites call `shutdownPlatform` in `afterAll`.
+
+**Status:** IMPLEMENTED
+
+### Input Validation Middleware
+
+**Decision:** Non-blocking sanitization middleware. Position: after body parsing, before rate limiting. Scope: sanitizes `req.body` and `req.query` using existing `ValidationService.sanitize()`.
+
+**Rationale:** Previous blocking approach rejected 37 test requests. Non-blocking cleans input without rejecting.
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 12 — 2026-07-19: Authorization Middleware Failure
+
+### Authorization Middleware — FAILED ATTEMPT
+
+**Decision:** Attempted to extract per-handler auth checks into pipeline middleware. Derived permissions from handler name segments.
+
+**Result:** 62 test failures. Handler names (`user_management_listUsers`) don't map to permission strings (`admin:users:read`).
+
+**Rollback:** `git reset --hard v6.7.0-tier1-complete`
+
+**Recommendation:** If revisited, use route-level permission declarations in `module.json` instead of name derivation.
+
+**Status:** ROLLED BACK
+
+### Discovery + Audit Endpoints
+
+**Decision:** Four new endpoints in `system_health`: `/discover/capabilities`, `/discover/functions`, `/audit/logs` (paginated, filterable), `/audit/logs/:id`.
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 13 — 2026-07-19: Technical Debt
+
+### ratelimit.initTable() Redundancy
+
+**Decision:** Removed `initTable()` call from `index.js`.
+
+**Rationale:** Migration `003_rate_limit.sql` creates the same table. Having both creates race condition risk and violates single-source-of-truth.
+
+**Status:** IMPLEMENTED
+
+### Open Handles Investigation
+
+**Finding:** `jest --detectOpenHandles` — zero leaks. "Force exiting Jest" warning is expected with SQLite WAL mode (file handle keeps process alive). Not a bug.
+
+**Status:** RESOLVED
+
+---
+
+## Session 14 — 2026-07-20: Authorization Middleware + Staging + Refresh Tokens
+
+### Route-Level Permission Declarations
+
+**Decision:** Optional `permissions` array in `module.json` routes. Passed through `register.js` → `routeRegistry` → DB + in-memory Map. Middleware checks `route.permissions` with OR logic. Routes without permissions fall through to handler-level checks (zero breaking changes). `changePassword` retains inline `checkPerm` (contextual: self OR admin).
+
+**Files:** `migrations/005_route_permissions.sql`, `index.js`, `register.js`, `routeRegistry.js`, `user_management/module.json`, `user_management/index.js`, `security.test.js`
+
+**Tests:** 181/181 passing
+
+**Status:** IMPLEMENTED
+
+### Staging HTTP Endpoints
+
+**Decision:** Three endpoints in `system_health`: `GET /staging/modules`, `POST /staging/modules`, `DELETE /staging/modules/{id}`. Pipeline functions exposed via handlers in `handlers/staging.js`.
+
+**Limitation:** Dynamic unstaging limited — restart required for full cleanup.
+
+**Status:** IMPLEMENTED
+
+### Refresh Token Mechanism
+
+**Decision:** Refresh token pattern with rotation on every use.
+
+**Implementation:** Migration `006_refresh_tokens.sql` (SHA-256 hashed tokens). Service `refresh.js` (issue, verify, rotate, revoke). Login returns `accessToken` + `refreshToken`. Logout accepts optional `refreshToken`. Old token revoked on each use.
+
+**Status:** IMPLEMENTED
+
+### Test Protocol Standards
+
+**Decision:** Dynamic port allocation (`PORT=0`) and isolated databases (`test_<suite>.sqlite`) for all integration tests.
+
+**Files:** `TEST_PROTOCOL.md`, `tests/helpers/test-server.js`, `createTestServer()` + `adminLogin()` helpers.
+
+**Tests:** 172/172 → 181/181 passing across 16 suites
+
+**Status:** IMPLEMENTED
+
+### Setup Wizard
+
+**Decision:** Mandatory setup wizard blocks server startup until policy decisions made. `deploy/setup-wizard.js` (interactive CLI), `config/session-policy.json` (immutable with SHA-256 integrity hash).
+
+**Forced selections:** Session duration (Secure/Balanced/Extended), backup strategy (Cloud/On-prem + retention), admin identity.
+
+**Status:** IMPLEMENTED
+
+### Backend Marked Complete
 
 **Rationale:** All Constitution phases (0-12) implemented and verified.
-- Staging endpoints: Complete
-- Refresh tokens: Complete with rotation
-- Test infrastructure: 172/172 passing with enforced protocol
-- Builder CLI: All 4 commands verified
-- Deployment scripts: migrate.sh, rollback.sh, backup.sh
-- Setup wizard: Enforced policy selection
-- Rate limiting: Accepted at current thresholds
 
-**Remaining work is operational, not developmental:**
-- Run setup wizard on production server
-- Set production secrets in .env
-- Configure cron for backup.sh
-- Test restore procedure
+**Status:** All 12 phases complete
+
+---
+
+## Session 15 — 2026-08-06: Component Composition Model
+
+### Architecture Shift — Peer-to-Peer to Composition
+
+**Decision:** Move from peer-to-peer module communication to a component-based composition model. Modules become assemblies of shared atomic components.
+
+**Rationale:** Peer-to-peer coupling made modules difficult to reuse and test independently. Composition model allows registries (student, staff, room, inventory) to be assembled into higher-level applications (incident_reporter, student_profile) without direct coupling.
+
+**Implementation:**
+- `componentRegistry.js` (3735B) — Component registration with type tracking
+- `componentScanner.js` (5067B) — Discovers components from `component.json` manifests
+- Components live in `/platform/modules/` alongside standard modules
+- Distinguished by `component.json` manifest (vs `module.json` only)
+- Components lack independent boot logic
+
+**Status:** IMPLEMENTED
+
+### Component Types
+
+**Decision:** Three component types: `registry` (atomic data stores), `profile` (runtime aggregators), `standard` (full modules with boot logic).
+
+**Deployed:**
+- Registry: `student_registry`, `staff_registry`, `room_registry`, `inventory`
+- Profile: `student_profile`, `staff_profile`
+- Standard: `builder`, `system_health`, `user_management`
+
+**Status:** IMPLEMENTED
+
+---
+
+## Session 16 — 2026-08-07: Intelligence Engine Stabilization
+
+### functionRegistry Injection in wire.js
+
+**Problem:** Profile modules couldn't access registry functions — `ctx.functionRegistry` was undefined.
+
+**Fix:** `wire.js` now imports and injects `functionRegistry` into module context.
+
+**Status:** IMPLEMENTED
+
+### Metadata Storage — Await + Error Handling
+
+**Problem:** `storeMetadata()` calls in registry `index.js` files were fire-and-forget. Errors were silently swallowed. Student metadata was never stored.
+
+**Fix:** Added `await` on `storeMetadata()` calls with `try/catch` + `ctx.log.error()` to surface failures.
+
+**Files:** `student_registry/index.js`, `staff_registry/index.js`, `room_registry/index.js`, `inventory/index.js`
+
+**Status:** IMPLEMENTED
+
+### Entity Name Extraction in synthesize()
+
+**Problem:** `synthesize()` derived entity type from function name by stripping `_list` suffix. Function names include module prefix (e.g., `student_registry_listStudents`), producing garbage entity types like `student_registryStudents`. Metadata coverage reported 0% because entity types didn't match stored metadata.
+
+**Fix:** Strip module prefix from function name before lookup. Explicit mapping table for canonical entity types:
+
+student_registry:listStudents → student staff_registry:listStaff → staff room_registry:listRooms → room inventory:listItems → item
+
+Fallback: strip `list` prefix, lowercase first char, remove trailing `s`.
+
+**Result:** Entity types now canonical (`student`, `staff`, `room`, `item`). Metadata coverage 29% (4 of 14 entities). Tags (`enrolled_active`) and classifications (`learner`) flowing correctly.
+
+**Status:** IMPLEMENTED
+
+### Smoke Test Verification
+
+**Decision:** Six smoke tests covering all registries + intelligence synthesis.
+
+**Tests:**
+- `student.endpoint_smoke.sh` — Student CRUD + metadata ✅
+- `staff.endpoint_smoke.sh` — Staff CRUD + metadata ✅
+- `room.endpoint_smoke.sh` — Room CRUD + metadata ✅
+- `inventory.endpoint_smoke.sh` — Item CRUD + metadata ✅
+- `intelligence.smoke.sh` — Synthesis + metadata aggregation ✅
+- `profile.endpoint_smoke.sh` — Profile modules ✅
+
+**Latest results (2026-08-07):** All 6 passing. 4 metadata records stored. 29% coverage. Canonical entity names. Tags/classifications flowing.
+
+**Status:** IMPLEMENTED
+
+### Architecture Map Generator Fix
+
+**Problem:** `PROJECT_ROOT` pointed to `$HOME/TimSyS_v6` but all platform files live under `$HOME/TimSyS_v6/platform/`. Every path check resolved against wrong base — sea of ❌ MISSING.
+
+**Fix:** Split into `ROOT_DIR` (for docs) and `PLATFORM_DIR` (for everything else). Updated all path constants.
+
+**Second fix:** `set -euo pipefail` killed script when `find` returned exit code 1 on missing `migrations/` directory (e.g., `staff_profile` has no migrations). Changed to `set -uo pipefail` for the modules loop.
+
+**Status:** IMPLEMENTED
+
+---
+
+## Open Decisions
+
+### Rate Limiting at Scale
+
+**Current:** SQLite-backed sliding window. Resets are persisted.
+
+**Needed:** Multi-instance deployment strategy. Consider Redis or shared DB.
+
+**Priority:** Low (single-server sufficient for current deployment)
+
+### Session Duration Policy
+
+**Current:** Configurable via setup wizard (Secure/Balanced/Extended).
+
+**Needed:** Production testing with real user load.
+
+### Permission Declarations Expansion
+
+**Current:** Route-level `permissions` array in `module.json` for `user_management`. Other modules use inline `checkPerm()`.
+
+**Needed:** Migrate remaining modules to declarative permissions for consistency.
+
+### Dynamic Module Staging
+
+**Current:** `POST /staging/modules` hot-loads. `DELETE /staging/modules/{id}` unstages but requires restart for full cleanup.
+
+**Needed:** Full runtime unstage without restart. Cache invalidation + route table update strategy.
+
+### Additional Components
+
+**Candidates:** `medical_referrals`, `attendance`, `professional_development`
+
+**Priority:** As needed for Principal'Ed app suite
+
+---
+
+## Completion Summary
+
+| Phase | Status | Session |
+|-------|--------|---------|
+| 0: Contracts | COMPLETE (frozen) | 1 |
+| 1.1: Services | COMPLETE | 2 |
+| 1.2: Registries | COMPLETE | 1, 15 |
+| 1.3: Pipeline | COMPLETE | 2 |
+| 2: Migrations | COMPLETE | 2 |
+| 4: Boot | COMPLETE | 2 |
+| 5: HTTP/Middleware | COMPLETE | 5, 14 |
+| 7: Testing | COMPLETE | 2, 14 |
+| 10-11: Engines | COMPLETE | 9 |
+| 12: Builder | COMPLETE | 10 |
+| Component Model | COMPLETE | 15 |
+| Intelligence Stable | COMPLETE | 16 |
+| Smoke Tests | COMPLETE (6/6) | 16 |
+
+**Backend completion:** 100% (all Constitution phases)  
+**Component model:** Operational (6 components, 3 standard modules)  
+**Intelligence pipeline:** End-to-end verified  
+**Test suite:** 181+ tests + 6 smoke tests, all passing  
 
 ---

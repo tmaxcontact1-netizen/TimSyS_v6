@@ -1,5 +1,5 @@
 // Path: /home/tmax/TimSyS_v6/platform/modules/student_registry/index.js
-// Total lines: 330
+// Total lines: 350
 
 'use strict';
 
@@ -122,6 +122,14 @@ async function createStudent(req, ctx) {
 
   ctx.events.publish('student.created', { studentId: insertedId, studentIdText: b.student_id });
 
+  if (ctx.intelligence) {
+    try {
+      await ctx.intelligence.storeMetadata('student', insertedId.toString(), student.rows[0]);
+    } catch (e) {
+      ctx.log.error('Failed to store metadata for student', { studentId: insertedId, error: e.message });
+    }
+  }
+
   if (ctx.audit) {
     ctx.audit.action('student.create', req.user.id, {
       entityType: 'student',
@@ -192,6 +200,14 @@ async function updateStudent(req, ctx) {
   var updated = ctx.db.query('SELECT * FROM students WHERE id = ?', [existing.rows[0].id]);
 
   ctx.events.publish('student.updated', { studentId: existing.rows[0].id });
+
+  if (ctx.intelligence) {
+    try {
+      await ctx.intelligence.storeMetadata('student', existing.rows[0].id.toString(), updated.rows[0]);
+    } catch (e) {
+      ctx.log.error('Failed to store metadata for student', { studentId: existing.rows[0].id, error: e.message });
+    }
+  }
 
   if (ctx.audit) {
     ctx.audit.action('student.update', req.user.id, {

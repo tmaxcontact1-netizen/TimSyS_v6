@@ -1,5 +1,9 @@
+// Path: /home/tmax/TimSyS_v6/platform/shared/pipeline/wire.js
+// Total lines: ~65
+
 'use strict';
 
+const functionRegistry = require('../registry/functionRegistry');
 const log = require('../services/log');
 const db = require('../services/db');
 const cache = require('../services/cache');
@@ -9,8 +13,6 @@ const events = require('../services/events');
 const intelligence = require('../services/intelligence');
 const gapAnalysis = require('../../engine/gap-analysis');
 const recommendationEngine = require('../../engine/recommendation');
-const routeRegistry = require('../registry/routeRegistry');
-const functionRegistry = require('../registry/functionRegistry');
 
 function wireModule(registered) {
   var manifest = registered.manifest;
@@ -26,6 +28,7 @@ function wireModule(registered) {
     validate: validate,
     events: events,
     intelligence: intelligence,
+    functionRegistry: functionRegistry,
     gapAnalysis: gapAnalysis,
     recommendation: recommendationEngine,
     manifest: manifest,

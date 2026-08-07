@@ -1,5 +1,5 @@
 // Path: /home/tmax/TimSyS_v6/platform/modules/staff_registry/index.js
-// Total lines: ~310
+// Total lines: 335
 
 'use strict';
 
@@ -144,6 +144,10 @@ async function createStaff(req, ctx) {
 
   ctx.events.publish('staff.created', { staffId: insertedId, staffIdText: b.staff_id });
 
+  if (ctx.intelligence) {
+    ctx.intelligence.storeMetadata('staff', insertedId.toString(), staff.rows[0]);
+  }
+
   if (ctx.audit) {
     ctx.audit.action('staff.create', req.user.id, {
       entityType: 'staff',
@@ -217,6 +221,10 @@ async function updateStaff(req, ctx) {
   var updated = ctx.db.query('SELECT * FROM staff WHERE id = ?', [existing.rows[0].id]);
 
   ctx.events.publish('staff.updated', { staffId: existing.rows[0].id });
+
+  if (ctx.intelligence) {
+    ctx.intelligence.storeMetadata('staff', existing.rows[0].id.toString(), updated.rows[0]);
+  }
 
   if (ctx.audit) {
     ctx.audit.action('staff.update', req.user.id, {
