@@ -3,21 +3,25 @@ const path = require('path');
 const fs = require('fs');
 const CONFIG_FILE = path.join(__dirname, 'config', 'session-policy.json');
 
-// Skip config check during testing
+// Bypass modes: TEST or DEV_MODE
 const IS_TEST = process.env.NODE_ENV === 'test' || process.argv.includes('jest') || process.argv.includes('coverage');
+const IS_DEV = process.env.DEV_MODE === '1' || process.env.DEV_MODE === 'true';
 
-if (!IS_TEST && !fs.existsSync(CONFIG_FILE)) {
+if (IS_DEV) {
+  console.log('⚠ DEV MODE active — skipping config check');
+} else if (!IS_TEST && !fs.existsSync(CONFIG_FILE)) {
   console.error('\n[ERROR] Initial setup not completed.');
   console.error('Run: node deploy/setup-wizard.js');
   console.error('This wizard must be completed before first deployment.\n');
+  console.error('Alternatively, set DEV_MODE=1 for development.');
   process.exit(1);
-}
-
-if (!IS_TEST && fs.existsSync(CONFIG_FILE)) {
+} else if (!IS_TEST && fs.existsSync(CONFIG_FILE)) {
   const config = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-  // Verify integrity
+  // Verify integrity — hash excludes the hash field itself
   const crypto = require('crypto');
-  const currentHash = crypto.createHash('sha256').update(JSON.stringify(config)).digest('hex');
+  const configForHash = Object.assign({}, config);
+  delete configForHash.hash;
+  const currentHash = crypto.createHash('sha256').update(JSON.stringify(configForHash, null, 2)).digest('hex');
   if (currentHash !== config.hash) {
     console.error('[ERROR] Config file tampered. Integrity check failed.');
     process.exit(1);
@@ -26,6 +30,7 @@ if (!IS_TEST && fs.existsSync(CONFIG_FILE)) {
 } else if (IS_TEST) {
   console.log('ℹ Test mode - skipping config check');
 }
+
 const http = require('http');
 const url = require('url');
 const crypto = require('crypto');

@@ -3,6 +3,7 @@
 const templatesModule = require('./templates');
 const assembler = require('./assembler');
 const composer = require('./composer');
+const componentRegistry = require('../../shared/registry/componentRegistry');
 
 function boot(ctx) {
   ctx.log.info('builder booting', { module: 'builder' });
@@ -98,11 +99,10 @@ async function assemble(req, ctx) {
 }
 
 async function components(req, ctx) {
-  var all = composer.listComponents ? 
+  var all = composer.listComponents ?
     await Promise.resolve(composer.listComponents()) :
     componentRegistry.getAll();
-  
-  // Get actual registry if composer doesn't export listComponents
+
   if (all && Array.isArray(all)) {
     return { success: true, components: all, count: all.length };
   } else {
@@ -124,30 +124,34 @@ async function validate(req, ctx) {
   if (!input.components || !Array.isArray(input.components) || input.components.length === 0) {
     return { success: false, statusCode: 400, error: { code: 'BAD_REQUEST', message: 'At least one component is required' } };
   }
-  
-  // First compose to get the spec
+
   var composed = composer.compose(input);
   if (!composed.success) {
-    return composed;
+    return {
+      success: true,
+      validated: {
+        canBuild: false,
+        composition: composed,
+        assemblyPreview: null,
+        errors: composed.error || composed.errors || ['Composition failed']
+      }
+    };
   }
-  
-  // Then dry-run assemble
+
   var assemblyPreview = assembler.dryRun({
     name: input.name || 'test-module',
     components: input.components
   });
-  
+
   return {
     success: true,
     validated: {
+      canBuild: true,
       composition: composed,
       assemblyPreview: assemblyPreview
     }
   };
 }
-
-// Expose componentRegistry for handlers
-const componentRegistry = require('../../shared/registry/componentRegistry');
 
 module.exports = {
   boot: boot,

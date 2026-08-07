@@ -1,0 +1,20 @@
+{
+  "timestamp": "2026-08-07T06:54:24.097Z",
+  "admin": {
+    "schoolName": "test",
+    "adminName": "test",
+    "contactEmail": "test"
+  },
+  "session": {
+    "accessTokenTTL": "24 hours",
+    "refreshTokenTTL": "7 days",
+    "policy": "Extended"
+  },
+  "backup": {
+    "isCloud": false,
+    "provider": "local",
+    "schedule": "daily 2AM",
+    "retentionDays": "2"
+  },
+  "hash": "581f16cbffaa9d606785b2a4dc0810090aad1e41337701a55e3ff6dd37ddad1f"
+}

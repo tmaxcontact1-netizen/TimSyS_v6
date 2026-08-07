@@ -138,7 +138,7 @@ async function main() {
     process.exit(1);
   }
   
-  // Write immutable config
+  // Write config
   const config = {
     timestamp: new Date().toISOString(),
     admin,
@@ -148,15 +148,16 @@ async function main() {
       policy: session.name
     },
     backup,
-    hash: null // Will be set after write for integrity check
+    hash: null
   };
   
-  const json = JSON.stringify(config, null, 2);
-  fs.writeFileSync(CONFIG_FILE, json);
+  // Calculate hash EXCLUDING the hash field itself
+  const configForHash = Object.assign({}, config);
+  delete configForHash.hash;
+  const jsonForHash = JSON.stringify(configForHash, null, 2);
   
-  // Calculate hash for integrity
   const crypto = require('crypto');
-  config.hash = crypto.createHash('sha256').update(json).digest('hex');
+  config.hash = crypto.createHash('sha256').update(jsonForHash).digest('hex');
   fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
   
   console.log('\n✓ Configuration saved to config/session-policy.json');

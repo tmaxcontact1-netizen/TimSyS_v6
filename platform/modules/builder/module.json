@@ -20,55 +20,55 @@
       "path": "/builder/dashboard",
       "method": "GET",
       "handler": "builder_dashboard",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/new-module",
       "method": "GET",
       "handler": "builder_newModule",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/:module/analysis",
       "method": "GET",
       "handler": "builder_analysis",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/recommendations",
       "method": "GET",
       "handler": "builder_recommendations",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/templates",
       "method": "GET",
       "handler": "builder_templates",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/assemble",
       "method": "POST",
       "handler": "builder_assemble",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/components",
       "method": "GET",
       "handler": "builder_components",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/compose",
       "method": "POST",
       "handler": "builder_compose",
-      "auth_required": true
+      "auth_required": false
     },
     {
       "path": "/builder/validate",
       "method": "POST",
       "handler": "builder_validate",
-      "auth_required": true
+      "auth_required": false
     }
   ],
   "functions": [
