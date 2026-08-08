@@ -203,3 +203,46 @@ rm -rf ~/TimSyS_v6/platform/data/ && mkdir -p ~/TimSyS_v6/platform/data && chmod
 
 **Last Updated:** 2026-08-07  
 **Maintainer:** Tim
+
+**As Of:** 2026-08-08
+**Status:** Intelligence Engine fully implemented — all 8 stages operational.
+
+### New Modules (9 → 18 total)
+
+| Module | Type | Endpoints | Tables | Status |
+|--------|------|-----------|--------|--------|
+| `knowledge_store` | standard | 7 | `knowledge_documents` | ✅ Operational |
+| `snapshot_service` | standard | 5 | `snapshots` | ✅ Operational |
+| `auto_rules` | standard | 5 | `auto_rules` | ✅ Operational |
+| `notification` | standard | 6 | `notifications` | ✅ Operational (was stub) |
+| `relationship_registry` | standard | 6 | `relationships` | ✅ Operational |
+| `event_store` | standard | 5 | `event_store` | ✅ Operational |
+| `decision_log` | standard | 5 | `decision_log` | ✅ Operational |
+
+### What Was Built
+
+- **Event Store** — Temporal event persistence with channel-based querying
+- **Decision Log** — Administrative action recording with rationale tracking
+- **Profile Aggregation** — `student_profile` and `staff_profile` now aggregate identity, contacts, certifications, decisions, and events at read-time
+- **Relationship Registry** — Entity relationship mapping (teacher_of, parent_of, etc.) with CRUD and entity-based lookups
+- **Knowledge Store** — Policy/procedure/precedent repository with versioning, search, and archiving
+- **Snapshot Service** — Periodic metric synthesis across 7 source tables, trend tracking via run IDs
+- **Auto-Rule Generation** — Pattern mining across event_store, decision_log, snapshots, and relationships. 4 analyzers: threshold, frequency, trend, correlation. Confidence-scored suggestions with lifecycle (suggested → approved → active)
+- **Notification Pipeline** — Role-targeted notifications with read/unread lifecycle. Subscribes to auto_rules, snapshot, and knowledge events automatically
+
+### Cross-Module Event Flow
+
+Full event-driven pipeline operational:
+
+Data capture (events/decisions) → Snapshots → Pattern analysis → Rule suggestions → Notifications
+
+### Platform Stats
+
+- **Modules booted:** 18
+- **Total endpoints:** 39 (new intelligence modules)
+- **New tables:** 7
+- **Service injection:** `ctx.decisionLog`, `ctx.eventStore` injected into all module contexts via `platform/index.js`
+
+### Session History Update
+
+- **Session 17 (2026-08-08)** — Intelligence Engine Stages 5–8: Knowledge Store, Snapshot Service, Auto-Rule Generation, Notification Pipeline. Backend intelligence engine complete.

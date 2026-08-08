@@ -487,3 +487,119 @@ Fallback: strip `list` prefix, lowercase first char, remove trailing `s`.
 **Test suite:** 181+ tests + 6 smoke tests, all passing  
 
 ---
+
+cat >> /home/tmax/TimSyS_v6/DECISIONS.md << 'EOF'
+
+---
+
+## Session 17 — 2026-08-08: Intelligence Engine Stages 5–8
+
+### Event Store Design
+
+**Decision:** Central temporal event persistence with channel-based querying.
+
+**Implementation:** `event_store` module with 5 CRUD endpoints, publishes events to EventBus on create.
+
+**Injection:** `ctx.eventStore` injected into all module contexts for cross-module event access.
+
+**Status:** IMPLEMENTED
+
+### Decision Log Design
+
+**Decision:** Administrative action recording with rationale tracking.
+
+**Implementation:** `decision_log` module with 5 CRUD endpoints, `meta.newValue` and `meta.oldValue` serialized as JSON strings to avoid SQLite binding errors.
+
+**Injection:** `ctx.decisionLog` injected into all module contexts.
+
+**Status:** IMPLEMENTED
+
+### Profile Aggregation Pattern
+
+**Decision:** Read-time aggregation from registry components via `ctx.functionRegistry` instead of data duplication.
+
+**Rationale:** Profiles (`student_profile`, `staff_profile`) should reflect current state from registries without maintaining stale copies. Query registry functions at read-time.
+
+**Implementation:** `student_profile/index.js` and `staff_profile/index.js` call `ctx.functionRegistry.resolve()` to fetch registry data, then aggregate into unified profile objects.
+
+**Status:** IMPLEMENTED
+
+### Relationship Registry with Event Publishing
+
+**Decision:** Entity relationship mapping with automatic event publication on changes.
+
+**Implementation:** `relationship_registry` module with 6 endpoints, publishes `relationship.created`, `relationship.updated`, `relationship.deleted` events on mutations.
+
+**Audit:** `ctx.audit.action()` calls use correct signature `(action, userId, meta)` with `JSON.stringify()` on all object metadata.
+
+**Status:** IMPLEMENTED
+
+### Knowledge Store Schema
+
+**Decision:** Single `knowledge_documents` table with polymorphic type field instead of separate tables for policies/procedures/precedents.
+
+**Rationale:** All document types share common fields (title, content, status, versioning, authorship). Single table simplifies search and versioning.
+
+**Features:** Category enum (`policy`, `procedure`, `precedent`, `guideline`), status lifecycle (`draft`, `review`, `approved`, `archived`), versioning via `parent_document_id` chain, effective/expiry date enforcement.
+
+**Status:** IMPLEMENTED
+
+### Snapshot Metric Collection
+
+**Decision:** Collect metrics across 7 tables in single run, store with unique `run_id` for trend analysis.
+
+**Implementation:** `snapshot_service/run` triggers `_collectMetrics()` which queries students, staff, relationships, decisions, events, knowledge, inventory tables. Returns 23+ metrics per run.
+
+**Trend Analysis:** `GET /snapshots/trends/:key` retrieves historical values for any metric key across multiple runs.
+
+**Status:** IMPLEMENTED
+
+### Auto-Rule Pattern Mining
+
+**Decision:** 4 specialized analyzers rather than generic rule engine.
+
+**Analyzers:**
+1. `_analyzeEventFrequency()` — Threshold rules from event_store channel counts
+2. `_analyzeDecisionPatterns()` — Frequency rules from decision_log action counts
+3. `_analyzeEnrollmentTrend()` — Trend detection from snapshot `students.total` deltas
+4. `_analyzeRelationshipDensity()` — Correlation rules from relationship counts (high/low density)
+
+**Confidence Scoring:** Based on data volume (`cnt / 10`, `values.length / 5`, etc.), capped at 0.95 max.
+
+**Lifecycle:** `suggested` → `approved` → `active` or `suggested` → `rejected` or `archived`.
+
+**Status:** IMPLEMENTED
+
+### Notification Event Subscription Pattern
+
+**Decision:** Boot-time event subscription for automatic notification generation on system events.
+
+**Subscriptions:**
+- `auto_rules.analyzed` → Info notification to admins
+- `auto_rules.status_changed` → Warning/info depending on new status
+- `snapshot.completed` → Info notification with metric count
+- `knowledge.archived` → Warning notification
+
+**Role Targeting:** Notifications target `role_target = 'admin'` when no specific user is applicable.
+
+**Status:** IMPLEMENTED
+
+### Route Ordering Rule
+
+**Decision:** Static routes must be registered before parametric routes (`:id`) to prevent parameter capture.
+
+**Problem Encountered:** `/knowledge-documents/search` was captured as `:id` when registered after the parametric route.
+
+**Fix:** Reordered `module.json` routes list so `search` comes before `:id`.
+
+**Status:** IMPLEMENTED
+
+### Boolean to Integer Conversion for SQLite
+
+**Decision:** All boolean fields must be converted to integers (0/1) before database insertion.
+
+**Pattern:** `val === true ? 1 : 0` explicit ternary operators everywhere.
+
+**Reason:** SQLite strict type binding fails on boolean values, only accepts numbers.
+
+**Status:** IMPLEMENTED (across all modules)

@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-08-08T05:41:53Z
+Generated: 2026-08-08T09:28:52Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -19,7 +19,7 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
 | `CONTEXT.md` | ✅ | 8334B | 2026-08-07 23:56:55 |
-| `ARCHITECTURE_MAP.md` | ✅ | 502B | 2026-08-08 08:41:53 |
+| `ARCHITECTURE_MAP.md` | ✅ | 502B | 2026-08-08 12:28:52 |
 | `HANDOVER.md` | ✅ | 12146B | 2026-08-07 23:44:06 |
 | `CONSTITUTION_V6.0.md` | ✅ | 23821B | 2026-08-08 00:16:38 |
 | `LEXICON_V6.0.0.md` | ✅ | 16508B | 2026-08-08 00:06:17 |
@@ -68,13 +68,21 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/config/session-policy.json
 ./platform/contracts
 ./platform/contracts/auth.js
+./platform/contracts/auto_rules.js
 ./platform/contracts/cache.js
 ./platform/contracts/db.js
+./platform/contracts/decision_log.js
 ./platform/contracts/events.js
+./platform/contracts/event_store.js
 ./platform/contracts/intelligence.js
+./platform/contracts/knowledge_store.js
 ./platform/contracts/log.js
+./platform/contracts/notification.js
+./platform/contracts/relationship_registry.js
+./platform/contracts/snapshot.js
 ./platform/contracts/validate.js
 ./platform/data
+./platform/data/timsys.db
 ./platform/data/timsys.sqlite
 ./platform/data/timsys.sqlite-shm
 ./platform/data/timsys.sqlite-wal
@@ -105,6 +113,11 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/migrations/006_refresh_tokens.sql
 ./platform/migrations/007_builder.sql
 ./platform/modules
+./platform/modules/auto_rules
+./platform/modules/auto_rules/index.js
+./platform/modules/auto_rules/migrations
+./platform/modules/auto_rules/migrations/001_auto_rules.sql
+./platform/modules/auto_rules/module.json
 ./platform/modules/builder
 ./platform/modules/builder/assembler.js
 ./platform/modules/builder/composer.js
@@ -113,6 +126,18 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/modules/builder/migrations/.gitkeep
 ./platform/modules/builder/module.json
 ./platform/modules/builder/templates.js
+./platform/modules/decision_log
+./platform/modules/decision_log/index.js
+./platform/modules/decision_log/migrations
+./platform/modules/decision_log/migrations/001_decision_log.sql
+./platform/modules/decision_log/migrations/.gitkeep
+./platform/modules/decision_log/module.json
+./platform/modules/event_store
+./platform/modules/event_store/index.js
+./platform/modules/event_store/migrations
+./platform/modules/event_store/migrations/001_event_store.sql
+./platform/modules/event_store/migrations/.gitkeep
+./platform/modules/event_store/module.json
 ./platform/modules/.gitkeep
 ./platform/modules/intelligence
 ./platform/modules/intelligence/index.js
@@ -125,12 +150,35 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/modules/inventory/migrations
 ./platform/modules/inventory/migrations/001_inventory.sql
 ./platform/modules/inventory/module.json
+./platform/modules/knowledge_store
+./platform/modules/knowledge_store/index.js
+./platform/modules/knowledge_store/migrations
+./platform/modules/knowledge_store/migrations/001_knowledge.sql
+./platform/modules/knowledge_store/migrations/.gitkeep
+./platform/modules/knowledge_store/module.json
+./platform/modules/notification
+./platform/modules/notification/index.js
+./platform/modules/notification/migrations
+./platform/modules/notification/migrations/001_notifications.sql
+./platform/modules/notification/migrations/.gitkeep
+./platform/modules/notification/module.json
+./platform/modules/relationship_registry
+./platform/modules/relationship_registry/index.js
+./platform/modules/relationship_registry/migrations
+./platform/modules/relationship_registry/migrations/001_relationships.sql
+./platform/modules/relationship_registry/migrations/.gitkeep
+./platform/modules/relationship_registry/module.json
 ./platform/modules/room_registry
 ./platform/modules/room_registry/component.json
 ./platform/modules/room_registry/index.js
 ./platform/modules/room_registry/migrations
 ./platform/modules/room_registry/migrations/001_rooms.sql
 ./platform/modules/room_registry/module.json
+./platform/modules/snapshot_service
+./platform/modules/snapshot_service/index.js
+./platform/modules/snapshot_service/migrations
+./platform/modules/snapshot_service/migrations/001_snapshots.sql
+./platform/modules/snapshot_service/module.json
 ./platform/modules/staff_profile
 ./platform/modules/staff_profile/component.json
 ./platform/modules/staff_profile/index.js
@@ -209,21 +257,35 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/shared/services
 ./platform/shared/services/audit.js
 ./platform/shared/services/auth.js
+./platform/shared/services/auto_rules
+./platform/shared/services/auto_rules/index.js
 ./platform/shared/services/cache.js
 ./platform/shared/services/db.js
+./platform/shared/services/decision_log
+./platform/shared/services/decision_log/index.js
 ./platform/shared/services/email.js
 ./platform/shared/services/events.js
+./platform/shared/services/event_store
+./platform/shared/services/event_store/index.js
 ./platform/shared/services/intelligence
 ./platform/shared/services/intelligence/index.js
 ./platform/shared/services/intelligence/insights.js
 ./platform/shared/services/intelligence/logic.js
 ./platform/shared/services/intelligence/metadata.js
 ./platform/shared/services/intelligence/store.js
+./platform/shared/services/knowledge_store
+./platform/shared/services/knowledge_store/index.js
 ./platform/shared/services/log.js
 ./platform/shared/services/metrics.js
+./platform/shared/services/notification
+./platform/shared/services/notification/index.js
 ./platform/shared/services/ratelimit.js
 ./platform/shared/services/refresh.js
+./platform/shared/services/relationship_registry
+./platform/shared/services/relationship_registry/index.js
 ./platform/shared/services/session.js
+./platform/shared/services/snapshot
+./platform/shared/services/snapshot/index.js
 ./platform/shared/services/validate.js
 ./platform/test-results-builder.txt
 ./platform/Tools
@@ -298,7 +360,7 @@ Location: `/platform/shared/services/`
 | `auth.js` | ✅ | 3609B | 2026-07-20 11:28:06 |
 | `log.js` | ✅ | 1103B | 2026-07-16 17:39:58 |
 | `validate.js` | ✅ | 1493B | 2026-07-16 17:40:14 |
-| `events.js` | ✅ | 2263B | 2026-07-16 17:40:26 |
+| `events.js` | ✅ | 2522B | 2026-08-08 09:25:34 |
 | `session.js` | ✅ | 2717B | 2026-07-16 17:39:15 |
 | `audit.js` | ✅ | 2375B | 2026-08-07 17:41:05 |
 | `metrics.js` | ✅ | 4338B | 2026-07-16 17:39:45 |
@@ -361,7 +423,14 @@ Location: `/platform/modules/`
 
 | Module | Manifest | Index | Component | Migrations | Type |
 |--------|----------|-------|-----------|------------|------|
+| `auto_rules` | ✅ | ✅ | ❌ | 1 | standard |
 | `builder` | ✅ | ✅ | ❌ | 0 | standard |
+| `decision_log` | ✅ | ✅ | ❌ | 1 | standard |
+| `event_store` | ✅ | ✅ | ❌ | 1 | standard |
 | `intelligence` | ✅ | ✅ | ❌ | 0 | standard |
 | `inventory` | ✅ | ✅ | ✅ | 1 | registry |
+| `knowledge_store` | ✅ | ✅ | ❌ | 1 | standard |
+| `notification` | ✅ | ✅ | ❌ | 1 | standard |
+| `relationship_registry` | ✅ | ✅ | ❌ | 1 | standard |
 | `room_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `snapshot_service` | ✅ | ✅ | ❌ | 1 | standard |

@@ -315,4 +315,32 @@ See `ARCHITECTURE_MAP.md` for complete file inventory, sizes, modification times
 
 ---
 
+## Session 17 — 2026-08-08: Intelligence Engine Stages 5–8 Complete
+
+**Modules Added:** 9 new → 18 total
+
+| Module | Purpose | Endpoints | Tables |
+|--------|---------|-----------|--------|
+| `event_store` | Temporal event persistence | 5 | `event_store` |
+| `decision_log` | Admin action recording | 5 | `decision_log` |
+| `relationship_registry` | Entity relationship mapping | 6 | `relationships` |
+| `knowledge_store` | Policy/procedure/precedent repo | 7 | `knowledge_documents` |
+| `snapshot_service` | Periodic metric synthesis | 5 | `snapshots` |
+| `auto_rules` | Pattern mining for rule suggestions | 5 | `auto_rules` |
+| `notification` | Role-targeted notifications (revised) | 6 | `notifications` |
+
+**Event Flow Complete:**
+
+Events/Decisions → Snapshots → Pattern Analysis → Auto-Rules → Notifications
+
+**Cross-Module Injection:** `ctx.decisionLog` and `ctx.eventStore` injected into all module contexts via `platform/index.js`.
+
+**Critical Fixes:**
+- Route ordering (static before parametric)
+- Boolean to integer conversion for SQLite
+- `ctx.audit.action()` signature correction
+- `JSON.stringify()` on all object metadata
+
+**Status:** Intelligence Engine backend complete. All 8 stages operational.
+
 **Document End.**
