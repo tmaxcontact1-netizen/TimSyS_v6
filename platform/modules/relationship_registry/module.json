@@ -1,0 +1,30 @@
+{
+  "name": "relationship_registry",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["capability:relationship.read", "capability:relationship.write"],
+  "requires": [],
+  "components": [],
+  "routes": [
+    { "path": "/relationships", "method": "GET", "handler": "relationship_registry_list", "auth_required": true, "permissions": ["admin:relationships:read"] },
+    { "path": "/relationships", "method": "POST", "handler": "relationship_registry_create", "auth_required": true, "permissions": ["admin:relationships:write"] },
+    { "path": "/relationships/:id", "method": "GET", "handler": "relationship_registry_getById", "auth_required": true, "permissions": ["admin:relationships:read"] },
+    { "path": "/relationships/:id", "method": "PUT", "handler": "relationship_registry_update", "auth_required": true, "permissions": ["admin:relationships:write"] },
+    { "path": "/relationships/:id", "method": "DELETE", "handler": "relationship_registry_delete", "auth_required": true, "permissions": ["admin:relationships:write"] },
+    { "path": "/relationships/entity/:type/:id", "method": "GET", "handler": "relationship_registry_getByEntity", "auth_required": true, "permissions": ["admin:relationships:read"] }
+  ],
+  "functions": [
+    { "name": "relationship_registry_list", "exports": "relationship_registry_list", "params": ["type", "sourceType", "sourceId", "targetType", "targetId", "active", "limit", "offset"], "returns": "Relationship[]" },
+    { "name": "relationship_registry_create", "exports": "relationship_registry_create", "params": ["data"], "returns": "Relationship" },
+    { "name": "relationship_registry_getById", "exports": "relationship_registry_getById", "params": ["id"], "returns": "Relationship" },
+    { "name": "relationship_registry_update", "exports": "relationship_registry_update", "params": ["id", "data"], "returns": "Relationship" },
+    { "name": "relationship_registry_delete", "exports": "relationship_registry_delete", "params": ["id"], "returns": "boolean" },
+    { "name": "relationship_registry_getByEntity", "exports": "relationship_registry_getByEntity", "params": ["type", "id", "limit"], "returns": "Relationship[]" }
+  ],
+  "schema": { "tables": ["relationships"], "migrations": ["migrations/001_relationships.sql"] },
+  "events": {
+    "publishes": ["relationship.created", "relationship.updated", "relationship.deactivated"],
+    "subscribes": []
+  }
+}

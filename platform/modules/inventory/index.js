@@ -106,7 +106,7 @@ async function createItem(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var item = ctx.db.query('SELECT * FROM inventory_items WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('item.created', { itemId: insertedId, itemName: b.item_name });
+  ctx.events.publish('item.created', { itemId: insertedId, itemName: b.item_name, entityType: 'item', entityId: insertedId, __module: 'inventory' });
 
   if (ctx.intelligence) {
     ctx.intelligence.storeMetadata('item', insertedId.toString(), item.rows[0]);
@@ -182,7 +182,7 @@ async function updateItem(req, ctx) {
 
   var updated = ctx.db.query('SELECT * FROM inventory_items WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('item.updated', { itemId: existing.rows[0].id });
+  ctx.events.publish('item.updated', { itemId: existing.rows[0].id, entityType: 'item', entityId: existing.rows[0].id, __module: 'inventory' });
 
   if (ctx.intelligence) {
     ctx.intelligence.storeMetadata('item', existing.rows[0].id.toString(), updated.rows[0]);
@@ -210,7 +210,7 @@ async function deleteItem(req, ctx) {
 
   ctx.db.query("UPDATE inventory_items SET status = 'retired', updated_at = datetime('now') WHERE id = ?", [existing.rows[0].id]);
 
-  ctx.events.publish('item.retired', { itemId: existing.rows[0].id });
+  ctx.events.publish('item.retired', { itemId: existing.rows[0].id, entityType: 'item', entityId: existing.rows[0].id, __module: 'inventory' });
 
   if (ctx.audit) {
     ctx.audit.action('item.retire', req.user.id, {

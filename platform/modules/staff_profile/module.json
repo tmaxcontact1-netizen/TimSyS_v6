@@ -6,9 +6,11 @@
   "provides": ["capability:staff_profile.read"],
   "requires": ["capability:staff.read"],
   "routes": [
+    { "path": "/staff-profiles", "method": "GET", "handler": "staff_profile_listProfiles", "auth_required": true, "permissions": ["admin:staff:read"] },
     { "path": "/staff/:id/profile", "method": "GET", "handler": "staff_profile_getProfile", "auth_required": true, "permissions": ["admin:staff:read"] }
   ],
   "functions": [
+    { "name": "staff_profile_listProfiles", "exports": "listProfiles", "params": ["filter", "page", "limit"], "returns": "Staff[]" },
     { "name": "staff_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StaffProfile" }
   ],
   "schema": {},

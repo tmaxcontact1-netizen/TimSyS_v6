@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-08-07T20:31:47Z
+Generated: 2026-08-08T05:41:53Z
 Generator: Tools/update_architecture_map.sh
 
 This document is auto-generated. Do not edit manually.
@@ -18,11 +18,11 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 
 | File | Exists | Size | Last Modified |
 |------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 10870B | 2026-07-20 18:26:38 |
-| `ARCHITECTURE_MAP.md` | ✅ | 503B | 2026-08-07 23:31:47 |
-| `HANDOVER.md` | ✅ | 19600B | 2026-08-06 16:10:21 |
-| `CONSTITUTION_V6.0.md` | ✅ | 18712B | 2026-07-17 08:34:40 |
-| `LEXICON_V6.0.0.md` | ✅ | 10787B | 2026-08-07 12:14:19 |
+| `CONTEXT.md` | ✅ | 8334B | 2026-08-07 23:56:55 |
+| `ARCHITECTURE_MAP.md` | ✅ | 502B | 2026-08-08 08:41:53 |
+| `HANDOVER.md` | ✅ | 12146B | 2026-08-07 23:44:06 |
+| `CONSTITUTION_V6.0.md` | ✅ | 23821B | 2026-08-08 00:16:38 |
+| `LEXICON_V6.0.0.md` | ✅ | 16508B | 2026-08-08 00:06:17 |
 
 ## Directory Tree
 
@@ -76,6 +76,8 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/contracts/validate.js
 ./platform/data
 ./platform/data/timsys.sqlite
+./platform/data/timsys.sqlite-shm
+./platform/data/timsys.sqlite-wal
 ./platform/deploy
 ./platform/deploy/backup.sh
 ./platform/deploy/migrate.sh
@@ -112,6 +114,11 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/modules/builder/module.json
 ./platform/modules/builder/templates.js
 ./platform/modules/.gitkeep
+./platform/modules/intelligence
+./platform/modules/intelligence/index.js
+./platform/modules/intelligence/migrations
+./platform/modules/intelligence/migrations/.gitkeep
+./platform/modules/intelligence/module.json
 ./platform/modules/inventory
 ./platform/modules/inventory/component.json
 ./platform/modules/inventory/index.js
@@ -152,6 +159,11 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/modules/system_health/index.js
 ./platform/modules/system_health/module.json
 ./platform/modules/system_health/module.json.bak
+./platform/modules/test_composite
+./platform/modules/test_composite/index.js
+./platform/modules/test_composite/migrations
+./platform/modules/test_composite/migrations/.gitkeep
+./platform/modules/test_composite/module.json
 ./platform/modules/user_management
 ./platform/modules/user_management/index.js
 ./platform/modules/user_management/migrations
@@ -217,6 +229,7 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/Tools
 ./platform/Tools/spawn_app.sh
 ./platform/Tools/update_architecture_map.sh
+./platform/V
 ./TEST_PROTOCOL.md
 ./test-results.txt
 ./tests
@@ -301,7 +314,7 @@ Location: `/platform/shared/services/intelligence/`
 |------|--------|------|
 | `index.js` | ✅ | 945B |
 | `metadata.js` | ✅ | 3592B |
-| `insights.js` | ✅ | 9783B |
+| `insights.js` | ✅ | 9907B |
 | `logic.js` | ✅ | 4729B |
 | `store.js` | ✅ | 6237B |
 
@@ -349,81 +362,6 @@ Location: `/platform/modules/`
 | Module | Manifest | Index | Component | Migrations | Type |
 |--------|----------|-------|-----------|------------|------|
 | `builder` | ✅ | ✅ | ❌ | 0 | standard |
+| `intelligence` | ✅ | ✅ | ❌ | 0 | standard |
 | `inventory` | ✅ | ✅ | ✅ | 1 | registry |
 | `room_registry` | ✅ | ✅ | ✅ | 1 | registry |
-| `staff_profile` | ✅ | ✅ | ✅ | 0 | profile |
-| `staff_registry` | ✅ | ✅ | ✅ | 1 | registry |
-| `student_profile` | ✅ | ✅ | ✅ | 0 | profile |
-| `student_registry` | ✅ | ✅ | ✅ | 1 | registry |
-| `system_health` | ✅ | ✅ | ❌ | 0 | standard |
-| `user_management` | ✅ | ✅ | ❌ | 3 | standard |
-
-## CLI Tools
-
-Location: `/platform/scripts/cli/`
-
-| File | Exists | Purpose |
-|------|--------|---------|
-| `migrate.js` | ✅ | Database migrations |
-| `scaffold.js` | ✅ | Module generation |
-| `builder.js` | ✅ | App assembly |
-
-## Phase 7: Testing Layer
-
-- `/tests/unit/services/` — 5 test file(s)
-- `/tests/unit/registries/` — 1 test file(s)
-- `/tests/integration/staging/` — 1 test file(s)
-- `/tests/integration/http/` — 5 test file(s)
-- `/tests/e2e/` — 2 test file(s)
-
-### Smoke Tests
-
-- `student.endpoint_smoke.sh` ✅
-- `staff.endpoint_smoke.sh` ✅
-- `room.endpoint_smoke.sh` ✅
-- `inventory.endpoint_smoke.sh` ✅
-- `intelligence.smoke.sh` ✅
-- `profile.endpoint_smoke.sh` ✅
-
-## Phase 10-11: Engine Layers
-
-**`/engine/gap-analysis/`**
-- `calculator.js` (6153B)
-- `index.js` (737B)
-**`/engine/recommendation/`**
-- `analyzer.js` (5158B)
-- `index.js` (1155B)
-
-## Data Layer
-
-- `timsys.sqlite` (618496B)
-
-## Applications
-
-| Application | Status |
-|-------------|--------|
-| `competeed` | ✅ Ready |
-| `principaled` | ✅ Ready |
-| `sanctifyed` | ✅ Ready |
-
----
-
-## Drift Detection
-
-### Expected Platform Directories
-
-- ❌ MISSING DIR: `/platform/tests/`
-
-### Frozen Document Integrity
-
-- CONSTITUTION_V6.0.md SHA256: `ac631344f0e1a60edded3ac0b084504218f55172b1c31dce9e37c67b0d519e7a`
-- LEXICON_V6.0.0.md SHA256: `72280c5fb7d90fa8245139f35b9340016e0fe0d072bf799bd2ea85360e167b45`
-- Store these hashes. Any change indicates a frozen document was modified. Halt and investigate.
-
-### Contract Freeze Status
-
-- Contracts present: 7/7
-- Status: All contract files exist. Verify they are frozen and signed off.
-
----
-End of Architecture Map.

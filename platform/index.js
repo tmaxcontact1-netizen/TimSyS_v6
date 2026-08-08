@@ -55,6 +55,8 @@ const passwordChangeRequired = require('./shared/middleware/passwordChangeRequir
 const metrics = require('./shared/services/metrics');
 const db = require('./shared/services/db');
 const audit = require('./shared/services/audit');
+const decisionLog = require('./shared/services/decision_log');
+const eventStore = require('./shared/services/event_store');
 
 var PORT = process.env.PORT !== undefined ? parseInt(process.env.PORT, 10) : 3000;
 var contextRegistry = {};
@@ -109,6 +111,8 @@ async function bootPlatform() {
   for (var w = 0; w < wired.length; w++) {
     var ctx = wired[w].ctx;
     ctx.audit = audit;
+    ctx.decisionLog = decisionLog;
+    ctx.eventStore = eventStore;
     contextRegistry[wired[w].manifest.name] = ctx;
   }
 

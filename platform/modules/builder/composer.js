@@ -184,8 +184,8 @@ function compose(input) {
     routes: routes,
     functions: functions,
     schema: {
-      tables: schemaTables,
-      migrations: schemaMigrations
+      tables: [],
+      migrations: []
     },
     events: {
       publishes: publishes,
@@ -193,13 +193,9 @@ function compose(input) {
     }
   };
 
-  // Step 10: Warn about schema tables owned by other modules
-  schemaTables.forEach(function(table) {
-    var owner = tableOwners[table];
-    if (owner && owner !== name) {
-      warnings.push('Table "' + table + '" is owned by module "' + owner + '" — composed module will reference, not own, this table');
-    }
-  });
+  // No schema inheritance — composite modules reference tables owned by components
+  schemaTables = [];
+  schemaMigrations = [];
 
   log.info('Composed module "' + name + '"', {
     components: componentNames.length,

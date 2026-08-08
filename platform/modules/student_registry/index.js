@@ -120,7 +120,7 @@ async function createStudent(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var student = ctx.db.query('SELECT * FROM students WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('student.created', { studentId: insertedId, studentIdText: b.student_id });
+  ctx.events.publish('student.created', { studentId: insertedId, studentIdText: b.student_id, entityType: 'student', entityId: insertedId, __module: 'student_registry' });
 
   if (ctx.intelligence) {
     try {
@@ -199,7 +199,7 @@ async function updateStudent(req, ctx) {
 
   var updated = ctx.db.query('SELECT * FROM students WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('student.updated', { studentId: existing.rows[0].id });
+  ctx.events.publish('student.updated', { studentId: existing.rows[0].id, entityType: 'student', entityId: existing.rows[0].id, __module: 'student_registry' });
 
   if (ctx.intelligence) {
     try {
@@ -231,7 +231,7 @@ async function deleteStudent(req, ctx) {
 
   ctx.db.query("UPDATE students SET enrollment_status = 'withdrawn', updated_at = datetime('now') WHERE id = ?", [existing.rows[0].id]);
 
-  ctx.events.publish('student.withdrawn', { studentId: existing.rows[0].id });
+  ctx.events.publish('student.withdrawn', { studentId: existing.rows[0].id, entityType: 'student', entityId: existing.rows[0].id, __module: 'student_registry' });
 
   if (ctx.audit) {
     ctx.audit.action('student.delete', req.user.id, {
@@ -303,7 +303,7 @@ async function addContact(req, ctx) {
 
   var inserted = ctx.db.query('SELECT * FROM student_contacts WHERE id = ?', [result.lastInsertRowid]);
 
-  ctx.events.publish('student.contact_added', { studentId: student.rows[0].id, contactId: result.lastInsertRowid });
+  ctx.events.publish('student.contact_added', { studentId: student.rows[0].id, contactId: result.lastInsertRowid, entityType: 'student', entityId: student.rows[0].id, __module: 'student_registry' });
 
   return { success: true, contact: inserted.rows[0] };
 }

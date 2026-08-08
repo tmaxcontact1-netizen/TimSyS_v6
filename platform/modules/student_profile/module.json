@@ -6,9 +6,11 @@
   "provides": ["capability:student_profile.read"],
   "requires": ["capability:student.read"],
   "routes": [
+    { "path": "/student-profiles", "method": "GET", "handler": "student_profile_listProfiles", "auth_required": true, "permissions": ["admin:students:read"] },
     { "path": "/students/:id/profile", "method": "GET", "handler": "student_profile_getProfile", "auth_required": true, "permissions": ["admin:students:read"] }
   ],
   "functions": [
+    { "name": "student_profile_listProfiles", "exports": "listProfiles", "params": ["filter", "page", "limit"], "returns": "Student[]" },
     { "name": "student_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StudentProfile" }
   ],
   "schema": {},

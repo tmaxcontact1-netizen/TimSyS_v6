@@ -99,6 +99,9 @@ class InsightsService {
         entityType = entityType.replace(/s$/, '');
       }
 
+      // Skip functions that don't map to a valid entity type
+      if (!entityType || entityType.trim() === '') continue;
+
       if (entityFilter && entityFilter.indexOf(entityType) === -1) continue;
 
       var ref = functionRegistry.get(fn.name);

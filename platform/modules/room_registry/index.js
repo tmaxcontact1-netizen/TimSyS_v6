@@ -100,7 +100,7 @@ async function createRoom(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var room = ctx.db.query('SELECT * FROM rooms WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('room.created', { roomId: insertedId, roomNumber: b.room_number });
+  ctx.events.publish('room.created', { roomId: insertedId, roomNumber: b.room_number, entityType: 'room', entityId: insertedId, __module: 'room_registry' });
 
   if (ctx.intelligence) {
     ctx.intelligence.storeMetadata('room', insertedId.toString(), room.rows[0]);
@@ -173,7 +173,7 @@ async function updateRoom(req, ctx) {
 
   var updated = ctx.db.query('SELECT * FROM rooms WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('room.updated', { roomId: existing.rows[0].id });
+  ctx.events.publish('room.updated', { roomId: existing.rows[0].id, entityType: 'room', entityId: existing.rows[0].id, __module: 'room_registry' });
 
   if (ctx.intelligence) {
     ctx.intelligence.storeMetadata('room', existing.rows[0].id.toString(), updated.rows[0]);
@@ -201,7 +201,7 @@ async function deleteRoom(req, ctx) {
 
   ctx.db.query("UPDATE rooms SET status = 'blocked', updated_at = datetime('now') WHERE id = ?", [existing.rows[0].id]);
 
-  ctx.events.publish('room.blocked', { roomId: existing.rows[0].id });
+  ctx.events.publish('room.blocked', { roomId: existing.rows[0].id, entityType: 'room', entityId: existing.rows[0].id, __module: 'room_registry' });
 
   if (ctx.audit) {
     ctx.audit.action('room.block', req.user.id, {

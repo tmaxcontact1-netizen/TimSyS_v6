@@ -5,28 +5,38 @@ const { EventBus } = require('../../contracts/events');
 
 /**
  * EventBus implementation — in-memory pub/sub + request/reply.
+ * Extended with global handlers for event persistence.
  */
 class EventBusImpl extends EventBus {
   constructor() {
     super();
-    this.channels = new Map(); // channel -> Set<handler>
-    this._requestHandlers = new Map(); // reply channel -> { resolve, reject, timer }
+    this.channels = new Map();
+    this._globalHandlers = new Set();
+    this._requestHandlers = new Map();
   }
 
   publish(channel, payload) {
     const handlers = this.channels.get(channel);
-    if (!handlers) return;
+    if (handlers) {
+      const handlerList = [...handlers];
+      for (const handler of handlerList) {
+        try {
+          handler(payload);
+        } catch (err) {
+          console.error(
+            `EventBus handler error on channel "${channel}":`,
+            err.message
+          );
+        }
+      }
+    }
 
-    // Copy to array to allow unsubscribe during iteration
-    const handlerList = [...handlers];
-
-    for (const handler of handlerList) {
+    for (const handler of this._globalHandlers) {
       try {
-        handler(payload);
+        handler(channel, payload);
       } catch (err) {
-        // Error isolation — log and continue
         console.error(
-          `EventBus handler error on channel "${channel}":`,
+          `EventBus global handler error on channel "${channel}":`,
           err.message
         );
       }
@@ -37,20 +47,24 @@ class EventBusImpl extends EventBus {
     if (!this.channels.has(channel)) {
       this.channels.set(channel, new Set());
     }
-
-    // Deduplicate by reference
     this.channels.get(channel).add(handler);
   }
 
   unsubscribe(channel, handler) {
     const handlers = this.channels.get(channel);
     if (!handlers) return;
-
     handlers.delete(handler);
-
     if (handlers.size === 0) {
       this.channels.delete(channel);
     }
+  }
+
+  subscribeGlobal(handler) {
+    this._globalHandlers.add(handler);
+  }
+
+  unsubscribeGlobal(handler) {
+    this._globalHandlers.delete(handler);
   }
 
   async request(channel, payload, timeout = 5000) {
@@ -73,7 +87,6 @@ class EventBusImpl extends EventBus {
       this._requestHandlers.set(replyChannel, { resolve, reject, timer });
       this.subscribe(replyChannel, replyHandler);
 
-      // Publish with reply-to channel attached
       this.publish(channel, { ...payload, __replyChannel: replyChannel });
     });
   }

@@ -1,0 +1,28 @@
+{
+  "name": "snapshot_service",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["capability:snapshot.read", "capability:snapshot.write"],
+  "requires": [],
+  "components": [],
+  "routes": [
+    { "path": "/snapshots/run", "method": "POST", "handler": "snapshot_service_run", "auth_required": true, "permissions": ["admin:snapshots:write"] },
+    { "path": "/snapshots", "method": "GET", "handler": "snapshot_service_list", "auth_required": true, "permissions": ["admin:snapshots:read"] },
+    { "path": "/snapshots/latest", "method": "GET", "handler": "snapshot_service_latest", "auth_required": true, "permissions": ["admin:snapshots:read"] },
+    { "path": "/snapshots/:runId", "method": "GET", "handler": "snapshot_service_getById", "auth_required": true, "permissions": ["admin:snapshots:read"] },
+    { "path": "/snapshots/trends/:key", "method": "GET", "handler": "snapshot_service_trends", "auth_required": true, "permissions": ["admin:snapshots:read"] }
+  ],
+  "functions": [
+    { "name": "snapshot_service_run", "exports": "snapshot_service_run", "params": [], "returns": "{runId, metricsCaptured}" },
+    { "name": "snapshot_service_list", "exports": "snapshot_service_list", "params": ["limit"], "returns": "SnapshotRun[]" },
+    { "name": "snapshot_service_latest", "exports": "snapshot_service_latest", "params": [], "returns": "SnapshotMetric[]" },
+    { "name": "snapshot_service_getById", "exports": "snapshot_service_getById", "params": ["runId"], "returns": "SnapshotMetric[]" },
+    { "name": "snapshot_service_trends", "exports": "snapshot_service_trends", "params": ["key", "limit"], "returns": "TrendPoint[]" }
+  ],
+  "schema": { "tables": ["snapshots"], "migrations": ["migrations/001_snapshots.sql"] },
+  "events": {
+    "publishes": ["snapshot.completed"],
+    "subscribes": []
+  }
+}

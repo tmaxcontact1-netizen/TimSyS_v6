@@ -1,0 +1,25 @@
+{
+  "name": "decision_log",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["decision_log.record", "decision_log.query"],
+  "requires": [],
+  "components": [],
+  "routes": [
+    { "path": "/decision-log", "method": "GET", "handler": "decision_log_list", "auth_required": true, "permissions": ["admin:decision_log:read"] },
+    { "path": "/decision-log/:id", "method": "GET", "handler": "decision_log_getById", "auth_required": true, "permissions": ["admin:decision_log:read"] },
+    { "path": "/decision-log/actor/:actorId", "method": "GET", "handler": "decision_log_getByActor", "auth_required": true, "permissions": ["admin:decision_log:read"] },
+    { "path": "/decision-log/entity/:entityType/:entityId", "method": "GET", "handler": "decision_log_getByEntity", "auth_required": true, "permissions": ["admin:decision_log:read"] },
+    { "path": "/decision-log/action/:action", "method": "GET", "handler": "decision_log_getByAction", "auth_required": true, "permissions": ["admin:decision_log:read"] }
+  ],
+  "functions": [
+    { "name": "decision_log_list", "exports": "decision_log_list", "params": ["limit", "offset"], "returns": "object[]" },
+    { "name": "decision_log_getById", "exports": "decision_log_getById", "params": ["id"], "returns": "object" },
+    { "name": "decision_log_getByActor", "exports": "decision_log_getByActor", "params": ["actorId", "limit"], "returns": "object[]" },
+    { "name": "decision_log_getByEntity", "exports": "decision_log_getByEntity", "params": ["entityType", "entityId", "limit"], "returns": "object[]" },
+    { "name": "decision_log_getByAction", "exports": "decision_log_getByAction", "params": ["action", "limit"], "returns": "object[]" }
+  ],
+  "schema": { "tables": ["decision_log"], "migrations": ["migrations/001_decision_log.sql"] },
+  "events": { "publishes": [], "subscribes": [] }
+}

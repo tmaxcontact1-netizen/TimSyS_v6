@@ -1,0 +1,30 @@
+{
+  "name": "notification",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["capability:notification.read", "capability:notification.write"],
+  "requires": [],
+  "components": [],
+  "routes": [
+    { "path": "/notifications", "method": "GET", "handler": "notification_list", "auth_required": true, "permissions": ["admin:notifications:read"] },
+    { "path": "/notifications/unread", "method": "GET", "handler": "notification_unread", "auth_required": true, "permissions": ["admin:notifications:read"] },
+    { "path": "/notifications", "method": "POST", "handler": "notification_create", "auth_required": true, "permissions": ["admin:notifications:write"] },
+    { "path": "/notifications/:id/read", "method": "PUT", "handler": "notification_markRead", "auth_required": true, "permissions": ["admin:notifications:write"] },
+    { "path": "/notifications/:id/unread", "method": "PUT", "handler": "notification_markUnread", "auth_required": true, "permissions": ["admin:notifications:write"] },
+    { "path": "/notifications/:id", "method": "DELETE", "handler": "notification_delete", "auth_required": true, "permissions": ["admin:notifications:write"] }
+  ],
+  "functions": [
+    { "name": "notification_list", "exports": "notification_list", "params": ["read", "category", "severity", "limit", "offset"], "returns": "Notification[]" },
+    { "name": "notification_unread", "exports": "notification_unread", "params": [], "returns": "{notifications, unreadCount}" },
+    { "name": "notification_create", "exports": "notification_create", "params": ["data"], "returns": "Notification" },
+    { "name": "notification_markRead", "exports": "notification_markRead", "params": ["id"], "returns": "Notification" },
+    { "name": "notification_markUnread", "exports": "notification_markUnread", "params": ["id"], "returns": "Notification" },
+    { "name": "notification_delete", "exports": "notification_delete", "params": ["id"], "returns": "boolean" }
+  ],
+  "schema": { "tables": ["notifications"], "migrations": ["migrations/001_notifications.sql"] },
+  "events": {
+    "publishes": ["notification.created"],
+    "subscribes": ["auto_rules.analyzed", "auto_rules.status_changed", "snapshot.completed", "knowledge.archived"]
+  }
+}

@@ -31,15 +31,15 @@ function assemble(spec) {
   var components = spec.components || [];
 
   // Step 1: Validate all components exist
-  var missingComponents = componentRegistry.getMissing(components);
-  if (missingComponents.length > 0) {
+  var missingComponent = componentRegistry.getMissing(components);
+  if (missingComponent.length > 0) {
     return {
       success: false,
       statusCode: 422,
       error: {
         code: 'MISSING_COMPONENTS',
         message: 'Cannot assemble module — required components not found',
-        missingComponents: missingComponents
+        missingComponents: missingComponent
       },
       hint: 'Register or build the missing components first, then retry assembly.'
     };
@@ -58,7 +58,20 @@ function assemble(spec) {
     };
   }
 
-  // Step 3: Build manifest
+  // Step 3: Auto-generate functions from routes if not provided
+  var functions = spec.functions || [];
+  if (functions.length === 0 && spec.routes && spec.routes.length > 0) {
+    functions = spec.routes.map(function(route) {
+      return {
+        name: route.handler,
+        exports: route.handler, // Match handler name exactly
+        params: ['req', 'ctx'],
+        returns: 'any'
+      };
+    });
+  }
+
+  // Step 4: Build manifest
   var manifest = {
     name: name,
     version: spec.version || '1.0.0',
@@ -68,21 +81,21 @@ function assemble(spec) {
     requires: spec.requires || [],
     components: components,
     routes: spec.routes || [],
-    functions: spec.functions || [],
+    functions: functions,
     schema: spec.schema || { tables: [], migrations: [] },
     events: spec.events || { publishes: [], subscribes: [] }
   };
 
-  // Step 4: Create directory structure
+  // Step 5: Create directory structure
   var migrationsDir = path.join(moduleDir, 'migrations');
   fs.mkdirSync(moduleDir, { recursive: true });
   fs.mkdirSync(migrationsDir, { recursive: true });
   fs.writeFileSync(path.join(migrationsDir, '.gitkeep'), '');
 
-  // Step 5: Write module.json
+  // Step 6: Write module.json
   fs.writeFileSync(path.join(moduleDir, 'module.json'), JSON.stringify(manifest, null, 2) + '\n');
 
-  // Step 6: Generate index.js with component wiring
+  // Step 7: Generate index.js with component wiring and handler stubs
   var componentRequires = components.map(function(comp, idx) {
     var compData = componentRegistry.get(comp);
     var sourcePath = compData.ownerModule
@@ -91,11 +104,11 @@ function assemble(spec) {
     return "  var " + comp + " = require(" + sourcePath + "); // Component: " + compData.type;
   }).join('\n');
 
-  var handlerStubs = (spec.routes || []).map(function(route) {
-    var handlerName = route.handler;
+  var handlerStubs = functions.map(function(func) {
+    var handlerName = func.name;
     return [
       'async function ' + handlerName + '(req, ctx) {',
-      '  // Handler for ' + route.method + ' ' + route.path,
+      '  // Handler for processing requests',
       '  // Components available: ' + components.join(', '),
       '  return { success: true };',
       '}'
@@ -124,8 +137,8 @@ function assemble(spec) {
   }
 
   var exports = ['boot: boot', 'teardown: teardown'];
-  (spec.routes || []).forEach(function(route) {
-    exports.push(route.handler + ': ' + route.handler);
+  functions.forEach(function(func) {
+    exports.push(func.name + ': ' + func.name);
   });
 
   indexJs.push('module.exports = {');
@@ -135,7 +148,7 @@ function assemble(spec) {
 
   fs.writeFileSync(path.join(moduleDir, 'index.js'), indexJs.join('\n'));
 
-  // Step 7: Write migrations if provided
+  // Step 8: Write migrations if provided
   if (spec.schema && spec.schema.migrations) {
     spec.schema.migrations.forEach(function(migration, i) {
       var num = String(i + 1).padStart(3, '0');
@@ -149,7 +162,7 @@ function assemble(spec) {
     module: name,
     components: components.length,
     routes: (spec.routes || []).length,
-    functions: (spec.functions || []).length
+    functions: functions.length
   });
 
   return {
@@ -194,6 +207,19 @@ function dryRun(spec) {
   var moduleDir = path.join(MODULES_DIR, spec.name);
   var exists = fs.existsSync(moduleDir);
 
+  // Auto-generate functions from routes for validation
+  var functions = spec.functions || [];
+  if (functions.length === 0 && spec.routes && spec.routes.length > 0) {
+    functions = spec.routes.map(function(route) {
+      return {
+        name: route.handler,
+        exports: route.handler,
+        params: ['req', 'ctx'],
+        returns: 'any'
+      };
+    });
+  }
+
   return {
     success: true,
     dryRun: true,
@@ -207,7 +233,17 @@ function dryRun(spec) {
         available: components.filter(function(c) { return componentRegistry.exists(c); }),
         missing: missingComponents
       },
-      canBuild: missingComponents.length === 0 && !exists
+      canBuild: missingComponents.length === 0 && !exists,
+      filesCreated: [
+        'module.json',
+        'index.js',
+        'migrations/.gitkeep'
+      ],
+      nextSteps: [
+        'Implement handler logic in index.js',
+        'Run: node scripts/cli/migrate.js list',
+        'Restart server to stage module'
+      ]
     }
   };
 }

@@ -2,6 +2,7 @@
 # TimSyS Architecture Map Generator
 # Manually triggered. Overwrites ARCHITECTURE_MAP.md in project root.
 # Scans actual directory structure, detects drift from expected layout.
+# To run bash /home/tmax/TimSyS_v6/platform/Tools/update_architecture_map.sh
 
 set -euo pipefail
 

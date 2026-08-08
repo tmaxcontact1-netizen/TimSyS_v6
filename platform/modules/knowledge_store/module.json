@@ -1,0 +1,32 @@
+{
+  "name": "knowledge_store",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["capability:knowledge.read", "capability:knowledge.write"],
+  "requires": [],
+  "components": [],
+  "routes": [
+    { "path": "/knowledge-documents", "method": "GET", "handler": "knowledge_store_list", "auth_required": true, "permissions": ["admin:knowledge:read"] },
+    { "path": "/knowledge-documents", "method": "POST", "handler": "knowledge_store_create", "auth_required": true, "permissions": ["admin:knowledge:write"] },
+    { "path": "/knowledge-documents/search", "method": "GET", "handler": "knowledge_store_search", "auth_required": true, "permissions": ["admin:knowledge:read"] },
+    { "path": "/knowledge-documents/:id", "method": "GET", "handler": "knowledge_store_getById", "auth_required": true, "permissions": ["admin:knowledge:read"] },
+    { "path": "/knowledge-documents/:id", "method": "PUT", "handler": "knowledge_store_update", "auth_required": true, "permissions": ["admin:knowledge:write"] },
+    { "path": "/knowledge-documents/:id/archive", "method": "POST", "handler": "knowledge_store_archive", "auth_required": true, "permissions": ["admin:knowledge:write"] },
+    { "path": "/knowledge-documents/:id/history", "method": "GET", "handler": "knowledge_store_history", "auth_required": true, "permissions": ["admin:knowledge:read"] }
+  ],
+  "functions": [
+    { "name": "knowledge_store_list", "exports": "knowledge_store_list", "params": ["category", "status", "tag", "active_only", "limit", "offset"], "returns": "KnowledgeDocument[]" },
+    { "name": "knowledge_store_create", "exports": "knowledge_store_create", "params": ["data"], "returns": "KnowledgeDocument" },
+    { "name": "knowledge_store_getById", "exports": "knowledge_store_getById", "params": ["id"], "returns": "KnowledgeDocument" },
+    { "name": "knowledge_store_update", "exports": "knowledge_store_update", "params": ["id", "data"], "returns": "KnowledgeDocument" },
+    { "name": "knowledge_store_archive", "exports": "knowledge_store_archive", "params": ["id"], "returns": "boolean" },
+    { "name": "knowledge_store_search", "exports": "knowledge_store_search", "params": ["q", "limit"], "returns": "KnowledgeDocument[]" },
+    { "name": "knowledge_store_history", "exports": "knowledge_store_history", "params": ["id"], "returns": "{current, history}" }
+  ],
+  "schema": { "tables": ["knowledge_documents"], "migrations": ["migrations/001_knowledge.sql"] },
+  "events": {
+    "publishes": ["knowledge.created", "knowledge.updated", "knowledge.archived"],
+    "subscribes": []
+  }
+}

@@ -142,7 +142,7 @@ async function createStaff(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var staff = ctx.db.query('SELECT * FROM staff WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('staff.created', { staffId: insertedId, staffIdText: b.staff_id });
+  ctx.events.publish('staff.created', { staffId: insertedId, staffIdText: b.staff_id, entityType: 'staff', entityId: insertedId, __module: 'staff_registry' });
 
   if (ctx.intelligence) {
     ctx.intelligence.storeMetadata('staff', insertedId.toString(), staff.rows[0]);
@@ -220,7 +220,7 @@ async function updateStaff(req, ctx) {
 
   var updated = ctx.db.query('SELECT * FROM staff WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('staff.updated', { staffId: existing.rows[0].id });
+  ctx.events.publish('staff.updated', { staffId: existing.rows[0].id, entityType: 'staff', entityId: existing.rows[0].id, __module: 'staff_registry' });
 
   if (ctx.intelligence) {
     ctx.intelligence.storeMetadata('staff', existing.rows[0].id.toString(), updated.rows[0]);
@@ -251,7 +251,7 @@ async function deleteStaff(req, ctx) {
     existing.rows[0].id
   ]);
 
-  ctx.events.publish('staff.terminated', { staffId: existing.rows[0].id });
+  ctx.events.publish('staff.terminated', { staffId: existing.rows[0].id, entityType: 'staff', entityId: existing.rows[0].id, __module: 'staff_registry' });
 
   if (ctx.audit) {
     ctx.audit.action('staff.terminate', req.user.id, {
@@ -314,7 +314,7 @@ async function addCertification(req, ctx) {
 
   var inserted = ctx.db.query('SELECT * FROM staff_certifications WHERE id = ?', [result.lastInsertRowid]);
 
-  ctx.events.publish('staff.certification_added', { staffId: staff.rows[0].id, certificationId: result.lastInsertRowid });
+  ctx.events.publish('staff.certification_added', { staffId: staff.rows[0].id, certificationId: result.lastInsertRowid, entityType: 'staff', entityId: staff.rows[0].id, __module: 'staff_registry' });
 
   return { success: true, certification: inserted.rows[0] };
 }
