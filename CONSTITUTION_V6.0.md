@@ -433,3 +433,22 @@ Permissions	Per-handler inline	Declarative route-level permissions
 Security	In-memory rate limit	SQLite-backed rate limit
 Setup	No enforcement	Mandatory setup wizard
 Boot validation	Basic checks	Setup wizard + hash verification
+---
+
+## Addendum — Session 17, 2026-08-08: CSV Import Infrastructure
+
+### New Service
+
+| Service | File | Methods | Notes |
+|---------|------|---------|-------|
+| CSV Parser | `csv_parser.js` | parse(buffer, options), normalizeHeader(header), mapRow(row, columnMap), mapRows(rows, columnMap) | Native JS CSV parser, no external deps. Quoting/escaping handled. Header normalization via lowercase + alphanumeric strip. |
+
+### New Endpoints
+
+| Group | Paths | Auth Required | Permissions |
+|-------|-------|---------------|-------------|
+| Import | POST /api/students/import, POST /api/staff/import, POST /api/rooms/import, POST /api/inventory/import | Yes | admin:{entity}:write |
+
+### Import Handler Pattern
+
+Each module owns its own import handler. The platform provides `csv_parser.js` (parsing + header normalization). The module provides a column map (header variant → schema column) and insertion logic. No business logic in the parser service.

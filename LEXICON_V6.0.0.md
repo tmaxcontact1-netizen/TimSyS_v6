@@ -279,3 +279,24 @@ A notification targeting mechanism that delivers notifications to all users with
 ### Event Subscription at Boot
 
 The pattern where a Module's `boot(ctx)` function calls `ctx.events.subscribe(channel, handler)` to register listeners for cross-module events. Enables automatic notification generation when other modules publish events.
+---
+
+## Addendum — Session 17, 2026-08-08
+
+The following terms are added to the official vocabulary for CSV Import Infrastructure.
+
+### CSV Parser
+
+The platform service at `/shared/services/csv_parser.js` that converts CSV text into arrays of objects. Handles quoted fields, escaped quotes, and configurable delimiters. Provides header normalization and column mapping utilities. No external dependencies. Consumed by module import handlers.
+
+### Column Map
+
+A module-local dictionary that maps normalized CSV header variants to schema column names. Keys are normalized headers (lowercase, non-alphanumeric stripped). Values are the target schema field names. Each module defines its own column map because each module knows its own schema and accepted header variants.
+
+### Header Normalization
+
+The process of converting a CSV header to a canonical form for column map lookup. Implemented as: lowercase the header, then strip all non-alphanumeric characters. So `Student Name`, `studentName`, `STUDENT_NAME` all produce `studentname`.
+
+### Import Handler
+
+A module-level function that receives parsed CSV rows, applies business logic (validation, duplicate detection, insertion), and returns import statistics (`inserted`, `skipped`, `errors`). Each module that accepts CSV data owns its own import handler. The handler uses the CSV Parser service for raw parsing and its own column map for field mapping.

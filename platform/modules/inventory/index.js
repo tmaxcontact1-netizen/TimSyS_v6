@@ -236,7 +236,71 @@ async function listCheckouts(req, ctx) {
   return { success: true, checkouts: result.rows, total: result.rows.length };
 }
 
+
+var csvParser = require('../../shared/services/csv_parser');
+
+var inventoryColumnMap = {
+  'itemname': 'item_name', 'name': 'item_name',
+  'itemnumber': 'item_number', 'sku': 'item_number', 'assettag': 'item_number',
+  'category': 'category',
+  'quantity': 'quantity', 'qty': 'quantity',
+  'unit': 'unit',
+  'location': 'location',
+  'condition': 'condition', 'itemcondition': 'condition',
+  'purchasedate': 'purchase_date',
+  'supplier': 'supplier', 'vendor': 'supplier',
+  'purchaseprice': 'purchase_price', 'price': 'purchase_price', 'cost': 'purchase_price',
+  'warrantyexpiry': 'warranty_expiry',
+  'serialnumber': 'serial_number', 'serial': 'serial_number',
+  'manufacturer': 'manufacturer', 'brand': 'manufacturer',
+  'modelnumber': 'model_number', 'model': 'model_number',
+  'status': 'status',
+  'notes': 'notes'
+};
+
+async function importInventory(req, ctx) {
+  var body = req.body || {};
+  if (!body.csv) return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV data required in request body as { csv: "..." }' } };
+  
+  var parsed = csvParser.parse(Buffer.from(body.csv));
+  var mapped = csvParser.mapRows(parsed.rows, inventoryColumnMap);
+  var inserted = 0, skipped = 0, errors = [];
+  
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i].mapped;
+    if (!m.item_name || !m.item_number) {
+      errors.push({ row: i + 2, reason: 'Missing required field (item_name, item_number)' });
+      skipped++;
+      continue;
+    }
+    var qty = parseInt(m.quantity, 10) || 1;
+    var existing = ctx.db.query('SELECT id FROM inventory_items WHERE item_number = ?', [m.item_number]);
+    if (existing.rows.length > 0) {
+      errors.push({ row: i + 2, reason: 'Duplicate item_number: ' + m.item_number });
+      skipped++;
+      continue;
+    }
+    try {
+      ctx.db.query(
+        'INSERT INTO inventory_items (item_name, item_number, category, quantity, unit, location, condition, purchase_date, supplier, purchase_price, warranty_expiry, serial_number, manufacturer, model_number, maintenance_schedule, maintenance_history, assigned_to_staff_id, assigned_to_student_id, status, notes, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.item_name, m.item_number, m.category || 'general', qty, m.unit || 'each',
+         m.location || null, m.condition || 'good', m.purchase_date || null,
+         m.supplier || null, m.purchase_price || null, m.warranty_expiry || null,
+         m.serial_number || null, m.manufacturer || null, m.model_number || null,
+         '{}', '[]', null, null, m.status || 'available', m.notes || null, '{}']
+      );
+      inserted++;
+    } catch (e) {
+      errors.push({ row: i + 2, reason: e.message });
+      skipped++;
+    }
+  }
+  if (ctx.audit) ctx.audit.action('inventory.import', req.user ? req.user.id : 'unknown', { entityType: 'item', entityId: 'batch', newValue: { inserted: inserted, skipped: skipped, errors: errors.length } });
+  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+}
+
 module.exports = {
+  importInventory: importInventory,
   boot: boot,
   teardown: teardown,
   listItems: listItems,

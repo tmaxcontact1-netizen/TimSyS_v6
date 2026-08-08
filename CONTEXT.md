@@ -246,3 +246,28 @@ Data capture (events/decisions) → Snapshots → Pattern analysis → Rule sugg
 ### Session History Update
 
 - **Session 17 (2026-08-08)** — Intelligence Engine Stages 5–8: Knowledge Store, Snapshot Service, Auto-Rule Generation, Notification Pipeline. Backend intelligence engine complete.
+---
+
+## Session 17 Addendum — 2026-08-08: CSV Import Infrastructure
+
+**As Of:** 2026-08-08
+**Status:** CSV import operational for 4 registries.
+
+### New Service
+
+- `platform/shared/services/csv_parser.js` — Native CSV parser with header normalization and column mapping. No external dependencies.
+
+### New Endpoints
+
+| Endpoint | Module | Status |
+|----------|--------|--------|
+| `POST /api/students/import` | student_registry | ✅ Operational |
+| `POST /api/staff/import` | staff_registry | ✅ Operational |
+| `POST /api/rooms/import` | room_registry | ✅ Operational |
+| `POST /api/inventory/import` | inventory | ✅ Operational |
+
+### Import Pattern
+
+- Platform layer: `csv_parser.js` handles raw parsing, quoting/escaping, and header normalization (lowercase + strip non-alphanumeric).
+- Module layer: Each registry defines its own column map (variant → schema column) and INSERT logic. Duplicate detection via unique field check (student_id, staff_id, room_number, item_number).
+- Transport: CSV sent as JSON body `{ "csv": "..." }`. No multipart/form-data, no file upload middleware, no external dependencies.

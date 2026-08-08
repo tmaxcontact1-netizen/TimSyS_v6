@@ -2,7 +2,14 @@
   "name": "staff_registry",
   "version": "1.0.0",
   "author": "admin",
-  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events"
+  ],
   "provides": [
     "capability:staff.read",
     "capability:staff.write",
@@ -11,29 +18,165 @@
   ],
   "requires": [],
   "routes": [
-    { "path": "/staff", "method": "GET", "handler": "staff_registry_listStaff", "auth_required": true, "permissions": ["admin:staff:read"] },
-    { "path": "/staff", "method": "POST", "handler": "staff_registry_createStaff", "auth_required": true, "permissions": ["admin:staff:write"] },
-    { "path": "/staff/:id", "method": "GET", "handler": "staff_registry_readStaff", "auth_required": true, "permissions": ["admin:staff:read"] },
-    { "path": "/staff/:id", "method": "PUT", "handler": "staff_registry_updateStaff", "auth_required": true, "permissions": ["admin:staff:write"] },
-    { "path": "/staff/:id", "method": "DELETE", "handler": "staff_registry_deleteStaff", "auth_required": true, "permissions": ["admin:staff:delete"] },
-    { "path": "/staff/:id/certifications", "method": "GET", "handler": "staff_registry_listCertifications", "auth_required": true, "permissions": ["admin:staff:read"] },
-    { "path": "/staff/:id/certifications", "method": "POST", "handler": "staff_registry_addCertification", "auth_required": true, "permissions": ["admin:staff:write"] }
+    {
+      "path": "/staff",
+      "method": "GET",
+      "handler": "staff_registry_listStaff",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:read"
+      ]
+    },
+    {
+      "path": "/staff",
+      "method": "POST",
+      "handler": "staff_registry_createStaff",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:write"
+      ]
+    },
+    {
+      "path": "/staff/:id",
+      "method": "GET",
+      "handler": "staff_registry_readStaff",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:read"
+      ]
+    },
+    {
+      "path": "/staff/:id",
+      "method": "PUT",
+      "handler": "staff_registry_updateStaff",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:write"
+      ]
+    },
+    {
+      "path": "/staff/:id",
+      "method": "DELETE",
+      "handler": "staff_registry_deleteStaff",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:delete"
+      ]
+    },
+    {
+      "path": "/staff/:id/certifications",
+      "method": "GET",
+      "handler": "staff_registry_listCertifications",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:read"
+      ]
+    },
+    {
+      "path": "/staff/:id/certifications",
+      "method": "POST",
+      "handler": "staff_registry_addCertification",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:write"
+      ]
+    },
+    {
+      "path": "/api/staff/import",
+      "method": "POST",
+      "handler": "staff_registry_importStaff",
+      "auth_required": true,
+      "permissions": [
+        "admin:staff:write"
+      ]
+    }
   ],
   "functions": [
-    { "name": "staff_registry_listStaff", "exports": "listStaff", "params": ["filter", "page", "limit"], "returns": "Staff[]" },
-    { "name": "staff_registry_createStaff", "exports": "createStaff", "params": ["data"], "returns": "Staff" },
-    { "name": "staff_registry_readStaff", "exports": "readStaff", "params": ["id"], "returns": "Staff" },
-    { "name": "staff_registry_updateStaff", "exports": "updateStaff", "params": ["id", "data"], "returns": "Staff" },
-    { "name": "staff_registry_deleteStaff", "exports": "deleteStaff", "params": ["id"], "returns": "boolean" },
-    { "name": "staff_registry_listCertifications", "exports": "listCertifications", "params": ["staffId"], "returns": "StaffCertification[]" },
-    { "name": "staff_registry_addCertification", "exports": "addCertification", "params": ["staffId", "data"], "returns": "StaffCertification" }
+    {
+      "name": "staff_registry_listStaff",
+      "exports": "listStaff",
+      "params": [
+        "filter",
+        "page",
+        "limit"
+      ],
+      "returns": "Staff[]"
+    },
+    {
+      "name": "staff_registry_createStaff",
+      "exports": "createStaff",
+      "params": [
+        "data"
+      ],
+      "returns": "Staff"
+    },
+    {
+      "name": "staff_registry_readStaff",
+      "exports": "readStaff",
+      "params": [
+        "id"
+      ],
+      "returns": "Staff"
+    },
+    {
+      "name": "staff_registry_updateStaff",
+      "exports": "updateStaff",
+      "params": [
+        "id",
+        "data"
+      ],
+      "returns": "Staff"
+    },
+    {
+      "name": "staff_registry_deleteStaff",
+      "exports": "deleteStaff",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "staff_registry_listCertifications",
+      "exports": "listCertifications",
+      "params": [
+        "staffId"
+      ],
+      "returns": "StaffCertification[]"
+    },
+    {
+      "name": "staff_registry_addCertification",
+      "exports": "addCertification",
+      "params": [
+        "staffId",
+        "data"
+      ],
+      "returns": "StaffCertification"
+    },
+    {
+      "name": "staff_registry_importStaff",
+      "exports": "importStaff",
+      "params": [
+        "csv"
+      ],
+      "returns": "{inserted, skipped, errors}"
+    }
   ],
   "schema": {
-    "tables": ["staff", "staff_certifications"],
-    "migrations": ["migrations/001_staff.sql"]
+    "tables": [
+      "staff",
+      "staff_certifications"
+    ],
+    "migrations": [
+      "migrations/001_staff.sql"
+    ]
   },
   "events": {
-    "publishes": ["staff.created", "staff.updated", "staff.terminated", "staff.certification_added"],
+    "publishes": [
+      "staff.created",
+      "staff.updated",
+      "staff.terminated",
+      "staff.certification_added"
+    ],
     "subscribes": []
   }
 }

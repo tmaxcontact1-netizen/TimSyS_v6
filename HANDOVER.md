@@ -344,3 +344,26 @@ Events/Decisions → Snapshots → Pattern Analysis → Auto-Rules → Notificat
 **Status:** Intelligence Engine backend complete. All 8 stages operational.
 
 **Document End.**
+---
+
+## Session 17 Addendum — 2026-08-08: CSV Import Infrastructure
+
+**New Service:** `platform/shared/services/csv_parser.js` — native CSV parser, no external deps.
+
+**New Endpoints:**
+
+| Endpoint | Module | Status |
+|----------|--------|--------|
+| `POST /api/students/import` | student_registry | ✅ |
+| `POST /api/staff/import` | staff_registry | ✅ |
+| `POST /api/rooms/import` | room_registry | ✅ |
+| `POST /api/inventory/import` | inventory | ✅ |
+
+**Import pattern:** CSV sent as JSON body `{ "csv": "..." }`. Module owns its column map and INSERT logic. Platform handles parsing and header normalization only. No multer, no file upload middleware, no external dependencies added.
+
+**Files modified:**
+- `platform/shared/services/csv_parser.js` (new)
+- `platform/modules/{student_registry,staff_registry,room_registry,inventory}/index.js` (added import handlers)
+- All 4 `module.json` files (added routes + functions)
+
+**Status:** CSV import operational for all 4 registries. Tested with sample data.

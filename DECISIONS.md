@@ -603,3 +603,38 @@ cat >> /home/tmax/TimSyS_v6/DECISIONS.md << 'EOF'
 **Reason:** SQLite strict type binding fails on boolean values, only accepts numbers.
 
 **Status:** IMPLEMENTED (across all modules)
+---
+
+## Session 17 Addendum — 2026-08-08: CSV Import Infrastructure
+
+### Raw Text Over Multipart for CSV Transport
+
+**Decision:** Accept CSV as JSON body `{ "csv": "..." }` instead of multipart/form-data file upload.
+
+**Rationale:** Avoids `multer` dependency and file upload middleware entirely. Works with `fetch()`, `curl`, and Electron. Simpler for a local-first desktop application.
+
+**Status:** IMPLEMENTED
+
+### Column Mapping Pattern
+
+**Decision:** Each module owns a column map object that normalizes CSV header variants to schema column names.
+
+**Implementation:** Headers normalized via `normalizeHeader()` (lowercase + strip non-alphanumeric). So `Student Name`, `studentName`, `STUDENT_NAME` all collapse to `studentname` and match the map. Column maps are module-local constants, not shared.
+
+**Status:** IMPLEMENTED
+
+### Per-Module Import Handler Ownership
+
+**Decision:** Each module writes its own import handler. The platform provides parsing only. Business logic (validation, duplicate detection, INSERT statements) lives in the module.
+
+**Rationale:** Different modules have different required fields, different unique keys, and different business rules. A generic import service would require configuration so complex it'd be harder than writing the handler directly.
+
+**Status:** IMPLEMENTED
+
+### Function Naming Convention Enforcement
+
+**Decision:** Import handlers must follow `{module}_{operation}` convention in `module.json` declarations. Export names can be shorter.
+
+**Example:** `student_registry_importStudents` (declared name) → `importStudents` (export name in index.js). The validator checks the declared name prefix, then looks up the export name.
+
+**Status:** IMPLEMENTED

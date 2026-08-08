@@ -325,7 +325,70 @@ async function getEnrollmentHistory(req, ctx) {
   return { success: true, history: result.rows, total: result.rows.length };
 }
 
+
+var csvParser = require('../../shared/services/csv_parser');
+
+var studentColumnMap = {
+  'studentid': 'student_id', 'id': 'student_id', 'studentnumber': 'student_id',
+  'firstname': 'first_name', 'givenname': 'first_name', 'fname': 'first_name',
+  'lastname': 'last_name', 'surname': 'last_name', 'lname': 'last_name',
+  'middlename': 'middle_name',
+  'preferredname': 'preferred_name', 'nickname': 'preferred_name',
+  'dateofbirth': 'date_of_birth', 'dob': 'date_of_birth', 'birthdate': 'date_of_birth',
+  'sex': 'sex', 'gender': 'sex',
+  'nationality': 'nationality',
+  'ethnicity': 'ethnicity',
+  'primarylanguage': 'primary_language', 'firstlanguage': 'primary_language',
+  'secondarylanguage': 'secondary_language', 'secondlanguage': 'secondary_language',
+  'enrollmentdate': 'enrollment_date', 'enroldate': 'enrollment_date',
+  'enrollmentstatus': 'enrollment_status', 'status': 'enrollment_status',
+  'currentgradelevel': 'current_grade_level', 'grade': 'current_grade_level', 'gradelevel': 'current_grade_level',
+  'homeroom': 'homeroom',
+  'notes': 'notes'
+};
+
+async function importStudents(req, ctx) {
+  var body = req.body || {};
+  if (!body.csv) return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV data required in request body as { csv: "..." }' } };
+  
+  var parsed = csvParser.parse(Buffer.from(body.csv));
+  var mapped = csvParser.mapRows(parsed.rows, studentColumnMap);
+  var inserted = 0, skipped = 0, errors = [];
+  
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i].mapped;
+    if (!m.student_id || !m.first_name || !m.last_name || !m.date_of_birth || !m.sex) {
+      errors.push({ row: i + 2, reason: 'Missing required field (student_id, first_name, last_name, date_of_birth, sex)' });
+      skipped++;
+      continue;
+    }
+    var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex;
+    var existing = ctx.db.query('SELECT id FROM students WHERE student_id = ?', [m.student_id]);
+    if (existing.rows.length > 0) {
+      errors.push({ row: i + 2, reason: 'Duplicate student_id: ' + m.student_id });
+      skipped++;
+      continue;
+    }
+    try {
+      ctx.db.query(
+        'INSERT INTO students (student_id, first_name, last_name, date_of_birth, sex, enrollment_date, enrollment_status, current_grade_level, homeroom, notes, identity_custom, enrollment_custom, custom_fields, medical_alert_flag, special_education_flag, free_lunch_eligible, gifted_talented_flag, esl_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.student_id, m.first_name, m.last_name, m.date_of_birth, sexVal,
+         m.enrollment_date || new Date().toISOString().slice(0,10),
+         m.enrollment_status || 'active', m.current_grade_level || null,
+         m.homeroom || null, m.notes || null, '{}', '{}', '{}', 0, 0, 0, 0, 0]
+      );
+      inserted++;
+    } catch (e) {
+      errors.push({ row: i + 2, reason: e.message });
+      skipped++;
+    }
+  }
+  if (ctx.audit) ctx.audit.action('student.import', req.user ? req.user.id : 'unknown', { entityType: 'student', entityId: 'batch', newValue: { inserted: inserted, skipped: skipped, errors: errors.length } });
+  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+}
+
 module.exports = {
+  importStudents: importStudents,
   boot: boot,
   teardown: teardown,
   listStudents: listStudents,

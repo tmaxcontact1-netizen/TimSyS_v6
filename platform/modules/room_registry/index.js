@@ -227,7 +227,62 @@ async function listBookings(req, ctx) {
   return { success: true, bookings: result.rows, total: result.rows.length };
 }
 
+
+var csvParser = require('../../shared/services/csv_parser');
+
+var roomColumnMap = {
+  'roomnumber': 'room_number', 'room': 'room_number',
+  'buildingid': 'building_id', 'building': 'building_id',
+  'capacity': 'capacity', 'maxcapacity': 'capacity', 'seats': 'capacity',
+  'roomtype': 'room_type', 'type': 'room_type',
+  'status': 'status',
+  'notes': 'notes'
+};
+
+async function importRooms(req, ctx) {
+  var body = req.body || {};
+  if (!body.csv) return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV data required in request body as { csv: "..." }' } };
+  
+  var parsed = csvParser.parse(Buffer.from(body.csv));
+  var mapped = csvParser.mapRows(parsed.rows, roomColumnMap);
+  var inserted = 0, skipped = 0, errors = [];
+  
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i].mapped;
+    if (!m.room_number || !m.capacity) {
+      errors.push({ row: i + 2, reason: 'Missing required field (room_number, capacity)' });
+      skipped++;
+      continue;
+    }
+    var cap = parseInt(m.capacity, 10);
+    if (isNaN(cap) || cap <= 0) {
+      errors.push({ row: i + 2, reason: 'Invalid capacity: ' + m.capacity });
+      skipped++;
+      continue;
+    }
+    var existing = ctx.db.query('SELECT id FROM rooms WHERE room_number = ?', [m.room_number]);
+    if (existing.rows.length > 0) {
+      errors.push({ row: i + 2, reason: 'Duplicate room_number: ' + m.room_number });
+      skipped++;
+      continue;
+    }
+    try {
+      ctx.db.query(
+        'INSERT INTO rooms (room_number, building_id, capacity, room_type, features, accessibility_flags, equipment_list, status, notes, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.room_number, m.building_id || null, cap, m.room_type || 'general', '{}', '{}', '[]', m.status || 'available', m.notes || null, '{}']
+      );
+      inserted++;
+    } catch (e) {
+      errors.push({ row: i + 2, reason: e.message });
+      skipped++;
+    }
+  }
+  if (ctx.audit) ctx.audit.action('room.import', req.user ? req.user.id : 'unknown', { entityType: 'room', entityId: 'batch', newValue: { inserted: inserted, skipped: skipped, errors: errors.length } });
+  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+}
+
 module.exports = {
+  importRooms: importRooms,
   boot: boot,
   teardown: teardown,
   listRooms: listRooms,

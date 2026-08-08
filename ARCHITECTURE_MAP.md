@@ -1,338 +1,329 @@
 # TimSyS Architecture Map
-Generated: 2026-08-08T09:28:52Z
-Generator: Tools/update_architecture_map.sh
+Generated: 2026-08-08T13:31:01Z
+Generator: platform/Tools/update_architecture_map.py (Discovery-Based)
 
 This document is auto-generated. Do not edit manually.
-Run `bash Tools/update_architecture_map.sh` to regenerate after structural changes.
+# To run bash /home/tmax/TimSyS_v6/platform/Tools/update_architecture_map.sh
 
 ---
 
 ## Project Root
 
 Path: `/home/tmax/TimSyS_v6`
-
 Platform Location: `/home/tmax/TimSyS_v6/platform`
-
 
 ## Root Documents
 
 | File | Exists | Size | Last Modified |
-|------|--------|------|---------------|
-| `CONTEXT.md` | ✅ | 8334B | 2026-08-07 23:56:55 |
-| `ARCHITECTURE_MAP.md` | ✅ | 502B | 2026-08-08 12:28:52 |
-| `HANDOVER.md` | ✅ | 12146B | 2026-08-07 23:44:06 |
-| `CONSTITUTION_V6.0.md` | ✅ | 23821B | 2026-08-08 00:16:38 |
-| `LEXICON_V6.0.0.md` | ✅ | 16508B | 2026-08-08 00:06:17 |
+| ------ | ------ | ------ | --------------- |
+| `CONTEXT.md` | ✅ | 11903B | 2026-08-08 15:58:23 |
+| `ARCHITECTURE_MAP.md` | ✅ | 15776B | 2026-08-08 15:56:00 |
+| `HANDOVER.md` | ✅ | 14394B | 2026-08-08 15:58:23 |
+| `CONSTITUTION_V6.0.md` | ✅ | 24775B | 2026-08-08 15:58:23 |
+| `LEXICON_V6.0.0.md` | ✅ | 19944B | 2026-08-08 15:58:23 |
 
 ## Directory Tree
 
 ```
-(tree command not available — using find)
 .
+  .gitignore
+  ARCHITECTURE_MAP.md
+  CONSTITUTION_V6.0.md
+  CONTEXT.md
+  DECISIONS.md
+  HANDOVER.md
+  LEXICON_V6.0.0.md
+  TEST_PROTOCOL.md
+  json
+  os
+./packages
+./packages/timsys-client
+    package.json
+./packages/timsys-client/src
+./data
+./config
 ./apps
 ./apps/competeed
-./apps/competeed/package.json
-./apps/competeed/public
+    package.json
 ./apps/competeed/src
 ./apps/competeed/src/api
 ./apps/competeed/src/pages
+./apps/competeed/public
 ./apps/principaled
-./apps/principaled/package.json
-./apps/principaled/public
+    package.json
 ./apps/principaled/src
 ./apps/principaled/src/api
 ./apps/principaled/src/components
 ./apps/principaled/src/pages
+./apps/principaled/public
 ./apps/sanctifyed
-./apps/sanctifyed/package.json
-./apps/sanctifyed/public
+    package.json
 ./apps/sanctifyed/src
 ./apps/sanctifyed/src/api
 ./apps/sanctifyed/src/pages
-./ARCHITECTURE_MAP.md
-./config
-./CONSTITUTION_V6.0.md
-./CONTEXT.md
-./data
-./DECISIONS.md
-./.git
-./.gitignore
-./HANDOVER.md
-./LEXICON_V6.0.0.md
-./packages
-./packages/timsys-client
-./packages/timsys-client/package.json
-./packages/timsys-client/src
-./platform
-./platform/config
-./platform/config/session-policy.json
-./platform/contracts
-./platform/contracts/auth.js
-./platform/contracts/auto_rules.js
-./platform/contracts/cache.js
-./platform/contracts/db.js
-./platform/contracts/decision_log.js
-./platform/contracts/events.js
-./platform/contracts/event_store.js
-./platform/contracts/intelligence.js
-./platform/contracts/knowledge_store.js
-./platform/contracts/log.js
-./platform/contracts/notification.js
-./platform/contracts/relationship_registry.js
-./platform/contracts/snapshot.js
-./platform/contracts/validate.js
-./platform/data
-./platform/data/timsys.db
-./platform/data/timsys.sqlite
-./platform/data/timsys.sqlite-shm
-./platform/data/timsys.sqlite-wal
-./platform/deploy
-./platform/deploy/backup.sh
-./platform/deploy/migrate.sh
-./platform/deploy/production.env.example
-./platform/deploy/rollback.sh
-./platform/deploy/setup-wizard.js
-./platform/engine
-./platform/engine/gap-analysis
-./platform/engine/gap-analysis/calculator.js
-./platform/engine/gap-analysis/.gitkeep
-./platform/engine/gap-analysis/index.js
-./platform/engine/recommendation
-./platform/engine/recommendation/analyzer.js
-./platform/engine/recommendation/.gitkeep
-./platform/engine/recommendation/index.js
-./platform/index.js
-./platform/jest.config.js
-./platform/migrations
-./platform/migrations/000_bootstrap.sql
-./platform/migrations/001_initial.sql
-./platform/migrations/002_intelligence.sql
-./platform/migrations/003_rate_limit.sql
-./platform/migrations/004_recommendations.sql
-./platform/migrations/005_route_permissions.sql
-./platform/migrations/006_refresh_tokens.sql
-./platform/migrations/007_builder.sql
-./platform/modules
-./platform/modules/auto_rules
-./platform/modules/auto_rules/index.js
-./platform/modules/auto_rules/migrations
-./platform/modules/auto_rules/migrations/001_auto_rules.sql
-./platform/modules/auto_rules/module.json
-./platform/modules/builder
-./platform/modules/builder/assembler.js
-./platform/modules/builder/composer.js
-./platform/modules/builder/index.js
-./platform/modules/builder/migrations
-./platform/modules/builder/migrations/.gitkeep
-./platform/modules/builder/module.json
-./platform/modules/builder/templates.js
-./platform/modules/decision_log
-./platform/modules/decision_log/index.js
-./platform/modules/decision_log/migrations
-./platform/modules/decision_log/migrations/001_decision_log.sql
-./platform/modules/decision_log/migrations/.gitkeep
-./platform/modules/decision_log/module.json
-./platform/modules/event_store
-./platform/modules/event_store/index.js
-./platform/modules/event_store/migrations
-./platform/modules/event_store/migrations/001_event_store.sql
-./platform/modules/event_store/migrations/.gitkeep
-./platform/modules/event_store/module.json
-./platform/modules/.gitkeep
-./platform/modules/intelligence
-./platform/modules/intelligence/index.js
-./platform/modules/intelligence/migrations
-./platform/modules/intelligence/migrations/.gitkeep
-./platform/modules/intelligence/module.json
-./platform/modules/inventory
-./platform/modules/inventory/component.json
-./platform/modules/inventory/index.js
-./platform/modules/inventory/migrations
-./platform/modules/inventory/migrations/001_inventory.sql
-./platform/modules/inventory/module.json
-./platform/modules/knowledge_store
-./platform/modules/knowledge_store/index.js
-./platform/modules/knowledge_store/migrations
-./platform/modules/knowledge_store/migrations/001_knowledge.sql
-./platform/modules/knowledge_store/migrations/.gitkeep
-./platform/modules/knowledge_store/module.json
-./platform/modules/notification
-./platform/modules/notification/index.js
-./platform/modules/notification/migrations
-./platform/modules/notification/migrations/001_notifications.sql
-./platform/modules/notification/migrations/.gitkeep
-./platform/modules/notification/module.json
-./platform/modules/relationship_registry
-./platform/modules/relationship_registry/index.js
-./platform/modules/relationship_registry/migrations
-./platform/modules/relationship_registry/migrations/001_relationships.sql
-./platform/modules/relationship_registry/migrations/.gitkeep
-./platform/modules/relationship_registry/module.json
-./platform/modules/room_registry
-./platform/modules/room_registry/component.json
-./platform/modules/room_registry/index.js
-./platform/modules/room_registry/migrations
-./platform/modules/room_registry/migrations/001_rooms.sql
-./platform/modules/room_registry/module.json
-./platform/modules/snapshot_service
-./platform/modules/snapshot_service/index.js
-./platform/modules/snapshot_service/migrations
-./platform/modules/snapshot_service/migrations/001_snapshots.sql
-./platform/modules/snapshot_service/module.json
-./platform/modules/staff_profile
-./platform/modules/staff_profile/component.json
-./platform/modules/staff_profile/index.js
-./platform/modules/staff_profile/module.json
-./platform/modules/staff_registry
-./platform/modules/staff_registry/component.json
-./platform/modules/staff_registry/index.js
-./platform/modules/staff_registry/migrations
-./platform/modules/staff_registry/migrations/001_staff.sql
-./platform/modules/staff_registry/migrations/.gitkeep
-./platform/modules/staff_registry/module.json
-./platform/modules/student_profile
-./platform/modules/student_profile/component.json
-./platform/modules/student_profile/index.js
-./platform/modules/student_profile/module.json
-./platform/modules/student_registry
-./platform/modules/student_registry/component.json
-./platform/modules/student_registry/index.js
-./platform/modules/student_registry/migrations
-./platform/modules/student_registry/migrations/001_students.sql
-./platform/modules/student_registry/migrations/.gitkeep
-./platform/modules/student_registry/module.json
-./platform/modules/system_health
-./platform/modules/system_health/handlers
-./platform/modules/system_health/handlers/staging.js
-./platform/modules/system_health/index.js
-./platform/modules/system_health/module.json
-./platform/modules/system_health/module.json.bak
-./platform/modules/test_composite
-./platform/modules/test_composite/index.js
-./platform/modules/test_composite/migrations
-./platform/modules/test_composite/migrations/.gitkeep
-./platform/modules/test_composite/module.json
-./platform/modules/user_management
-./platform/modules/user_management/index.js
-./platform/modules/user_management/migrations
-./platform/modules/user_management/migrations/001_users.sql
-./platform/modules/user_management/migrations/002_password_resets.sql
-./platform/modules/user_management/migrations/003_must_change_password.sql
-./platform/modules/user_management/module.json
-./platform/node_modules
-./platform/package.json
-./platform/package-lock.json
-./platform/routes
-./platform/routes/.gitkeep
-./platform/routes/introspect
-./platform/routes/introspect/.gitkeep
-./platform/scripts
-./platform/scripts/cli
-./platform/scripts/cli/builder.js
-./platform/scripts/cli/migrate.js
-./platform/scripts/cli/scaffold.js
-./platform/scripts/cli/update-package.js
-./platform/scripts/.gitkeep
-./platform/shared
-./platform/shared/middleware
-./platform/shared/middleware/passwordChangeRequired.js
-./platform/shared/migration-runner.js
-./platform/shared/pipeline
-./platform/shared/pipeline/boot.js
-./platform/shared/pipeline/discover.js
-./platform/shared/pipeline/register.js
-./platform/shared/pipeline/resolve.js
-./platform/shared/pipeline/unstage.js
-./platform/shared/pipeline/validate.js
-./platform/shared/pipeline/wire.js
-./platform/shared/registry
-./platform/shared/registry/capabilityRegistry.js
-./platform/shared/registry/componentRegistry.js
-./platform/shared/registry/componentScanner.js
-./platform/shared/registry/dependencyGraph.js
-./platform/shared/registry/functionRegistry.js
-./platform/shared/registry/moduleRegistry.js
-./platform/shared/registry/routeRegistry.js
-./platform/shared/registry/schemaRegistry.js
-./platform/shared/services
-./platform/shared/services/audit.js
-./platform/shared/services/auth.js
-./platform/shared/services/auto_rules
-./platform/shared/services/auto_rules/index.js
-./platform/shared/services/cache.js
-./platform/shared/services/db.js
-./platform/shared/services/decision_log
-./platform/shared/services/decision_log/index.js
-./platform/shared/services/email.js
-./platform/shared/services/events.js
-./platform/shared/services/event_store
-./platform/shared/services/event_store/index.js
-./platform/shared/services/intelligence
-./platform/shared/services/intelligence/index.js
-./platform/shared/services/intelligence/insights.js
-./platform/shared/services/intelligence/logic.js
-./platform/shared/services/intelligence/metadata.js
-./platform/shared/services/intelligence/store.js
-./platform/shared/services/knowledge_store
-./platform/shared/services/knowledge_store/index.js
-./platform/shared/services/log.js
-./platform/shared/services/metrics.js
-./platform/shared/services/notification
-./platform/shared/services/notification/index.js
-./platform/shared/services/ratelimit.js
-./platform/shared/services/refresh.js
-./platform/shared/services/relationship_registry
-./platform/shared/services/relationship_registry/index.js
-./platform/shared/services/session.js
-./platform/shared/services/snapshot
-./platform/shared/services/snapshot/index.js
-./platform/shared/services/validate.js
-./platform/test-results-builder.txt
-./platform/Tools
-./platform/Tools/spawn_app.sh
-./platform/Tools/update_architecture_map.sh
-./platform/V
-./TEST_PROTOCOL.md
-./test-results.txt
+./apps/sanctifyed/public
 ./tests
-./tests/builder.test.js
-./tests/e2e
-./tests/e2e/boot-sequence.test.js
-./tests/e2e/boot.test.js
-./tests/e2e/.gitkeep
-./tests/helpers
-./tests/helpers/test-server.js
+  builder.test.js
+  intelligence.smoke.sh
+  inventory.endpoint_smoke.sh
+  profile.endpoint_smoke.sh
+  room.endpoint_smoke.sh
+  setup.js
+  smoke-test.js
+  staff.endpoint_smoke.sh
+  student.endpoint_smoke.sh
 ./tests/integration
-./tests/integration/http
-./tests/integration/http/auth.test.js
-./tests/integration/http/password-prompt.test.js
-./tests/integration/http/refresh-token.test.js
-./tests/integration/http/security.test.js
-./tests/integration/http/staging.test.js
 ./tests/integration/staging
-./tests/integration/staging/.gitkeep
-./tests/integration/staging/pipeline.test.js
-./tests/intelligence.smoke.sh
-./tests/inventory.endpoint_smoke.sh
-./tests/profile.endpoint_smoke.sh
-./tests/room.endpoint_smoke.sh
-./tests/setup.js
-./tests/smoke-test.js
-./tests/staff.endpoint_smoke.sh
-./tests/student.endpoint_smoke.sh
+      .gitkeep
+      pipeline.test.js
+./tests/integration/http
+      auth.test.js
+      password-prompt.test.js
+      refresh-token.test.js
+      security.test.js
+      staging.test.js
+./tests/e2e
+    .gitkeep
+    boot-sequence.test.js
+    boot.test.js
+./tests/helpers
+    test-server.js
 ./tests/unit
-./tests/unit/contracts-verification.test.js
-./tests/unit/intelligence.test.js
+    contracts-verification.test.js
+    intelligence.test.js
 ./tests/unit/registries
-./tests/unit/registries/.gitkeep
-./tests/unit/registries/registries.test.js
+      .gitkeep
+      registries.test.js
 ./tests/unit/services
-./tests/unit/services/auth.test.js
-./tests/unit/services/cache.test.js
-./tests/unit/services/db.test.js
-./tests/unit/services/events.test.js
-./tests/unit/services/.gitkeep
-./tests/unit/services/validate.test.js
+      .gitkeep
+      auth.test.js
+      cache.test.js
+      db.test.js
+      events.test.js
+      validate.test.js
+./platform
+  V
+  index.js
+  jest.config.js
+  package-lock.json
+  package.json
+  test-results-builder.txt
+./platform/shared
+    migration-runner.js
+./platform/shared/pipeline
+      boot.js
+      discover.js
+      register.js
+      resolve.js
+      unstage.js
+      validate.js
+      wire.js
+./platform/shared/registry
+      capabilityRegistry.js
+      componentRegistry.js
+      componentScanner.js
+      dependencyGraph.js
+      functionRegistry.js
+      moduleRegistry.js
+      routeRegistry.js
+      schemaRegistry.js
+./platform/shared/middleware
+      passwordChangeRequired.js
+./platform/shared/services
+      audit.js
+      auth.js
+      cache.js
+      csv_parser.js
+      db.js
+      email.js
+      events.js
+      log.js
+      metrics.js
+      ratelimit.js
+./platform/shared/services/relationship_registry
+        index.js
+./platform/shared/services/snapshot
+        index.js
+./platform/shared/services/decision_log
+        index.js
+./platform/shared/services/knowledge_store
+        index.js
+./platform/shared/services/event_store
+        index.js
+./platform/shared/services/auto_rules
+        index.js
+./platform/shared/services/notification
+        index.js
+./platform/shared/services/intelligence
+        index.js
+        insights.js
+        logic.js
+        metadata.js
+        store.js
+./platform/data
+    timsys.db
+    timsys.sqlite
+    timsys.sqlite-shm
+    timsys.sqlite-wal
+./platform/modules
+    .gitkeep
+./platform/modules/relationship_registry
+      index.js
+      module.json
+./platform/modules/relationship_registry/migrations
+        .gitkeep
+        001_relationships.sql
+./platform/modules/decision_log
+      index.js
+      module.json
+./platform/modules/decision_log/migrations
+        .gitkeep
+        001_decision_log.sql
+./platform/modules/student_profile
+      component.json
+      index.js
+      module.json
+./platform/modules/staff_profile
+      component.json
+      index.js
+      module.json
+./platform/modules/system_health
+      index.js
+      module.json
+      module.json.bak
+./platform/modules/system_health/handlers
+        staging.js
+./platform/modules/knowledge_store
+      index.js
+      module.json
+./platform/modules/knowledge_store/migrations
+        .gitkeep
+        001_knowledge.sql
+./platform/modules/event_store
+      index.js
+      module.json
+./platform/modules/event_store/migrations
+        .gitkeep
+        001_event_store.sql
+./platform/modules/user_management
+      index.js
+      module.json
+./platform/modules/user_management/migrations
+        001_users.sql
+        002_password_resets.sql
+        003_must_change_password.sql
+./platform/modules/builder
+      assembler.js
+      composer.js
+      index.js
+      module.json
+      templates.js
+./platform/modules/builder/migrations
+        .gitkeep
+./platform/modules/test_composite
+      index.js
+      module.json
+./platform/modules/test_composite/migrations
+        .gitkeep
+./platform/modules/auto_rules
+      index.js
+      module.json
+./platform/modules/auto_rules/migrations
+        001_auto_rules.sql
+./platform/modules/snapshot_service
+      index.js
+      module.json
+./platform/modules/snapshot_service/migrations
+        001_snapshots.sql
+./platform/modules/room_registry
+      component.json
+      index.js
+      module.json
+./platform/modules/room_registry/migrations
+        001_rooms.sql
+./platform/modules/notification
+      index.js
+      module.json
+./platform/modules/notification/migrations
+        .gitkeep
+        001_notifications.sql
+./platform/modules/student_registry
+      component.json
+      index.js
+      module.json
+./platform/modules/student_registry/migrations
+        .gitkeep
+        001_students.sql
+./platform/modules/intelligence
+      index.js
+      module.json
+./platform/modules/intelligence/migrations
+        .gitkeep
+./platform/modules/staff_registry
+      component.json
+      index.js
+      module.json
+./platform/modules/staff_registry/migrations
+        .gitkeep
+        001_staff.sql
+./platform/modules/inventory
+      component.json
+      index.js
+      module.json
+./platform/modules/inventory/migrations
+        001_inventory.sql
+./platform/config
+    session-policy.json
+./platform/routes
+    .gitkeep
+./platform/routes/introspect
+      .gitkeep
+./platform/Tools
+    spawn_app.sh
+    update_architecture_map.py
+    update_architecture_map.sh
+./platform/contracts
+    auth.js
+    auto_rules.js
+    cache.js
+    db.js
+    decision_log.js
+    event_store.js
+    events.js
+    intelligence.js
+    knowledge_store.js
+    log.js
+./platform/engine
+./platform/engine/recommendation
+      .gitkeep
+      analyzer.js
+      index.js
+./platform/engine/gap-analysis
+      .gitkeep
+      calculator.js
+      index.js
+./platform/scripts
+    .gitkeep
+./platform/scripts/cli
+      builder.js
+      migrate.js
+      scaffold.js
+      update-package.js
+./platform/deploy
+    backup.sh
+    migrate.sh
+    production.env.example
+    rollback.sh
+    setup-wizard.js
+./platform/migrations
+    000_bootstrap.sql
+    001_initial.sql
+    002_intelligence.sql
+    003_rate_limit.sql
+    004_recommendations.sql
+    005_route_permissions.sql
+    006_refresh_tokens.sql
+    007_builder.sql
 ```
 
 ## Phase 0: Foundation Contracts
@@ -340,44 +331,52 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 Location: `/platform/contracts/`
 
 | File | Exists | Size | Last Modified |
-|------|--------|------|---------------|
-| `db.js` | ✅ | 1976B | 2026-07-16 17:04:09 |
-| `cache.js` | ✅ | 1540B | 2026-07-16 17:04:27 |
+| ------ | ------ | ------ | --------------- |
 | `auth.js` | ✅ | 3905B | 2026-07-16 17:04:43 |
-| `log.js` | ✅ | 1607B | 2026-07-16 17:04:56 |
-| `validate.js` | ✅ | 1275B | 2026-07-16 17:05:07 |
+| `auto_rules.js` | ✅ | 0B | 2026-08-08 08:58:29 |
+| `cache.js` | ✅ | 1540B | 2026-07-16 17:04:27 |
+| `db.js` | ✅ | 1976B | 2026-07-16 17:04:09 |
+| `decision_log.js` | ✅ | 2372B | 2026-08-08 10:06:53 |
+| `event_store.js` | ✅ | 2414B | 2026-08-08 09:25:44 |
 | `events.js` | ✅ | 1876B | 2026-07-16 17:05:19 |
 | `intelligence.js` | ✅ | 2202B | 2026-07-18 12:00:55 |
+| `knowledge_store.js` | ✅ | 0B | 2026-08-08 08:58:29 |
+| `log.js` | ✅ | 1607B | 2026-07-16 17:04:56 |
+| `notification.js` | ✅ | 0B | 2026-08-08 08:58:29 |
+| `relationship_registry.js` | ✅ | 0B | 2026-08-08 08:58:29 |
+| `snapshot.js` | ✅ | 0B | 2026-08-08 08:58:29 |
+| `validate.js` | ✅ | 1275B | 2026-07-16 17:05:07 |
 
 ## Phase 1.1: Persistence / Service Layer
 
 Location: `/platform/shared/services/`
 
 | File | Exists | Size | Last Modified |
-|------|--------|------|---------------|
-| `db.js` | ✅ | 1840B | 2026-07-17 12:23:17 |
-| `cache.js` | ✅ | 3439B | 2026-07-17 02:56:18 |
-| `auth.js` | ✅ | 3609B | 2026-07-20 11:28:06 |
-| `log.js` | ✅ | 1103B | 2026-07-16 17:39:58 |
-| `validate.js` | ✅ | 1493B | 2026-07-16 17:40:14 |
-| `events.js` | ✅ | 2522B | 2026-08-08 09:25:34 |
-| `session.js` | ✅ | 2717B | 2026-07-16 17:39:15 |
+| ------ | ------ | ------ | --------------- |
 | `audit.js` | ✅ | 2375B | 2026-08-07 17:41:05 |
-| `metrics.js` | ✅ | 4338B | 2026-07-16 17:39:45 |
+| `auth.js` | ✅ | 3609B | 2026-07-20 11:28:06 |
+| `cache.js` | ✅ | 3439B | 2026-07-17 02:56:18 |
+| `csv_parser.js` | ✅ | 2765B | 2026-08-08 14:22:26 |
+| `db.js` | ✅ | 1840B | 2026-07-17 12:23:17 |
 | `email.js` | ✅ | 1672B | 2026-07-17 07:10:32 |
+| `events.js` | ✅ | 2522B | 2026-08-08 09:25:34 |
+| `log.js` | ✅ | 1103B | 2026-07-16 17:39:58 |
+| `metrics.js` | ✅ | 4338B | 2026-07-16 17:39:45 |
 | `ratelimit.js` | ✅ | 1500B | 2026-07-18 19:45:41 |
 | `refresh.js` | ✅ | 4318B | 2026-07-20 16:27:38 |
+| `session.js` | ✅ | 2717B | 2026-07-16 17:39:15 |
+| `validate.js` | ✅ | 1493B | 2026-07-16 17:40:14 |
 
 ### Intelligence Service Package
 
 Location: `/platform/shared/services/intelligence/`
 
 | File | Exists | Size |
-|------|--------|------|
+| ------ | ------ | ------ |
 | `index.js` | ✅ | 945B |
-| `metadata.js` | ✅ | 3592B |
 | `insights.js` | ✅ | 9907B |
 | `logic.js` | ✅ | 4729B |
+| `metadata.js` | ✅ | 3592B |
 | `store.js` | ✅ | 6237B |
 
 ## Phase 1.2: Registry Layer
@@ -385,36 +384,36 @@ Location: `/platform/shared/services/intelligence/`
 Location: `/platform/shared/registry/`
 
 | File | Exists | Size | Last Modified |
-|------|--------|------|---------------|
-| `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 17:47:26 |
-| `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 17:43:03 |
-| `routeRegistry.js` | ✅ | 2131B | 2026-07-20 06:47:58 |
-| `functionRegistry.js` | ✅ | 2575B | 2026-07-16 17:43:47 |
+| ------ | ------ | ------ | --------------- |
 | `capabilityRegistry.js` | ✅ | 2879B | 2026-07-16 17:45:09 |
-| `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 17:45:25 |
 | `componentRegistry.js` | ✅ | 3735B | 2026-08-06 20:46:46 |
 | `componentScanner.js` | ✅ | 5067B | 2026-08-06 21:12:43 |
+| `dependencyGraph.js` | ✅ | 4410B | 2026-07-16 17:45:25 |
+| `functionRegistry.js` | ✅ | 2575B | 2026-07-16 17:43:47 |
+| `moduleRegistry.js` | ✅ | 2842B | 2026-07-16 17:47:26 |
+| `routeRegistry.js` | ✅ | 2131B | 2026-07-20 06:47:58 |
+| `schemaRegistry.js` | ✅ | 2353B | 2026-07-16 17:43:03 |
 
 ## Phase 1.3: Staging Pipeline
 
 Location: `/platform/shared/pipeline/`
 
 | File | Exists | Size | Last Modified |
-|------|--------|------|---------------|
+| ------ | ------ | ------ | --------------- |
+| `boot.js` | ✅ | 3184B | 2026-08-06 21:13:12 |
 | `discover.js` | ✅ | 1225B | 2026-07-16 17:49:40 |
-| `validate.js` | ✅ | 3803B | 2026-07-17 08:19:29 |
 | `register.js` | ✅ | 2760B | 2026-07-20 06:47:36 |
 | `resolve.js` | ✅ | 2350B | 2026-07-18 12:07:29 |
-| `wire.js` | ✅ | 2347B | 2026-08-07 22:37:11 |
-| `boot.js` | ✅ | 3184B | 2026-08-06 21:13:12 |
 | `unstage.js` | ✅ | 3124B | 2026-07-16 17:53:03 |
+| `validate.js` | ✅ | 3803B | 2026-07-17 08:19:29 |
+| `wire.js` | ✅ | 2347B | 2026-08-07 22:37:11 |
 
 ## Phase 5: HTTP Middleware
 
 Location: `/platform/shared/middleware/`
 
 | File | Exists | Size |
-|------|--------|------|
+| ------ | ------ | ------ |
 | `passwordChangeRequired.js` | ✅ | 1017B |
 
 ## Modules
@@ -422,7 +421,7 @@ Location: `/platform/shared/middleware/`
 Location: `/platform/modules/`
 
 | Module | Manifest | Index | Component | Migrations | Type |
-|--------|----------|-------|-----------|------------|------|
+| ------ | -------- | ----- | --------- | ------------ | ---- |
 | `auto_rules` | ✅ | ✅ | ❌ | 1 | standard |
 | `builder` | ✅ | ✅ | ❌ | 0 | standard |
 | `decision_log` | ✅ | ✅ | ❌ | 1 | standard |
@@ -431,6 +430,107 @@ Location: `/platform/modules/`
 | `inventory` | ✅ | ✅ | ✅ | 1 | registry |
 | `knowledge_store` | ✅ | ✅ | ❌ | 1 | standard |
 | `notification` | ✅ | ✅ | ❌ | 1 | standard |
-| `relationship_registry` | ✅ | ✅ | ❌ | 1 | standard |
+| `relationship_registry` | ✅ | ✅ | ❌ | 1 | registry |
 | `room_registry` | ✅ | ✅ | ✅ | 1 | registry |
 | `snapshot_service` | ✅ | ✅ | ❌ | 1 | standard |
+| `staff_profile` | ✅ | ✅ | ✅ | 0 | profile |
+| `staff_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `student_profile` | ✅ | ✅ | ✅ | 0 | profile |
+| `student_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `system_health` | ✅ | ✅ | ❌ | 0 | standard |
+| `test_composite` | ✅ | ✅ | ❌ | 0 | standard |
+| `user_management` | ✅ | ✅ | ❌ | 3 | standard |
+
+## CLI Tools
+
+Location: `/platform/scripts/cli/`
+
+| File | Exists | Purpose |
+| ------ | ------ | ------- |
+| `builder.js` | ✅ | App assembly |
+| `migrate.js` | ✅ | Database migrations |
+| `scaffold.js` | ✅ | Module generation |
+| `update-package.js` | ✅ | (other) |
+
+## Phase 7: Testing Layer
+
+- `/tests/unit/services/` — 5 test file(s)
+- `/tests/unit/registries/` — 1 test file(s)
+- `/tests/integration/staging/` — 1 test file(s)
+- `/tests/integration/http/` — 5 test file(s)
+- `/tests/e2e/` — 2 test file(s)
+
+### Smoke Tests
+
+- `student.endpoint_smoke.sh` ✅
+- `staff.endpoint_smoke.sh` ✅
+- `room.endpoint_smoke.sh` ✅
+- `inventory.endpoint_smoke.sh` ✅
+- `intelligence.smoke.sh` ✅
+- `profile.endpoint_smoke.sh` ✅
+
+## Phase 10-11: Engine Layers
+
+**`/engine/gap-analysis/`**
+- `calculator.js` (6153B)
+- `index.js` (737B)
+
+**`/engine/recommendation/`**
+- `analyzer.js` (5158B)
+- `index.js` (1155B)
+
+## Data Layer
+
+- `timsys.db` (32768B)
+- `timsys.sqlite` (2662400B)
+- `timsys.sqlite-shm` (32768B)
+- `timsys.sqlite-wal` (4132392B)
+
+## Applications
+
+| Application | Status |
+| ------------ | ------ |
+| `competeed` | ✅ Ready |
+| `principaled` | ✅ Ready |
+| `sanctifyed` | ✅ Ready |
+
+---
+
+## Drift Detection
+
+### Expected vs Found Discrepancies
+
+- **Contracts extra (not expected):** auto_rules.js, decision_log.js, event_store.js, knowledge_store.js, notification.js, relationship_registry.js, snapshot.js
+
+- **Services extra (not expected):** csv_parser.js
+
+- ✅ All expected registries present, no extras.
+
+- ✅ All expected pipeline files present, no extras.
+
+### Expected Platform Directories
+
+- ✅ `/platform/contracts/`
+- ✅ `/platform/shared/services/`
+- ✅ `/platform/shared/registry/`
+- ✅ `/platform/shared/pipeline/`
+- ✅ `/platform/modules/`
+- ❌ MISSING DIR: `/platform/tests/`
+- ✅ `/platform/Tools/`
+- ✅ `/platform/data/`
+- ✅ `/platform/routes/`
+- ✅ `/platform/engine/gap-analysis/`
+- ✅ `/platform/engine/recommendation/`
+
+### Frozen Document Integrity
+
+- CONSTITUTION_V6.0.md SHA256: `47f46e3944bb142d5aa17f116d81d2bb00a6d49f069409987e88b9441a34b253`
+- LEXICON_V6.0.0.md SHA256: `9d99e326a693b61f168d922a0b557b488c2f6577c93d9d202efa28de4b4f0ad6`
+- Store these hashes. Any change indicates a frozen document was modified. Halt and investigate.
+
+### Summary
+
+- ⚠️ **Drift detected.** Compare against Constitution/Context for discrepancies.
+
+---
+End of Architecture Map.

@@ -319,7 +319,76 @@ async function addCertification(req, ctx) {
   return { success: true, certification: inserted.rows[0] };
 }
 
+
+var csvParser = require('../../shared/services/csv_parser');
+
+var staffColumnMap = {
+  'staffid': 'staff_id', 'id': 'staff_id', 'employeenumber': 'staff_id',
+  'firstname': 'first_name', 'givenname': 'first_name', 'fname': 'first_name',
+  'lastname': 'last_name', 'surname': 'last_name', 'lname': 'last_name',
+  'dateofbirth': 'date_of_birth', 'dob': 'date_of_birth', 'birthdate': 'date_of_birth',
+  'sex': 'sex', 'gender': 'sex',
+  'nationality': 'nationality',
+  'hiredate': 'hire_date', 'startdate': 'hire_date',
+  'employmentstatus': 'employment_status', 'status': 'employment_status',
+  'employmenttype': 'employment_type', 'jobtype': 'employment_type',
+  'jobtitle': 'job_title', 'title': 'job_title', 'position': 'job_title',
+  'department': 'department',
+  'paygrade': 'pay_grade',
+  'workemail': 'work_email',
+  'workphone': 'work_phone',
+  'phoneprimary': 'phone_primary', 'phone': 'phone_primary',
+  'phonesecondary': 'phone_secondary',
+  'emailwork': 'email_work',
+  'emailpersonal': 'email_personal',
+  'notes': 'notes'
+};
+
+async function importStaff(req, ctx) {
+  var body = req.body || {};
+  if (!body.csv) return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV data required in request body as { csv: "..." }' } };
+  
+  var parsed = csvParser.parse(Buffer.from(body.csv));
+  var mapped = csvParser.mapRows(parsed.rows, staffColumnMap);
+  var inserted = 0, skipped = 0, errors = [];
+  
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i].mapped;
+    if (!m.staff_id || !m.first_name || !m.last_name || !m.hire_date) {
+      errors.push({ row: i + 2, reason: 'Missing required field (staff_id, first_name, last_name, hire_date)' });
+      skipped++;
+      continue;
+    }
+    var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex || null;
+    var existing = ctx.db.query('SELECT id FROM staff WHERE staff_id = ?', [m.staff_id]);
+    if (existing.rows.length > 0) {
+      errors.push({ row: i + 2, reason: 'Duplicate staff_id: ' + m.staff_id });
+      skipped++;
+      continue;
+    }
+    try {
+      ctx.db.query(
+        'INSERT INTO staff (staff_id, first_name, last_name, date_of_birth, sex, hire_date, employment_status, employment_type, job_title, department, pay_grade, work_email, work_phone, phone_primary, phone_secondary, email_work, email_personal, notes, identity_custom, employment_custom, contact_custom, qualifications_custom, background_checks_custom, custom_fields, dbs_check_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.staff_id, m.first_name, m.last_name, m.date_of_birth || null, sexVal,
+         m.hire_date, m.employment_status || 'active', m.employment_type || 'full_time',
+         m.job_title || null, m.department || null, m.pay_grade || null,
+         m.work_email || null, m.work_phone || null,
+         m.phone_primary || null, m.phone_secondary || null,
+         m.email_work || null, m.email_personal || null,
+         m.notes || null, '{}', '{}', '{}', '{}', '{}', '{}', m.dbs_check_status || 'pending']
+      );
+      inserted++;
+    } catch (e) {
+      errors.push({ row: i + 2, reason: e.message });
+      skipped++;
+    }
+  }
+  if (ctx.audit) ctx.audit.action('staff.import', req.user ? req.user.id : 'unknown', { entityType: 'staff', entityId: 'batch', newValue: { inserted: inserted, skipped: skipped, errors: errors.length } });
+  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+}
+
 module.exports = {
+  importStaff: importStaff,
   boot: boot,
   teardown: teardown,
   listStaff: listStaff,
