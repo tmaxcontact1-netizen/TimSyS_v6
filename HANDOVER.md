@@ -367,3 +367,112 @@ Events/Decisions → Snapshots → Pattern Analysis → Auto-Rules → Notificat
 - All 4 `module.json` files (added routes + functions)
 
 **Status:** CSV import operational for all 4 registries. Tested with sample data.
+
+Architecture Changes
+1. Module Assignment System (Backend)
+
+Database Schema
+
+    Table: app_modules (app_id, module_name, enabled, created_at, updated_at)
+    Stores per-app module assignments with enable/disable state
+    All 20 backend modules assigned to principaled initially
+
+API Endpoints (platform/modules/app_registry/index.js)
+POST /api/modules/assign          - Assign module to app
+DELETE /api/modules/unassign      - Disable module (sets enabled=0, does not delete row)
+GET  /api/modules/list-for-app    - Returns only modules assigned to specified app
+2. Module Portal UI
+
+Location: apps/launcher/src/pages/ModulePortalPage.jsx
+
+Features:
+
+    Admin-only access (requires admin:* permission)
+    App dropdown (hardcoded to principaled — single app remaining)
+    Toggle switches for all 20 backend modules
+    Real-time enable/disable via API calls
+    Persistent state via app_modules table
+
+3. Dynamic Sidebar (Principal'Ed Dashboard)
+
+Location: apps/principaled/src/dashboard/Index.jsx
+
+Behavior:
+
+    Fetches enabled modules on mount: /api/modules/list-for-app?appId=principaled
+    Renders sidebar tabs only for enabled modules
+    Permission gating: backend modules (14 total) require admin:* permission
+    Operational modules (6 total) accessible to all authenticated users
+
+Sidebar Mapping:
+Module Type	Count	Examples
+Operational	6	Students, Staff, Rooms, Inventory, Student Profiles, Staff Profiles
+Backend (Admin-only)	14	App Registry, Auto Rules, Builder, Decision Log, Event Store, Intelligence, etc.
+4. Profile Infrastructure
+Student Profile Widget
+
+Location: apps/principaled/src/dashboard/widgets/StudentProfileWidget.jsx
+
+Features:
+
+    Search filters: name, grade level, homeroom
+    Extended profile display (interests, strengths, goals, medical details, etc.)
+    Related data: contacts, enrollment history, metadata
+    Insights integration: general (auto-generated) + deep (manual trigger)
+    Alert display for medical alerts, flags, risks
+
+Staff Profile Widget
+
+Location: apps/principaled/src/dashboard/widgets/StaffProfileWidget.jsx
+
+Features:
+
+    Search filters: name, department (handles multi-department via comma/semicolon split)
+    Extended profile display (professional development, mentorship roles, committees, career goals)
+    Certifications list with expiry tracking
+    Insights integration (same as student profiles)
+    DBS status alerts (expired, expiring soon, disclosed)
+
+Module Status Widget (Dev-Only)
+
+Location: apps/principaled/src/dashboard/widgets/ModuleStatusWidget.jsx
+
+Displays for each backend module:
+
+    Version, route count, function count, dependency count
+    Route table (method, path, handler, auth required, permissions)
+    Function signatures (exports, params, returns)
+    Database tables
+    Events (publishes/subscribes)
+    Enabled/disabled status badge
+
+Code Statistics
+File	Lines	Type
+Index.jsx	~380	Modified (layout, widget routing, permission gating)
+StudentProfileWidget.jsx	~230	New
+StaffProfileWidget.jsx	~250	New
+ModuleStatusWidget.jsx	~200	New
+Critical Fixes Applied
+
+    Toggle Bug: Changed removeModuleFromApp from DELETE to UPDATE enabled=0 (preserves row, allows re-enable)
+    Duplicate Keys: Removed duplicate student_registry/staff_registry entries from MODULE_TO_VIEW (last key overwrites in JS objects)
+    Import Paths: Corrected from ../api/client (Index.jsx) vs ../../api/client (widgets)
+    Layout Collapse: Added ../principaled/src/**/*.{jsx,tsx} to Tailwind content paths (classes weren't being compiled)
+
+Data Cleanup Executed
+-- Removed apps
+DELETE FROM apps WHERE app_id IN ('competeed', 'sanctifyed', 'memecoined');
+
+-- Removed their module assignments  
+DELETE FROM app_modules WHERE app_id IN ('competeed', 'sanctifyed', 'memecoined');
+
+-- Assigned all 20 modules to principaled
+INSERT INTO app_modules (app_id, module_name, enabled) 
+VALUES ('principaled', 'student_registry', 1), /* ... 19 more ... */;
+Current State
+
+    ✅ Backend: Fully functional (API verified)
+    ✅ Frontend: Widgets render, toggles work, sidebar dynamic
+    ✅ Permissions: Admin-only backend modules gated correctly
+    ⚠️ Tailwind: Hot reload may require hard refresh after config change
+    ⚠️ Vite: Restart recommended after tailwind.config.js modification

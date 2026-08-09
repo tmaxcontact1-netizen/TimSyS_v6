@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-08-08T13:31:01Z
+Generated: 2026-08-09T19:54:39Z
 Generator: platform/Tools/update_architecture_map.py (Discovery-Based)
 
 This document is auto-generated. Do not edit manually.
@@ -17,7 +17,7 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
 | `CONTEXT.md` | ✅ | 11903B | 2026-08-08 15:58:23 |
-| `ARCHITECTURE_MAP.md` | ✅ | 15776B | 2026-08-08 15:56:00 |
+| `ARCHITECTURE_MAP.md` | ✅ | 14418B | 2026-08-08 16:31:01 |
 | `HANDOVER.md` | ✅ | 14394B | 2026-08-08 15:58:23 |
 | `CONSTITUTION_V6.0.md` | ✅ | 24775B | 2026-08-08 15:58:23 |
 | `LEXICON_V6.0.0.md` | ✅ | 19944B | 2026-08-08 15:58:23 |
@@ -53,9 +53,113 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
     package.json
 ./apps/principaled/src
 ./apps/principaled/src/api
+        client.js
+./apps/principaled/src/dashboard
+        Index.jsx
+./apps/principaled/src/dashboard/widgets
+          AttendanceWidget.jsx
+          InventoryWidget.jsx
+          ModuleSelectorWidget.jsx
+          ModuleStatusWidget.jsx
+          NotificationsWidget.jsx
+          OverviewWidget.jsx
+          RoomsWidget.jsx
+          StaffProfileWidget.jsx
+          StaffWidget.jsx
+          StudentProfileWidget.jsx
 ./apps/principaled/src/components
 ./apps/principaled/src/pages
 ./apps/principaled/public
+./apps/memecoined
+    .env
+    index.html
+    package.json
+    postcss.config.js
+    tailwind.config.js
+    vite.config.js
+./apps/memecoined/src
+      App.jsx
+      index.jsx
+      styles.css
+./apps/memecoined/src/utils
+./apps/memecoined/src/store
+        authStore.js
+        tradingStore.js
+./apps/memecoined/src/api
+        auth.js
+        base.js
+./apps/memecoined/src/components
+        CoinList.jsx
+        Portfolio.jsx
+        TradingDashboard.jsx
+./apps/memecoined/src/pages
+        DashboardPage.jsx
+        LoginPage.jsx
+./apps/memecoined/public
+./apps/memecoined/public/assets
+./apps/launcher
+    .env
+    README.md
+    index.html
+    package-lock.json
+    package.json
+    postcss.config.js
+    tailwind.config.js
+    vite.config.js
+./apps/launcher/src
+      App.jsx
+      App.jsx.bak
+      index.jsx
+      styles.css
+./apps/launcher/src/utils
+        formatDate.js
+        permissions.js
+        sseClient.js
+./apps/launcher/src/Layout
+./apps/launcher/src/store
+        appStore.js
+        authStore.js
+        connectionStore.js
+        settingsStore.js
+./apps/launcher/src/Dashboard
+./apps/launcher/src/Splash
+./apps/launcher/src/Launcher
+./apps/launcher/src/registry
+        appComponents.jsx
+./apps/launcher/src/api
+        apps.js
+        auth.js
+        base.js
+        builder.js
+        stream.js
+./apps/launcher/src/components
+        ErrorBoundary.jsx
+./apps/launcher/src/components/Layout
+          MainLayout.jsx
+./apps/launcher/src/components/Dashboard
+          IntelligencePanel.jsx
+          Tile.jsx
+          TileGrid.jsx
+./apps/launcher/src/components/Splash
+          AppSplash.jsx
+          PlatformCheck.jsx
+./apps/launcher/src/components/Launcher
+          AppSelector.jsx
+          UserMenu.jsx
+./apps/launcher/src/pages
+        AppDashboard.jsx
+        AppSelectorPage.jsx
+        LoginPage.jsx
+        ModulePortalPage.jsx
+        ModuleSelectorPage.jsx
+        PrincipalEdPage.jsx
+./apps/launcher/electron
+      main.js
+      preload.js
+      tray.js
+./apps/launcher/public
+      index.html
+./apps/launcher/public/assets
 ./apps/sanctifyed
     package.json
 ./apps/sanctifyed/src
@@ -129,6 +233,7 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
       schemaRegistry.js
 ./platform/shared/middleware
       passwordChangeRequired.js
+      visibilityCheck.js
 ./platform/shared/services
       audit.js
       auth.js
@@ -141,6 +246,8 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
       metrics.js
       ratelimit.js
 ./platform/shared/services/relationship_registry
+        index.js
+./platform/shared/services/visibilityFilter
         index.js
 ./platform/shared/services/snapshot
         index.js
@@ -225,6 +332,9 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
       module.json
 ./platform/modules/test_composite/migrations
         .gitkeep
+./platform/modules/insight_management
+      index.js
+      module.json
 ./platform/modules/auto_rules
       index.js
       module.json
@@ -254,6 +364,15 @@ Platform Location: `/home/tmax/TimSyS_v6/platform`
 ./platform/modules/student_registry/migrations
         .gitkeep
         001_students.sql
+./platform/modules/app_registry
+      component.json
+      index.js
+      module.json
+./platform/modules/app_registry/migrations
+        001_apps.sql
+        002_user_settings.sql
+        003_modules_config.sql
+        004_app_modules.sql
 ./platform/modules/intelligence
       index.js
       module.json
@@ -365,6 +484,7 @@ Location: `/platform/shared/services/`
 | `ratelimit.js` | ✅ | 1500B | 2026-07-18 19:45:41 |
 | `refresh.js` | ✅ | 4318B | 2026-07-20 16:27:38 |
 | `session.js` | ✅ | 2717B | 2026-07-16 17:39:15 |
+| `sse.js` | ✅ | 2748B | 2026-08-08 19:08:00 |
 | `validate.js` | ✅ | 1493B | 2026-07-16 17:40:14 |
 
 ### Intelligence Service Package
@@ -373,7 +493,7 @@ Location: `/platform/shared/services/intelligence/`
 
 | File | Exists | Size |
 | ------ | ------ | ------ |
-| `index.js` | ✅ | 945B |
+| `index.js` | ✅ | 960B |
 | `insights.js` | ✅ | 9907B |
 | `logic.js` | ✅ | 4729B |
 | `metadata.js` | ✅ | 3592B |
@@ -415,6 +535,7 @@ Location: `/platform/shared/middleware/`
 | File | Exists | Size |
 | ------ | ------ | ------ |
 | `passwordChangeRequired.js` | ✅ | 1017B |
+| `visibilityCheck.js` | ✅ | 3244B |
 
 ## Modules
 
@@ -422,10 +543,12 @@ Location: `/platform/modules/`
 
 | Module | Manifest | Index | Component | Migrations | Type |
 | ------ | -------- | ----- | --------- | ------------ | ---- |
+| `app_registry` | ✅ | ✅ | ✅ | 4 | standard |
 | `auto_rules` | ✅ | ✅ | ❌ | 1 | standard |
 | `builder` | ✅ | ✅ | ❌ | 0 | standard |
 | `decision_log` | ✅ | ✅ | ❌ | 1 | standard |
 | `event_store` | ✅ | ✅ | ❌ | 1 | standard |
+| `insight_management` | ✅ | ✅ | ❌ | 0 | standard |
 | `intelligence` | ✅ | ✅ | ❌ | 0 | standard |
 | `inventory` | ✅ | ✅ | ✅ | 1 | registry |
 | `knowledge_store` | ✅ | ✅ | ❌ | 1 | standard |
@@ -482,15 +605,17 @@ Location: `/platform/scripts/cli/`
 ## Data Layer
 
 - `timsys.db` (32768B)
-- `timsys.sqlite` (2662400B)
+- `timsys.sqlite` (4599808B)
 - `timsys.sqlite-shm` (32768B)
-- `timsys.sqlite-wal` (4132392B)
+- `timsys.sqlite-wal` (4161232B)
 
 ## Applications
 
 | Application | Status |
 | ------------ | ------ |
 | `competeed` | ✅ Ready |
+| `launcher` | ✅ Ready |
+| `memecoined` | ✅ Ready |
 | `principaled` | ✅ Ready |
 | `sanctifyed` | ✅ Ready |
 
@@ -502,7 +627,7 @@ Location: `/platform/scripts/cli/`
 
 - **Contracts extra (not expected):** auto_rules.js, decision_log.js, event_store.js, knowledge_store.js, notification.js, relationship_registry.js, snapshot.js
 
-- **Services extra (not expected):** csv_parser.js
+- **Services extra (not expected):** csv_parser.js, sse.js
 
 - ✅ All expected registries present, no extras.
 
