@@ -9,8 +9,8 @@ class IntelligenceServiceImpl {
   getMetadata(...args) { return metadataService.get(...args); }
   storeMetadata(...args) { return metadataService.store(...args); }
   synthesize(...args) { return insightsService.synthesize(...args); }
-  getInsights(...args) { return insightsService.get(...args); }
-  storeInsight(...args) { return insightsService.store(...args); }
+  getInsights(...args) { return insightsService.getInsights(...args); }
+  storeInsight(...args) { return insightsService.storeInsight(...args); }
   evaluateLogic(...args) { return logicService.evaluate(...args); }
   registerRule(...args) { return logicService.register(...args); }
   deleteRule(...args) { return logicService.delete(...args); }

@@ -3,15 +3,19 @@
   "version": "1.0.0",
   "author": "admin",
   "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
-  "provides": ["capability:staff_profile.read"],
+  "provides": ["capability:staff_profile.read", "capability:staff_profile.write", "capability:staff.insight.generate"],
   "requires": ["capability:staff.read"],
   "routes": [
     { "path": "/staff-profiles", "method": "GET", "handler": "staff_profile_listProfiles", "auth_required": true, "permissions": ["admin:staff:read"] },
-    { "path": "/staff/:id/profile", "method": "GET", "handler": "staff_profile_getProfile", "auth_required": true, "permissions": ["admin:staff:read"] }
+    { "path": "/staff/:id/profile", "method": "GET", "handler": "staff_profile_getProfile", "auth_required": true, "permissions": ["admin:staff:read"] },
+    { "path": "/staff/:id/profile/extended", "method": "PUT", "handler": "staff_profile_updateExtendedProfile", "auth_required": true, "permissions": ["admin:staff:write"] },
+    { "path": "/staff/:id/profile/insights/generate", "method": "POST", "handler": "staff_profile_generateDeepInsight", "auth_required": true, "permissions": ["admin:staff:read"] }
   ],
   "functions": [
     { "name": "staff_profile_listProfiles", "exports": "listProfiles", "params": ["filter", "page", "limit"], "returns": "Staff[]" },
-    { "name": "staff_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StaffProfile" }
+    { "name": "staff_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StaffProfile" },
+    { "name": "staff_profile_updateExtendedProfile", "exports": "updateExtendedProfile", "params": ["id", "data"], "returns": "StaffProfileExtended" },
+    { "name": "staff_profile_generateDeepInsight", "exports": "generateDeepInsight", "params": ["id"], "returns": "{success, insightId}" }
   ],
   "schema": {},
   "events": {

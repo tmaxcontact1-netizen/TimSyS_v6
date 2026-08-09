@@ -3,15 +3,19 @@
   "version": "1.0.0",
   "author": "admin",
   "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
-  "provides": ["capability:student_profile.read"],
+  "provides": ["capability:student_profile.read", "capability:student_profile.write", "capability:student.insight.generate"],
   "requires": ["capability:student.read"],
   "routes": [
     { "path": "/student-profiles", "method": "GET", "handler": "student_profile_listProfiles", "auth_required": true, "permissions": ["admin:students:read"] },
-    { "path": "/students/:id/profile", "method": "GET", "handler": "student_profile_getProfile", "auth_required": true, "permissions": ["admin:students:read"] }
+    { "path": "/students/:id/profile", "method": "GET", "handler": "student_profile_getProfile", "auth_required": true, "permissions": ["admin:students:read"] },
+    { "path": "/students/:id/profile/extended", "method": "PUT", "handler": "student_profile_updateExtendedProfile", "auth_required": true, "permissions": ["admin:students:write"] },
+    { "path": "/students/:id/profile/insights/generate", "method": "POST", "handler": "student_profile_generateDeepInsight", "auth_required": true, "permissions": ["admin:students:read"] }
   ],
   "functions": [
     { "name": "student_profile_listProfiles", "exports": "listProfiles", "params": ["filter", "page", "limit"], "returns": "Student[]" },
-    { "name": "student_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StudentProfile" }
+    { "name": "student_profile_getProfile", "exports": "getProfile", "params": ["id"], "returns": "StudentProfile" },
+    { "name": "student_profile_updateExtendedProfile", "exports": "updateExtendedProfile", "params": ["id", "data"], "returns": "StudentProfileExtended" },
+    { "name": "student_profile_generateDeepInsight", "exports": "generateDeepInsight", "params": ["id"], "returns": "{success, insightId}" }
   ],
   "schema": {},
   "events": {

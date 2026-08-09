@@ -57,6 +57,7 @@ const db = require('./shared/services/db');
 const audit = require('./shared/services/audit');
 const decisionLog = require('./shared/services/decision_log');
 const eventStore = require('./shared/services/event_store');
+const sse = require('./shared/services/sse');
 
 var PORT = process.env.PORT !== undefined ? parseInt(process.env.PORT, 10) : 3000;
 var contextRegistry = {};
@@ -77,6 +78,8 @@ async function bootPlatform() {
   }
 
   log.info('Services initialized');
+  sse.initSSE();
+  log.info('SSE service initialized');
 
   await runMigrations();
   verifyTables();
@@ -113,6 +116,7 @@ async function bootPlatform() {
     ctx.audit = audit;
     ctx.decisionLog = decisionLog;
     ctx.eventStore = eventStore;
+    ctx.sse = sse;
     contextRegistry[wired[w].manifest.name] = ctx;
   }
 
@@ -313,6 +317,7 @@ function rateLimitMiddleware(req, res) {
 function shutdownPlatform(server) {
   return new Promise(function(resolve) {
     function cleanup() {
+      sse.shutdown();
       var reversed = wiredModules.slice().reverse();
       for (var i = 0; i < reversed.length; i++) {
         try { unstage(reversed[i]); } catch (err) { log.error('Shutdown teardown failed: ' + reversed[i].manifest.name, { error: err.message }); }
@@ -382,6 +387,18 @@ function createServer() {
         return;
       }
 
+      // SSE streaming routes bypass standard request/response cycle
+      if (route && route.path === '/api/stream/notifications' && method === 'GET') {
+        var sseHandlerInfo = functionRegistry.get(route.handler);
+        if (sseHandlerInfo && typeof sseHandlerInfo.implementation === 'function') {
+          req.query = query;
+          req.params = routeParams;
+          log.info('SSE stream request', { method: method, path: pathname });
+          sseHandlerInfo.implementation(req, res);
+        }
+        return;
+      }
+
       if (!authenticationMiddleware(req, res, route)) return;
       if (!authorizationMiddleware(req, res, route)) return;
 
@@ -426,7 +443,17 @@ function createServer() {
       var result = await handler.implementation(handlerReq, moduleCtx);
 
       var statusCode = result && result.statusCode ? result.statusCode : 200;
-      respond(res, statusCode, (result && result.data) || result || { success: true });
+      var responseData;
+      if (result && Array.isArray(result.data)) {
+        responseData = { success: result.success !== undefined ? result.success : true, data: result.data };
+      } else if (result && result.data) {
+        responseData = { success: result.success !== undefined ? result.success : true, data: result.data };
+      } else if (result) {
+        responseData = result;
+      } else {
+        responseData = { success: true };
+      }
+      respond(res, statusCode, responseData);
 
       metrics.timing('http.request_duration_ms', Date.now() - start, { method: method, path: pathname });
 

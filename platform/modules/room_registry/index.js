@@ -28,9 +28,9 @@ async function listRooms(req, ctx) {
     conditions.push('room_type = ?');
     params.push(req.query.room_type);
   }
-  if (req.query.building_id) {
-    conditions.push('building_id = ?');
-    params.push(req.query.building_id);
+  if (req.query.building) {
+    conditions.push('building = ?');
+    params.push(req.query.building);
   }
   if (req.query.status) {
     conditions.push('status = ?');
@@ -87,11 +87,11 @@ async function createRoom(req, ctx) {
 
   var result = ctx.db.query(
     `INSERT INTO rooms (
-      room_number, building_id, capacity, room_type, features,
+      room_number, building, capacity, room_type, features,
       accessibility_flags, equipment_list, status, notes, custom_fields
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      b.room_number, b.building_id || null, b.capacity, b.room_type || 'general',
+      b.room_number, b.building || null, b.capacity, b.room_type || 'general',
       JSON.stringify(b.features || {}), JSON.stringify(b.accessibility_flags || {}), JSON.stringify(b.equipment_list || []),
       b.status || 'available', b.notes || null, b.custom_fields || '{}'
     ]
@@ -138,7 +138,7 @@ async function updateRoom(req, ctx) {
   }
 
   var allowedFields = [
-    'building_id', 'capacity', 'room_type', 'features',
+    'building', 'capacity', 'room_type', 'features',
     'accessibility_flags', 'equipment_list', 'status', 'notes', 'custom_fields'
   ];
 
@@ -232,7 +232,7 @@ var csvParser = require('../../shared/services/csv_parser');
 
 var roomColumnMap = {
   'roomnumber': 'room_number', 'room': 'room_number',
-  'buildingid': 'building_id', 'building': 'building_id',
+  'buildingid': 'building', 'building': 'building',
   'capacity': 'capacity', 'maxcapacity': 'capacity', 'seats': 'capacity',
   'roomtype': 'room_type', 'type': 'room_type',
   'status': 'status',
@@ -268,8 +268,8 @@ async function importRooms(req, ctx) {
     }
     try {
       ctx.db.query(
-        'INSERT INTO rooms (room_number, building_id, capacity, room_type, features, accessibility_flags, equipment_list, status, notes, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [m.room_number, m.building_id || null, cap, m.room_type || 'general', '{}', '{}', '[]', m.status || 'available', m.notes || null, '{}']
+        'INSERT INTO rooms (room_number, building, capacity, room_type, features, accessibility_flags, equipment_list, status, notes, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.room_number, m.building || null, cap, m.room_type || 'general', '{}', '{}', '[]', m.status || 'available', m.notes || null, '{}']
       );
       inserted++;
     } catch (e) {

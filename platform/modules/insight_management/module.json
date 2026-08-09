@@ -1,0 +1,25 @@
+{
+  "name": "insight_management",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "provides": ["capability:insight.read", "capability:insight.write"],
+  "requires": [],
+  "routes": [
+    { "path": "/insights", "method": "GET", "handler": "insight_management_listInsights", "auth_required": true, "permissions": ["admin:insights:read"] },
+    { "path": "/insights/:insightId/acknowledge", "method": "POST", "handler": "insight_management_acknowledgeInsight", "auth_required": true, "permissions": ["admin:insights:write"] },
+    { "path": "/insights/:insightId/dismiss", "method": "POST", "handler": "insight_management_dismissInsight", "auth_required": true, "permissions": ["admin:insights:write"] },
+    { "path": "/insights/:insightId/visibility", "method": "GET", "handler": "insight_management_getVisibilityLog", "auth_required": true, "permissions": ["admin:insights:read"] }
+  ],
+  "functions": [
+    { "name": "insight_management_listInsights", "exports": "listInsights", "params": ["scopeType", "scopeId", "insightLevel", "status", "limit"], "returns": "Insight[]" },
+    { "name": "insight_management_acknowledgeInsight", "exports": "acknowledgeInsight", "params": ["insightId"], "returns": "{success}" },
+    { "name": "insight_management_dismissInsight", "exports": "dismissInsight", "params": ["insightId"], "returns": "{success}" },
+    { "name": "insight_management_getVisibilityLog", "exports": "getVisibilityLog", "params": ["insightId"], "returns": "{success, log}" }
+  ],
+  "schema": {},
+  "events": {
+    "publishes": ["insight.acknowledged", "insight.dismissed"],
+    "subscribes": []
+  }
+}

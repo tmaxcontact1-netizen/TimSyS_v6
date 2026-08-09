@@ -1,0 +1,98 @@
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import useAuthStore from './store/authStore';
+import useAppStore from './store/appStore';
+import useConnectionStore from './store/connectionStore';
+import PlatformCheck from './components/Splash/PlatformCheck';
+import AppSelectorPage from './pages/AppSelectorPage';
+import LoginPage from './pages/LoginPage';
+import ModulePortalPage from './pages/ModulePortalPage'
+import AppDashboard from './pages/AppDashboard';
+import { hasPermission } from './utils/permissions';
+import ErrorBoundary from './components/ErrorBoundary';
+
+function ProtectedRoute({ children }) {
+  const isInitializing = useAuthStore((s) => s.isInitializing);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-timsys-dark flex items-center justify-center">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    const path = window.location.pathname;
+    const appId = path.split('/app/')[1]?.split('/')[0];
+    return <Navigate to={`/login/${appId || ''}`} replace />;
+  }
+
+  return children;
+}
+
+function App() {
+  const { initialize: initAuth } = useAuthStore();
+  const { initialize: initApps } = useAppStore();
+  const { status, check, startPolling } = useConnectionStore();
+  const [wasOnline, setWasOnline] = useState(false);
+
+  useEffect(() => {
+    check().then((healthy) => {
+      if (healthy) {
+        setWasOnline(true);
+        startPolling(30000);
+        initApps();
+        initAuth();
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (status === 'online') {
+      setWasOnline(true);
+      initApps();
+      initAuth();
+    }
+  }, [status]);
+
+  useEffect(() => {
+    const handleForceLogout = () => {
+      useAuthStore.getState().logout();
+    };
+    window.addEventListener('auth:logout', handleForceLogout);
+    return () => window.removeEventListener('auth:logout', handleForceLogout);
+  }, []);
+
+  if (!wasOnline && status === 'checking') {
+    return <PlatformCheck status="checking" onRetry={check} />;
+  }
+
+  if (!wasOnline && status === 'offline') {
+    return <PlatformCheck status="unhealthy" error={useConnectionStore.getState().error} onRetry={check} />;
+  }
+
+  return (
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login/:appId" element={<LoginPage />} />
+        <Route path="/" element={<AppSelectorPage />} />
+        <Route path="/modules" element={<ModulePortalPage />} />
+        <Route path="/app/:appId/modules" element={<ProtectedRoute><ModulePortalPage /></ProtectedRoute>} />
+        <Route
+          path="/app/:appId"
+          element={
+            <ProtectedRoute>
+              <AppDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ErrorBoundary>
+  );
+}
+
+export default App;
