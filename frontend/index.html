@@ -92,12 +92,34 @@
         <article id="watchlist" class="panel table-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">LOCAL OBSERVATION</p>
+              <p class="eyebrow">PERSISTENT OBSERVATION</p>
               <h2>Token watchlist</h2>
             </div>
             <span id="watchlist-count" class="count-chip">0</span>
           </div>
-          <p class="panel-note">Stored only in this browser; never used as trading authority.</p>
+          <p class="panel-note">
+            Wallet-scoped operator preference; never used as trading authority.
+          </p>
+          <div class="watchlist-controls">
+            <label
+              ><span>List</span
+              ><select id="watchlist-select">
+                <option value="">No persistent lists</option>
+              </select></label
+            >
+            <button id="watchlist-create" type="button">New</button>
+            <button id="watchlist-rename" type="button">Rename</button>
+            <button id="watchlist-delete" type="button">Delete</button>
+          </div>
+          <div class="watchlist-auth">
+            <label
+              ><span>Mutation token</span
+              ><input id="watchlist-token" type="password" autocomplete="off"
+            /></label>
+            <button id="watchlist-connect" type="button">Enable changes</button>
+            <button id="watchlist-import" type="button" hidden>Import local list</button>
+          </div>
+          <output id="watchlist-message" class="preference-message" aria-live="polite"></output>
           <div class="table-scroll">
             <table>
               <thead>
@@ -613,7 +635,9 @@
         <button id="close-token" type="button" aria-label="Close token detail">×</button>
       </div>
       <p id="token-address" class="token-address">—</p>
-      <button id="toggle-watchlist" class="watch-button" type="button">Add to watchlist</button>
+      <button id="toggle-watchlist" class="watch-button" type="button" disabled>
+        Enable watchlist changes
+      </button>
       <div class="token-metrics">
         <div><span>Open amount</span><strong id="token-amount">—</strong></div>
         <div><span>Open cost</span><strong id="token-cost">—</strong></div>

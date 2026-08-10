@@ -82,6 +82,12 @@ describe("paper dashboard", () => {
     expect(page.body).toContain("Paper desk");
     expect(page.body).toContain("Portfolio allocation");
     expect(page.body).toContain("Token watchlist");
+    expect(page.body).toContain('id="watchlist-select"');
+    expect(page.body).toContain('id="watchlist-create"');
+    expect(page.body).toContain('id="watchlist-rename"');
+    expect(page.body).toContain('id="watchlist-delete"');
+    expect(page.body).toContain('id="watchlist-import"');
+    expect(page.body).toContain('type="password"');
     expect(page.body).toContain('data-sort="cost_raw"');
     expect(page.body).toContain('id="preferences-dialog"');
     expect(page.body).toContain('name="density" value="compact"');

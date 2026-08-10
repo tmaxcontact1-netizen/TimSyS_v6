@@ -51,6 +51,14 @@ const ids = [
   "watchlist-count",
   "watchlist-rows",
   "toggle-watchlist",
+  "watchlist-select",
+  "watchlist-create",
+  "watchlist-rename",
+  "watchlist-delete",
+  "watchlist-token",
+  "watchlist-connect",
+  "watchlist-import",
+  "watchlist-message",
   "menu-toggle",
   "sidebar-backdrop",
   "sidebar-collapse",
@@ -85,7 +93,10 @@ const defaultPanelOrder = [
   "trading",
 ];
 let selectedToken = null;
-let watchlist = loadWatchlist();
+const legacyWatchlist = loadWatchlist();
+let watchlists = [];
+let activeWatchlistId = "";
+let mutationToken = "";
 let preferences = loadPreferences();
 const sortState = {
   positions: { key: "opened_at", kind: "date", direction: "desc" },
@@ -259,9 +270,88 @@ function loadWatchlist() {
 }
 function saveWatchlist() {
   try {
-    localStorage.setItem(watchlistKey, JSON.stringify([...watchlist].sort()));
+    localStorage.setItem(watchlistKey, JSON.stringify([...legacyWatchlist].sort()));
   } catch {
     // The dashboard remains usable when browser storage is unavailable.
+  }
+}
+function activeWatchlist() {
+  return watchlists.find((item) => item.id === activeWatchlistId) ?? null;
+}
+function watchedTokens() {
+  return new Set(activeWatchlist()?.tokens ?? []);
+}
+function setWatchlistMessage(message, state = "ok") {
+  elements["watchlist-message"].textContent = message;
+  elements["watchlist-message"].dataset.state = state;
+}
+function renderWatchlistControls() {
+  const selected = activeWatchlist();
+  elements["watchlist-select"].replaceChildren();
+  if (watchlists.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No persistent lists";
+    elements["watchlist-select"].append(option);
+  } else {
+    for (const item of watchlists) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = `${item.name} (${item.tokens.length})`;
+      elements["watchlist-select"].append(option);
+    }
+    elements["watchlist-select"].value = selected?.id ?? watchlists[0].id;
+  }
+  const enabled = mutationToken.length > 0;
+  elements["watchlist-create"].disabled = !enabled;
+  elements["watchlist-rename"].disabled = !enabled || !selected;
+  elements["watchlist-delete"].disabled = !enabled || !selected;
+  elements["watchlist-import"].hidden = legacyWatchlist.size === 0;
+  elements["watchlist-import"].disabled = !enabled;
+}
+async function watchlistRequest(path, method = "GET", body) {
+  const options = { method, cache: "no-store", headers: {} };
+  if (method !== "GET") {
+    options.headers = {
+      Authorization: `Bearer ${mutationToken}`,
+      "Content-Type": "application/json",
+    };
+    options.body = JSON.stringify(body ?? {});
+  }
+  const response = await fetch(path, options);
+  if (response.status === 409) throw new Error("This list changed. Refresh and try again.");
+  if (response.status === 401 || response.status === 403)
+    throw new Error("Mutation token rejected.");
+  if (!response.ok) throw new Error("Watchlist request failed.");
+  return response.status === 204 ? null : response.json();
+}
+async function refreshWatchlists() {
+  const { watchlists: records } = await watchlistRequest("/api/watchlists");
+  watchlists = records;
+  if (!watchlists.some((item) => item.id === activeWatchlistId))
+    activeWatchlistId = watchlists[0]?.id ?? "";
+  renderWatchlistControls();
+  renderWatchlist();
+}
+function replaceWatchlist(updated) {
+  watchlists = watchlists.map((item) => (item.id === updated.id ? updated : item));
+  activeWatchlistId = updated.id;
+  renderWatchlistControls();
+  renderWatchlist();
+}
+async function mutateWatchlist(path, method, body) {
+  try {
+    const result = await watchlistRequest(path, method, body);
+    if (result?.watchlist) replaceWatchlist(result.watchlist);
+    setWatchlistMessage("Watchlist saved.");
+    return result;
+  } catch (error) {
+    setWatchlistMessage(
+      error instanceof Error ? error.message : "Watchlist change failed.",
+      "error",
+    );
+    await refreshWatchlists().catch(() => undefined);
+    return null;
   }
 }
 function sol(raw) {
@@ -400,7 +490,7 @@ function renderAllocation() {
   }
 }
 function renderWatchlist() {
-  const records = [...watchlist].map((mint) => {
+  const records = [...watchedTokens()].map((mint) => {
     const position = detailSnapshot.positions.find((item) => item.token_mint === mint);
     return {
       token_mint: mint,
@@ -551,9 +641,13 @@ async function openToken(mint) {
   if (!response.ok) return;
   const { token: details } = await response.json();
   selectedToken = mint;
-  elements["toggle-watchlist"].textContent = watchlist.has(mint)
+  const selectedList = activeWatchlist();
+  elements["toggle-watchlist"].disabled = !mutationToken || !selectedList;
+  elements["toggle-watchlist"].textContent = watchedTokens().has(mint)
     ? "Remove from watchlist"
-    : "Add to watchlist";
+    : selectedList
+      ? "Add to watchlist"
+      : "Create a watchlist first";
   elements["token-title"].textContent = short(mint);
   elements["token-address"].textContent = mint;
   elements["token-amount"].textContent = BigInt(details.summary.open_amount_raw).toLocaleString();
@@ -677,6 +771,9 @@ async function refresh() {
   }
 }
 applyPreferences();
+void refreshWatchlists().catch(() =>
+  setWatchlistMessage("Persistent watchlists unavailable.", "error"),
+);
 void refresh();
 scheduleRefresh();
 elements["refresh-now"].addEventListener("click", () => void refresh());
@@ -765,14 +862,84 @@ elements["clear-filters"].addEventListener("click", () => {
 });
 elements["close-token"].addEventListener("click", () => elements["token-dialog"].close());
 elements["toggle-watchlist"].addEventListener("click", () => {
-  if (!selectedToken) return;
-  if (watchlist.has(selectedToken)) watchlist.delete(selectedToken);
-  else watchlist.add(selectedToken);
-  saveWatchlist();
-  elements["toggle-watchlist"].textContent = watchlist.has(selectedToken)
-    ? "Remove from watchlist"
-    : "Add to watchlist";
+  const selected = activeWatchlist();
+  if (!selectedToken || !selected) return;
+  const contains = selected.tokens.includes(selectedToken);
+  const path = contains
+    ? `/api/watchlists/${selected.id}/tokens/${selectedToken}`
+    : `/api/watchlists/${selected.id}/tokens`;
+  void mutateWatchlist(path, contains ? "DELETE" : "POST", {
+    expectedVersion: selected.version,
+    ...(contains ? {} : { mint: selectedToken }),
+  }).then((result) => {
+    if (result)
+      elements["toggle-watchlist"].textContent = contains
+        ? "Add to watchlist"
+        : "Remove from watchlist";
+  });
+});
+elements["watchlist-connect"].addEventListener("click", () => {
+  mutationToken = elements["watchlist-token"].value;
+  elements["watchlist-token"].value = "";
+  renderWatchlistControls();
+  setWatchlistMessage(
+    mutationToken ? "Changes enabled for this page session." : "Enter a mutation token.",
+    mutationToken ? "ok" : "error",
+  );
+});
+elements["watchlist-select"].addEventListener("change", () => {
+  activeWatchlistId = elements["watchlist-select"].value;
+  renderWatchlistControls();
   renderWatchlist();
+});
+elements["watchlist-create"].addEventListener("click", () => {
+  const name = prompt("New watchlist name");
+  if (name) void mutateWatchlist("/api/watchlists", "POST", { name });
+});
+elements["watchlist-rename"].addEventListener("click", () => {
+  const selected = activeWatchlist();
+  if (!selected) return;
+  const name = prompt("Rename watchlist", selected.name);
+  if (name)
+    void mutateWatchlist(`/api/watchlists/${selected.id}`, "PATCH", {
+      expectedVersion: selected.version,
+      name,
+    });
+});
+elements["watchlist-delete"].addEventListener("click", () => {
+  const selected = activeWatchlist();
+  if (!selected || prompt(`Type ${selected.name} to delete this watchlist`) !== selected.name)
+    return;
+  void mutateWatchlist(`/api/watchlists/${selected.id}`, "DELETE", {
+    expectedVersion: selected.version,
+    confirmedName: selected.name,
+  }).then((result) => {
+    if (result === null) void refreshWatchlists();
+  });
+});
+elements["watchlist-import"].addEventListener("click", async () => {
+  if (legacyWatchlist.size === 0) return;
+  let selected = activeWatchlist();
+  if (!selected) {
+    const created = await mutateWatchlist("/api/watchlists", "POST", {
+      name: "Imported watchlist",
+    });
+    selected = created?.watchlist ?? null;
+  }
+  if (!selected) return;
+  for (const mint of [...legacyWatchlist].sort()) {
+    if (selected.tokens.includes(mint)) continue;
+    const result = await mutateWatchlist(`/api/watchlists/${selected.id}/tokens`, "POST", {
+      expectedVersion: selected.version,
+      mint,
+    });
+    if (!result) return;
+    selected = result.watchlist;
+  }
+  legacyWatchlist.clear();
+  saveWatchlist();
+  renderWatchlistControls();
+  setWatchlistMessage("Local tokens imported and local copy cleared.");
 });
 document.querySelectorAll(".sort-button").forEach((button) =>
   button.addEventListener("click", () => {
@@ -810,9 +977,11 @@ document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
   const remove = event.target.closest("td.watch-remove");
   if (remove?.title) {
-    watchlist.delete(remove.title);
-    saveWatchlist();
-    renderWatchlist();
+    const selected = activeWatchlist();
+    if (selected)
+      void mutateWatchlist(`/api/watchlists/${selected.id}/tokens/${remove.title}`, "DELETE", {
+        expectedVersion: selected.version,
+      });
     return;
   }
   const target = event.target.closest("[data-token-mint]");
