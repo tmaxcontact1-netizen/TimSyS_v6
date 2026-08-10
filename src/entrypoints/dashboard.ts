@@ -14,6 +14,7 @@ import {
   readPaperDashboardDetails,
   readPaperPerformanceHistory,
   readPaperTokenDetails,
+  readPaperWorkerAlerts,
 } from "../infrastructure/database/paper-dashboard.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 
@@ -83,6 +84,15 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), details });
       } catch {
         sendJson(response, 503, { error: "paper_details_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/alerts") {
+      try {
+        const alerts = await readPaperWorkerAlerts(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), alerts });
+      } catch {
+        sendJson(response, 503, { error: "paper_alerts_unavailable" });
       }
       return;
     }

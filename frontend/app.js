@@ -40,10 +40,18 @@ const ids = [
   "close-token",
   "performance-chart",
   "chart-range-label",
+  "alert-count",
+  "alert-rows",
+  "refresh-now",
+  "refresh-rate",
+  "refresh-label",
+  "connection-history",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
 let selectedRange = "7d";
+let refreshTimer;
+const connectionEvents = [];
 function sol(raw) {
   const value = BigInt(raw);
   const absolute = value < 0n ? -value : value;
@@ -282,6 +290,45 @@ async function refreshDetails() {
   detailSnapshot = details;
   renderDetails();
 }
+async function refreshAlerts() {
+  const response = await fetch("/api/paper/alerts", { cache: "no-store" });
+  if (!response.ok) throw new Error("alerts unavailable");
+  const { alerts } = await response.json();
+  elements["alert-count"].textContent = alerts.length;
+  renderRows(
+    elements["alert-rows"],
+    alerts,
+    [
+      (r) => ({ text: short(r.tokenMint), title: r.tokenMint, token: r.tokenMint }),
+      (r) => ({ text: r.message, title: r.message, className: "alert-message" }),
+      (r) => ({ text: time(r.retryAt) }),
+      (r) => ({ text: time(r.lastMonitoredAt) }),
+    ],
+    "No unresolved worker alerts",
+  );
+}
+function recordConnection(state, label) {
+  connectionEvents.unshift({ state, label, at: new Date() });
+  connectionEvents.splice(8);
+  elements["connection-history"].replaceChildren();
+  for (const item of connectionEvents) {
+    const row = document.createElement("li");
+    row.dataset.state = item.state;
+    const labelNode = document.createElement("span");
+    labelNode.textContent = item.label;
+    const at = document.createElement("time");
+    at.textContent = item.at.toLocaleTimeString();
+    row.append(labelNode, at);
+    elements["connection-history"].append(row);
+  }
+}
+function scheduleRefresh() {
+  clearInterval(refreshTimer);
+  const milliseconds = Number(elements["refresh-rate"].value);
+  elements["refresh-label"].textContent =
+    milliseconds === 0 ? "Auto-refresh · paused" : `Auto-refresh · ${milliseconds / 1000} seconds`;
+  if (milliseconds > 0) refreshTimer = setInterval(() => void refresh(), milliseconds);
+}
 async function refresh() {
   try {
     const response = await fetch("/api/paper/snapshot", { cache: "no-store" });
@@ -317,15 +364,20 @@ async function refresh() {
     );
     await refreshDetails();
     await refreshPerformance();
+    await refreshAlerts();
+    recordConnection("healthy", "Snapshot received");
   } catch {
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";
     elements["integrity-copy"].textContent =
       "The last durable values remain visible. Reconnecting automatically.";
+    recordConnection("error", "Refresh failed");
   }
 }
 void refresh();
-setInterval(() => void refresh(), 10_000);
+scheduleRefresh();
+elements["refresh-now"].addEventListener("click", () => void refresh());
+elements["refresh-rate"].addEventListener("change", scheduleRefresh);
 elements["token-search"].addEventListener("input", renderDetails);
 elements["side-filter"].addEventListener("change", renderDetails);
 elements["clear-filters"].addEventListener("click", () => {

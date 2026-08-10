@@ -4,9 +4,39 @@ import {
   readPaperDashboardDetails,
   readPaperPerformanceHistory,
   readPaperTokenDetails,
+  readPaperWorkerAlerts,
 } from "../../src/infrastructure/database/paper-dashboard.js";
 
 describe("paper dashboard details", () => {
+  it("reads bounded wallet-scoped worker alerts", async () => {
+    const queries: { text: string; values: readonly unknown[] }[] = [];
+    const database = {
+      query: async (text: string, values: readonly unknown[]) => {
+        queries.push({ text, values });
+        return {
+          rows: [
+            {
+              token_mint: "mint",
+              last_error: "quote failed",
+              available_at: new Date("2026-08-10T12:00:00Z"),
+              last_monitored_at: null,
+            },
+          ],
+        };
+      },
+    };
+    const alerts = await readPaperWorkerAlerts(database as never, "wallet" as never);
+    expect(alerts).toEqual([
+      {
+        tokenMint: "mint",
+        message: "quote failed",
+        retryAt: "2026-08-10T12:00:00.000Z",
+        lastMonitoredAt: null,
+      },
+    ]);
+    expect(queries[0]?.values).toEqual(["wallet"]);
+    expect(queries[0]?.text).toContain("LIMIT 50");
+  });
   it("reads bounded realized book-equity history for a fixed range", async () => {
     const queries: { text: string; values: readonly unknown[] }[] = [];
     const database = {

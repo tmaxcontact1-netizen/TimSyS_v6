@@ -16,7 +16,7 @@
       <nav aria-label="Dashboard sections">
         <a href="#overview">Overview</a><a href="#positions">Positions</a
         ><a href="#performance">Performance</a><a href="#history">History</a
-        ><a href="#events">Events</a>
+        ><a href="#events">Events</a><a href="#alerts">Alerts</a>
       </nav>
       <div class="status" id="status" data-state="loading">
         <span class="status-dot"></span><span id="status-label">Connecting</span>
@@ -38,6 +38,55 @@
         <article class="metric">
           <span>Realized P&amp;L</span><strong id="pnl">—</strong
           ><small>FIFO realized performance</small>
+        </article>
+      </section>
+      <section id="alerts" class="detail-grid" aria-label="Operational health detail">
+        <article class="panel table-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">DURABLE INCIDENTS</p>
+              <h2>Worker alerts</h2>
+            </div>
+            <span id="alert-count" class="count-chip">—</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Error</th>
+                  <th>Retry</th>
+                  <th>Last checked</th>
+                </tr>
+              </thead>
+              <tbody id="alert-rows">
+                <tr>
+                  <td colspan="4" class="empty">Awaiting durable data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel connection-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">DASHBOARD CONNECTION</p>
+              <h2>Refresh history</h2>
+            </div>
+            <button id="refresh-now" type="button">Refresh now</button>
+          </div>
+          <label class="refresh-control"
+            ><span>Automatic refresh</span
+            ><select id="refresh-rate">
+              <option value="10000">Every 10 seconds</option>
+              <option value="30000">Every 30 seconds</option>
+              <option value="60000">Every 60 seconds</option>
+              <option value="0">Paused</option>
+            </select></label
+          >
+          <ol id="connection-history" class="connection-history" aria-live="polite">
+            <li>Connecting…</li>
+          </ol>
         </article>
       </section>
       <section id="performance" class="panel chart-panel" aria-labelledby="performance-title">
@@ -285,7 +334,8 @@
       </div>
     </dialog>
     <footer>
-      <span>Read-only observation surface</span><span>Auto-refresh · 10 seconds</span>
+      <span>Read-only observation surface</span
+      ><span id="refresh-label">Auto-refresh · 10 seconds</span>
     </footer>
     <script src="/app.js" defer></script>
   </body>

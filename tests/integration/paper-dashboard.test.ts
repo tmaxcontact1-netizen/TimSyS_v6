@@ -201,4 +201,37 @@ describe("paper dashboard", () => {
     expect((await get(address.port, "/api/paper/performance?range=1%20year")).status).toBe(400);
     expect(queries).toBe(1);
   });
+
+  it("serves bounded worker alerts through a GET-only route", async () => {
+    const database = {
+      query: async () => ({
+        rows: [
+          {
+            token_mint: "mint",
+            last_error: "quote failed",
+            available_at: "2026-08-10T12:00:00Z",
+            last_monitored_at: null,
+          },
+        ],
+      }),
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const response = await get(address.port, "/api/paper/alerts");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper",
+      alerts: [{ tokenMint: "mint", message: "quote failed" }],
+    });
+    expect((await get(address.port, "/api/paper/alerts", "DELETE")).status).toBe(405);
+  });
 });

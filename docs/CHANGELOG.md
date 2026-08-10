@@ -112,3 +112,17 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 - Schedule live candidate discovery from the production supervisor before each position batch,
   persisting retry-safe candidates and evaluation work through the existing atomic repository.
+
+# Frontend alerts and refresh controls
+
+| File                                             | Change                                                                                 | Reason                                                | Authority              |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------- | ----------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                            | Added durable-alert inspection, refresh controls, and connection history               | Make worker and dashboard health directly inspectable | Authorized by operator |
+| `frontend/styles.css`                            | Added alert, refresh, and connection-state presentation                                | Keep operational failures legible across viewports    | Authorized by operator |
+| `frontend/app.js`                                | Added bounded alert polling, manual/configurable refresh, and local connection history | Expose failures without adding mutation authority     | Authorized by operator |
+| `src/infrastructure/database/paper-dashboard.ts` | Added bounded wallet-scoped unresolved worker-alert projection                         | Inspect durable retry failures safely                 | Authorized by operator |
+| `src/entrypoints/dashboard.ts`                   | Added GET-only paper-alert route                                                       | Deliver durable incidents without mutation authority  | Authorized by operator |
+| `tests/unit/paper-dashboard-details.test.ts`     | Added worker-alert query contract coverage                                             | Prove scope and output bounds                         | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts`      | Added alert route and mutation-refusal coverage                                        | Prove the HTTP boundary remains read-only             | Authorized by operator |
+| `docs/PROJECT_MAP.md`                            | Recorded alert projection and route                                                    | Keep the architecture inventory current               | Authorized by operator |
+| `docs/CHANGELOG.md`                              | Recorded the frontend alert batch                                                      | Maintain the file-touch audit                         | Authorized by operator |

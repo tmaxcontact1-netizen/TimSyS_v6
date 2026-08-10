@@ -16,6 +16,20 @@ interface DashboardRow {
   readonly events: unknown;
 }
 
+export interface PaperWorkerAlert {
+  readonly tokenMint: string;
+  readonly message: string;
+  readonly retryAt: string;
+  readonly lastMonitoredAt: string | null;
+}
+
+interface WorkerAlertRow {
+  readonly token_mint: string;
+  readonly last_error: string;
+  readonly available_at: Date | string;
+  readonly last_monitored_at: Date | string | null;
+}
+
 export interface PaperTokenDetails {
   readonly summary: Readonly<Record<string, unknown>>;
   readonly lots: readonly Record<string, unknown>[];
@@ -49,6 +63,34 @@ interface PerformanceHistoryRow {
 
 const rangeIntervals: Readonly<Record<Exclude<PaperPerformanceRange, "all">, string>> =
   Object.freeze({ "24h": "24 hours", "7d": "7 days", "30d": "30 days" });
+
+function timestamp(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+/** Reads bounded unresolved paper-position worker incidents for operator inspection. */
+export async function readPaperWorkerAlerts(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+): Promise<readonly PaperWorkerAlert[]> {
+  const result = await database.query<WorkerAlertRow>(
+    `SELECT token_mint,last_error,available_at,last_monitored_at
+     FROM paper_position_work
+     WHERE wallet=$1 AND last_error IS NOT NULL
+     ORDER BY available_at DESC,token_mint LIMIT 50`,
+    [wallet],
+  );
+  return Object.freeze(
+    result.rows.map((row) =>
+      Object.freeze({
+        tokenMint: row.token_mint,
+        message: row.last_error,
+        retryAt: timestamp(row.available_at),
+        lastMonitoredAt: row.last_monitored_at === null ? null : timestamp(row.last_monitored_at),
+      }),
+    ),
+  );
+}
 
 /** Reads bounded cumulative realized performance without claiming market valuation history. */
 export async function readPaperPerformanceHistory(

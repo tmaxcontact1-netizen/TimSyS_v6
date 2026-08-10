@@ -274,6 +274,50 @@ main {
 .toolbar button {
   cursor: pointer;
 }
+.connection-panel button,
+.refresh-control select {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: #f3f6f2;
+  background: #0c100e;
+  cursor: pointer;
+}
+.refresh-control {
+  display: grid;
+  gap: 8px;
+  margin: 24px 0 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.connection-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.connection-history li {
+  display: flex;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-top: 1px solid var(--line);
+  color: var(--green);
+  font:
+    12px ui-monospace,
+    monospace;
+}
+.connection-history li[data-state="error"] {
+  color: var(--red);
+}
+.connection-history time {
+  color: var(--muted);
+}
+.alert-message {
+  max-width: 360px;
+  overflow: hidden;
+  color: var(--red);
+  text-overflow: ellipsis;
+}
 #filter-status {
   margin-left: auto;
   padding-bottom: 10px;
