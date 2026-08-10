@@ -74,6 +74,11 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('name="density" value="compact"');
     expect(page.body).toContain('id="sidebar-collapse"');
     expect(page.body).toContain('id="panel-preferences"');
+    expect(page.body).toContain('id="theme-preference"');
+    expect(page.body).toContain('id="high-contrast"');
+    expect(page.body).toContain('id="reduce-motion"');
+    expect(page.body).toContain('id="preferences-export"');
+    expect(page.body).toContain('id="preferences-import"');
     expect(page.body).toContain('data-dashboard-panel="overview"');
     expect(page.body).toContain('data-dashboard-panel="trading"');
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");

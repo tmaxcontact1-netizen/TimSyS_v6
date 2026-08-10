@@ -158,3 +158,14 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 | `frontend/styles.css`                       | Added panel preference and hidden-state presentation             | Keep customization controls legible                         | Authorized by operator |
 | `tests/integration/paper-dashboard.test.ts` | Added static contracts for the customization surface             | Prove the approved controls are delivered                   | Authorized by operator |
 | `docs/PROJECT_MAP.md`                       | Recorded browser-local panel preferences                         | Keep the architecture inventory current                     | Authorized by operator |
+
+# Frontend theme, accessibility, and preference transfer
+
+| File                                        | Change                                                                     | Reason                                                  | Authority              |
+| ------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                       | Added theme, contrast, text, motion, and preference-transfer controls      | Complete the local dashboard preference surface         | Authorized by operator |
+| `frontend/styles.css`                       | Added light/system themes and accessible contrast, text, and motion states | Preserve readability across operator display needs      | Authorized by operator |
+| `frontend/app.js`                           | Added validated preference normalization and bounded JSON import/export    | Make local settings portable without backend mutation   | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts` | Added static contracts for accessibility and preference-transfer controls  | Prove the final planned frontend controls are delivered | Authorized by operator |
+| `docs/PROJECT_MAP.md`                       | Recorded theme, accessibility, and preference-transfer capabilities        | Keep the architecture inventory current                 | Authorized by operator |
+| `docs/CHANGELOG.md`                         | Recorded the final planned frontend batch                                  | Maintain the file-touch audit                           | Authorized by operator |

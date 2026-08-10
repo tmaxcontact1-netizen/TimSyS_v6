@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
     <title>Memecoined · Paper Desk</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
@@ -561,6 +561,20 @@
         <label><input type="radio" name="density" value="compact" /> Compact</label>
       </fieldset>
       <fieldset>
+        <legend>Theme and accessibility</legend>
+        <label
+          ><span>Theme</span
+          ><select id="theme-preference">
+            <option value="system">Use system setting</option>
+            <option value="dark">Dark</option>
+            <option value="light">Light</option>
+          </select></label
+        >
+        <label><input id="high-contrast" type="checkbox" /> Higher contrast</label>
+        <label><input id="large-text" type="checkbox" /> Larger interface text</label>
+        <label><input id="reduce-motion" type="checkbox" /> Reduce interface motion</label>
+      </fieldset>
+      <fieldset>
         <legend>Overview panels</legend>
         <p class="panel-note">Choose visible panels and use the buttons to set their order.</p>
         <div id="panel-preferences" class="panel-preferences"></div>
@@ -569,6 +583,22 @@
         Compact mode reduces spacing and hides secondary explanatory panels. Preferences stay in
         this browser.
       </p>
+      <fieldset>
+        <legend>Preference file</legend>
+        <p class="panel-note">
+          Export this browser's display settings or import a Memecoined preference file.
+        </p>
+        <div class="preference-transfer">
+          <button id="preferences-export" type="button">Export preferences</button>
+          <label class="file-button"
+            >Import preferences<input
+              id="preferences-import"
+              type="file"
+              accept="application/json,.json"
+          /></label>
+        </div>
+        <output id="preferences-message" class="preference-message" aria-live="polite"></output>
+      </fieldset>
       <div class="preference-actions">
         <button id="preferences-reset" type="button">Reset defaults</button>
         <button id="preferences-done" type="button">Done</button>

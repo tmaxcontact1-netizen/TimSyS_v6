@@ -60,6 +60,13 @@ const ids = [
   "preferences-reset",
   "preferences-done",
   "panel-preferences",
+  "theme-preference",
+  "high-contrast",
+  "large-text",
+  "reduce-motion",
+  "preferences-export",
+  "preferences-import",
+  "preferences-message",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
@@ -89,27 +96,41 @@ const sortState = {
 function loadPreferences() {
   try {
     const value = JSON.parse(localStorage.getItem(preferencesKey) ?? "{}");
-    const storedOrder = Array.isArray(value.panelOrder)
-      ? value.panelOrder.filter((id) => defaultPanelOrder.includes(id))
-      : [];
-    const panelOrder = [...new Set([...storedOrder, ...defaultPanelOrder])];
-    const hiddenPanels = Array.isArray(value.hiddenPanels)
-      ? value.hiddenPanels.filter((id) => id !== "overview" && defaultPanelOrder.includes(id))
-      : [];
-    return {
-      density: value.density === "compact" ? "compact" : "detailed",
-      sidebar: value.sidebar === "collapsed" ? "collapsed" : "expanded",
-      panelOrder,
-      hiddenPanels,
-    };
+    return normalizePreferences(value);
   } catch {
     return defaultPreferences();
   }
+}
+function normalizePreferences(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return defaultPreferences();
+  const storedOrder = Array.isArray(value.panelOrder)
+    ? value.panelOrder.filter((id) => defaultPanelOrder.includes(id))
+    : [];
+  const panelOrder = [...new Set([...storedOrder, ...defaultPanelOrder])];
+  const hiddenPanels = Array.isArray(value.hiddenPanels)
+    ? [...new Set(value.hiddenPanels)].filter(
+        (id) => id !== "overview" && defaultPanelOrder.includes(id),
+      )
+    : [];
+  return {
+    density: value.density === "compact" ? "compact" : "detailed",
+    sidebar: value.sidebar === "collapsed" ? "collapsed" : "expanded",
+    theme: ["system", "dark", "light"].includes(value.theme) ? value.theme : "system",
+    contrast: value.contrast === "high" ? "high" : "standard",
+    text: value.text === "large" ? "large" : "standard",
+    motion: value.motion === "reduced" ? "reduced" : "full",
+    panelOrder,
+    hiddenPanels,
+  };
 }
 function defaultPreferences() {
   return {
     density: "detailed",
     sidebar: "expanded",
+    theme: "system",
+    contrast: "standard",
+    text: "standard",
+    motion: "full",
     panelOrder: [...defaultPanelOrder],
     hiddenPanels: [],
   };
@@ -159,12 +180,62 @@ function applyPanelPreferences() {
 function applyPreferences() {
   document.body.dataset.density = preferences.density;
   document.body.dataset.sidebar = preferences.sidebar;
+  document.documentElement.dataset.theme = preferences.theme;
+  document.documentElement.dataset.contrast = preferences.contrast;
+  document.documentElement.dataset.text = preferences.text;
+  document.documentElement.dataset.motion = preferences.motion;
   elements["sidebar-collapse"].ariaPressed = String(preferences.sidebar === "collapsed");
   elements["sidebar-collapse"].textContent =
     preferences.sidebar === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
   const density = document.querySelector(`input[name="density"][value="${preferences.density}"]`);
   if (density instanceof HTMLInputElement) density.checked = true;
+  elements["theme-preference"].value = preferences.theme;
+  elements["high-contrast"].checked = preferences.contrast === "high";
+  elements["large-text"].checked = preferences.text === "large";
+  elements["reduce-motion"].checked = preferences.motion === "reduced";
   applyPanelPreferences();
+}
+function setPreferenceMessage(message, state = "ok") {
+  elements["preferences-message"].textContent = message;
+  elements["preferences-message"].dataset.state = state;
+}
+function exportPreferences() {
+  const payload = JSON.stringify(
+    { schema: "memecoined-dashboard-preferences", version: 1, preferences },
+    null,
+    2,
+  );
+  const url = URL.createObjectURL(new Blob([`${payload}\n`], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "memecoined-dashboard-preferences.json";
+  link.click();
+  URL.revokeObjectURL(url);
+  setPreferenceMessage("Preferences exported.");
+}
+async function importPreferences(file) {
+  if (!(file instanceof File)) return;
+  try {
+    if (file.size > 32_768) throw new Error("Preference file exceeds 32 KB.");
+    const payload = JSON.parse(await file.text());
+    if (
+      payload?.schema !== "memecoined-dashboard-preferences" ||
+      payload?.version !== 1 ||
+      !payload.preferences
+    ) {
+      throw new Error("Not a supported Memecoined preference file.");
+    }
+    preferences = normalizePreferences(payload.preferences);
+    savePreferences();
+    setPreferenceMessage("Preferences imported and applied.");
+  } catch (error) {
+    setPreferenceMessage(
+      error instanceof Error ? error.message : "Preference import failed.",
+      "error",
+    );
+  } finally {
+    elements["preferences-import"].value = "";
+  }
 }
 function savePreferences() {
   try {
@@ -635,7 +706,27 @@ elements["preferences-done"].addEventListener("click", () =>
 elements["preferences-reset"].addEventListener("click", () => {
   preferences = defaultPreferences();
   savePreferences();
+  setPreferenceMessage("Default preferences restored.");
 });
+elements["theme-preference"].addEventListener("change", () => {
+  preferences.theme = elements["theme-preference"].value;
+  savePreferences();
+});
+for (const [id, key, on, off] of [
+  ["high-contrast", "contrast", "high", "standard"],
+  ["large-text", "text", "large", "standard"],
+  ["reduce-motion", "motion", "reduced", "full"],
+]) {
+  elements[id].addEventListener("change", () => {
+    preferences[key] = elements[id].checked ? on : off;
+    savePreferences();
+  });
+}
+elements["preferences-export"].addEventListener("click", exportPreferences);
+elements["preferences-import"].addEventListener(
+  "change",
+  () => void importPreferences(elements["preferences-import"].files?.[0]),
+);
 elements["panel-preferences"].addEventListener("change", (event) => {
   if (!(event.target instanceof HTMLInputElement)) return;
   const id = event.target.dataset.panelVisibility;
