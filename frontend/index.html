@@ -70,6 +70,118 @@
           </dl>
         </article>
       </section>
+      <section class="detail-grid" aria-label="Trading detail">
+        <article class="panel table-panel wide">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">INVENTORY</p>
+              <h2>Open positions</h2>
+            </div>
+            <span id="position-count" class="count-chip">—</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Amount</th>
+                  <th>Cost</th>
+                  <th>Lots</th>
+                  <th>Opened</th>
+                </tr>
+              </thead>
+              <tbody id="position-rows">
+                <tr>
+                  <td colspan="5" class="empty">Awaiting durable data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel table-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">EXECUTION</p>
+              <h2>Recent fills</h2>
+            </div>
+            <span id="fill-count" class="count-chip">—</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Side</th>
+                  <th>Token</th>
+                  <th>Token amount</th>
+                  <th>Settlement</th>
+                  <th>Filled</th>
+                </tr>
+              </thead>
+              <tbody id="fill-rows">
+                <tr>
+                  <td colspan="5" class="empty">Awaiting durable data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel table-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">REALIZED RESULTS</p>
+              <h2>Performance history</h2>
+            </div>
+            <span id="performance-count" class="count-chip">—</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Proceeds</th>
+                  <th>Cost released</th>
+                  <th>P&amp;L</th>
+                  <th>Realized</th>
+                </tr>
+              </thead>
+              <tbody id="performance-rows">
+                <tr>
+                  <td colspan="5" class="empty">Awaiting durable data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel table-panel wide">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">DECISION LOG</p>
+              <h2>Operational events</h2>
+            </div>
+            <span id="event-count" class="count-chip">—</span>
+          </div>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Rule</th>
+                  <th>Token</th>
+                  <th>Open amount</th>
+                  <th>Requested</th>
+                  <th>Value</th>
+                  <th>Evaluated</th>
+                </tr>
+              </thead>
+              <tbody id="event-rows">
+                <tr>
+                  <td colspan="7" class="empty">Awaiting durable data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
     </main>
     <footer>
       <span>Read-only observation surface</span><span>Auto-refresh · 10 seconds</span>

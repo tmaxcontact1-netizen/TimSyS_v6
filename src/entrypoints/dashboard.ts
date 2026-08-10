@@ -9,6 +9,7 @@ import type { WalletAddress } from "../domain/shared/types.js";
 import { loadRuntimeConfig } from "../infrastructure/config/load-config.js";
 import { verifyRuntimeDatabase } from "../infrastructure/database/migrations.js";
 import { createRuntimePool } from "../infrastructure/database/pool.js";
+import { readPaperDashboardDetails } from "../infrastructure/database/paper-dashboard.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
@@ -66,6 +67,15 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), performance });
       } catch {
         sendJson(response, 503, { error: "paper_snapshot_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/details") {
+      try {
+        const details = await readPaperDashboardDetails(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), details });
+      } catch {
+        sendJson(response, 503, { error: "paper_details_unavailable" });
       }
       return;
     }

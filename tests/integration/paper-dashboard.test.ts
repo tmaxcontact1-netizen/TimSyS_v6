@@ -92,4 +92,31 @@ describe("paper dashboard", () => {
     expect(response.status).toBe(503);
     expect(JSON.parse(response.body)).toEqual({ error: "paper_snapshot_unavailable" });
   });
+
+  it("serves bounded detail data without exposing a mutation route", async () => {
+    const database = {
+      query: async () => ({
+        rows: [{ positions: [], fills: [{ side: "buy" }], performance: [], events: [] }],
+      }),
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+      now: () => new Date("2026-08-10T12:00:00.000Z"),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const response = await get(address.port, "/api/paper/details");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper",
+      details: { fills: [{ side: "buy" }] },
+    });
+    expect((await get(address.port, "/api/paper/details", "DELETE")).status).toBe(405);
+  });
 });

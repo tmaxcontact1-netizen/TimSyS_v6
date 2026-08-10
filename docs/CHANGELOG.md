@@ -6,6 +6,19 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-10
 
+| File                                             | Change                                                                 | Reason                                                              | Status                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                            | Added positions, fills, realized-performance, and decision-log tables  | Expose the durable trading detail behind the summary                | Authorized by operator |
+| `frontend/styles.css`                            | Added responsive table and state presentation                          | Keep detailed operational data legible across viewport sizes        | Authorized by operator |
+| `frontend/app.js`                                | Added safe detail polling, exact values, and text-only table rendering | Present bounded database facts without markup injection or rounding | Authorized by operator |
+| `src/infrastructure/database/paper-dashboard.ts` | Added one-statement bounded detail projection                          | Keep all detail panels internally consistent and read-only          | Authorized by operator |
+| `src/entrypoints/dashboard.ts`                   | Added the GET-only paper detail endpoint                               | Deliver detail facts without adding mutation authority              | Authorized by operator |
+| `tests/unit/paper-dashboard-details.test.ts`     | Added snapshot, bound, and malformed-payload coverage                  | Prove the detail projection contract                                | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts`      | Added detail-route and mutation-refusal coverage                       | Prove the HTTP boundary remains read-only                           | Authorized by operator |
+| `vitest.config.ts`                               | Added the detail projection suite                                      | Include the new contract in the complete gate                       | Authorized by operator |
+| `docs/PROJECT_MAP.md`                            | Recorded the dashboard detail projection and route                     | Keep the architecture inventory current                             | Authorized by operator |
+| `docs/CHANGELOG.md`                              | Recorded the detailed frontend batch                                   | Maintain the file-touch audit                                       | Authorized by operator |
+
 | File                                        | Change                                                 | Reason                                                           | Status                 |
 | ------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------- |
 | `frontend/index.html`                       | Added the paper operator dashboard structure           | Provide the first browser observation surface                    | Authorized by operator |

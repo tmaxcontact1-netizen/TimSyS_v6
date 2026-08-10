@@ -16,6 +16,14 @@ const ids = [
   "errors",
   "wallet",
   "observed",
+  "position-count",
+  "fill-count",
+  "performance-count",
+  "event-count",
+  "position-rows",
+  "fill-rows",
+  "performance-rows",
+  "event-rows",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 function sol(raw) {
@@ -37,6 +45,103 @@ function pnlClass(node, raw) {
   node.classList.remove("positive", "negative");
   if (BigInt(raw) > 0n) node.classList.add("positive");
   if (BigInt(raw) < 0n) node.classList.add("negative");
+}
+function short(value) {
+  const text = String(value ?? "—");
+  return text.length > 16 ? `${text.slice(0, 6)}…${text.slice(-6)}` : text;
+}
+function time(value) {
+  return value ? new Date(String(value)).toLocaleString() : "—";
+}
+function renderRows(target, records, cells, empty) {
+  target.replaceChildren();
+  if (records.length === 0) {
+    const row = target.insertRow();
+    const cell = row.insertCell();
+    cell.colSpan = cells.length;
+    cell.className = "empty";
+    cell.textContent = empty;
+    return;
+  }
+  for (const record of records) {
+    const row = target.insertRow();
+    for (const render of cells) {
+      const cell = row.insertCell();
+      const value = render(record);
+      cell.textContent = value.text;
+      if (value.className) cell.className = value.className;
+      if (value.title) cell.title = value.title;
+    }
+  }
+}
+function amount(raw) {
+  const value = String(raw ?? "0");
+  return { text: BigInt(value).toLocaleString(), title: value };
+}
+function token(record) {
+  return { text: short(record.token_mint), title: String(record.token_mint ?? "") };
+}
+async function refreshDetails() {
+  const response = await fetch("/api/paper/details", { cache: "no-store" });
+  if (!response.ok) throw new Error("details unavailable");
+  const { details } = await response.json();
+  elements["position-count"].textContent = details.positions.length;
+  elements["fill-count"].textContent = details.fills.length;
+  elements["performance-count"].textContent = details.performance.length;
+  elements["event-count"].textContent = details.events.length;
+  renderRows(
+    elements["position-rows"],
+    details.positions,
+    [
+      token,
+      (r) => amount(r.amount_raw),
+      (r) => ({ text: sol(r.cost_raw) }),
+      (r) => ({ text: String(r.lots) }),
+      (r) => ({ text: time(r.opened_at) }),
+    ],
+    "No open positions",
+  );
+  renderRows(
+    elements["fill-rows"],
+    details.fills,
+    [
+      (r) => ({ text: String(r.side).toUpperCase(), className: `side-${r.side}` }),
+      token,
+      (r) => amount(r.token_amount_raw),
+      (r) => ({ text: sol(r.settlement_amount_raw) }),
+      (r) => ({ text: time(r.filled_at) }),
+    ],
+    "No fills recorded",
+  );
+  renderRows(
+    elements["performance-rows"],
+    details.performance,
+    [
+      token,
+      (r) => ({ text: sol(r.proceeds_raw) }),
+      (r) => ({ text: sol(r.released_cost_raw) }),
+      (r) => ({
+        text: sol(r.realized_pnl_raw),
+        className: BigInt(r.realized_pnl_raw) >= 0n ? "positive" : "negative",
+      }),
+      (r) => ({ text: time(r.realized_at) }),
+    ],
+    "No realized performance",
+  );
+  renderRows(
+    elements["event-rows"],
+    details.events,
+    [
+      (r) => ({ text: String(r.action).toUpperCase() }),
+      (r) => ({ text: String(r.rule_id ?? "—") }),
+      token,
+      (r) => amount(r.open_amount_raw),
+      (r) => amount(r.requested_amount_raw),
+      (r) => ({ text: `${r.executable_value_sol} SOL` }),
+      (r) => ({ text: time(r.evaluated_at) }),
+    ],
+    "No exit evaluations",
+  );
 }
 async function refresh() {
   try {
@@ -71,6 +176,7 @@ async function refresh() {
       performance.healthy ? "healthy" : "unhealthy",
       performance.healthy ? "Healthy" : "Attention required",
     );
+    await refreshDetails();
   } catch {
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";
