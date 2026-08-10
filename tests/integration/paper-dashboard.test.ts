@@ -14,19 +14,32 @@ afterEach(async () => {
   );
 });
 
-async function get(port: number, path: string, method = "GET") {
+async function get(
+  port: number,
+  path: string,
+  method = "GET",
+  headers: Record<string, string> = {},
+  body?: string,
+) {
+  const requestHeaders =
+    body === undefined
+      ? headers
+      : { ...headers, "content-length": String(Buffer.byteLength(body)) };
   return await new Promise<{ status: number; body: string; headers: IncomingHttpHeaders }>(
     (resolve, reject) => {
-      const call = request({ hostname: "127.0.0.1", port, path, method }, (response) => {
-        let body = "";
-        response.setEncoding("utf8");
-        response.on("data", (chunk) => (body += chunk));
-        response.on("end", () =>
-          resolve({ status: response.statusCode ?? 0, body, headers: response.headers }),
-        );
-      });
+      const call = request(
+        { hostname: "127.0.0.1", port, path, method, headers: requestHeaders },
+        (response) => {
+          let body = "";
+          response.setEncoding("utf8");
+          response.on("data", (chunk) => (body += chunk));
+          response.on("end", () =>
+            resolve({ status: response.statusCode ?? 0, body, headers: response.headers }),
+          );
+        },
+      );
       call.on("error", reject);
-      call.end();
+      call.end(body);
     },
   );
 }
@@ -247,5 +260,90 @@ describe("paper dashboard", () => {
       alerts: [{ tokenMint: "mint", message: "quote failed" }],
     });
     expect((await get(address.port, "/api/paper/alerts", "DELETE")).status).toBe(405);
+  });
+
+  it("authenticates watchlist mutations and enforces optimistic versions", async () => {
+    const id = "123e4567-e89b-42d3-a456-426614174000";
+    const database = {
+      query: async (sql: string) => {
+        if (sql.includes("INSERT INTO dashboard_watchlists"))
+          return {
+            rows: [
+              {
+                id,
+                name: "Momentum",
+                version: 1,
+                created_at: "2026-08-10T12:00:00Z",
+                updated_at: "2026-08-10T12:00:00Z",
+                tokens: [],
+              },
+            ],
+          };
+        return { rows: [] };
+      },
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+      mutationToken: "a".repeat(32),
+      now: () => new Date("2026-08-10T12:00:00.000Z"),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const payload = JSON.stringify({ name: "Momentum" });
+    expect((await get(address.port, "/api/watchlists", "POST")).status).toBe(401);
+    const headers = {
+      authorization: `Bearer ${"a".repeat(32)}`,
+      origin: `http://127.0.0.1:${address.port}`,
+      host: `127.0.0.1:${address.port}`,
+      "content-type": "application/json",
+    };
+    const response = await get(address.port, "/api/watchlists", "POST", headers, payload);
+    expect(response.status).toBe(201);
+    expect(JSON.parse(response.body)).toMatchObject({
+      watchlist: { id, name: "Momentum", version: 1, tokens: [] },
+    });
+  });
+
+  it("requires destructive confirmation for watchlist deletion", async () => {
+    let queries = 0;
+    const server = createPaperDashboardServer({
+      database: {
+        query: async () => {
+          queries += 1;
+          return { rows: [] };
+        },
+        end: async () => undefined,
+      } as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+      mutationToken: "b".repeat(32),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const headers = {
+      authorization: `Bearer ${"b".repeat(32)}`,
+      origin: `http://127.0.0.1:${address.port}`,
+      host: `127.0.0.1:${address.port}`,
+      "content-type": "application/json",
+    };
+    const response = await get(
+      address.port,
+      "/api/watchlists/123e4567-e89b-42d3-a456-426614174000",
+      "DELETE",
+      headers,
+      JSON.stringify({ expectedVersion: 1 }),
+    );
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toEqual({ error: "invalid_confirmation" });
+    expect(queries).toBe(0);
   });
 });

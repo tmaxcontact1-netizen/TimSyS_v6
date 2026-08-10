@@ -57,13 +57,26 @@ const paperRequiredColumns = Object.freeze([
   "paper_exit_evaluations.evaluated_at",
 ]);
 
+const dashboardRequiredColumns = Object.freeze([
+  "dashboard_watchlists.version",
+  "dashboard_watchlist_tokens.token_mint",
+  "dashboard_mutation_audit.action",
+]);
+
 /** Verifies connectivity and the exact runtime-owned schema without executing DDL. */
 export async function verifyRuntimeDatabase(
   pool: Pick<Pool, "query">,
   mode?: OperatingMode,
+  dashboard = false,
 ): Promise<DatabaseReadiness> {
   const expected =
-    mode === "paper" ? [...requiredColumns, ...paperRequiredColumns] : requiredColumns;
+    mode === "paper"
+      ? [
+          ...requiredColumns,
+          ...paperRequiredColumns,
+          ...(dashboard ? dashboardRequiredColumns : []),
+        ]
+      : requiredColumns;
   const tables = [...new Set(expected.map((column) => column.split(".")[0]))];
   const version = await pool.query<{ readonly server_version: string }>("SHOW server_version");
   const columns = await pool.query<{ readonly table_name: string; readonly column_name: string }>(

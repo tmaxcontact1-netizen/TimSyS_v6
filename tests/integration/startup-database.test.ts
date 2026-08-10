@@ -51,6 +51,9 @@ const paperColumns = [
   "paper_position_work.last_error",
   "paper_realized_performance.realized_pnl_raw",
   "paper_exit_evaluations.evaluated_at",
+  "dashboard_watchlists.version",
+  "dashboard_watchlist_tokens.token_mint",
+  "dashboard_mutation_audit.action",
 ];
 
 function database(missing?: string, includePaper = false) {
@@ -111,6 +114,10 @@ describe("runtime database startup", () => {
       serverVersion: "18.4",
       schemaReady: true,
     }));
+  it("keeps the paper supervisor independent of optional dashboard tables", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("dashboard_watchlists.version", true) as never, "paper"),
+    ).resolves.toEqual({ serverVersion: "18.4", schemaReady: true }));
   it("rejects an unapplied paper authority migration", async () =>
     await expect(
       verifyRuntimeDatabase(
@@ -118,4 +125,8 @@ describe("runtime database startup", () => {
         "paper",
       ),
     ).rejects.toThrow(/paper_exit_evaluations.evaluated_at/));
+  it("rejects an unapplied dashboard watchlist migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("dashboard_watchlists.version", true) as never, "paper", true),
+    ).rejects.toThrow(/dashboard_watchlists.version/));
 });

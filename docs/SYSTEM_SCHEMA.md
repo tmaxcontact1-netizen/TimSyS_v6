@@ -263,3 +263,11 @@ Approval locks the data and behavioural contract. It authorizes creation and app
 | Version | Date       | Change                              | Reason                                   |
 | ------- | ---------- | ----------------------------------- | ---------------------------------------- |
 | 1.0.0   | 2026-08-03 | Created authoritative system schema | Complete the pre-code specification gate |
+
+### Dashboard watchlist persistence
+
+- `dashboard_watchlists` stores wallet-scoped named lists with monotonically increasing optimistic versions.
+- `dashboard_watchlist_tokens` stores validated Solana mint membership and cascades only when its owning list is deleted.
+- `dashboard_mutation_audit` stores immutable create, rename, delete, add-token, and remove-token facts independently of trading records.
+- Every update or delete requires the caller's expected version. A stale version changes nothing and returns a conflict.
+- Watchlist mutations cannot create trading commands, decisions, signatures, submissions, or position changes.

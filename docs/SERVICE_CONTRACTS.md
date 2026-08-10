@@ -21,18 +21,18 @@
 
 ## 2. Approved service topology
 
-| Service | Approved role | Authority level | Required stage | Core dependency |
-|---|---|---|---|---|
-| Solana JSON-RPC | Account state, transaction simulation, balances, blockhashes, signatures and reconciliation | Authoritative | All live-data stages | Yes |
-| Solana WebSocket | Account, log and signature change notification | Notification only; RPC confirms state | Live observation onward | Yes |
-| Helius RPC/WebSocket | Primary hosted Solana transport and enhanced wallet monitoring | Authoritative only when returning canonical chain state | Live observation onward | Yes |
-| Helius Sender | Primary live transaction submission | Submission only; confirmation and balances prove outcome | Human-approved live onward | Yes for live trading |
-| Jupiter | Executable swap quote, route and transaction construction | Authoritative for its own current quote only | Shadow trading onward | Yes |
-| DexScreener | Token/pair discovery and public market context | Secondary | Live observation onward | Yes for initial discovery |
-| GMGN | Manual wallet discovery and optional candidate intelligence | Untrusted/secondary | Research and optional live discovery | No |
-| Birdeye | Optional price, market and security cross-check | Secondary/fallback | Optional | No |
-| Telegram Bot API | Alerts, approvals and emergency operator commands | Authoritative only for authenticated operator intent | Paper trading onward | No for strategy; required for supervised live |
-| Telegram channels | Candidate discovery | Untrusted | Optional | No |
+| Service              | Approved role                                                                               | Authority level                                          | Required stage                       | Core dependency                               |
+| -------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------ | --------------------------------------------- |
+| Solana JSON-RPC      | Account state, transaction simulation, balances, blockhashes, signatures and reconciliation | Authoritative                                            | All live-data stages                 | Yes                                           |
+| Solana WebSocket     | Account, log and signature change notification                                              | Notification only; RPC confirms state                    | Live observation onward              | Yes                                           |
+| Helius RPC/WebSocket | Primary hosted Solana transport and enhanced wallet monitoring                              | Authoritative only when returning canonical chain state  | Live observation onward              | Yes                                           |
+| Helius Sender        | Primary live transaction submission                                                         | Submission only; confirmation and balances prove outcome | Human-approved live onward           | Yes for live trading                          |
+| Jupiter              | Executable swap quote, route and transaction construction                                   | Authoritative for its own current quote only             | Shadow trading onward                | Yes                                           |
+| DexScreener          | Token/pair discovery and public market context                                              | Secondary                                                | Live observation onward              | Yes for initial discovery                     |
+| GMGN                 | Manual wallet discovery and optional candidate intelligence                                 | Untrusted/secondary                                      | Research and optional live discovery | No                                            |
+| Birdeye              | Optional price, market and security cross-check                                             | Secondary/fallback                                       | Optional                             | No                                            |
+| Telegram Bot API     | Alerts, approvals and emergency operator commands                                           | Authoritative only for authenticated operator intent     | Paper trading onward                 | No for strategy; required for supervised live |
+| Telegram channels    | Candidate discovery                                                                         | Untrusted                                                | Optional                             | No                                            |
 
 ## 3. Solana JSON-RPC and WebSocket
 
@@ -340,46 +340,46 @@ A command is accepted only when:
 
 These are required conceptual boundaries for the later schema; field types and implementation language remain unapproved until `SYSTEM_SCHEMA.md`.
 
-| Contract | Required content |
-|---|---|
-| `TokenIdentityObservation` | Mint, program owner, decimals, authorities, extensions, slot, source |
-| `BalanceObservation` | Wallet, asset mint/native SOL, raw amount, slot, commitment, source |
-| `TransactionObservation` | Signature, slot, commitment, status, account/token balance deltas, fees |
-| `MarketObservation` | Mint, pool, price, liquidity, volume, transactions, source timestamps |
-| `WalletActivityObservation` | Wallet, signature, mint, interpreted action, raw balance deltas, confidence |
-| `ExecutableQuote` | Mints, raw amounts, minimum output, slippage, impact, route, timestamps |
-| `ConstructedTransaction` | Quote reference, blockhash/expiry, serialized payload hash, required signers, instructions |
-| `SubmissionReceipt` | Order reference, provider, attempt, signature, submission timestamp, acknowledgement only |
-| `OperatorCommand` | Update ID, sender/chat, command, target, nonce, receipt/expiry, decision |
-| `ProviderHealthObservation` | Provider, interface, state, latency, failure class, observation time |
+| Contract                    | Required content                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| `TokenIdentityObservation`  | Mint, program owner, decimals, authorities, extensions, slot, source                       |
+| `BalanceObservation`        | Wallet, asset mint/native SOL, raw amount, slot, commitment, source                        |
+| `TransactionObservation`    | Signature, slot, commitment, status, account/token balance deltas, fees                    |
+| `MarketObservation`         | Mint, pool, price, liquidity, volume, transactions, source timestamps                      |
+| `WalletActivityObservation` | Wallet, signature, mint, interpreted action, raw balance deltas, confidence                |
+| `ExecutableQuote`           | Mints, raw amounts, minimum output, slippage, impact, route, timestamps                    |
+| `ConstructedTransaction`    | Quote reference, blockhash/expiry, serialized payload hash, required signers, instructions |
+| `SubmissionReceipt`         | Order reference, provider, attempt, signature, submission timestamp, acknowledgement only  |
+| `OperatorCommand`           | Update ID, sender/chat, command, target, nonce, receipt/expiry, decision                   |
+| `ProviderHealthObservation` | Provider, interface, state, latency, failure class, observation time                       |
 
 ## 11. Cross-provider decision matrix
 
-| Decision | Required evidence | Secondary evidence | Blocking condition |
-|---|---|---|---|
-| Canonical token identity | Solana mint account | Jupiter/DexScreener metadata | Mint account unavailable or undecodable |
-| Token security | Direct Solana program/account decoding | Birdeye/Helius enrichment | Any required check unavailable or unsafe |
-| Tracked-wallet transaction | Raw confirmed Solana transaction and balance deltas | Helius enhanced parsing, GMGN label | Cannot distinguish swap from transfer |
-| Market qualification | DexScreener plus executable Jupiter sellability | Birdeye | Stale/conflicting data or no exit quote |
-| Entry price/quantity | Fresh Jupiter quote then confirmed balance deltas | None | Quote expired, simulation failed or balances unconfirmed |
-| Exit value | Fresh Jupiter token-to-SOL quote | DexScreener/Birdeye context | No valid route or excessive impact |
-| Transaction success | Confirmed Solana transaction and reconciled balances | Helius notification | Signature only or unexplained discrepancy |
-| Operator approval | Authenticated, unexpired Telegram command | None | Unauthorized, duplicate conflict or locked circuit breaker |
+| Decision                   | Required evidence                                    | Secondary evidence                  | Blocking condition                                         |
+| -------------------------- | ---------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------- |
+| Canonical token identity   | Solana mint account                                  | Jupiter/DexScreener metadata        | Mint account unavailable or undecodable                    |
+| Token security             | Direct Solana program/account decoding               | Birdeye/Helius enrichment           | Any required check unavailable or unsafe                   |
+| Tracked-wallet transaction | Raw confirmed Solana transaction and balance deltas  | Helius enhanced parsing, GMGN label | Cannot distinguish swap from transfer                      |
+| Market qualification       | DexScreener plus executable Jupiter sellability      | Birdeye                             | Stale/conflicting data or no exit quote                    |
+| Entry price/quantity       | Fresh Jupiter quote then confirmed balance deltas    | None                                | Quote expired, simulation failed or balances unconfirmed   |
+| Exit value                 | Fresh Jupiter token-to-SOL quote                     | DexScreener/Birdeye context         | No valid route or excessive impact                         |
+| Transaction success        | Confirmed Solana transaction and reconciled balances | Helius notification                 | Signature only or unexplained discrepancy                  |
+| Operator approval          | Authenticated, unexpired Telegram command            | None                                | Unauthorized, duplicate conflict or locked circuit breaker |
 
 ## 12. Service-level operating thresholds
 
 These thresholds are locked for the initial build unless the later schema identifies a direct contradiction with Strategy Specification v1.0.
 
-| Condition | Required action |
-|---|---|
-| Jupiter quote older than 2 seconds at execution gate | Reject and requote |
-| Telegram approval older than 15 seconds | Expire and require new signal quote |
-| Helius WebSocket idle approaching 1 minute | Send health ping |
-| Market data unavailable for 60 seconds with open position | Trigger emergency-exit evaluation and critical alert |
-| Primary and fallback RPC unavailable for 30 seconds | Block entries and trigger critical open-position workflow |
-| Source disagreement lasting over 60 seconds | Disable new entries |
-| DexScreener/Birdeye/GMGN unavailable | Remove that source; never substitute invented/last-known current data |
-| Telegram unavailable during supervised mode | Block new entries; continue monitoring and protective exits |
+| Condition                                                 | Required action                                                       |
+| --------------------------------------------------------- | --------------------------------------------------------------------- |
+| Jupiter quote older than 2 seconds at execution gate      | Reject and requote                                                    |
+| Telegram approval older than 15 seconds                   | Expire and require new signal quote                                   |
+| Helius WebSocket idle approaching 1 minute                | Send health ping                                                      |
+| Market data unavailable for 60 seconds with open position | Trigger emergency-exit evaluation and critical alert                  |
+| Primary and fallback RPC unavailable for 30 seconds       | Block entries and trigger critical open-position workflow             |
+| Source disagreement lasting over 60 seconds               | Disable new entries                                                   |
+| DexScreener/Birdeye/GMGN unavailable                      | Remove that source; never substitute invented/last-known current data |
+| Telegram unavailable during supervised mode               | Block new entries; continue monitoring and protective exits           |
 
 ## 13. Required accounts and pre-implementation proofs
 
@@ -409,6 +409,14 @@ No provider adapter, database schema, dependency manifest or executable code is 
 
 ## Revision history
 
-| Version | Date | Change | Reason |
-|---|---|---|---|
-| 1.0.0 | 2026-08-03 | Created complete service contracts from scratch | Establish viable external interfaces before architecture or code |
+| Version | Date       | Change                                          | Reason                                                           |
+| ------- | ---------- | ----------------------------------------------- | ---------------------------------------------------------------- |
+| 1.0.0   | 2026-08-03 | Created complete service contracts from scratch | Establish viable external interfaces before architecture or code |
+
+## Local dashboard mutation contract
+
+- The dashboard binds only to `127.0.0.1` and exposes watchlist mutations separately from all trading authority.
+- Mutation requests require `PAPER_DASHBOARD_MUTATION_TOKEN`, an exact same-origin header, JSON content type, and a body no larger than 16 KB.
+- Names, UUIDs, Solana mints, expected versions, and destructive confirmations are validated before persistence.
+- Create, rename, token membership changes, and deletion write immutable audit facts atomically with the mutation.
+- Stale or duplicate changes fail closed; internal database errors are not returned to the browser.
