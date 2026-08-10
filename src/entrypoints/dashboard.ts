@@ -5,11 +5,14 @@ import { pathToFileURL } from "node:url";
 
 import type { Pool } from "pg";
 
-import type { WalletAddress } from "../domain/shared/types.js";
+import type { MintAddress, WalletAddress } from "../domain/shared/types.js";
 import { loadRuntimeConfig } from "../infrastructure/config/load-config.js";
 import { verifyRuntimeDatabase } from "../infrastructure/database/migrations.js";
 import { createRuntimePool } from "../infrastructure/database/pool.js";
-import { readPaperDashboardDetails } from "../infrastructure/database/paper-dashboard.js";
+import {
+  readPaperDashboardDetails,
+  readPaperTokenDetails,
+} from "../infrastructure/database/paper-dashboard.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
@@ -17,6 +20,7 @@ const contentTypes: Readonly<Record<string, string>> = Object.freeze({
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
 });
+const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
 export interface PaperDashboardDependencies {
   readonly database: Pick<Pool, "query" | "end">;
@@ -53,7 +57,8 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
   const now = dependencies.now ?? (() => new Date());
   return createServer(async (request: IncomingMessage, response: ServerResponse) => {
     const method = request.method ?? "GET";
-    const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const pathname = url.pathname;
     if (method !== "GET") {
       sendJson(response, 405, { error: "method_not_allowed" });
       return;
@@ -76,6 +81,24 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), details });
       } catch {
         sendJson(response, 503, { error: "paper_details_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/token") {
+      const mint = url.searchParams.get("mint");
+      if (mint === null || !SOLANA_ADDRESS.test(mint)) {
+        sendJson(response, 400, { error: "invalid_token_mint" });
+        return;
+      }
+      try {
+        const token = await readPaperTokenDetails(
+          dependencies.database,
+          dependencies.wallet,
+          mint as MintAddress,
+        );
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), token });
+      } catch {
+        sendJson(response, 503, { error: "paper_token_unavailable" });
       }
       return;
     }

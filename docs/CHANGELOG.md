@@ -6,6 +6,18 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-10
 
+| File                                             | Change                                                               | Reason                                                        | Status                 |
+| ------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                            | Added section navigation, filters, and token lifecycle dialog        | Make bounded trading history navigable and token-specific     | Authorized by operator |
+| `frontend/styles.css`                            | Added responsive toolbar, navigation, and detail-dialog presentation | Preserve operational legibility across desktop and mobile     | Authorized by operator |
+| `frontend/app.js`                                | Added local filtering and safe token-detail rendering                | Search snapshots without database churn or markup injection   | Authorized by operator |
+| `src/infrastructure/database/paper-dashboard.ts` | Added one-statement bounded token lifecycle projection               | Present inventory, fills, results, and decisions consistently | Authorized by operator |
+| `src/entrypoints/dashboard.ts`                   | Added validated GET-only paper-token route                           | Reject malformed mint input before PostgreSQL access          | Authorized by operator |
+| `tests/unit/paper-dashboard-details.test.ts`     | Added token projection bounds and snapshot coverage                  | Prove the database projection contract                        | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts`      | Added mint validation, lifecycle route, and mutation refusal tests   | Prove token detail remains local, read-only, and fail-closed  | Authorized by operator |
+| `docs/PROJECT_MAP.md`                            | Recorded navigation and token lifecycle observation                  | Keep the architecture inventory current                       | Authorized by operator |
+| `docs/CHANGELOG.md`                              | Recorded the frontend navigation and token-detail batch              | Maintain the file-touch audit                                 | Authorized by operator |
+
 | File                                             | Change                                                                 | Reason                                                              | Status                 |
 | ------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------- | ---------------------- |
 | `frontend/index.html`                            | Added positions, fills, realized-performance, and decision-log tables  | Expose the durable trading detail behind the summary                | Authorized by operator |

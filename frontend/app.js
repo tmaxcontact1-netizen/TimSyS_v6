@@ -24,8 +24,23 @@ const ids = [
   "fill-rows",
   "performance-rows",
   "event-rows",
+  "token-search",
+  "side-filter",
+  "clear-filters",
+  "filter-status",
+  "token-dialog",
+  "token-title",
+  "token-address",
+  "token-amount",
+  "token-cost",
+  "token-pnl",
+  "token-lots",
+  "token-lot-rows",
+  "token-fill-rows",
+  "close-token",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
 function sol(raw) {
   const value = BigInt(raw);
   const absolute = value < 0n ? -value : value;
@@ -71,6 +86,10 @@ function renderRows(target, records, cells, empty) {
       cell.textContent = value.text;
       if (value.className) cell.className = value.className;
       if (value.title) cell.title = value.title;
+      if (value.token) {
+        cell.dataset.tokenMint = value.token;
+        cell.classList.add("token-link");
+      }
     }
   }
 }
@@ -79,19 +98,42 @@ function amount(raw) {
   return { text: BigInt(value).toLocaleString(), title: value };
 }
 function token(record) {
-  return { text: short(record.token_mint), title: String(record.token_mint ?? "") };
+  return {
+    text: short(record.token_mint),
+    title: String(record.token_mint ?? ""),
+    token: record.token_mint,
+  };
 }
-async function refreshDetails() {
-  const response = await fetch("/api/paper/details", { cache: "no-store" });
-  if (!response.ok) throw new Error("details unavailable");
-  const { details } = await response.json();
-  elements["position-count"].textContent = details.positions.length;
-  elements["fill-count"].textContent = details.fills.length;
-  elements["performance-count"].textContent = details.performance.length;
-  elements["event-count"].textContent = details.events.length;
+function normalizedSearch() {
+  return elements["token-search"].value.trim().toLowerCase();
+}
+function filterToken(records) {
+  const query = normalizedSearch();
+  return query
+    ? records.filter((record) =>
+        String(record.token_mint ?? "")
+          .toLowerCase()
+          .includes(query),
+      )
+    : records;
+}
+function renderDetails() {
+  const positions = filterToken(detailSnapshot.positions);
+  const performance = filterToken(detailSnapshot.performance);
+  const events = filterToken(detailSnapshot.events);
+  const fills = filterToken(detailSnapshot.fills).filter(
+    (record) =>
+      elements["side-filter"].value === "all" || record.side === elements["side-filter"].value,
+  );
+  elements["filter-status"].textContent =
+    `Showing ${positions.length + fills.length + performance.length + events.length} records`;
+  elements["position-count"].textContent = positions.length;
+  elements["fill-count"].textContent = fills.length;
+  elements["performance-count"].textContent = performance.length;
+  elements["event-count"].textContent = events.length;
   renderRows(
     elements["position-rows"],
-    details.positions,
+    positions,
     [
       token,
       (r) => amount(r.amount_raw),
@@ -99,11 +141,11 @@ async function refreshDetails() {
       (r) => ({ text: String(r.lots) }),
       (r) => ({ text: time(r.opened_at) }),
     ],
-    "No open positions",
+    "No matching positions",
   );
   renderRows(
     elements["fill-rows"],
-    details.fills,
+    fills,
     [
       (r) => ({ text: String(r.side).toUpperCase(), className: `side-${r.side}` }),
       token,
@@ -111,11 +153,11 @@ async function refreshDetails() {
       (r) => ({ text: sol(r.settlement_amount_raw) }),
       (r) => ({ text: time(r.filled_at) }),
     ],
-    "No fills recorded",
+    "No matching fills",
   );
   renderRows(
     elements["performance-rows"],
-    details.performance,
+    performance,
     [
       token,
       (r) => ({ text: sol(r.proceeds_raw) }),
@@ -126,11 +168,11 @@ async function refreshDetails() {
       }),
       (r) => ({ text: time(r.realized_at) }),
     ],
-    "No realized performance",
+    "No matching performance",
   );
   renderRows(
     elements["event-rows"],
-    details.events,
+    events,
     [
       (r) => ({ text: String(r.action).toUpperCase() }),
       (r) => ({ text: String(r.rule_id ?? "—") }),
@@ -140,8 +182,52 @@ async function refreshDetails() {
       (r) => ({ text: `${r.executable_value_sol} SOL` }),
       (r) => ({ text: time(r.evaluated_at) }),
     ],
-    "No exit evaluations",
+    "No matching exit evaluations",
   );
+}
+async function openToken(mint) {
+  const response = await fetch(`/api/paper/token?mint=${encodeURIComponent(mint)}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) return;
+  const { token: details } = await response.json();
+  elements["token-title"].textContent = short(mint);
+  elements["token-address"].textContent = mint;
+  elements["token-amount"].textContent = BigInt(details.summary.open_amount_raw).toLocaleString();
+  elements["token-cost"].textContent = sol(details.summary.open_cost_raw);
+  elements["token-pnl"].textContent = sol(details.summary.realized_pnl_raw);
+  pnlClass(elements["token-pnl"], details.summary.realized_pnl_raw);
+  elements["token-lots"].textContent = details.summary.open_lots;
+  renderRows(
+    elements["token-lot-rows"],
+    details.lots,
+    [
+      (r) => amount(r.current_amount_raw),
+      (r) => amount(r.acquired_amount_raw),
+      (r) => ({ text: sol(r.remaining_cost_raw) }),
+      (r) => ({ text: time(r.opened_at) }),
+    ],
+    "No lots",
+  );
+  renderRows(
+    elements["token-fill-rows"],
+    details.fills,
+    [
+      (r) => ({ text: String(r.side).toUpperCase(), className: `side-${r.side}` }),
+      (r) => amount(r.token_amount_raw),
+      (r) => ({ text: sol(r.settlement_amount_raw) }),
+      (r) => ({ text: time(r.filled_at) }),
+    ],
+    "No fills",
+  );
+  elements["token-dialog"].showModal();
+}
+async function refreshDetails() {
+  const response = await fetch("/api/paper/details", { cache: "no-store" });
+  if (!response.ok) throw new Error("details unavailable");
+  const { details } = await response.json();
+  detailSnapshot = details;
+  renderDetails();
 }
 async function refresh() {
   try {
@@ -186,3 +272,16 @@ async function refresh() {
 }
 void refresh();
 setInterval(() => void refresh(), 10_000);
+elements["token-search"].addEventListener("input", renderDetails);
+elements["side-filter"].addEventListener("change", renderDetails);
+elements["clear-filters"].addEventListener("click", () => {
+  elements["token-search"].value = "";
+  elements["side-filter"].value = "all";
+  renderDetails();
+});
+elements["close-token"].addEventListener("click", () => elements["token-dialog"].close());
+document.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element)) return;
+  const cell = event.target.closest("td[data-token-mint]");
+  if (cell?.dataset.tokenMint) void openToken(cell.dataset.tokenMint);
+});

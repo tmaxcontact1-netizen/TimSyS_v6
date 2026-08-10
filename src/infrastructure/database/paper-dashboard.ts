@@ -1,6 +1,6 @@
 import type { Pool } from "pg";
 
-import type { WalletAddress } from "../../domain/shared/types.js";
+import type { MintAddress, WalletAddress } from "../../domain/shared/types.js";
 
 export interface PaperDashboardDetails {
   readonly positions: readonly Record<string, unknown>[];
@@ -16,10 +16,73 @@ interface DashboardRow {
   readonly events: unknown;
 }
 
+export interface PaperTokenDetails {
+  readonly summary: Readonly<Record<string, unknown>>;
+  readonly lots: readonly Record<string, unknown>[];
+  readonly fills: readonly Record<string, unknown>[];
+  readonly performance: readonly Record<string, unknown>[];
+  readonly events: readonly Record<string, unknown>[];
+}
+
+interface TokenDashboardRow {
+  readonly summary: unknown;
+  readonly lots: unknown;
+  readonly fills: unknown;
+  readonly performance: unknown;
+  readonly events: unknown;
+}
+
 function rows(value: unknown, label: string): readonly Record<string, unknown>[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "object" || item === null))
     throw new Error(`Invalid paper dashboard ${label}`);
   return Object.freeze(value.map((item) => Object.freeze(item as Record<string, unknown>)));
+}
+
+/** Reads one token's bounded lifecycle from one PostgreSQL statement and snapshot. */
+export async function readPaperTokenDetails(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+  mint: MintAddress,
+): Promise<PaperTokenDetails> {
+  const result = await database.query<TokenDashboardRow>(
+    `SELECT
+       jsonb_build_object(
+         'token_mint',$2,
+         'open_amount_raw',COALESCE((SELECT sum(current_amount_raw)::text FROM paper_position_lots WHERE wallet=$1 AND token_mint=$2 AND current_amount_raw>0),'0'),
+         'open_cost_raw',COALESCE((SELECT sum(remaining_cost_raw)::text FROM paper_position_lots WHERE wallet=$1 AND token_mint=$2 AND current_amount_raw>0),'0'),
+         'open_lots',COALESCE((SELECT count(*)::int FROM paper_position_lots WHERE wallet=$1 AND token_mint=$2 AND current_amount_raw>0),0),
+         'realized_pnl_raw',COALESCE((SELECT sum(realized_pnl_raw)::text FROM paper_realized_performance WHERE wallet=$1 AND token_mint=$2),'0')) AS summary,
+       COALESCE((SELECT jsonb_agg(l ORDER BY l.opened_at DESC,l.id)
+         FROM (SELECT id,acquired_amount_raw::text,current_amount_raw::text,
+                      cost_raw::text,remaining_cost_raw::text,opened_at
+               FROM paper_position_lots WHERE wallet=$1 AND token_mint=$2
+               ORDER BY opened_at DESC,id LIMIT 50) l),'[]') AS lots,
+       COALESCE((SELECT jsonb_agg(f ORDER BY f.filled_at DESC,f.id)
+         FROM (SELECT id,side,token_amount_raw::text,settlement_amount_raw::text,quoted_at,filled_at
+               FROM paper_fills WHERE wallet=$1 AND token_mint=$2
+               ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
+       COALESCE((SELECT jsonb_agg(r ORDER BY r.realized_at DESC,r.fill_id)
+         FROM (SELECT fill_id,proceeds_raw::text,released_cost_raw::text,
+                      realized_pnl_raw::text,realized_at
+               FROM paper_realized_performance WHERE wallet=$1 AND token_mint=$2
+               ORDER BY realized_at DESC,fill_id LIMIT 100) r),'[]') AS performance,
+       COALESCE((SELECT jsonb_agg(e ORDER BY e.evaluated_at DESC,e.id)
+         FROM (SELECT id,evaluated_at,action,rule_id,open_amount_raw::text,
+                      requested_amount_raw::text,executable_value_sol::text
+               FROM paper_exit_evaluations WHERE wallet=$1 AND token_mint=$2
+               ORDER BY evaluated_at DESC,id LIMIT 100) e),'[]') AS events`,
+    [wallet, mint],
+  );
+  const row = result.rows[0];
+  if (row === undefined || typeof row.summary !== "object" || row.summary === null)
+    throw new Error("Paper token details are unavailable");
+  return Object.freeze({
+    summary: Object.freeze(row.summary as Record<string, unknown>),
+    lots: rows(row.lots, "token lots"),
+    fills: rows(row.fills, "token fills"),
+    performance: rows(row.performance, "token performance"),
+    events: rows(row.events, "token events"),
+  });
 }
 
 /** Reads all detail panels from one PostgreSQL statement and one database snapshot. */

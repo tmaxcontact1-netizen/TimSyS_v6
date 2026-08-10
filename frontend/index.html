@@ -13,12 +13,16 @@
         <p class="eyebrow">MEMECOINED / OPERATOR CONSOLE</p>
         <h1>Paper desk</h1>
       </div>
+      <nav aria-label="Dashboard sections">
+        <a href="#overview">Overview</a><a href="#positions">Positions</a
+        ><a href="#history">History</a><a href="#events">Events</a>
+      </nav>
       <div class="status" id="status" data-state="loading">
         <span class="status-dot"></span><span id="status-label">Connecting</span>
       </div>
     </header>
     <main>
-      <section class="hero-grid" aria-label="Portfolio summary">
+      <section id="overview" class="hero-grid" aria-label="Portfolio summary">
         <article class="metric metric-primary">
           <span>Simulated equity</span><strong id="equity">—</strong
           ><small id="equity-change">Awaiting durable snapshot</small>
@@ -70,8 +74,24 @@
           </dl>
         </article>
       </section>
+      <section class="toolbar" aria-label="Table controls">
+        <label
+          ><span>Search token</span
+          ><input id="token-search" type="search" placeholder="Mint address" autocomplete="off"
+        /></label>
+        <label
+          ><span>Fill side</span
+          ><select id="side-filter">
+            <option value="all">All sides</option>
+            <option value="buy">Buy</option>
+            <option value="sell">Sell</option>
+          </select></label
+        >
+        <button id="clear-filters" type="button">Clear filters</button>
+        <span id="filter-status" aria-live="polite">Showing all records</span>
+      </section>
       <section class="detail-grid" aria-label="Trading detail">
-        <article class="panel table-panel wide">
+        <article id="positions" class="panel table-panel wide">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">INVENTORY</p>
@@ -98,7 +118,7 @@
             </table>
           </div>
         </article>
-        <article class="panel table-panel">
+        <article id="history" class="panel table-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">EXECUTION</p>
@@ -152,7 +172,7 @@
             </table>
           </div>
         </article>
-        <article class="panel table-panel wide">
+        <article id="events" class="panel table-panel wide">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">DECISION LOG</p>
@@ -183,6 +203,56 @@
         </article>
       </section>
     </main>
+    <dialog id="token-dialog" aria-labelledby="token-title">
+      <div class="dialog-heading">
+        <div>
+          <p class="eyebrow">TOKEN LIFECYCLE</p>
+          <h2 id="token-title">Token detail</h2>
+        </div>
+        <button id="close-token" type="button" aria-label="Close token detail">×</button>
+      </div>
+      <p id="token-address" class="token-address">—</p>
+      <div class="token-metrics">
+        <div><span>Open amount</span><strong id="token-amount">—</strong></div>
+        <div><span>Open cost</span><strong id="token-cost">—</strong></div>
+        <div><span>Realized P&amp;L</span><strong id="token-pnl">—</strong></div>
+        <div><span>Lots</span><strong id="token-lots">—</strong></div>
+      </div>
+      <div class="dialog-grid">
+        <section>
+          <h3>Position lots</h3>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Current</th>
+                  <th>Initial</th>
+                  <th>Cost remaining</th>
+                  <th>Opened</th>
+                </tr>
+              </thead>
+              <tbody id="token-lot-rows"></tbody>
+            </table>
+          </div>
+        </section>
+        <section>
+          <h3>Fill history</h3>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Side</th>
+                  <th>Amount</th>
+                  <th>Settlement</th>
+                  <th>Filled</th>
+                </tr>
+              </thead>
+              <tbody id="token-fill-rows"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </dialog>
     <footer>
       <span>Read-only observation surface</span><span>Auto-refresh · 10 seconds</span>
     </footer>

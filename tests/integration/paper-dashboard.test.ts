@@ -119,4 +119,56 @@ describe("paper dashboard", () => {
     });
     expect((await get(address.port, "/api/paper/details", "DELETE")).status).toBe(405);
   });
+
+  it("validates token addresses before serving a read-only lifecycle", async () => {
+    let queries = 0;
+    const database = {
+      query: async () => {
+        queries += 1;
+        return {
+          rows: [
+            {
+              summary: { token_mint: "So11111111111111111111111111111111111111112" },
+              lots: [],
+              fills: [],
+              performance: [],
+              events: [],
+            },
+          ],
+        };
+      },
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    expect((await get(address.port, "/api/paper/token?mint=invalid")).status).toBe(400);
+    expect(queries).toBe(0);
+    const response = await get(
+      address.port,
+      "/api/paper/token?mint=So11111111111111111111111111111111111111112",
+    );
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper",
+      token: { summary: { token_mint: "So11111111111111111111111111111111111111112" } },
+    });
+    expect(queries).toBe(1);
+    expect(
+      (
+        await get(
+          address.port,
+          "/api/paper/token?mint=So11111111111111111111111111111111111111112",
+          "POST",
+        )
+      ).status,
+    ).toBe(405);
+  });
 });
