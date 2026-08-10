@@ -1,5 +1,12 @@
 # Memecoined Changelog
 
+## Unreleased — Durable portfolio operational safety authority
+
+- Added immutable, hash-verified operational safety observations.
+- Bound exposure, executable downside, reconciliation failures, and provider disagreement to one instant.
+- Rejected missing, duplicated, postdated, mismatched, or tampered authority.
+- Added migration 0025 and restart-safe PostgreSQL reconstruction coverage.
+
 ## Unreleased — Durable tracked-wallet observations
 
 - Added live Helius acquisition polling for qualified Tier A and Tier B wallets.
