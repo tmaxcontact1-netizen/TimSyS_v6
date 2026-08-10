@@ -9,7 +9,7 @@ import type {
   ReconciliationEscalationPort,
 } from "../application/ports/runtime.js";
 import type { RuntimeConfig } from "../infrastructure/config/load-config.js";
-import type { PositionId } from "../domain/shared/types.js";
+import type { PositionId, WalletAddress } from "../domain/shared/types.js";
 import {
   ObservedPositionRuntimeStepSource,
   DurablePositionActionDispatcher,
@@ -25,7 +25,7 @@ import {
   createRuntimeLogger,
   StructuredReconciliationEscalation,
 } from "../infrastructure/runtime/escalation.js";
-import { composeProductionProviders } from "./providers.js";
+import { composeProductionProviders, type ProductionProviderServices } from "./providers.js";
 import { PostgresReconciliationJobStore } from "../infrastructure/database/job-store.js";
 import { PostgresPositionWorkerCheckpointRepository } from "../infrastructure/database/repositories.js";
 import { PostgresPositionObservationStore } from "../infrastructure/database/position-observations.js";
@@ -67,6 +67,15 @@ import {
   deterministicSignalId,
   LiveCandidateEvaluationFactSource,
 } from "../application/services/live-candidate-evaluation-facts.js";
+import type { PortfolioOperationalSafetySource } from "../application/services/live-portfolio-accounting-observation.js";
+import { LivePortfolioAccountingObservationSource } from "../application/services/live-portfolio-accounting-observation.js";
+import { LivePortfolioInventoryValuationSource } from "../application/services/portfolio-inventory-valuation.js";
+import { PostgresPortfolioTransactionHistorySource } from "../infrastructure/database/portfolio-transaction-history.js";
+import { PostgresPortfolioAccountingLedger } from "../infrastructure/database/portfolio-accounting.js";
+import {
+  LivePortfolioCheckpointPublicationCycle,
+  type PortfolioCheckpointPublicationCycle,
+} from "../application/services/portfolio-checkpoint-publication.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -77,6 +86,35 @@ export interface CompletedPositionServices {
 export interface PositionRuntimeComposition {
   readonly checkpoints: PositionWorkerCheckpointRepository;
   readonly supervisor: PositionJobSupervisorDependencies;
+}
+
+/** Composes complete live accounting acquisition with immutable checkpoint publication. */
+export function composeProductionPortfolioCheckpointPublication(input: {
+  readonly database: Pool;
+  readonly providers: Pick<ProductionProviderServices, "inventory" | "market" | "walletHistory">;
+  readonly wallet: WalletAddress;
+  readonly operations: PortfolioOperationalSafetySource;
+}): PortfolioCheckpointPublicationCycle {
+  const valuation = new LivePortfolioInventoryValuationSource(
+    input.wallet,
+    input.providers.inventory,
+    input.providers.market,
+  );
+  const transactions = new PostgresPortfolioTransactionHistorySource(
+    input.database,
+    input.providers.walletHistory,
+    input.wallet,
+  );
+  const source = new LivePortfolioAccountingObservationSource(
+    input.wallet,
+    valuation,
+    transactions,
+    input.operations,
+  );
+  return new LivePortfolioCheckpointPublicationCycle(
+    source,
+    new PostgresPortfolioAccountingLedger(input.database),
+  );
 }
 
 /** Composes concrete runtime/database infrastructure around validated provider services. */
