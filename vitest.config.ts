@@ -30,6 +30,7 @@ export default defineConfig({
       "tests/integration/portfolio-checkpoint-publication.test.ts",
       "tests/integration/portfolio-operational-safety.test.ts",
       "tests/integration/portfolio-operational-safety-production.test.ts",
+      "tests/integration/live-operational-safety-sources.test.ts",
       "tests/integration/live-portfolio-accounting-observation.test.ts",
       "tests/integration/portfolio-inventory-valuation.test.ts",
       "tests/integration/portfolio-transaction-history.test.ts",
