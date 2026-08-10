@@ -20,6 +20,8 @@ export default defineConfig({
       "tests/unit/security-runtime-authority.test.ts",
       "tests/unit/execution-runtime-authority.test.ts",
       "tests/unit/paper-accounting.test.ts",
+      "tests/unit/paper-deployment.test.ts",
+      "tests/unit/paper-execution.test.ts",
       "tests/integration/execution.test.ts",
       "tests/integration/candidate-discovery.test.ts",
       "tests/integration/candidate-evaluation-work.test.ts",

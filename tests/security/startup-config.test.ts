@@ -47,11 +47,13 @@ describe("runtime configuration", () => {
       HELIUS_API_KEY: "helius-key",
       JUPITER_API_KEY: "jupiter-key",
       PAPER_TRADING_WALLET_ADDRESS: "paper-wallet",
+      PAPER_INITIAL_CASH_LAMPORTS: "10000000000",
     });
     expect(config.paper).toEqual({
       heliusApiKey: "helius-key",
       jupiterApiKey: "jupiter-key",
       walletAddress: "paper-wallet",
+      initialCashLamports: 10000000000n,
     });
     expect(config.execution).toBeNull();
   });
@@ -76,6 +78,7 @@ describe("runtime configuration", () => {
         HELIUS_API_KEY: "helius-key",
         JUPITER_API_KEY: "jupiter-key",
         PAPER_TRADING_WALLET_ADDRESS: "paper-wallet",
+        PAPER_INITIAL_CASH_LAMPORTS: "10000000000",
         TRADING_WALLET_SECRET_FILE: "/run/secrets/wallet.json",
       }),
     ).toThrow(/forbids signer secrets/));

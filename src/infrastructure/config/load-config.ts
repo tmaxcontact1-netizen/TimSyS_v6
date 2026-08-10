@@ -41,6 +41,7 @@ const schema = z
     HELIUS_API_KEY: nonempty.optional(),
     JUPITER_API_KEY: nonempty.optional(),
     PAPER_TRADING_WALLET_ADDRESS: nonempty.optional(),
+    PAPER_INITIAL_CASH_LAMPORTS: z.string().regex(/^\d+$/).optional(),
     TRADING_WALLET_SECRET_FILE: absolutePath.optional(),
     TRANSACTION_ALLOWED_PROGRAM_IDS: nonempty.optional(),
     TRANSACTION_ALLOWED_FEE_RECIPIENTS: nonempty.optional(),
@@ -65,6 +66,7 @@ export interface RuntimeConfig {
     heliusApiKey: string;
     jupiterApiKey: string;
     walletAddress: string;
+    initialCashLamports: bigint;
   }>;
   readonly execution: null | Readonly<{
     heliusApiKey: string;
@@ -134,6 +136,9 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
           walletAddress: required(
             value.PAPER_TRADING_WALLET_ADDRESS,
             "PAPER_TRADING_WALLET_ADDRESS",
+          ),
+          initialCashLamports: BigInt(
+            required(value.PAPER_INITIAL_CASH_LAMPORTS, "PAPER_INITIAL_CASH_LAMPORTS"),
           ),
         })
       : null;

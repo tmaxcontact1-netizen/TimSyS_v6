@@ -35,9 +35,9 @@ export class PostgresPaperAccountingLedger {
       );
       if (account.rowCount === 0) {
         const replay = await client.query<{ matches: boolean }>(
-          `SELECT settlement_mint=$2 AND opened_at=$3 AND initial_cash_raw=$4 AS matches
+          `SELECT settlement_mint=$2 AND initial_cash_raw=$3 AS matches
            FROM paper_accounts WHERE wallet=$1`,
-          [input.wallet, input.settlementMint, input.openedAt, input.initialCashRaw.toString()],
+          [input.wallet, input.settlementMint, input.initialCashRaw.toString()],
         );
         if (replay.rows[0]?.matches !== true)
           throw new InvariantViolationError(

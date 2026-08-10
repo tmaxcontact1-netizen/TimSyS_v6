@@ -51,3 +51,31 @@ it("rolls back a paper buy that exceeds available cash", async () => {
   expect(db.statements.at(-1)).toBe("ROLLBACK");
   expect(db.statements.some((sql) => sql.includes("INSERT INTO paper_fills"))).toBe(false);
 });
+
+it("accepts account initialization replay at a later startup instant", async () => {
+  const statements: { sql: string; values?: readonly unknown[] }[] = [];
+  const ledger = new PostgresPaperAccountingLedger({
+    connect: async () => ({
+      query: async (sql: string, values?: readonly unknown[]) => {
+        statements.push(values === undefined ? { sql } : { sql, values });
+        if (sql.includes("INSERT INTO paper_accounts")) return { rowCount: 0, rows: [] };
+        if (sql.includes("SELECT settlement_mint"))
+          return { rowCount: 1, rows: [{ matches: true }] };
+        return { rowCount: 1, rows: [] };
+      },
+      release: () => undefined,
+    }),
+  } as never);
+  await ledger.openAccount({
+    wallet: "paper-wallet" as never,
+    settlementMint: "settlement" as never,
+    initialCashRaw: 100n,
+    openedAt: "2026-08-10T11:00:00.000Z" as never,
+  });
+  expect(statements.find(({ sql }) => sql.includes("SELECT settlement_mint"))?.values).toEqual([
+    "paper-wallet",
+    "settlement",
+    "100",
+  ]);
+  expect(statements.at(-1)?.sql).toBe("COMMIT");
+});
