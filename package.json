@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "report:paper": "tsx scripts/generate-report.ts",
+    "dashboard:paper": "node dist/src/entrypoints/dashboard.js",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

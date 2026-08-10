@@ -4,6 +4,21 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ## Unreleased — Pre-code specification
 
+### 2026-08-10
+
+| File                                        | Change                                                 | Reason                                                           | Status                 |
+| ------------------------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                       | Added the paper operator dashboard structure           | Provide the first browser observation surface                    | Authorized by operator |
+| `frontend/styles.css`                       | Added responsive operator-console presentation         | Make paper health and performance immediately legible            | Authorized by operator |
+| `frontend/app.js`                           | Added safe polling and exact lamport display           | Render durable paper snapshots without financial rounding        | Authorized by operator |
+| `src/entrypoints/dashboard.ts`              | Added a local-only read-only server and snapshot route | Expose paper performance without mutation or execution authority | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts` | Added boundary and failure tests                       | Prove the frontend fails closed                                  | Authorized by operator |
+| `package.json`                              | Added `dashboard:paper`                                | Provide an explicit operator start command                       | Authorized by operator |
+| `vitest.config.ts`                          | Added the dashboard integration suite                  | Include the boundary in the complete gate                        | Authorized by operator |
+| `docs/PROJECT_MAP.md`                       | Revised the former no-dashboard boundary               | Record the frontend authorization                                | Authorized by operator |
+| `docs/DEPENDENCY_MANIFEST.md`               | Approved the dependency-free implementation            | Preserve the exact package boundary                              | Authorized by operator |
+| `docs/CHANGELOG.md`                         | Recorded the frontend batch                            | Maintain the file-touch audit                                    | Authorized by operator |
+
 ### 2026-08-04
 
 | File                                                      | Change                                                                                                                                                                      | Reason                                                                                                            | Status                              |

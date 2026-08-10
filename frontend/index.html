@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Memecoined · Paper Desk</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div>
+        <p class="eyebrow">MEMECOINED / OPERATOR CONSOLE</p>
+        <h1>Paper desk</h1>
+      </div>
+      <div class="status" id="status" data-state="loading">
+        <span class="status-dot"></span><span id="status-label">Connecting</span>
+      </div>
+    </header>
+    <main>
+      <section class="hero-grid" aria-label="Portfolio summary">
+        <article class="metric metric-primary">
+          <span>Simulated equity</span><strong id="equity">—</strong
+          ><small id="equity-change">Awaiting durable snapshot</small>
+        </article>
+        <article class="metric">
+          <span>Available cash</span><strong id="cash">—</strong><small>Settlement liquidity</small>
+        </article>
+        <article class="metric">
+          <span>Open cost</span><strong id="open-cost">—</strong
+          ><small id="open-positions">— positions</small>
+        </article>
+        <article class="metric">
+          <span>Realized P&amp;L</span><strong id="pnl">—</strong
+          ><small>FIFO realized performance</small>
+        </article>
+      </section>
+      <section class="operations">
+        <article class="panel activity-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">EXECUTION FLOW</p>
+              <h2>Runtime activity</h2>
+            </div>
+            <span class="mode-chip">PAPER ONLY</span>
+          </div>
+          <div class="flow">
+            <div><span>Fills recorded</span><strong id="fills">—</strong></div>
+            <div><span>Entries pending</span><strong id="entries">—</strong></div>
+            <div><span>Positions due</span><strong id="positions-due">—</strong></div>
+          </div>
+        </article>
+        <article class="panel integrity-panel">
+          <p class="eyebrow">SYSTEM INTEGRITY</p>
+          <h2 id="integrity-title">Checking durable state</h2>
+          <p id="integrity-copy">Waiting for the first database-backed snapshot.</p>
+          <dl>
+            <div>
+              <dt>Worker errors</dt>
+              <dd id="errors">—</dd>
+            </div>
+            <div>
+              <dt>Wallet</dt>
+              <dd id="wallet">—</dd>
+            </div>
+            <div>
+              <dt>Snapshot</dt>
+              <dd id="observed">—</dd>
+            </div>
+          </dl>
+        </article>
+      </section>
+    </main>
+    <footer>
+      <span>Read-only observation surface</span><span>Auto-refresh · 10 seconds</span>
+    </footer>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
