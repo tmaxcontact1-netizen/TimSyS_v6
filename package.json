@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "report:paper": "tsx scripts/generate-report.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

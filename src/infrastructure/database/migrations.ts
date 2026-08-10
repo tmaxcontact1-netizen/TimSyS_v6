@@ -1,4 +1,5 @@
 import type { Pool } from "pg";
+import type { OperatingMode } from "../config/load-config.js";
 
 export interface DatabaseReadiness {
   readonly serverVersion: string;
@@ -40,27 +41,38 @@ const requiredColumns = Object.freeze([
   "position_runtime_authority_baselines.payload_json",
 ]);
 
+const paperRequiredColumns = Object.freeze([
+  "paper_accounts.wallet",
+  "paper_accounts.initial_cash_raw",
+  "paper_cash_events.event_type",
+  "paper_cash_events.amount_raw",
+  "paper_fills.id",
+  "paper_fills.side",
+  "paper_position_lots.current_amount_raw",
+  "paper_position_lots.remaining_cost_raw",
+  "paper_entry_executions.risk_run_id",
+  "paper_position_work.available_at",
+  "paper_position_work.last_error",
+  "paper_realized_performance.realized_pnl_raw",
+  "paper_exit_evaluations.evaluated_at",
+]);
+
 /** Verifies connectivity and the exact runtime-owned schema without executing DDL. */
-export async function verifyRuntimeDatabase(pool: Pick<Pool, "query">): Promise<DatabaseReadiness> {
+export async function verifyRuntimeDatabase(
+  pool: Pick<Pool, "query">,
+  mode?: OperatingMode,
+): Promise<DatabaseReadiness> {
+  const expected =
+    mode === "paper" ? [...requiredColumns, ...paperRequiredColumns] : requiredColumns;
+  const tables = [...new Set(expected.map((column) => column.split(".")[0]))];
   const version = await pool.query<{ readonly server_version: string }>("SHOW server_version");
   const columns = await pool.query<{ readonly table_name: string; readonly column_name: string }>(
     `SELECT table_name, column_name FROM information_schema.columns
      WHERE table_schema = current_schema() AND table_name = ANY($1::text[])`,
-    [
-      [
-        "jobs",
-        "audit_events",
-        "position_runtime_facts",
-        "position_observations",
-        "position_runtime_fact_observations",
-        "position_runtime_contexts",
-        "position_runtime_authority_snapshots",
-        "position_runtime_authority_baselines",
-      ],
-    ],
+    [tables],
   );
   const present = new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`));
-  const missing = requiredColumns.filter((column) => !present.has(column));
+  const missing = expected.filter((column) => !present.has(column));
   if (missing.length > 0)
     throw new Error(`Runtime database schema is incomplete: ${missing.join(", ")}`);
   const serverVersion = version.rows[0]?.server_version;

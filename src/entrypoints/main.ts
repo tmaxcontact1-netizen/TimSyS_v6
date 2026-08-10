@@ -25,7 +25,7 @@ export async function runProductionProcess(
   dependencies: ProductionProcessDependencies,
 ): Promise<ProductionProcessResult> {
   try {
-    const database = await verifyRuntimeDatabase(dependencies.database);
+    const database = await verifyRuntimeDatabase(dependencies.database, dependencies.config.mode);
     if (dependencies.supervisor.signal.aborted)
       return Object.freeze({
         database,

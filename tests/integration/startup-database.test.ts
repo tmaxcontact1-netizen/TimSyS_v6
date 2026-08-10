@@ -37,13 +37,29 @@ const columns = [
   "position_runtime_authority_baselines.payload_json",
 ];
 
-function database(missing?: string) {
+const paperColumns = [
+  "paper_accounts.wallet",
+  "paper_accounts.initial_cash_raw",
+  "paper_cash_events.event_type",
+  "paper_cash_events.amount_raw",
+  "paper_fills.id",
+  "paper_fills.side",
+  "paper_position_lots.current_amount_raw",
+  "paper_position_lots.remaining_cost_raw",
+  "paper_entry_executions.risk_run_id",
+  "paper_position_work.available_at",
+  "paper_position_work.last_error",
+  "paper_realized_performance.realized_pnl_raw",
+  "paper_exit_evaluations.evaluated_at",
+];
+
+function database(missing?: string, includePaper = false) {
   return {
     query: async (sql: string) =>
       sql.startsWith("SHOW")
         ? { rows: [{ server_version: "18.4" }] }
         : {
-            rows: columns
+            rows: [...columns, ...(includePaper ? paperColumns : [])]
               .filter((item) => item !== missing)
               .map((item) => {
                 const [table_name, column_name] = item.split(".");
@@ -88,4 +104,18 @@ describe("runtime database startup", () => {
     await expect(
       verifyRuntimeDatabase(database("position_runtime_authority_baselines.payload_json") as never),
     ).rejects.toThrow(/position_runtime_authority_baselines.payload_json/));
+  it("accepts the complete paper runtime schema", async () =>
+    await expect(
+      verifyRuntimeDatabase(database(undefined, true) as never, "paper"),
+    ).resolves.toEqual({
+      serverVersion: "18.4",
+      schemaReady: true,
+    }));
+  it("rejects an unapplied paper authority migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(
+        database("paper_exit_evaluations.evaluated_at", true) as never,
+        "paper",
+      ),
+    ).rejects.toThrow(/paper_exit_evaluations.evaluated_at/));
 });
