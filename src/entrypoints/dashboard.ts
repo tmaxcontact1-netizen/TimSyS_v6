@@ -10,7 +10,9 @@ import { loadRuntimeConfig } from "../infrastructure/config/load-config.js";
 import { verifyRuntimeDatabase } from "../infrastructure/database/migrations.js";
 import { createRuntimePool } from "../infrastructure/database/pool.js";
 import {
+  paperPerformanceRanges,
   readPaperDashboardDetails,
+  readPaperPerformanceHistory,
   readPaperTokenDetails,
 } from "../infrastructure/database/paper-dashboard.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
@@ -81,6 +83,30 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), details });
       } catch {
         sendJson(response, 503, { error: "paper_details_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/performance") {
+      const range = url.searchParams.get("range") ?? "7d";
+      if (!paperPerformanceRanges.some((candidate) => candidate === range)) {
+        sendJson(response, 400, { error: "invalid_performance_range" });
+        return;
+      }
+      try {
+        const points = await readPaperPerformanceHistory(
+          dependencies.database,
+          dependencies.wallet,
+          range as (typeof paperPerformanceRanges)[number],
+        );
+        sendJson(response, 200, {
+          mode: "paper",
+          observedAt: now().toISOString(),
+          range,
+          basis: "realized_book_equity",
+          points,
+        });
+      } catch {
+        sendJson(response, 503, { error: "paper_performance_unavailable" });
       }
       return;
     }

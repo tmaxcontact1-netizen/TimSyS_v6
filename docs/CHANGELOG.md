@@ -6,6 +6,18 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 
 ### 2026-08-10
 
+| File                                             | Change                                                                   | Reason                                                               | Status                 |
+| ------------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                            | Added performance chart, accounting-basis note, and fixed range controls | Make portfolio performance visible without implying market valuation | Authorized by operator |
+| `frontend/styles.css`                            | Added responsive SVG chart, legend, and range-control presentation       | Keep historical performance legible without a chart dependency       | Authorized by operator |
+| `frontend/app.js`                                | Added safe fixed-range history polling and SVG line rendering            | Plot exact durable performance values without markup injection       | Authorized by operator |
+| `src/infrastructure/database/paper-dashboard.ts` | Added bounded cumulative realized book-equity projection                 | Derive honest history from immutable realized-performance events     | Authorized by operator |
+| `src/entrypoints/dashboard.ts`                   | Added validated GET-only paper performance route                         | Prevent arbitrary interval input from reaching PostgreSQL            | Authorized by operator |
+| `tests/unit/paper-dashboard-details.test.ts`     | Added range mapping, bound, and history projection coverage              | Prove the performance history database contract                      | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts`      | Added performance route and invalid-range refusal coverage               | Prove the HTTP history boundary remains fixed and read-only          | Authorized by operator |
+| `docs/PROJECT_MAP.md`                            | Recorded fixed-range book-equity history observation                     | Keep the architecture inventory current                              | Authorized by operator |
+| `docs/CHANGELOG.md`                              | Recorded the frontend performance-chart batch                            | Maintain the file-touch audit                                        | Authorized by operator |
+
 | File                                             | Change                                                               | Reason                                                        | Status                 |
 | ------------------------------------------------ | -------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
 | `frontend/index.html`                            | Added section navigation, filters, and token lifecycle dialog        | Make bounded trading history navigable and token-specific     | Authorized by operator |

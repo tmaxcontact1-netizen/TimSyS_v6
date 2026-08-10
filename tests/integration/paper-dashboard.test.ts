@@ -171,4 +171,34 @@ describe("paper dashboard", () => {
       ).status,
     ).toBe(405);
   });
+
+  it("serves fixed-range book-equity history and rejects arbitrary intervals", async () => {
+    let queries = 0;
+    const database = {
+      query: async () => {
+        queries += 1;
+        return { rows: [] };
+      },
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const valid = await get(address.port, "/api/paper/performance?range=30d");
+    expect(valid.status).toBe(200);
+    expect(JSON.parse(valid.body)).toMatchObject({
+      range: "30d",
+      basis: "realized_book_equity",
+      points: [],
+    });
+    expect((await get(address.port, "/api/paper/performance?range=1%20year")).status).toBe(400);
+    expect(queries).toBe(1);
+  });
 });

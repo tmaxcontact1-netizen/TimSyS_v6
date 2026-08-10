@@ -32,6 +32,76 @@ interface TokenDashboardRow {
   readonly events: unknown;
 }
 
+export const paperPerformanceRanges = ["24h", "7d", "30d", "all"] as const;
+export type PaperPerformanceRange = (typeof paperPerformanceRanges)[number];
+
+export interface PaperPerformancePoint {
+  readonly occurredAt: string;
+  readonly realizedPnlRaw: string;
+  readonly bookEquityRaw: string;
+}
+
+interface PerformanceHistoryRow {
+  readonly occurred_at: Date | string;
+  readonly realized_pnl_raw: string;
+  readonly book_equity_raw: string;
+}
+
+const rangeIntervals: Readonly<Record<Exclude<PaperPerformanceRange, "all">, string>> =
+  Object.freeze({ "24h": "24 hours", "7d": "7 days", "30d": "30 days" });
+
+/** Reads bounded cumulative realized performance without claiming market valuation history. */
+export async function readPaperPerformanceHistory(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+  range: PaperPerformanceRange,
+): Promise<readonly PaperPerformancePoint[]> {
+  const interval = range === "all" ? null : rangeIntervals[range];
+  const result = await database.query<PerformanceHistoryRow>(
+    `WITH account AS (
+       SELECT initial_cash_raw,opened_at FROM paper_accounts WHERE wallet=$1
+     ), boundary AS (
+       SELECT CASE WHEN $2::text IS NULL THEN opened_at
+                   ELSE GREATEST(opened_at,now()-$2::interval) END AS starts_at
+       FROM account
+     ), eligible AS (
+       SELECT p.realized_at AS occurred_at,p.realized_pnl_raw AS pnl,
+              row_number() OVER (ORDER BY p.realized_at DESC,p.fill_id DESC) AS recency
+       FROM paper_realized_performance p,boundary b
+       WHERE p.wallet=$1 AND p.realized_at>=b.starts_at
+     ), events AS (
+       SELECT occurred_at,pnl FROM eligible WHERE recency<=499
+     ), baseline AS (
+       SELECT COALESCE(min(e.occurred_at),b.starts_at) AS occurred_at,
+              COALESCE((SELECT sum(p.realized_pnl_raw) FROM paper_realized_performance p
+                        WHERE p.wallet=$1 AND p.realized_at<b.starts_at),0)
+                + COALESCE(sum(e.pnl) FILTER (WHERE e.recency>499),0) AS pnl
+       FROM boundary b LEFT JOIN eligible e ON true GROUP BY b.starts_at
+     ), points AS (
+       SELECT occurred_at,pnl,0 AS ordering FROM baseline
+       UNION ALL SELECT occurred_at,pnl,1 FROM events
+     )
+     SELECT occurred_at,
+            sum(pnl) OVER (ORDER BY occurred_at,ordering ROWS UNBOUNDED PRECEDING)::text AS realized_pnl_raw,
+            (a.initial_cash_raw + sum(pnl) OVER
+              (ORDER BY occurred_at,ordering ROWS UNBOUNDED PRECEDING))::text AS book_equity_raw
+     FROM points CROSS JOIN account a ORDER BY occurred_at,ordering`,
+    [wallet, interval],
+  );
+  return Object.freeze(
+    result.rows.map((row) =>
+      Object.freeze({
+        occurredAt:
+          row.occurred_at instanceof Date
+            ? row.occurred_at.toISOString()
+            : new Date(row.occurred_at).toISOString(),
+        realizedPnlRaw: row.realized_pnl_raw,
+        bookEquityRaw: row.book_equity_raw,
+      }),
+    ),
+  );
+}
+
 function rows(value: unknown, label: string): readonly Record<string, unknown>[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "object" || item === null))
     throw new Error(`Invalid paper dashboard ${label}`);

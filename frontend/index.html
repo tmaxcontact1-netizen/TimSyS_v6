@@ -15,7 +15,8 @@
       </div>
       <nav aria-label="Dashboard sections">
         <a href="#overview">Overview</a><a href="#positions">Positions</a
-        ><a href="#history">History</a><a href="#events">Events</a>
+        ><a href="#performance">Performance</a><a href="#history">History</a
+        ><a href="#events">Events</a>
       </nav>
       <div class="status" id="status" data-state="loading">
         <span class="status-dot"></span><span id="status-label">Connecting</span>
@@ -38,6 +39,36 @@
           <span>Realized P&amp;L</span><strong id="pnl">—</strong
           ><small>FIFO realized performance</small>
         </article>
+      </section>
+      <section id="performance" class="panel chart-panel" aria-labelledby="performance-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">PORTFOLIO PERFORMANCE</p>
+            <h2 id="performance-title">Book equity history</h2>
+          </div>
+          <div class="range-controls" aria-label="Performance time range">
+            <button type="button" data-range="24h">24H</button>
+            <button type="button" data-range="7d" class="active">7D</button>
+            <button type="button" data-range="30d">30D</button>
+            <button type="button" data-range="all">ALL</button>
+          </div>
+        </div>
+        <p class="chart-note">
+          Initial capital plus cumulative realized P&amp;L; not mark-to-market valuation.
+        </p>
+        <div
+          id="performance-chart"
+          class="chart"
+          role="img"
+          aria-label="Book equity and realized profit history"
+        >
+          <span class="empty">Awaiting durable performance data</span>
+        </div>
+        <div class="chart-legend">
+          <span><i class="equity-key"></i>Book equity</span
+          ><span><i class="pnl-key"></i>Realized P&amp;L</span
+          ><strong id="chart-range-label">Last 7 days</strong>
+        </div>
       </section>
       <section class="operations">
         <article class="panel activity-panel">

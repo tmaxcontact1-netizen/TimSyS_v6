@@ -38,9 +38,12 @@ const ids = [
   "token-lot-rows",
   "token-fill-rows",
   "close-token",
+  "performance-chart",
+  "chart-range-label",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
+let selectedRange = "7d";
 function sol(raw) {
   const value = BigInt(raw);
   const absolute = value < 0n ? -value : value;
@@ -185,6 +188,56 @@ function renderDetails() {
     "No matching exit evaluations",
   );
 }
+function renderChart(points) {
+  const target = elements["performance-chart"];
+  target.replaceChildren();
+  if (points.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "empty";
+    empty.textContent = "No realized performance in this range";
+    target.append(empty);
+    return;
+  }
+  const width = 1000;
+  const height = 260;
+  const padding = 24;
+  const values = points.flatMap((point) => [
+    BigInt(point.bookEquityRaw),
+    BigInt(point.realizedPnlRaw),
+  ]);
+  const minimum = values.reduce((a, b) => (a < b ? a : b));
+  const maximum = values.reduce((a, b) => (a > b ? a : b));
+  const span = maximum === minimum ? 1n : maximum - minimum;
+  const coordinate = (raw, index) => {
+    const x = padding + (index * (width - padding * 2)) / Math.max(points.length - 1, 1);
+    const scaled = Number(((BigInt(raw) - minimum) * 1_000_000n) / span) / 1_000_000;
+    return `${x.toFixed(2)},${(height - padding - scaled * (height - padding * 2)).toFixed(2)}`;
+  };
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("aria-hidden", "true");
+  for (const [field, className] of [
+    ["bookEquityRaw", "equity-line"],
+    ["realizedPnlRaw", "pnl-line"],
+  ]) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    line.setAttribute(
+      "points",
+      points.map((point, index) => coordinate(point[field], index)).join(" "),
+    );
+    line.setAttribute("class", className);
+    svg.append(line);
+  }
+  target.append(svg);
+}
+async function refreshPerformance() {
+  const response = await fetch(`/api/paper/performance?range=${selectedRange}`, {
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("performance unavailable");
+  const { points } = await response.json();
+  renderChart(points);
+}
 async function openToken(mint) {
   const response = await fetch(`/api/paper/token?mint=${encodeURIComponent(mint)}`, {
     cache: "no-store",
@@ -263,6 +316,7 @@ async function refresh() {
       performance.healthy ? "Healthy" : "Attention required",
     );
     await refreshDetails();
+    await refreshPerformance();
   } catch {
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";
@@ -280,6 +334,21 @@ elements["clear-filters"].addEventListener("click", () => {
   renderDetails();
 });
 elements["close-token"].addEventListener("click", () => elements["token-dialog"].close());
+document.querySelectorAll("[data-range]").forEach((button) =>
+  button.addEventListener("click", () => {
+    selectedRange = button.dataset.range;
+    document
+      .querySelectorAll("[data-range]")
+      .forEach((item) => item.classList.toggle("active", item === button));
+    elements["chart-range-label"].textContent = {
+      "24h": "Last 24 hours",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      all: "All time",
+    }[selectedRange];
+    void refreshPerformance();
+  }),
+);
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
   const cell = event.target.closest("td[data-token-mint]");
