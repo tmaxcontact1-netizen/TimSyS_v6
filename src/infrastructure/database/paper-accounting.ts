@@ -132,7 +132,8 @@ export class PostgresPaperAccountingLedger {
           currentAmountRaw: BigInt(row.current_amount_raw),
           remainingCostRaw: BigInt(row.remaining_cost_raw),
         }));
-        for (const disposal of allocatePaperSale(fill, lots)) {
+        const disposals = allocatePaperSale(fill, lots);
+        for (const disposal of disposals) {
           await client.query(
             `INSERT INTO paper_lot_disposals (fill_id,lot_id,token_amount_raw,released_cost_raw) VALUES ($1,$2,$3,$4)`,
             [
@@ -154,6 +155,23 @@ export class PostgresPaperAccountingLedger {
             ],
           );
         }
+        const releasedCostRaw = disposals.reduce(
+          (total, disposal) => total + disposal.releasedCostRaw,
+          0n,
+        );
+        await client.query(
+          `INSERT INTO paper_realized_performance
+           (fill_id,wallet,token_mint,proceeds_raw,released_cost_raw,realized_pnl_raw,realized_at)
+           VALUES ($1,$2,$3,$4,$5,$4-$5,$6)`,
+          [
+            fill.id,
+            fill.wallet,
+            fill.tokenMint,
+            fill.settlementAmountRaw.toString(),
+            releasedCostRaw.toString(),
+            fill.filledAt,
+          ],
+        );
       }
       await client.query(
         `INSERT INTO paper_cash_events (id,wallet,event_type,amount_raw,occurred_at,content_hash)

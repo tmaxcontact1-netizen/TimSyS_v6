@@ -32,6 +32,13 @@ export interface PaperDisposal {
   readonly releasedCostRaw: bigint;
 }
 
+export interface PaperRealizedPerformance {
+  readonly fillId: string;
+  readonly proceedsRaw: bigint;
+  readonly releasedCostRaw: bigint;
+  readonly realizedPnlRaw: bigint;
+}
+
 function uuid(...parts: readonly string[]): string {
   const hex = createHash("sha256").update(parts.join("\0")).digest("hex");
   return asUuid(

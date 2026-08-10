@@ -43,6 +43,38 @@ it("atomically records a paper buy, lot, and cash event", async () => {
   expect(db.statements.at(-1)).toBe("COMMIT");
 });
 
+it("records realized performance atomically with a paper sale", async () => {
+  const statements: string[] = [];
+  const ledger = new PostgresPaperAccountingLedger({
+    connect: async () => ({
+      query: async (sql: string) => {
+        statements.push(sql);
+        if (sql.includes("initial_cash_raw::text"))
+          return { rowCount: 1, rows: [{ initial_cash_raw: "100" }] };
+        if (sql.includes("AS net_raw")) return { rowCount: 1, rows: [{ net_raw: "-25" }] };
+        if (sql.includes("SELECT id,current_amount_raw"))
+          return {
+            rowCount: 1,
+            rows: [{ id: "lot", current_amount_raw: "1000", remaining_cost_raw: "25" }],
+          };
+        return { rowCount: 1, rows: [] };
+      },
+      release: () => undefined,
+    }),
+  } as never);
+  await ledger.recordFill({
+    ...fill,
+    id: "00000000-0000-4000-8000-000000000912",
+    side: "sell",
+    settlementAmountRaw: 30n,
+    quoteFingerprint: "sell-quote",
+  });
+  expect(statements.some((sql) => sql.includes("INSERT INTO paper_realized_performance"))).toBe(
+    true,
+  );
+  expect(statements.at(-1)).toBe("COMMIT");
+});
+
 it("rolls back a paper buy that exceeds available cash", async () => {
   const db = database("24");
   await expect(
