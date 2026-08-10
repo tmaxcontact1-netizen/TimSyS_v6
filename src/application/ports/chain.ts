@@ -4,7 +4,18 @@ import type {
   ObservationResult,
   WalletInventoryObservation,
 } from "../contracts/observations.js";
+import type { EvidenceReference } from "../../domain/shared/evidence.js";
 import type { MintAddress, Timestamp, WalletAddress } from "../../domain/shared/types.js";
+
+export interface ChainProviderAgreementRecorder {
+  record(input: {
+    readonly authorityKey: string;
+    readonly wallet: WalletAddress;
+    readonly observedAt: Timestamp;
+    readonly agrees: boolean;
+    readonly evidence: readonly EvidenceReference[];
+  }): Promise<void>;
+}
 
 export interface ChainObservationPort {
   observeBalances(

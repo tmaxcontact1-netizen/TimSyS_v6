@@ -6,6 +6,7 @@ import type {
   ProviderDisagreementFactSource,
   ReconciliationFailureFactSource,
 } from "../../application/services/live-operational-safety-sources.js";
+import type { ChainProviderAgreementRecorder } from "../../application/ports/chain.js";
 import { InvariantViolationError } from "../../domain/shared/errors.js";
 import type { EvidenceReference } from "../../domain/shared/evidence.js";
 import {
@@ -87,14 +88,16 @@ export interface ProviderAgreementOutcome {
 }
 
 /** Persists disagreement intervals and reconstructs their continuous duration after restart. */
-export class PostgresProviderDisagreementAuthority implements ProviderDisagreementFactSource {
+export class PostgresProviderDisagreementAuthority
+  implements ProviderDisagreementFactSource, ChainProviderAgreementRecorder
+{
   public constructor(
     private readonly database: DatabasePort,
-    private readonly wallet: WalletAddress,
+    private readonly wallet?: WalletAddress,
   ) {}
 
   public async record(input: ProviderAgreementOutcome): Promise<void> {
-    if (input.wallet !== this.wallet)
+    if (this.wallet !== undefined && input.wallet !== this.wallet)
       throw new InvariantViolationError("Provider health targets another wallet");
     if (input.authorityKey.trim().length === 0 || input.evidence.length === 0)
       throw new InvariantViolationError("Provider health requires identity and evidence");
@@ -119,6 +122,8 @@ export class PostgresProviderDisagreementAuthority implements ProviderDisagreeme
   }
 
   public async observeHealth(requestedAt: Timestamp) {
+    if (this.wallet === undefined)
+      throw new InvariantViolationError("Provider health observation requires a wallet");
     const result = await this.database.query<IntervalRow>(
       `SELECT began_at, opening_evidence_json
        FROM provider_disagreement_intervals

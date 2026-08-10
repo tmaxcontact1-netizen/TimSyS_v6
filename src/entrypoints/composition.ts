@@ -72,6 +72,7 @@ import { LivePortfolioAccountingObservationSource } from "../application/service
 import { LivePortfolioInventoryValuationSource } from "../application/services/portfolio-inventory-valuation.js";
 import { PostgresPortfolioTransactionHistorySource } from "../infrastructure/database/portfolio-transaction-history.js";
 import { PostgresPortfolioAccountingLedger } from "../infrastructure/database/portfolio-accounting.js";
+import { PostgresProviderDisagreementAuthority } from "../infrastructure/database/operational-safety-facts.js";
 import {
   LivePortfolioCheckpointPublicationCycle,
   type PortfolioCheckpointPublicationCycle,
@@ -161,7 +162,10 @@ export function composeProductionPositionRuntime(input: {
 }): PositionRuntimeComposition {
   if (input.config.execution === null)
     throw new Error("Production position runtime requires execution configuration");
-  const providers = composeProductionProviders(input.config);
+  const providers = composeProductionProviders(
+    input.config,
+    new PostgresProviderDisagreementAuthority(input.database),
+  );
   const clock = new SystemSchedulerClock();
   const discoverySource = new LiveCandidateDiscoverySource({
     provider: providers.discovery,

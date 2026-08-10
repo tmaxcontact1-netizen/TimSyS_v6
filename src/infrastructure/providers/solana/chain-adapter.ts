@@ -10,6 +10,7 @@ import type {
   WalletInventoryObservation,
 } from "../../../application/contracts/observations.js";
 import type {
+  ChainProviderAgreementRecorder,
   ChainObservationPort,
   WalletInventoryObservationPort,
 } from "../../../application/ports/chain.js";
@@ -21,6 +22,7 @@ import {
   type Timestamp,
   type WalletAddress,
 } from "../../../domain/shared/types.js";
+import type { EvidenceReference } from "../../../domain/shared/evidence.js";
 import { SolanaRpcClient } from "./rpc-client.js";
 
 const balanceSchema = z.object({
@@ -121,7 +123,69 @@ export class SolanaChainObservationAdapter
     private readonly primary: SolanaRpcClient,
     private readonly fallback: SolanaRpcClient,
     private readonly identities: ObservationIdentityFactory,
+    private readonly agreements?: ChainProviderAgreementRecorder,
   ) {}
+
+  private traces(
+    reads: readonly ProviderRead[],
+    wallet: WalletAddress,
+    mint: MintAddress,
+    requestedAt: Timestamp,
+  ): readonly ObservationTrace[] {
+    return Object.freeze(
+      reads.map((item) => {
+        const contentHash = hash(item.raw);
+        const sourceKey = `${item.provider}:balances:${wallet}:${mint}`;
+        return Object.freeze({
+          evidenceId: this.identities.createEvidenceId({
+            provider: item.provider,
+            sourceKey,
+            contentHash,
+          }),
+          provider: item.provider,
+          method: "getBalance+getTokenAccountsByOwner",
+          requestedAt,
+          respondedAt: item.receivedAt,
+          sourceTimestamp: null,
+          normalizedAt: item.receivedAt,
+          sourceKey,
+          contentHash,
+          slot: asSolanaSlot(item.slot),
+        });
+      }),
+    );
+  }
+
+  private async recordAgreement(
+    wallet: WalletAddress,
+    mint: MintAddress,
+    requestedAt: Timestamp,
+    agrees: boolean,
+    traces: readonly ObservationTrace[],
+  ): Promise<void> {
+    if (this.agreements === undefined || traces.length !== 2) return;
+    const evidence: readonly EvidenceReference[] = traces.map((trace) =>
+      Object.freeze({
+        id: trace.evidenceId,
+        provider: trace.provider,
+        observedAt: trace.respondedAt,
+        sourceKey: trace.sourceKey,
+        contentHash: trace.contentHash,
+        ...(trace.slot === undefined ? {} : { slot: trace.slot }),
+      }),
+    );
+    const observedAt = traces.reduce(
+      (latest, trace) => (trace.respondedAt > latest ? trace.respondedAt : latest),
+      requestedAt,
+    );
+    await this.agreements.record({
+      authorityKey: `chain-balances:${mint}`,
+      wallet,
+      observedAt,
+      agrees,
+      evidence,
+    });
+  }
 
   public async observeBalances(
     wallet: WalletAddress,
@@ -148,11 +212,13 @@ export class SolanaChainObservationAdapter
           reason: "Primary and fallback chain access are unavailable",
         }),
       });
+    const traces = this.traces(successful, wallet, mint, requestedAt);
     if (
       successful.length === 2 &&
       (successful[0]!.native !== successful[1]!.native ||
         successful[0]!.token !== successful[1]!.token)
-    )
+    ) {
+      await this.recordAgreement(wallet, mint, requestedAt, false, traces);
       return Object.freeze({
         ok: false,
         error: Object.freeze({
@@ -163,32 +229,15 @@ export class SolanaChainObservationAdapter
           reason: "Primary and fallback chain balances disagree",
         }),
       });
+    }
+
+    await this.recordAgreement(wallet, mint, requestedAt, true, traces);
 
     const selected = successful[0]!;
     const slot = successful.reduce(
       (minimum, item) => (item.slot < minimum ? item.slot : minimum),
       selected.slot,
     );
-    const traces: ObservationTrace[] = successful.map((item) => {
-      const contentHash = hash(item.raw);
-      const sourceKey = `${item.provider}:balances:${wallet}:${mint}`;
-      return Object.freeze({
-        evidenceId: this.identities.createEvidenceId({
-          provider: item.provider,
-          sourceKey,
-          contentHash,
-        }),
-        provider: item.provider,
-        method: "getBalance+getTokenAccountsByOwner",
-        requestedAt,
-        respondedAt: item.receivedAt,
-        sourceTimestamp: null,
-        normalizedAt: item.receivedAt,
-        sourceKey,
-        contentHash,
-        slot: asSolanaSlot(item.slot),
-      });
-    });
     return Object.freeze({
       ok: true,
       value: Object.freeze({

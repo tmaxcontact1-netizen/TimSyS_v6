@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ObservationIdentityFactory } from "../../src/application/contracts/observations.js";
 import { asTimestamp, asUuid, type EvidenceId } from "../../src/domain/shared/types.js";
@@ -53,11 +53,16 @@ function transport(
   };
 }
 
-function adapter(primary = transport(2_000, "9000"), fallback = transport(2_000, "9000")) {
+function adapter(
+  primary = transport(2_000, "9000"),
+  fallback = transport(2_000, "9000"),
+  recorder?: { record: (input: unknown) => Promise<void> },
+) {
   return new SolanaChainObservationAdapter(
     new SolanaRpcClient(primary),
     new SolanaRpcClient(fallback),
     identities,
+    recorder,
   );
 }
 
@@ -86,13 +91,41 @@ describe("Solana chain observation contract", () => {
   });
 
   it("rejects provider disagreement instead of selecting a convenient balance", async () => {
-    const result = await adapter(
-      transport(2_000, "9000"),
-      transport(2_000, "8999"),
-    ).observeBalances(wallet, mint, receivedAt);
+    const record = vi.fn(async () => undefined);
+    const result = await adapter(transport(2_000, "9000"), transport(2_000, "8999"), {
+      record,
+    }).observeBalances(wallet, mint, receivedAt);
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("contradictory");
+    expect(record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        authorityKey: `chain-balances:${mint}`,
+        wallet,
+        agrees: false,
+        evidence: expect.arrayContaining([
+          expect.objectContaining({ provider: "helius" }),
+          expect.objectContaining({ provider: "solana_rpc" }),
+        ]),
+      }),
+    );
+  });
+
+  it("closes disagreement only after two providers explicitly agree", async () => {
+    const record = vi.fn(async () => undefined);
+    await adapter(transport(2_000, "9000"), transport(2_000, "9000"), {
+      record,
+    }).observeBalances(wallet, mint, receivedAt);
+    expect(record).toHaveBeenCalledWith(expect.objectContaining({ agrees: true }));
+
+    record.mockClear();
+    const unavailable: SolanaRpcTransport = { post: async () => Promise.reject(new Error("down")) };
+    await adapter(unavailable, transport(2_000, "9000"), { record }).observeBalances(
+      wallet,
+      mint,
+      receivedAt,
+    );
+    expect(record).not.toHaveBeenCalled();
   });
 
   it("uses the surviving provider when one read route is unavailable", async () => {

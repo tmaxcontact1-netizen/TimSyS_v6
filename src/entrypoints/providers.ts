@@ -1,4 +1,5 @@
 import type {
+  ChainProviderAgreementRecorder,
   ChainObservationPort,
   ChainTransactionObservationPort,
   WalletInventoryObservationPort,
@@ -47,7 +48,10 @@ export interface ProductionProviderServices {
 }
 
 /** Constructs all completed live provider clients from validated configuration. */
-export function composeProductionProviders(config: RuntimeConfig): ProductionProviderServices {
+export function composeProductionProviders(
+  config: RuntimeConfig,
+  agreements?: ChainProviderAgreementRecorder,
+): ProductionProviderServices {
   if (config.solana === null || config.execution === null)
     throw new Error("Production providers require an execution-enabled configuration");
   const primaryUrl = new URL(config.solana.primaryRpcUrl);
@@ -73,7 +77,7 @@ export function composeProductionProviders(config: RuntimeConfig): ProductionPro
   });
   const authority = new SolanaExecutionRpc(primary);
   const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
-  const chain = new SolanaChainObservationAdapter(primary, fallback, identities);
+  const chain = new SolanaChainObservationAdapter(primary, fallback, identities, agreements);
   return Object.freeze({
     market: dexScreener,
     discovery: dexScreener,
