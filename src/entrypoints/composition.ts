@@ -101,6 +101,10 @@ import {
 } from "../application/services/paper-execution.js";
 import { PostgresPaperAccountingLedger } from "../infrastructure/database/paper-accounting.js";
 import { PostgresPaperEntryWorkQueue } from "../infrastructure/database/paper-entry-work.js";
+import { PostgresPaperPositionWorkQueue } from "../infrastructure/database/paper-position-work.js";
+import { PostgresPaperExitAuthority } from "../infrastructure/database/paper-exit-authority.js";
+import { AuthoritativePaperExitMonitor } from "../application/services/paper-exit-authority.js";
+import { runPaperPositionMonitorCycle } from "../application/services/paper-position-monitor.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -131,6 +135,7 @@ export function composePaperTradingRuntime(input: {
   const wallet = input.config.paper.walletAddress as WalletAddress;
   const ledger = new PostgresPaperAccountingLedger(input.database);
   const queue = new PostgresPaperEntryWorkQueue(input.database);
+  const positionQueue = new PostgresPaperPositionWorkQueue(input.database, wallet);
   const execution = new PaperQuoteExecutionService(wallet, providers.swap, ledger, () =>
     clock.now(),
   );
@@ -165,6 +170,21 @@ export function composePaperTradingRuntime(input: {
           ownerId: input.config.instanceId,
           now: () => clock.now(),
           leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+          batchSize: 25,
+        });
+        await runPaperPositionMonitorCycle({
+          queue: positionQueue,
+          monitor: new AuthoritativePaperExitMonitor(
+            new PostgresPaperExitAuthority(input.database, wallet, providers.swap, () =>
+              clock.now(),
+            ),
+          ),
+          execution,
+          ownerId: input.config.instanceId,
+          now: () => clock.now(),
+          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+          nextAt: (at) => asTimestamp(new Date(Date.parse(at) + 30_000)),
           retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
           batchSize: 25,
         });

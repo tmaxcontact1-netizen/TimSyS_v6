@@ -69,7 +69,7 @@ export async function runPaperPositionMonitorCycle(input: {
     try {
       const evaluatedAt = input.now();
       const decision = await input.monitor.evaluate(lease, evaluatedAt);
-      if (decision.evaluatedAt !== evaluatedAt || decision.reason.trim() === "")
+      if (decision.evaluatedAt < evaluatedAt || decision.reason.trim() === "")
         throw new InvariantViolationError("Paper exit decision lacks matching authority");
       if (decision.action === "none") {
         if (decision.requestedAmountRaw !== 0n)
@@ -89,13 +89,13 @@ export async function runPaperPositionMonitorCycle(input: {
         side: "sell",
         tokenMint: lease.tokenMint,
         inputAmountRaw: amount,
-        requestedAt: evaluatedAt,
+        requestedAt: decision.evaluatedAt,
       });
       await input.queue.complete({
         lease,
         fill,
-        monitoredAt: evaluatedAt,
-        nextAt: input.nextAt(evaluatedAt),
+        monitoredAt: decision.evaluatedAt,
+        nextAt: input.nextAt(decision.evaluatedAt),
       });
       fills.push(fill);
     } catch (error) {

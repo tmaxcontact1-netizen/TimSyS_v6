@@ -23,6 +23,10 @@ describe("paper production composition", () => {
   it("initializes once and schedules paper entries without live position jobs", async () => {
     const statements: string[] = [];
     const database = {
+      query: async (sql: string) => {
+        statements.push(sql);
+        return { rowCount: 0, rows: [] };
+      },
       connect: async () => ({
         query: async (sql: string) => {
           statements.push(sql);
@@ -44,6 +48,9 @@ describe("paper production composition", () => {
 
     expect(statements.filter((sql) => sql.includes("INSERT INTO paper_accounts"))).toHaveLength(1);
     expect(statements.filter((sql) => sql.includes("FOR UPDATE OF j SKIP LOCKED"))).toHaveLength(2);
+    expect(
+      statements.filter((sql) => sql.includes("INSERT INTO paper_position_work")),
+    ).toHaveLength(2);
     await expect(
       runtime.supervisor.jobs.findDue({ now: "2026-08-10" as never, limit: 1 }),
     ).resolves.toEqual([]);
