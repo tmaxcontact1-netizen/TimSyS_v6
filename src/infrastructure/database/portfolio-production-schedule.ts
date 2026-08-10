@@ -54,13 +54,15 @@ export class PostgresPortfolioProductionSchedule implements PortfolioProductionS
         `UPDATE jobs SET state='available', lease_owner=NULL, lease_expires_at=NULL,
                          available_at=$3, last_error_json=$4::jsonb, last_error_at=$5,
                          updated_at=$3, version=version+1
-         WHERE id=$1 AND job_type='portfolio_production' AND state='leased' AND lease_owner=$2`,
+         WHERE id=$1 AND job_type='portfolio_production' AND state='leased' AND lease_owner=$2
+           AND updated_at=$6`,
         [
           scheduleId,
           lease.ownerId,
           availableAt,
           reason === undefined ? null : JSON.stringify({ message: reason }),
           reason === undefined ? null : availableAt,
+          lease.observedAt,
         ],
       );
       if (released.rowCount !== 1) throw new Error("Portfolio schedule requires the active lease");

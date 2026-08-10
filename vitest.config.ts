@@ -84,6 +84,7 @@ export default defineConfig({
       "tests/security/secrets.test.ts",
       "tests/failure/reconciliation.test.ts",
       "tests/failure/reconciliation-retry.test.ts",
+      "tests/failure/portfolio-production-readiness.test.ts",
       "tests/replay/determinism.test.ts",
     ],
     passWithNoTests: false,
