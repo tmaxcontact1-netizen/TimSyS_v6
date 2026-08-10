@@ -51,6 +51,14 @@ const ids = [
   "watchlist-count",
   "watchlist-rows",
   "toggle-watchlist",
+  "menu-toggle",
+  "sidebar-backdrop",
+  "sidebar-collapse",
+  "preferences-open",
+  "preferences-dialog",
+  "preferences-close",
+  "preferences-reset",
+  "preferences-done",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
@@ -58,14 +66,48 @@ let selectedRange = "7d";
 let refreshTimer;
 const connectionEvents = [];
 const watchlistKey = "memecoined.paper.watchlist.v1";
+const preferencesKey = "memecoined.paper.preferences.v1";
 let selectedToken = null;
 let watchlist = loadWatchlist();
+let preferences = loadPreferences();
 const sortState = {
   positions: { key: "opened_at", kind: "date", direction: "desc" },
   fills: { key: "filled_at", kind: "date", direction: "desc" },
   performance: { key: "realized_at", kind: "date", direction: "desc" },
   events: { key: "evaluated_at", kind: "date", direction: "desc" },
 };
+function loadPreferences() {
+  try {
+    const value = JSON.parse(localStorage.getItem(preferencesKey) ?? "{}");
+    return {
+      density: value.density === "compact" ? "compact" : "detailed",
+      sidebar: value.sidebar === "collapsed" ? "collapsed" : "expanded",
+    };
+  } catch {
+    return { density: "detailed", sidebar: "expanded" };
+  }
+}
+function applyPreferences() {
+  document.body.dataset.density = preferences.density;
+  document.body.dataset.sidebar = preferences.sidebar;
+  elements["sidebar-collapse"].ariaPressed = String(preferences.sidebar === "collapsed");
+  elements["sidebar-collapse"].textContent =
+    preferences.sidebar === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
+  const density = document.querySelector(`input[name="density"][value="${preferences.density}"]`);
+  if (density instanceof HTMLInputElement) density.checked = true;
+}
+function savePreferences() {
+  try {
+    localStorage.setItem(preferencesKey, JSON.stringify(preferences));
+  } catch {
+    // Display preferences are optional when browser storage is unavailable.
+  }
+  applyPreferences();
+}
+function closeMenu() {
+  document.body.dataset.menu = "closed";
+  elements["menu-toggle"].ariaExpanded = "false";
+}
 function loadWatchlist() {
   try {
     const value = JSON.parse(localStorage.getItem(watchlistKey) ?? "[]");
@@ -493,10 +535,45 @@ async function refresh() {
     recordConnection("error", "Refresh failed");
   }
 }
+applyPreferences();
 void refresh();
 scheduleRefresh();
 elements["refresh-now"].addEventListener("click", () => void refresh());
 elements["refresh-rate"].addEventListener("change", scheduleRefresh);
+elements["menu-toggle"].addEventListener("click", () => {
+  const open = document.body.dataset.menu !== "open";
+  document.body.dataset.menu = open ? "open" : "closed";
+  elements["menu-toggle"].ariaExpanded = String(open);
+});
+elements["sidebar-backdrop"].addEventListener("click", closeMenu);
+document
+  .querySelectorAll("#sidebar nav a")
+  .forEach((link) => link.addEventListener("click", closeMenu));
+elements["sidebar-collapse"].addEventListener("click", () => {
+  preferences.sidebar = preferences.sidebar === "collapsed" ? "expanded" : "collapsed";
+  savePreferences();
+});
+elements["preferences-open"].addEventListener("click", () =>
+  elements["preferences-dialog"].showModal(),
+);
+elements["preferences-close"].addEventListener("click", () =>
+  elements["preferences-dialog"].close(),
+);
+elements["preferences-done"].addEventListener("click", () =>
+  elements["preferences-dialog"].close(),
+);
+elements["preferences-reset"].addEventListener("click", () => {
+  preferences = { density: "detailed", sidebar: "expanded" };
+  savePreferences();
+});
+document.querySelectorAll('input[name="density"]').forEach((control) =>
+  control.addEventListener("change", () => {
+    if (control instanceof HTMLInputElement && control.checked) {
+      preferences.density = control.value;
+      savePreferences();
+    }
+  }),
+);
 elements["token-search"].addEventListener("input", renderDetails);
 elements["side-filter"].addEventListener("change", renderDetails);
 elements["clear-filters"].addEventListener("click", () => {

@@ -17,7 +17,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  padding: 38px clamp(20px, 5vw, 72px) 26px;
+  padding: 38px clamp(20px, 5vw, 72px) 26px 300px;
   background: radial-gradient(circle at 78% 0%, #14261d 0, transparent 32%), #080b0a;
 }
 .masthead,
@@ -27,12 +27,114 @@ footer {
   justify-content: space-between;
 }
 .masthead {
-  padding-bottom: 32px;
-  border-bottom: 1px solid var(--line);
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 20;
+  width: 260px;
+  padding: 34px 24px;
+  border-right: 1px solid var(--line);
+  background: #0b100d;
+  align-items: stretch;
+  flex-direction: column;
+  justify-content: flex-start;
+  transition:
+    width 180ms ease,
+    transform 180ms ease;
 }
 .masthead nav {
-  display: flex;
+  display: grid;
   gap: 6px;
+  margin: 34px 0 auto;
+}
+.masthead nav a {
+  display: block;
+}
+.sidebar-actions {
+  display: grid;
+  gap: 7px;
+  margin: 24px 0;
+}
+.sidebar-actions button,
+.preference-actions button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  background: #0c100e;
+  cursor: pointer;
+}
+.menu-toggle,
+.sidebar-backdrop {
+  display: none;
+}
+.preferences-dialog {
+  width: min(520px, calc(100vw - 40px));
+}
+.preferences-dialog fieldset {
+  display: grid;
+  gap: 12px;
+  margin: 28px 0 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.preferences-dialog legend {
+  padding: 0 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.preferences-dialog label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.preference-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 26px;
+}
+.preference-actions button {
+  padding: 0 15px;
+}
+body[data-sidebar="collapsed"] {
+  padding-left: 120px;
+}
+body[data-sidebar="collapsed"] .masthead {
+  width: 80px;
+  padding-inline: 13px;
+}
+body[data-sidebar="collapsed"] .masthead h1,
+body[data-sidebar="collapsed"] .masthead .eyebrow,
+body[data-sidebar="collapsed"] .masthead nav a,
+body[data-sidebar="collapsed"] .sidebar-actions button,
+body[data-sidebar="collapsed"] .status span:not(.status-dot) {
+  font-size: 0;
+}
+body[data-sidebar="collapsed"] .masthead nav a::before,
+body[data-sidebar="collapsed"] .sidebar-actions button::before {
+  content: attr(data-short);
+  font-size: 12px;
+}
+body[data-density="compact"] main {
+  padding-block: 18px;
+}
+body[data-density="compact"] .panel,
+body[data-density="compact"] .metric {
+  padding: 18px;
+}
+body[data-density="compact"] .metric {
+  min-height: 130px;
+}
+body[data-density="compact"] .metric strong {
+  margin-block: 18px 7px;
+}
+body[data-density="compact"] th,
+body[data-density="compact"] td {
+  padding: 9px 13px;
+}
+body[data-density="compact"] .optional-detail {
+  display: none;
 }
 .masthead nav a,
 .toolbar button {
@@ -623,6 +725,54 @@ footer {
   text-transform: uppercase;
 }
 @media (max-width: 900px) {
+  body,
+  body[data-sidebar="collapsed"] {
+    padding: 80px 20px 26px;
+  }
+  .masthead,
+  body[data-sidebar="collapsed"] .masthead {
+    width: min(300px, 86vw);
+    padding: 28px 22px;
+    transform: translateX(-105%);
+  }
+  body[data-menu="open"] .masthead {
+    transform: translateX(0);
+  }
+  body[data-sidebar="collapsed"] .masthead h1,
+  body[data-sidebar="collapsed"] .masthead .eyebrow,
+  body[data-sidebar="collapsed"] .masthead nav a,
+  body[data-sidebar="collapsed"] .sidebar-actions button,
+  body[data-sidebar="collapsed"] .status span:not(.status-dot) {
+    font-size: revert;
+  }
+  body[data-sidebar="collapsed"] .masthead nav a::before,
+  body[data-sidebar="collapsed"] .sidebar-actions button::before {
+    content: none;
+  }
+  .menu-toggle {
+    position: fixed;
+    top: 18px;
+    left: 20px;
+    z-index: 19;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    color: #f3f6f2;
+    background: #0c100e;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 18;
+    border: 0;
+    background: #020403bb;
+  }
+  body[data-menu="open"] .sidebar-backdrop {
+    display: block;
+  }
   .hero-grid {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -630,6 +780,9 @@ footer {
     grid-template-columns: 1fr;
   }
   .masthead nav {
+    display: grid;
+  }
+  #sidebar-collapse {
     display: none;
   }
   .dialog-grid {
@@ -644,7 +797,7 @@ footer {
 }
 @media (max-width: 560px) {
   body {
-    padding: 24px 16px;
+    padding: 76px 16px 24px;
   }
   .masthead {
     align-items: flex-end;

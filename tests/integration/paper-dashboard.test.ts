@@ -70,6 +70,9 @@ describe("paper dashboard", () => {
     expect(page.body).toContain("Portfolio allocation");
     expect(page.body).toContain("Token watchlist");
     expect(page.body).toContain('data-sort="cost_raw"');
+    expect(page.body).toContain('id="preferences-dialog"');
+    expect(page.body).toContain('name="density" value="compact"');
+    expect(page.body).toContain('id="sidebar-collapse"');
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
   });

@@ -113,6 +113,17 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 - Schedule live candidate discovery from the production supervisor before each position batch,
   persisting retry-safe candidates and evaluation work through the existing atomic repository.
 
+# Frontend sidebar and display preferences
+
+| File                                        | Change                                                               | Reason                                                        | Authority              |
+| ------------------------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                       | Added responsive sidebar controls and display-preference dialog      | Make the growing observation surface navigable                | Authorized by operator |
+| `frontend/styles.css`                       | Added desktop, collapsed, mobile-drawer, and compact-density layouts | Preserve legibility across viewport and information density   | Authorized by operator |
+| `frontend/app.js`                           | Added browser-local preference persistence and accessible menu state | Retain operator layout choices without backend mutation       | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts` | Added static contracts for sidebar and density controls              | Prove the delivered page contains the approved frontend slice | Authorized by operator |
+| `docs/PROJECT_MAP.md`                       | Recorded responsive navigation and local display preferences         | Keep the architecture inventory current                       | Authorized by operator |
+| `docs/CHANGELOG.md`                         | Recorded the frontend preference batch                               | Maintain the file-touch audit                                 | Authorized by operator |
+
 # Frontend watchlist, allocation, and sorting
 
 | File                                        | Change                                                                        | Reason                                                    | Authority              |
