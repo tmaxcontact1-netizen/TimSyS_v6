@@ -34,6 +34,11 @@ import {
   updateDashboardTradingConfiguration,
   type DashboardTradingConfigurationValues,
 } from "../infrastructure/database/dashboard-trading-configurations.js";
+import {
+  cancelPendingPaperEntry,
+  PaperControlConflictError,
+  requestPaperPositionClose,
+} from "../infrastructure/database/paper-operator-controls.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
@@ -150,6 +155,82 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     const tokenMatch = pathname.match(
       /^\/api\/watchlists\/([0-9a-f-]+)\/tokens(?:\/([1-9A-HJ-NP-Za-km-z]+))?$/,
     );
+    const paperOrderCancelMatch = pathname.match(/^\/api\/paper\/orders\/([0-9a-f-]+)\/cancel$/i);
+    const paperPositionCloseMatch = pathname.match(
+      /^\/api\/paper\/positions\/([1-9A-HJ-NP-Za-km-z]+)\/close$/,
+    );
+    if (paperOrderCancelMatch !== null || paperPositionCloseMatch !== null) {
+      if (method !== "POST") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      if (!authorized(request, dependencies.mutationToken)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const body = await readJson(request);
+        if (paperOrderCancelMatch !== null) {
+          const signalId = paperOrderCancelMatch[1];
+          if (signalId === undefined || !UUID.test(signalId)) throw new Error("invalid_signal_id");
+          if (body.confirmedSignalId !== signalId) throw new Error("invalid_confirmation");
+          if (!Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0)
+            throw new Error("invalid_expected_version");
+          const order = await cancelPendingPaperEntry(
+            dependencies.database,
+            dependencies.wallet,
+            signalId,
+            Number(body.expectedVersion),
+            now(),
+          );
+          sendJson(response, 200, { mode: "paper", order });
+          return;
+        }
+        const tokenMint = paperPositionCloseMatch?.[1];
+        if (tokenMint === undefined || !SOLANA_ADDRESS.test(tokenMint))
+          throw new Error("invalid_token_mint");
+        if (body.confirmedMint !== tokenMint) throw new Error("invalid_confirmation");
+        if (
+          typeof body.expectedOpenAmountRaw !== "string" ||
+          !/^[1-9]\d*$/.test(body.expectedOpenAmountRaw) ||
+          body.expectedOpenAmountRaw.length > 78
+        )
+          throw new Error("invalid_open_amount");
+        const closeRequest = await requestPaperPositionClose(
+          dependencies.database,
+          dependencies.wallet,
+          tokenMint as MintAddress,
+          BigInt(body.expectedOpenAmountRaw),
+          now(),
+        );
+        sendJson(response, 202, { mode: "paper", closeRequest });
+      } catch (error) {
+        if (error instanceof PaperControlConflictError) {
+          sendJson(response, 409, { error: "paper_control_conflict" });
+        } else if (
+          error instanceof Error &&
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_signal_id",
+            "invalid_expected_version",
+            "invalid_token_mint",
+            "invalid_open_amount",
+            "invalid_confirmation",
+          ].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "paper_control_unavailable" });
+        }
+      }
+      return;
+    }
     if (pathname === "/api/trading-configurations" && method === "GET") {
       try {
         const configurations = await listDashboardTradingConfigurations(

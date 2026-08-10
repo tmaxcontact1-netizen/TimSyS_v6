@@ -423,3 +423,11 @@ No provider adapter, database schema, dependency manifest or executable code is 
 - Names, UUIDs, Solana mints, expected versions, and destructive confirmations are validated before persistence.
 - Create, rename, token membership changes, and deletion write immutable audit facts atomically with the mutation.
 - Stale or duplicate changes fail closed; internal database errors are not returned to the browser.
+
+## Guarded paper-control contract
+
+- Paper controls use the dashboard mutation token, exact same-origin check, bounded JSON body, wallet scope, and immutable audit boundary.
+- Entry cancellation requires the exact signal identifier and current job version. Only a planned entry with an available, unleased paper job can be cancelled.
+- Full-position close requires exact mint confirmation and the exact observed open raw amount. A mismatch or duplicate pending request fails closed.
+- Close requests are evaluated through the existing authoritative paper quote, simulated execution, and accounting path. Quote or accounting failure leaves the request pending for retry.
+- These routes are available only in the paper dashboard composition and cannot sign, submit, activate a configuration, change mode, or reach live execution adapters.

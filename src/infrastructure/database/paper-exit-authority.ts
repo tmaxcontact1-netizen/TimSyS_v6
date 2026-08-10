@@ -41,6 +41,11 @@ export class PostgresPaperExitAuthority implements PaperExitAuthoritySource {
     openAmountRaw: bigint;
     evaluatedAt: Timestamp;
   }): Promise<Readonly<{ decision: ExitDecision; evaluatedAt: Timestamp }>> {
+    const operatorClose = await this.database.query<{ expected_open_amount_raw: string }>(
+      `SELECT expected_open_amount_raw::text FROM paper_position_close_requests
+       WHERE wallet=$1 AND token_mint=$2 AND state='pending' LIMIT 1`,
+      [this.wallet, input.tokenMint],
+    );
     const state = await this.database.query<{
       original_amount_raw: string;
       current_amount_raw: string;
@@ -92,7 +97,7 @@ export class PostgresPaperExitAuthority implements PaperExitAuthoritySource {
     );
     const openedAt = asTimestamp(new Date(row.opened_at).toISOString());
     const cost = asNonNegativeDecimal(new Decimal(row.remaining_cost_raw).div(LAMPORTS_PER_SOL));
-    const decision = evaluateExit(
+    const deterministicDecision = evaluateExit(
       {
         id: uuid("paper-position", this.wallet, input.tokenMint) as never,
         tokenId: uuid("paper-token", this.wallet, input.tokenMint) as never,
@@ -139,6 +144,21 @@ export class PostgresPaperExitAuthority implements PaperExitAuthoritySource {
         },
       },
     );
+    const closeRequested = operatorClose.rows[0];
+    if (
+      closeRequested !== undefined &&
+      input.openAmountRaw > BigInt(closeRequested.expected_open_amount_raw)
+    )
+      throw new InvariantViolationError("Paper close request does not match leased inventory");
+    const decision: ExitDecision =
+      closeRequested === undefined
+        ? deterministicDecision
+        : Object.freeze({
+            action: "full",
+            requestedAmount: asRawAmount(input.openAmountRaw),
+            ruleId: "OPERATOR-PAPER-CLOSE",
+            results: deterministicDecision.results,
+          });
     await this.database.query(
       `INSERT INTO paper_exit_evaluations
        (id,wallet,token_mint,evaluated_at,open_amount_raw,executable_value_sol,action,rule_id,requested_amount_raw,evidence_json)

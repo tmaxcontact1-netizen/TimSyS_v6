@@ -279,3 +279,10 @@ Approval locks the data and behavioural contract. It authorizes creation and app
 - `dashboard_mutation_audit` stores immutable create, rename, delete, add-token, and remove-token facts independently of trading records.
 - Every update or delete requires the caller's expected version. A stale version changes nothing and returns a conflict.
 - Watchlist mutations cannot create trading commands, decisions, signatures, submissions, or position changes.
+
+# Guarded paper operator controls
+
+- `paper_position_close_requests` contains at most one pending full-close request per paper wallet and mint. Each request records the exact positive open raw amount observed when accepted and remains pending until accounting proves the position is fully closed.
+- `paper_operator_control_audit` is immutable and records accepted entry cancellations, close requests, and fulfilled closes.
+- A paper entry cancellation atomically cancels only an approved paper order and its `planned` entry whose `entry_planning` job is `available`, unleased, wallet-owned, and at the supplied version. The job becomes completed and increments its version in the same statement.
+- A position close request is accepted only when the confirmed mint and supplied raw amount exactly match current positive paper inventory. Duplicate or stale requests change nothing.

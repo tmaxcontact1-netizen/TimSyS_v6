@@ -57,6 +57,8 @@ const paperColumns = [
   "dashboard_trading_configurations.version",
   "dashboard_trading_configurations.entry_slippage_bps",
   "dashboard_trading_configuration_audit.action",
+  "paper_position_close_requests.state",
+  "paper_operator_control_audit.action",
 ];
 
 function database(missing?: string, includePaper = false) {
@@ -128,6 +130,13 @@ describe("runtime database startup", () => {
         "paper",
       ),
     ).rejects.toThrow(/paper_exit_evaluations.evaluated_at/));
+  it("rejects an unapplied paper-control migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(
+        database("paper_position_close_requests.state", true) as never,
+        "paper",
+      ),
+    ).rejects.toThrow(/paper_position_close_requests.state/));
   it("rejects an unapplied dashboard watchlist migration", async () =>
     await expect(
       verifyRuntimeDatabase(database("dashboard_watchlists.version", true) as never, "paper", true),

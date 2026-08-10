@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { PoolClient } from "pg";
 
 import { InvariantViolationError } from "../../domain/shared/errors.js";
@@ -172,6 +174,23 @@ export class PostgresPaperAccountingLedger {
             fill.filledAt,
           ],
         );
+        const remaining = await client.query<{ open_amount_raw: string }>(
+          `SELECT COALESCE(sum(current_amount_raw),0)::text AS open_amount_raw
+           FROM paper_position_lots WHERE wallet=$1 AND token_mint=$2`,
+          [fill.wallet, fill.tokenMint],
+        );
+        if (BigInt(remaining.rows[0]?.open_amount_raw ?? "0") === 0n) {
+          await client.query(
+            `WITH fulfilled AS (
+               UPDATE paper_position_close_requests SET state='fulfilled',fulfilled_at=$3
+               WHERE wallet=$1 AND token_mint=$2 AND state='pending' RETURNING id
+             ) INSERT INTO paper_operator_control_audit
+               (id,wallet,action,target,payload_json,occurred_at)
+             SELECT $4,$1,'position_close_fulfilled',$2,
+               jsonb_build_object('requestId',id,'fillId',$5),$3 FROM fulfilled`,
+            [fill.wallet, fill.tokenMint, fill.filledAt, randomUUID(), fill.id],
+          );
+        }
       }
       await client.query(
         `INSERT INTO paper_cash_events (id,wallet,event_type,amount_raw,occurred_at,content_hash)

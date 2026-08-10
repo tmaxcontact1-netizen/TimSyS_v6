@@ -424,4 +424,113 @@ describe("paper dashboard", () => {
     ).toBe(400);
     expect(queries).toBe(1);
   });
+
+  it("guards paper entry cancellation with authentication, confirmation, and version", async () => {
+    const signalId = "123e4567-e89b-42d3-a456-426614174010";
+    let queries = 0;
+    const server = createPaperDashboardServer({
+      database: {
+        query: async () => {
+          queries += 1;
+          return { rows: [{ signal_id: signalId, version: 4 }] };
+        },
+        end: async () => undefined,
+      } as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+      mutationToken: "d".repeat(32),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const path = `/api/paper/orders/${signalId}/cancel`;
+    expect((await get(address.port, path, "POST")).status).toBe(401);
+    const headers = {
+      authorization: `Bearer ${"d".repeat(32)}`,
+      origin: `http://127.0.0.1:${address.port}`,
+      host: `127.0.0.1:${address.port}`,
+      "content-type": "application/json",
+    };
+    expect(
+      (await get(address.port, path, "POST", headers, JSON.stringify({ expectedVersion: 3 })))
+        .status,
+    ).toBe(400);
+    const response = await get(
+      address.port,
+      path,
+      "POST",
+      headers,
+      JSON.stringify({ expectedVersion: 3, confirmedSignalId: signalId }),
+    );
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper",
+      order: { signalId, state: "cancelled", version: 4 },
+    });
+    expect(queries).toBe(1);
+  });
+
+  it("guards full paper-position close requests with exact observed inventory", async () => {
+    const mint = "So11111111111111111111111111111111111111112";
+    let queries = 0;
+    const server = createPaperDashboardServer({
+      database: {
+        query: async () => {
+          queries += 1;
+          return {
+            rows: [
+              {
+                id: "123e4567-e89b-42d3-a456-426614174011",
+                token_mint: mint,
+                expected_open_amount_raw: "9000",
+                requested_at: "2026-08-11T10:00:00Z",
+              },
+            ],
+          };
+        },
+        end: async () => undefined,
+      } as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+      mutationToken: "e".repeat(32),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const headers = {
+      authorization: `Bearer ${"e".repeat(32)}`,
+      origin: `http://127.0.0.1:${address.port}`,
+      host: `127.0.0.1:${address.port}`,
+      "content-type": "application/json",
+    };
+    const path = `/api/paper/positions/${mint}/close`;
+    const response = await get(
+      address.port,
+      path,
+      "POST",
+      headers,
+      JSON.stringify({ confirmedMint: mint, expectedOpenAmountRaw: "9000" }),
+    );
+    expect(response.status).toBe(202);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper",
+      closeRequest: { tokenMint: mint, expectedOpenAmountRaw: "9000", state: "pending" },
+    });
+    expect(
+      (
+        await get(
+          address.port,
+          path,
+          "POST",
+          headers,
+          JSON.stringify({ confirmedMint: mint, expectedOpenAmountRaw: "0" }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(queries).toBe(1);
+  });
 });

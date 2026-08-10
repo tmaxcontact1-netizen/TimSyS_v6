@@ -6,4 +6,6 @@ Persistent trading configurations are inert paper-mode drafts. Their API shares 
 
 The dashboard configuration editor reuses the session-only mutation credential. It displays and mutates inert drafts only, carries the current optimistic version on updates and deletion, reloads authoritative records after conflicts, and exposes no activation control.
 
+Guarded paper controls are scoped to the configured paper wallet. Entry cancellation is permitted only before a worker lease exists and requires the current job version plus exact signal confirmation. Position closure is a durable full-close request tied to the exact observed raw inventory; it flows through quote simulation and paper accounting, remains pending after failure, and cannot reach signing or submission.
+
 The operator enters the mutation token into the loopback dashboard when changes are needed. The browser retains it only in page memory and clears the input immediately; it is never written to local storage. Persistent watchlist reads require no credential. Legacy browser-local token lists migrate only after an explicit operator action, and the local copy is cleared only after every durable, version-checked addition succeeds.

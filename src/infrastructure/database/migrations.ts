@@ -55,6 +55,8 @@ const paperRequiredColumns = Object.freeze([
   "paper_position_work.last_error",
   "paper_realized_performance.realized_pnl_raw",
   "paper_exit_evaluations.evaluated_at",
+  "paper_position_close_requests.state",
+  "paper_operator_control_audit.action",
 ]);
 
 const dashboardRequiredColumns = Object.freeze([
