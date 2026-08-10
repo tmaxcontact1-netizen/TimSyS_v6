@@ -59,6 +59,7 @@ const ids = [
   "preferences-close",
   "preferences-reset",
   "preferences-done",
+  "panel-preferences",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
@@ -67,6 +68,15 @@ let refreshTimer;
 const connectionEvents = [];
 const watchlistKey = "memecoined.paper.watchlist.v1";
 const preferencesKey = "memecoined.paper.preferences.v1";
+const defaultPanelOrder = [
+  "overview",
+  "portfolio",
+  "alerts",
+  "performance",
+  "operations",
+  "filters",
+  "trading",
+];
 let selectedToken = null;
 let watchlist = loadWatchlist();
 let preferences = loadPreferences();
@@ -79,13 +89,72 @@ const sortState = {
 function loadPreferences() {
   try {
     const value = JSON.parse(localStorage.getItem(preferencesKey) ?? "{}");
+    const storedOrder = Array.isArray(value.panelOrder)
+      ? value.panelOrder.filter((id) => defaultPanelOrder.includes(id))
+      : [];
+    const panelOrder = [...new Set([...storedOrder, ...defaultPanelOrder])];
+    const hiddenPanels = Array.isArray(value.hiddenPanels)
+      ? value.hiddenPanels.filter((id) => id !== "overview" && defaultPanelOrder.includes(id))
+      : [];
     return {
       density: value.density === "compact" ? "compact" : "detailed",
       sidebar: value.sidebar === "collapsed" ? "collapsed" : "expanded",
+      panelOrder,
+      hiddenPanels,
     };
   } catch {
-    return { density: "detailed", sidebar: "expanded" };
+    return defaultPreferences();
   }
+}
+function defaultPreferences() {
+  return {
+    density: "detailed",
+    sidebar: "expanded",
+    panelOrder: [...defaultPanelOrder],
+    hiddenPanels: [],
+  };
+}
+function renderPanelPreferences() {
+  elements["panel-preferences"].replaceChildren();
+  preferences.panelOrder.forEach((id, index) => {
+    const panel = document.querySelector(`[data-dashboard-panel="${id}"]`);
+    if (!(panel instanceof HTMLElement)) return;
+    const row = document.createElement("div");
+    row.className = "panel-preference-row";
+    const label = document.createElement("label");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = !preferences.hiddenPanels.includes(id);
+    checkbox.disabled = id === "overview";
+    checkbox.dataset.panelVisibility = id;
+    label.append(checkbox, document.createTextNode(panel.dataset.panelTitle ?? id));
+    const controls = document.createElement("span");
+    for (const [action, text, disabled] of [
+      ["up", "Move up", index === 0],
+      ["down", "Move down", index === preferences.panelOrder.length - 1],
+    ]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = text;
+      button.disabled = disabled;
+      button.dataset.panelMove = action;
+      button.dataset.panelId = id;
+      controls.append(button);
+    }
+    row.append(label, controls);
+    elements["panel-preferences"].append(row);
+  });
+}
+function applyPanelPreferences() {
+  const main = document.querySelector("main");
+  if (!(main instanceof HTMLElement)) return;
+  for (const id of preferences.panelOrder) {
+    const panel = main.querySelector(`[data-dashboard-panel="${id}"]`);
+    if (!(panel instanceof HTMLElement)) continue;
+    panel.hidden = preferences.hiddenPanels.includes(id);
+    main.append(panel);
+  }
+  renderPanelPreferences();
 }
 function applyPreferences() {
   document.body.dataset.density = preferences.density;
@@ -95,6 +164,7 @@ function applyPreferences() {
     preferences.sidebar === "collapsed" ? "Expand sidebar" : "Collapse sidebar";
   const density = document.querySelector(`input[name="density"][value="${preferences.density}"]`);
   if (density instanceof HTMLInputElement) density.checked = true;
+  applyPanelPreferences();
 }
 function savePreferences() {
   try {
@@ -563,7 +633,28 @@ elements["preferences-done"].addEventListener("click", () =>
   elements["preferences-dialog"].close(),
 );
 elements["preferences-reset"].addEventListener("click", () => {
-  preferences = { density: "detailed", sidebar: "expanded" };
+  preferences = defaultPreferences();
+  savePreferences();
+});
+elements["panel-preferences"].addEventListener("change", (event) => {
+  if (!(event.target instanceof HTMLInputElement)) return;
+  const id = event.target.dataset.panelVisibility;
+  if (!id || id === "overview") return;
+  preferences.hiddenPanels = event.target.checked
+    ? preferences.hiddenPanels.filter((panel) => panel !== id)
+    : [...new Set([...preferences.hiddenPanels, id])];
+  savePreferences();
+});
+elements["panel-preferences"].addEventListener("click", (event) => {
+  if (!(event.target instanceof HTMLButtonElement)) return;
+  const id = event.target.dataset.panelId;
+  const direction = event.target.dataset.panelMove;
+  const index = preferences.panelOrder.indexOf(id);
+  const destination = direction === "up" ? index - 1 : direction === "down" ? index + 1 : index;
+  if (index < 0 || destination < 0 || destination >= preferences.panelOrder.length) return;
+  const order = [...preferences.panelOrder];
+  [order[index], order[destination]] = [order[destination], order[index]];
+  preferences.panelOrder = order;
   savePreferences();
 });
 document.querySelectorAll('input[name="density"]').forEach((control) =>

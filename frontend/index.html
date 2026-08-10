@@ -48,7 +48,13 @@
       </div>
     </header>
     <main>
-      <section id="overview" class="hero-grid" aria-label="Portfolio summary">
+      <section
+        id="overview"
+        class="hero-grid"
+        aria-label="Portfolio summary"
+        data-dashboard-panel="overview"
+        data-panel-title="Portfolio summary"
+      >
         <article class="metric metric-primary">
           <span>Simulated equity</span><strong id="equity">—</strong
           ><small id="equity-change">Awaiting durable snapshot</small>
@@ -65,7 +71,12 @@
           ><small>FIFO realized performance</small>
         </article>
       </section>
-      <section class="detail-grid optional-detail" aria-label="Portfolio focus">
+      <section
+        class="detail-grid optional-detail"
+        aria-label="Portfolio focus"
+        data-dashboard-panel="portfolio"
+        data-panel-title="Allocation and watchlist"
+      >
         <article id="allocation" class="panel allocation-panel">
           <div class="panel-heading">
             <div>
@@ -110,6 +121,8 @@
         id="alerts"
         class="detail-grid optional-detail"
         aria-label="Operational health detail"
+        data-dashboard-panel="alerts"
+        data-panel-title="Alerts and connection"
       >
         <article class="panel table-panel">
           <div class="panel-heading">
@@ -159,7 +172,13 @@
           </ol>
         </article>
       </section>
-      <section id="performance" class="panel chart-panel" aria-labelledby="performance-title">
+      <section
+        id="performance"
+        class="panel chart-panel"
+        aria-labelledby="performance-title"
+        data-dashboard-panel="performance"
+        data-panel-title="Performance chart"
+      >
         <div class="panel-heading">
           <div>
             <p class="eyebrow">PORTFOLIO PERFORMANCE</p>
@@ -189,7 +208,11 @@
           ><strong id="chart-range-label">Last 7 days</strong>
         </div>
       </section>
-      <section class="operations optional-detail">
+      <section
+        class="operations optional-detail"
+        data-dashboard-panel="operations"
+        data-panel-title="Runtime operations"
+      >
         <article class="panel activity-panel">
           <div class="panel-heading">
             <div>
@@ -224,7 +247,12 @@
           </dl>
         </article>
       </section>
-      <section class="toolbar optional-detail" aria-label="Table controls">
+      <section
+        class="toolbar optional-detail"
+        aria-label="Table controls"
+        data-dashboard-panel="filters"
+        data-panel-title="Table filters"
+      >
         <label
           ><span>Search token</span
           ><input id="token-search" type="search" placeholder="Mint address" autocomplete="off"
@@ -240,7 +268,12 @@
         <button id="clear-filters" type="button">Clear filters</button>
         <span id="filter-status" aria-live="polite">Showing all records</span>
       </section>
-      <section class="detail-grid" aria-label="Trading detail">
+      <section
+        class="detail-grid"
+        aria-label="Trading detail"
+        data-dashboard-panel="trading"
+        data-panel-title="Trading detail"
+      >
         <article id="positions" class="panel table-panel wide">
           <div class="panel-heading">
             <div>
@@ -526,6 +559,11 @@
         <legend>Information density</legend>
         <label><input type="radio" name="density" value="detailed" checked /> Detailed</label>
         <label><input type="radio" name="density" value="compact" /> Compact</label>
+      </fieldset>
+      <fieldset>
+        <legend>Overview panels</legend>
+        <p class="panel-note">Choose visible panels and use the buttons to set their order.</p>
+        <div id="panel-preferences" class="panel-preferences"></div>
       </fieldset>
       <p class="panel-note">
         Compact mode reduces spacing and hides secondary explanatory panels. Preferences stay in

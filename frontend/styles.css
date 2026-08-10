@@ -829,3 +829,34 @@ footer {
     gap: 8px;
   }
 }
+[data-dashboard-panel][hidden] {
+  display: none !important;
+}
+
+.panel-preferences {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 0.75rem;
+}
+
+.panel-preference-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.panel-preference-row label {
+  align-items: center;
+  display: flex;
+  gap: 0.55rem;
+}
+
+.panel-preference-row > span {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.panel-preference-row button {
+  padding: 0.4rem 0.6rem;
+}

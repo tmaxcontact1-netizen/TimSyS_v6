@@ -30,20 +30,20 @@ Cross-module imports that violate this direction are prohibited.
 
 ## 2. Top-level directory structure
 
-| Path                  | Purpose                                                                                                                                          |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/docs`               | Approved specifications, operating documentation, and generated references                                                                       |
-| `/config`             | Non-secret configuration templates and validation definitions                                                                                    |
-| `/migrations`         | Ordered PostgreSQL schema migrations                                                                                                             |
-| `/src/domain`         | Deterministic strategy rules, financial calculations, entities, and state machines                                                               |
-| `/src/application`    | Use cases, orchestration, ports, and normalized provider-independent contracts                                                                   |
-| `/src/infrastructure` | Database, provider, security, clock, logging, and reporting implementations                                                                      |
-| `/src/entrypoints`    | Process composition and executable entrypoints                                                                                                   |
-| `/src/workers`        | Scheduled and continuous runtime workflows                                                                                                       |
-| `/scripts`            | Operator-run maintenance and proof commands                                                                                                      |
-| `/frontend`           | Dependency-free local paper dashboard assets, including responsive navigation, browser-local display preferences, watchlist, and portfolio views |
-| `/tests`              | Unit, contract, integration, replay, recovery, failure, and security tests                                                                       |
-| `/fixtures`           | Sanitized immutable test inputs                                                                                                                  |
+| Path                  | Purpose                                                                                                                                                    |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/docs`               | Approved specifications, operating documentation, and generated references                                                                                 |
+| `/config`             | Non-secret configuration templates and validation definitions                                                                                              |
+| `/migrations`         | Ordered PostgreSQL schema migrations                                                                                                                       |
+| `/src/domain`         | Deterministic strategy rules, financial calculations, entities, and state machines                                                                         |
+| `/src/application`    | Use cases, orchestration, ports, and normalized provider-independent contracts                                                                             |
+| `/src/infrastructure` | Database, provider, security, clock, logging, and reporting implementations                                                                                |
+| `/src/entrypoints`    | Process composition and executable entrypoints                                                                                                             |
+| `/src/workers`        | Scheduled and continuous runtime workflows                                                                                                                 |
+| `/scripts`            | Operator-run maintenance and proof commands                                                                                                                |
+| `/frontend`           | Dependency-free local paper dashboard assets, including responsive navigation, browser-local display and panel preferences, watchlist, and portfolio views |
+| `/tests`              | Unit, contract, integration, replay, recovery, failure, and security tests                                                                                 |
+| `/fixtures`           | Sanitized immutable test inputs                                                                                                                            |
 
 ## 3. Repository-root files
 

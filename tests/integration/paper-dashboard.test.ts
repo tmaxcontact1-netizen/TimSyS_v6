@@ -73,6 +73,9 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('id="preferences-dialog"');
     expect(page.body).toContain('name="density" value="compact"');
     expect(page.body).toContain('id="sidebar-collapse"');
+    expect(page.body).toContain('id="panel-preferences"');
+    expect(page.body).toContain('data-dashboard-panel="overview"');
+    expect(page.body).toContain('data-dashboard-panel="trading"');
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
   });

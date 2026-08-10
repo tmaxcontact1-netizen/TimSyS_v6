@@ -148,3 +148,13 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 | `tests/integration/paper-dashboard.test.ts`      | Added alert route and mutation-refusal coverage                                        | Prove the HTTP boundary remains read-only             | Authorized by operator |
 | `docs/PROJECT_MAP.md`                            | Recorded alert projection and route                                                    | Keep the architecture inventory current               | Authorized by operator |
 | `docs/CHANGELOG.md`                              | Recorded the frontend alert batch                                                      | Maintain the file-touch audit                         | Authorized by operator |
+
+# Frontend panel customization
+
+| File                                        | Change                                                           | Reason                                                      | Authority              |
+| ------------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                       | Added stable panel identities and panel-preference controls      | Make the overview locally customizable                      | Authorized by operator |
+| `frontend/app.js`                           | Added local visibility, ordering, validation, and reset behavior | Preserve deterministic keyboard-accessible dashboard layout | Authorized by operator |
+| `frontend/styles.css`                       | Added panel preference and hidden-state presentation             | Keep customization controls legible                         | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts` | Added static contracts for the customization surface             | Prove the approved controls are delivered                   | Authorized by operator |
+| `docs/PROJECT_MAP.md`                       | Recorded browser-local panel preferences                         | Keep the architecture inventory current                     | Authorized by operator |
