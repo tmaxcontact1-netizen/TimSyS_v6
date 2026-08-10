@@ -34,7 +34,7 @@ type EncodedValue =
   | readonly EncodedValue[]
   | { readonly [key: string]: EncodedValue };
 
-interface JobRow extends Record<string, unknown> {
+export interface PositionCheckpointRow extends Record<string, unknown> {
   readonly id: string;
   readonly version: string | number | bigint;
   readonly payload_json: unknown;
@@ -101,7 +101,7 @@ function serializePayload(input: {
   });
 }
 
-function checkpointFromRow(row: JobRow): PositionWorkerCheckpoint {
+export function positionCheckpointFromRow(row: PositionCheckpointRow): PositionWorkerCheckpoint {
   const payload = requireObject(decode(row.payload_json), "Checkpoint payload");
   if (typeof payload.positionId !== "string")
     throw new InvariantViolationError("Checkpoint position ID is invalid");
@@ -176,7 +176,7 @@ export class PostgresPositionWorkerCheckpointRepository
          VALUES ($1, $2, $3, $4::jsonb)`,
         [checkpoint.positionId, baseline.capturedAt, baseline.contentHash, baseline.serialized],
       );
-      const result = await client.query<JobRow>(
+      const result = await client.query<PositionCheckpointRow>(
         `INSERT INTO jobs
            (id, job_type, idempotency_key, payload_json, state, version)
          VALUES ($1, $2, $3, $4::jsonb, 'available', 0)
@@ -190,8 +190,15 @@ export class PostgresPositionWorkerCheckpointRepository
       );
       if (result.rowCount !== 1 || result.rows[0] === undefined)
         throw new InvariantViolationError("Position worker checkpoint was not initialized");
+      const plan = await client.query(
+        `UPDATE entry_plans SET state='opened'
+         WHERE signal_id=(SELECT signal_id FROM orders WHERE id=$1) AND state='submitted'`,
+        [position.entryOrderId],
+      );
+      if (plan.rowCount !== 1)
+        throw new InvariantViolationError("Position opening requires one submitted entry plan");
       await client.query("COMMIT");
-      return checkpointFromRow(result.rows[0]);
+      return positionCheckpointFromRow(result.rows[0]);
     } catch (error) {
       await rollback(client);
       throw error;
@@ -201,13 +208,13 @@ export class PostgresPositionWorkerCheckpointRepository
   }
 
   public async load(positionId: PositionId): Promise<PositionWorkerCheckpoint> {
-    const result = await this.database.query<JobRow>(
+    const result = await this.database.query<PositionCheckpointRow>(
       "SELECT id, version, payload_json FROM jobs WHERE id = $1 AND job_type = $2",
       [positionId, JOB_TYPE],
     );
     if (result.rowCount !== 1 || result.rows[0] === undefined)
       throw new InvariantViolationError("Position worker checkpoint was not found");
-    const checkpoint = checkpointFromRow(result.rows[0]);
+    const checkpoint = positionCheckpointFromRow(result.rows[0]);
     if (checkpoint.positionId !== positionId)
       throw new InvariantViolationError("Loaded checkpoint belongs to a different position");
     return checkpoint;
@@ -220,7 +227,7 @@ export class PostgresPositionWorkerCheckpointRepository
     try {
       await client.query("BEGIN");
       const payload = serializePayload(input);
-      const updated = await client.query<JobRow>(
+      const updated = await client.query<PositionCheckpointRow>(
         `UPDATE jobs
          SET payload_json = $3::jsonb, state = 'available', available_at = now(),
              lease_owner = NULL, lease_expires_at = NULL, updated_at = now(), version = version + 1
@@ -260,7 +267,7 @@ export class PostgresPositionWorkerCheckpointRepository
         );
       }
       await client.query("COMMIT");
-      return checkpointFromRow(updated.rows[0]);
+      return positionCheckpointFromRow(updated.rows[0]);
     } catch (error) {
       await rollback(client);
       throw error;
@@ -282,7 +289,7 @@ export class PostgresPositionWorkerCheckpointRepository
     });
     const submission = runtimeState.pendingExit?.submission;
     if (submission === null || submission === undefined) {
-      const result = await this.database.query<JobRow>(
+      const result = await this.database.query<PositionCheckpointRow>(
         `UPDATE jobs
          SET payload_json = $5::jsonb,
              state = 'completed', updated_at = now(), version = version + 1
@@ -299,7 +306,7 @@ export class PostgresPositionWorkerCheckpointRepository
       );
       if (result.rowCount !== 1 || result.rows[0] === undefined)
         throw new InvariantViolationError("Position action acknowledgement conflict");
-      return checkpointFromRow(result.rows[0]);
+      return positionCheckpointFromRow(result.rows[0]);
     }
     const client = await this.database.connect();
     try {
@@ -323,7 +330,7 @@ export class PostgresPositionWorkerCheckpointRepository
         throw new InvariantViolationError(
           "Exit submission authority conflicts with acknowledgement",
         );
-      const result = await client.query<JobRow>(
+      const result = await client.query<PositionCheckpointRow>(
         `UPDATE jobs
        SET payload_json = $5::jsonb,
            state = 'completed', updated_at = now(), version = version + 1
@@ -341,7 +348,7 @@ export class PostgresPositionWorkerCheckpointRepository
       if (result.rowCount !== 1 || result.rows[0] === undefined)
         throw new InvariantViolationError("Position action acknowledgement conflict");
       await client.query("COMMIT");
-      return checkpointFromRow(result.rows[0]);
+      return positionCheckpointFromRow(result.rows[0]);
     } catch (error) {
       await rollback(client);
       throw error;

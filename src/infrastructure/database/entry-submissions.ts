@@ -104,6 +104,12 @@ export class PostgresEntrySubmissionRepository implements EntrySubmissionReposit
       }
       if (attempt.rowCount !== 1 || order.rowCount !== 1)
         throw new Error("Entry submission requires one durably signed order");
+      const plan = await client.query(
+        `UPDATE entry_plans SET state='submitted'
+         WHERE signal_id=(SELECT signal_id FROM orders WHERE id=$1) AND state='quoting'`,
+        [input.orderId],
+      );
+      if (plan.rowCount !== 1) throw new Error("Entry submission requires one reserved entry plan");
       const completed = await client.query(
         `UPDATE jobs SET state='completed',updated_at=$2,version=version+1
          WHERE id=$1 AND job_type='entry_signing' AND state='available'`,

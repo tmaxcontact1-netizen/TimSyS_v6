@@ -28,6 +28,7 @@ export interface OpenPositionSafetyFactSource {
       wallet: WalletAddress;
       observedAt: Timestamp;
       liquidNativeSol: DecimalValue;
+      reservedEntryCostSol?: DecimalValue;
       usesLeverageOrBorrowing: boolean;
       positions: readonly OpenPositionSafetyFact[];
       evidence: readonly EvidenceReference[];
@@ -76,18 +77,15 @@ export class LivePortfolioOperationalSafetyInputSource implements PortfolioOpera
     const evidence = [...observation.evidence];
     let cost = asDecimal("0");
     let loss = asDecimal("0");
-    let reserved = asDecimal("0");
+    let reserved = observation.reservedEntryCostSol ?? asDecimal("0");
     for (const position of observation.positions) {
       if (position.evidence.length === 0)
         throw new InvariantViolationError("Every open position requires executable evidence");
       if (position.remainingCostBasisSol.isNegative() || position.executableValueSol.isNegative())
         throw new InvariantViolationError("Open position values must be non-negative");
-      if (position.reservedEntryCostSol.isNegative())
-        throw new InvariantViolationError("Reserved entry costs must be non-negative");
       cost = cost.add(position.remainingCostBasisSol) as DecimalValue;
       const downside = position.remainingCostBasisSol.sub(position.executableValueSol);
       loss = loss.add(downside.isPositive() ? downside : 0) as DecimalValue;
-      reserved = reserved.add(position.reservedEntryCostSol) as DecimalValue;
       evidence.push(...position.evidence);
     }
     if (new Set(evidence.map(({ id }) => id)).size !== evidence.length)

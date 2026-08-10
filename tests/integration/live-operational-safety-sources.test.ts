@@ -25,6 +25,7 @@ function source(positions: readonly any[]) {
         wallet,
         observedAt: at,
         liquidNativeSol: asDecimal("4"),
+        reservedEntryCostSol: asDecimal("0.1"),
         usesLeverageOrBorrowing: false,
         positions,
         evidence: [evidence(id1)],
@@ -56,7 +57,6 @@ describe("live portfolio operational safety inputs", () => {
         positionId: asUuid<PositionId>("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
         remainingCostBasisSol: asDecimal("3"),
         executableValueSol: asDecimal("2.25"),
-        reservedEntryCostSol: asDecimal("0.1"),
         evidence: [evidence("44444444-4444-4444-8444-444444444444")],
       },
     ]).observePositions(at);
@@ -72,7 +72,6 @@ describe("live portfolio operational safety inputs", () => {
           positionId: asUuid<PositionId>("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
           remainingCostBasisSol: asDecimal("3"),
           executableValueSol: asDecimal("2"),
-          reservedEntryCostSol: asDecimal("0"),
           evidence: [],
         },
       ]).observePositions(at),

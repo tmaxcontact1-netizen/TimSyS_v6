@@ -27,6 +27,7 @@ const inventory = {
     wallet,
     observedAt: at,
     liquidNativeSol: asDecimal("2"),
+    reservedEntryCostSol: asDecimal("0.01"),
     usesLeverageOrBorrowing: false,
     evidence: [{ ...evidence, id: asUuid<EvidenceId>("22222222-2222-4222-8222-222222222222") }],
     positions: [
@@ -36,7 +37,6 @@ const inventory = {
         settlementMint: settlement,
         currentAmount: asRawAmount(100n),
         remainingCostBasisSol: asDecimal("1.5"),
-        reservedEntryCostSol: asDecimal("0.01"),
         evidence: [{ ...evidence, id: asUuid<EvidenceId>("44444444-4444-4444-8444-444444444444") }],
       },
     ],

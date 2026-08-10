@@ -153,7 +153,7 @@ describe("PostgreSQL position checkpoint repository", () => {
       result([]),
       result([]),
       result([row(0n, null)]),
-      result([]),
+      result([{}]),
     );
     const repository = new PostgresPositionWorkerCheckpointRepository(database);
     const checkpoint = await repository.initialize({
@@ -167,6 +167,7 @@ describe("PostgreSQL position checkpoint repository", () => {
       "INSERT",
       "INSERT",
       "INSERT",
+      "UPDATE",
       "COMMIT",
     ]);
     expect(database.queries[1]?.values).toEqual([

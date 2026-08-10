@@ -9,7 +9,7 @@ import type {
   ReconciliationEscalationPort,
 } from "../application/ports/runtime.js";
 import type { RuntimeConfig } from "../infrastructure/config/load-config.js";
-import type { PositionId, WalletAddress } from "../domain/shared/types.js";
+import type { PositionId, Timestamp, WalletAddress } from "../domain/shared/types.js";
 import {
   ObservedPositionRuntimeStepSource,
   DurablePositionActionDispatcher,
@@ -73,6 +73,12 @@ import { LivePortfolioInventoryValuationSource } from "../application/services/p
 import { PostgresPortfolioTransactionHistorySource } from "../infrastructure/database/portfolio-transaction-history.js";
 import { PostgresPortfolioAccountingLedger } from "../infrastructure/database/portfolio-accounting.js";
 import { PostgresProviderDisagreementAuthority } from "../infrastructure/database/operational-safety-facts.js";
+import { PostgresReconciliationFailureFactSource } from "../infrastructure/database/operational-safety-facts.js";
+import { PostgresOpenPositionInventorySource } from "../infrastructure/database/open-position-inventory.js";
+import { LiveOpenPositionExecutableValuationSource } from "../application/services/open-position-executable-valuation.js";
+import { LivePortfolioOperationalSafetyInputSource } from "../application/services/live-operational-safety-sources.js";
+import { producePortfolioOperationalSafety } from "../application/services/portfolio-operational-safety-production.js";
+import { PostgresPortfolioOperationalSafetyAuthority } from "../infrastructure/database/portfolio-operational-safety.js";
 import {
   LivePortfolioCheckpointPublicationCycle,
   type PortfolioCheckpointPublicationCycle,
@@ -87,6 +93,48 @@ export interface CompletedPositionServices {
 export interface PositionRuntimeComposition {
   readonly checkpoints: PositionWorkerCheckpointRepository;
   readonly supervisor: PositionJobSupervisorDependencies;
+}
+
+export interface CompletePortfolioPublicationCycle {
+  publish(observedAt: Timestamp): Promise<void>;
+}
+
+/** Composes operational-safety production immediately before the matching accounting checkpoint. */
+export function composeCompletePortfolioPublication(input: {
+  readonly database: Pool;
+  readonly providers: Pick<
+    ProductionProviderServices,
+    "inventory" | "market" | "walletHistory" | "swap"
+  >;
+  readonly wallet: WalletAddress;
+}): CompletePortfolioPublicationCycle {
+  const operations = new PostgresPortfolioOperationalSafetyAuthority(input.database, input.wallet);
+  const operationalSource = new LivePortfolioOperationalSafetyInputSource(
+    input.wallet,
+    new LiveOpenPositionExecutableValuationSource(
+      input.wallet,
+      new PostgresOpenPositionInventorySource(
+        input.database,
+        input.providers.inventory,
+        input.wallet,
+      ),
+      input.providers.swap,
+    ),
+    new PostgresReconciliationFailureFactSource(input.database, input.wallet),
+    new PostgresProviderDisagreementAuthority(input.database, input.wallet),
+  );
+  const checkpoints = composeProductionPortfolioCheckpointPublication({ ...input, operations });
+  return Object.freeze({
+    publish: async (observedAt: Timestamp) => {
+      await producePortfolioOperationalSafety({
+        wallet: input.wallet,
+        observedAt,
+        source: operationalSource,
+        sink: operations,
+      });
+      await checkpoints.publish(observedAt);
+    },
+  });
 }
 
 /** Composes complete live accounting acquisition with immutable checkpoint publication. */

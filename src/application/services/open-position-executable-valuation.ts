@@ -26,7 +26,6 @@ export interface OpenPositionInventoryFact {
   readonly settlementMint: MintAddress;
   readonly currentAmount: RawAmount;
   readonly remainingCostBasisSol: DecimalValue;
-  readonly reservedEntryCostSol: DecimalValue;
   readonly evidence: readonly EvidenceReference[];
 }
 
@@ -36,6 +35,7 @@ export interface OpenPositionInventoryFactSource {
       wallet: WalletAddress;
       observedAt: Timestamp;
       liquidNativeSol: DecimalValue;
+      reservedEntryCostSol: DecimalValue;
       usesLeverageOrBorrowing: boolean;
       positions: readonly OpenPositionInventoryFact[];
       evidence: readonly EvidenceReference[];
@@ -94,7 +94,7 @@ export class LiveOpenPositionExecutableValuationSource implements OpenPositionSa
           executableValueSol: asNonNegativeDecimal(
             new Decimal(quote.expectedOutputAmount.toString()).div(LAMPORTS_PER_SOL),
           ),
-          reservedEntryCostSol: position.reservedEntryCostSol,
+          reservedEntryCostSol: inventory.reservedEntryCostSol,
           evidence: Object.freeze([...position.evidence, ...quote.evidence]),
         }),
       );
