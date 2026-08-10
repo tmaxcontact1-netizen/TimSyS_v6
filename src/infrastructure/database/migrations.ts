@@ -61,6 +61,9 @@ const dashboardRequiredColumns = Object.freeze([
   "dashboard_watchlists.version",
   "dashboard_watchlist_tokens.token_mint",
   "dashboard_mutation_audit.action",
+  "dashboard_trading_configurations.version",
+  "dashboard_trading_configurations.entry_slippage_bps",
+  "dashboard_trading_configuration_audit.action",
 ]);
 
 /** Verifies connectivity and the exact runtime-owned schema without executing DDL. */

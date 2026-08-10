@@ -417,6 +417,9 @@ No provider adapter, database schema, dependency manifest or executable code is 
 
 - The dashboard binds only to `127.0.0.1` and exposes watchlist mutations separately from all trading authority.
 - Mutation requests require `PAPER_DASHBOARD_MUTATION_TOKEN`, an exact same-origin header, JSON content type, and a body no larger than 16 KB.
+- Trading-configuration CRUD uses the same local mutation boundary, wallet scope, optimistic version checks, bounded JSON body, and immutable audit semantics as watchlists.
+- Configuration creation and update accept only explicit bounded integer fields and a versioned strategy identifier. Stored records are drafts and are not consumed by trading runtimes in this phase.
+- Configuration deletion requires the expected version and exact current name. Authentication or validation failure occurs before database access.
 - Names, UUIDs, Solana mints, expected versions, and destructive confirmations are validated before persistence.
 - Create, rename, token membership changes, and deletion write immutable audit facts atomically with the mutation.
 - Stale or duplicate changes fail closed; internal database errors are not returned to the browser.

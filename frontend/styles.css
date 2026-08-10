@@ -392,6 +392,55 @@ main {
   align-items: end;
   margin: 0.75rem 0;
 }
+.configuration-toolbar,
+.configuration-form,
+.configuration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.configuration-toolbar {
+  align-items: end;
+  margin: 18px 0;
+}
+.configuration-toolbar label {
+  min-width: 240px;
+  flex: 1;
+}
+.configuration-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+.configuration-form label,
+.configuration-toolbar label {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.configuration-form input,
+.configuration-toolbar select {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: inherit;
+  background: var(--panel);
+}
+.configuration-toolbar button,
+.configuration-actions button {
+  min-height: 40px;
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: inherit;
+  background: var(--panel);
+  cursor: pointer;
+}
+.configuration-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+}
 
 .watchlist-controls label,
 .watchlist-auth label {

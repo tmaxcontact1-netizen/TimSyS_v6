@@ -59,6 +59,21 @@ const ids = [
   "watchlist-connect",
   "watchlist-import",
   "watchlist-message",
+  "configuration-count",
+  "configuration-select",
+  "configuration-new",
+  "configuration-delete",
+  "configuration-form",
+  "configuration-name",
+  "configuration-strategy",
+  "configuration-positions",
+  "configuration-risk",
+  "configuration-position-equity",
+  "configuration-exposure",
+  "configuration-reserve",
+  "configuration-slippage",
+  "configuration-save",
+  "configuration-message",
   "menu-toggle",
   "sidebar-backdrop",
   "sidebar-collapse",
@@ -86,6 +101,7 @@ const preferencesKey = "memecoined.paper.preferences.v1";
 const defaultPanelOrder = [
   "overview",
   "portfolio",
+  "configurations",
   "alerts",
   "performance",
   "operations",
@@ -97,6 +113,8 @@ const legacyWatchlist = loadWatchlist();
 let watchlists = [];
 let activeWatchlistId = "";
 let mutationToken = "";
+let configurations = [];
+let activeConfigurationId = "";
 let preferences = loadPreferences();
 const sortState = {
   positions: { key: "opened_at", kind: "date", direction: "desc" },
@@ -284,6 +302,96 @@ function watchedTokens() {
 function setWatchlistMessage(message, state = "ok") {
   elements["watchlist-message"].textContent = message;
   elements["watchlist-message"].dataset.state = state;
+}
+function activeConfiguration() {
+  return configurations.find((item) => item.id === activeConfigurationId) ?? null;
+}
+function setConfigurationMessage(message, state = "ok") {
+  elements["configuration-message"].textContent = message;
+  elements["configuration-message"].dataset.state = state;
+}
+function configurationValues() {
+  const number = (id) => Number(elements[id].value);
+  return {
+    name: elements["configuration-name"].value.trim(),
+    strategyVersionId: elements["configuration-strategy"].value.trim(),
+    maximumConcurrentPositions: number("configuration-positions"),
+    riskPerTradeBps: number("configuration-risk"),
+    maximumPositionEquityBps: number("configuration-position-equity"),
+    maximumOpenExposureBps: number("configuration-exposure"),
+    minimumUncommittedEquityBps: number("configuration-reserve"),
+    entrySlippageBps: number("configuration-slippage"),
+  };
+}
+function renderConfigurations() {
+  const selected = activeConfiguration();
+  elements["configuration-count"].textContent = configurations.length;
+  elements["configuration-select"].replaceChildren();
+  const blank = document.createElement("option");
+  blank.value = "";
+  blank.textContent = "New draft";
+  elements["configuration-select"].append(blank);
+  for (const item of configurations) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = `${item.name} · v${item.version}`;
+    elements["configuration-select"].append(option);
+  }
+  elements["configuration-select"].value = selected?.id ?? "";
+  const values = selected ?? {};
+  for (const [id, key] of [
+    ["configuration-name", "name"],
+    ["configuration-strategy", "strategyVersionId"],
+    ["configuration-positions", "maximumConcurrentPositions"],
+    ["configuration-risk", "riskPerTradeBps"],
+    ["configuration-position-equity", "maximumPositionEquityBps"],
+    ["configuration-exposure", "maximumOpenExposureBps"],
+    ["configuration-reserve", "minimumUncommittedEquityBps"],
+    ["configuration-slippage", "entrySlippageBps"],
+  ])
+    elements[id].value = values[key] ?? "";
+  elements["configuration-delete"].disabled = !mutationToken || !selected;
+  elements["configuration-save"].disabled = !mutationToken;
+  elements["configuration-save"].textContent = selected ? "Save draft" : "Create draft";
+}
+async function refreshConfigurations() {
+  const response = await fetch("/api/trading-configurations", { cache: "no-store" });
+  if (!response.ok) throw new Error("Trading configurations unavailable.");
+  configurations = (await response.json()).configurations;
+  if (!configurations.some((item) => item.id === activeConfigurationId)) activeConfigurationId = "";
+  renderConfigurations();
+}
+async function mutateConfiguration(path, method, body) {
+  try {
+    const response = await fetch(path, {
+      method,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${mutationToken}` },
+      body: JSON.stringify(body),
+    });
+    if (response.status === 204) {
+      activeConfigurationId = "";
+      await refreshConfigurations();
+      setConfigurationMessage("Draft deleted.");
+      return;
+    }
+    if (!response.ok) {
+      if (response.status === 409) await refreshConfigurations();
+      throw new Error(
+        response.status === 409
+          ? "Draft changed elsewhere; authoritative values reloaded."
+          : "Draft mutation failed.",
+      );
+    }
+    const { configuration } = await response.json();
+    activeConfigurationId = configuration.id;
+    await refreshConfigurations();
+    setConfigurationMessage(method === "POST" ? "Draft created." : "Draft saved.");
+  } catch (error) {
+    setConfigurationMessage(
+      error instanceof Error ? error.message : "Draft mutation failed.",
+      "error",
+    );
+  }
 }
 function renderWatchlistControls() {
   const selected = activeWatchlist();
@@ -774,6 +882,9 @@ applyPreferences();
 void refreshWatchlists().catch(() =>
   setWatchlistMessage("Persistent watchlists unavailable.", "error"),
 );
+void refreshConfigurations().catch(() =>
+  setConfigurationMessage("Trading configurations unavailable.", "error"),
+);
 void refresh();
 scheduleRefresh();
 elements["refresh-now"].addEventListener("click", () => void refresh());
@@ -882,10 +993,42 @@ elements["watchlist-connect"].addEventListener("click", () => {
   mutationToken = elements["watchlist-token"].value;
   elements["watchlist-token"].value = "";
   renderWatchlistControls();
+  renderConfigurations();
   setWatchlistMessage(
     mutationToken ? "Changes enabled for this page session." : "Enter a mutation token.",
     mutationToken ? "ok" : "error",
   );
+});
+elements["configuration-select"].addEventListener("change", () => {
+  activeConfigurationId = elements["configuration-select"].value;
+  renderConfigurations();
+});
+elements["configuration-new"].addEventListener("click", () => {
+  activeConfigurationId = "";
+  renderConfigurations();
+  elements["configuration-name"].focus();
+});
+elements["configuration-form"].addEventListener("submit", (event) => {
+  event.preventDefault();
+  const selected = activeConfiguration();
+  const values = configurationValues();
+  if (values.maximumPositionEquityBps > values.maximumOpenExposureBps) {
+    setConfigurationMessage("Position equity cannot exceed open exposure.", "error");
+    return;
+  }
+  void mutateConfiguration(
+    selected ? `/api/trading-configurations/${selected.id}` : "/api/trading-configurations",
+    selected ? "PUT" : "POST",
+    { ...values, ...(selected ? { expectedVersion: selected.version } : {}) },
+  );
+});
+elements["configuration-delete"].addEventListener("click", () => {
+  const selected = activeConfiguration();
+  if (!selected || prompt(`Type ${selected.name} to delete this draft`) !== selected.name) return;
+  void mutateConfiguration(`/api/trading-configurations/${selected.id}`, "DELETE", {
+    expectedVersion: selected.version,
+    confirmedName: selected.name,
+  });
 });
 elements["watchlist-select"].addEventListener("change", () => {
   activeWatchlistId = elements["watchlist-select"].value;

@@ -87,6 +87,10 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('id="watchlist-rename"');
     expect(page.body).toContain('id="watchlist-delete"');
     expect(page.body).toContain('id="watchlist-import"');
+    expect(page.body).toContain('id="configuration-form"');
+    expect(page.body).toContain('id="configuration-select"');
+    expect(page.body).toContain('id="configuration-delete"');
+    expect(page.body).toContain("Draft storage only");
     expect(page.body).toContain('type="password"');
     expect(page.body).toContain('data-sort="cost_raw"');
     expect(page.body).toContain('id="preferences-dialog"');
@@ -351,5 +355,73 @@ describe("paper dashboard", () => {
     expect(response.status).toBe(400);
     expect(JSON.parse(response.body)).toEqual({ error: "invalid_confirmation" });
     expect(queries).toBe(0);
+  });
+
+  it("authenticates and validates trading-configuration creation", async () => {
+    const id = "123e4567-e89b-42d3-a456-426614174001";
+    let queries = 0;
+    const database = {
+      query: async () => {
+        queries += 1;
+        return {
+          rows: [
+            {
+              id,
+              name: "Conservative paper",
+              strategy_version_id: "strategy-v1.0.0",
+              maximum_concurrent_positions: 3,
+              risk_per_trade_bps: 50,
+              maximum_position_equity_bps: 500,
+              maximum_open_exposure_bps: 1000,
+              minimum_uncommitted_equity_bps: 5000,
+              entry_slippage_bps: 150,
+              version: 1,
+              created_at: "2026-08-10T12:00:00Z",
+              updated_at: "2026-08-10T12:00:00Z",
+            },
+          ],
+        };
+      },
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+      mutationToken: "c".repeat(32),
+      now: () => new Date("2026-08-10T12:00:00.000Z"),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const headers = {
+      authorization: `Bearer ${"c".repeat(32)}`,
+      origin: `http://127.0.0.1:${address.port}`,
+      host: `127.0.0.1:${address.port}`,
+      "content-type": "application/json",
+    };
+    const body = JSON.stringify({
+      name: "Conservative paper",
+      strategyVersionId: "strategy-v1.0.0",
+      maximumConcurrentPositions: 3,
+      riskPerTradeBps: 50,
+      maximumPositionEquityBps: 500,
+      maximumOpenExposureBps: 1000,
+      minimumUncommittedEquityBps: 5000,
+      entrySlippageBps: 150,
+    });
+    expect((await get(address.port, "/api/trading-configurations", "POST")).status).toBe(401);
+    const response = await get(address.port, "/api/trading-configurations", "POST", headers, body);
+    expect(response.status).toBe(201);
+    expect(JSON.parse(response.body)).toMatchObject({
+      configuration: { id, name: "Conservative paper", version: 1 },
+    });
+    const invalid = JSON.stringify({ ...JSON.parse(body), entrySlippageBps: 151 });
+    expect(
+      (await get(address.port, "/api/trading-configurations", "POST", headers, invalid)).status,
+    ).toBe(400);
+    expect(queries).toBe(1);
   });
 });

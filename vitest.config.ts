@@ -40,6 +40,7 @@ export default defineConfig({
       "tests/integration/paper-dashboard.test.ts",
       "tests/unit/paper-dashboard-details.test.ts",
       "tests/unit/dashboard-watchlists.test.ts",
+      "tests/unit/dashboard-trading-configurations.test.ts",
       "tests/integration/portfolio-accounting-producer.test.ts",
       "tests/integration/portfolio-checkpoint-publication.test.ts",
       "tests/integration/portfolio-production-schedule.test.ts",

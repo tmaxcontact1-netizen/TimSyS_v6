@@ -268,6 +268,14 @@ Approval locks the data and behavioural contract. It authorizes creation and app
 
 - `dashboard_watchlists` stores wallet-scoped named lists with monotonically increasing optimistic versions.
 - `dashboard_watchlist_tokens` stores validated Solana mint membership and cascades only when its owning list is deleted.
+
+### Dashboard trading-configuration persistence
+
+- `dashboard_trading_configurations` stores wallet-scoped named paper-configuration drafts tied to an explicit strategy version.
+- Numerical fields are exact integers and cannot exceed the approved strategy ceilings: three concurrent positions, 50 basis points risk per trade, 500 basis points position size, 1000 basis points open exposure, at least 5000 basis points uncommitted equity, and 150 basis points entry slippage.
+- Configuration version increases on every update; stale mutations fail without changing data or emitting an audit fact.
+- `dashboard_trading_configuration_audit` is append-only mutation history. Configuration deletion never deletes its audit records.
+- A stored configuration is inert. Persistence does not activate it, alter strategy rules, or grant paper/live execution authority.
 - `dashboard_mutation_audit` stores immutable create, rename, delete, add-token, and remove-token facts independently of trading records.
 - Every update or delete requires the caller's expected version. A stale version changes nothing and returns a conflict.
 - Watchlist mutations cannot create trading commands, decisions, signatures, submissions, or position changes.

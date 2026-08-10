@@ -35,6 +35,7 @@
         ><a href="#history" data-short="HI">History</a
         ><a href="#allocation" data-short="AL">Allocation</a
         ><a href="#watchlist" data-short="WA">Watchlist</a
+        ><a href="#configurations" data-short="CF">Configurations</a
         ><a href="#events" data-short="EV">Events</a><a href="#alerts" data-short="AT">Alerts</a>
       </nav>
       <div class="sidebar-actions">
@@ -70,6 +71,72 @@
           <span>Realized P&amp;L</span><strong id="pnl">—</strong
           ><small>FIFO realized performance</small>
         </article>
+      </section>
+      <section
+        id="configurations"
+        class="panel configuration-panel"
+        data-dashboard-panel="configurations"
+        data-panel-title="Trading configurations"
+      >
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">INERT PAPER DRAFTS</p>
+            <h2>Trading configurations</h2>
+          </div>
+          <span id="configuration-count" class="count-chip">0</span>
+        </div>
+        <p class="panel-note">
+          Draft storage only. These values cannot activate or alter the trading runtime.
+        </p>
+        <div class="configuration-toolbar">
+          <label
+            ><span>Draft</span
+            ><select id="configuration-select">
+              <option value="">New draft</option>
+            </select></label
+          >
+          <button id="configuration-new" type="button">New</button
+          ><button id="configuration-delete" type="button">Delete</button>
+        </div>
+        <form id="configuration-form" class="configuration-form">
+          <label><span>Name</span><input id="configuration-name" required maxlength="80" /></label>
+          <label
+            ><span>Strategy version</span
+            ><input
+              id="configuration-strategy"
+              required
+              pattern="strategy-v[0-9]+\.[0-9]+\.[0-9]+"
+              placeholder="strategy-v1.0.0"
+          /></label>
+          <label
+            ><span>Maximum concurrent positions</span
+            ><input id="configuration-positions" type="number" required min="1" max="3"
+          /></label>
+          <label
+            ><span>Risk per trade (bps)</span
+            ><input id="configuration-risk" type="number" required min="1" max="50"
+          /></label>
+          <label
+            ><span>Maximum position equity (bps)</span
+            ><input id="configuration-position-equity" type="number" required min="1" max="500"
+          /></label>
+          <label
+            ><span>Maximum open exposure (bps)</span
+            ><input id="configuration-exposure" type="number" required min="1" max="1000"
+          /></label>
+          <label
+            ><span>Minimum uncommitted equity (bps)</span
+            ><input id="configuration-reserve" type="number" required min="5000" max="10000"
+          /></label>
+          <label
+            ><span>Entry slippage (bps)</span
+            ><input id="configuration-slippage" type="number" required min="1" max="150"
+          /></label>
+          <div class="configuration-actions">
+            <button id="configuration-save" type="submit">Create draft</button>
+          </div>
+        </form>
+        <output id="configuration-message" class="preference-message" aria-live="polite"></output>
       </section>
       <section
         class="detail-grid optional-detail"

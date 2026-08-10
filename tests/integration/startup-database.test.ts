@@ -54,6 +54,9 @@ const paperColumns = [
   "dashboard_watchlists.version",
   "dashboard_watchlist_tokens.token_mint",
   "dashboard_mutation_audit.action",
+  "dashboard_trading_configurations.version",
+  "dashboard_trading_configurations.entry_slippage_bps",
+  "dashboard_trading_configuration_audit.action",
 ];
 
 function database(missing?: string, includePaper = false) {
@@ -129,4 +132,12 @@ describe("runtime database startup", () => {
     await expect(
       verifyRuntimeDatabase(database("dashboard_watchlists.version", true) as never, "paper", true),
     ).rejects.toThrow(/dashboard_watchlists.version/));
+  it("rejects an unapplied dashboard trading-configuration migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(
+        database("dashboard_trading_configurations.version", true) as never,
+        "paper",
+        true,
+      ),
+    ).rejects.toThrow(/dashboard_trading_configurations.version/));
 });

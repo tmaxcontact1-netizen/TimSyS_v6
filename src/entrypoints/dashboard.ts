@@ -26,6 +26,14 @@ import {
   renameDashboardWatchlist,
   WatchlistConflictError,
 } from "../infrastructure/database/dashboard-watchlists.js";
+import {
+  createDashboardTradingConfiguration,
+  deleteDashboardTradingConfiguration,
+  listDashboardTradingConfigurations,
+  TradingConfigurationConflictError,
+  updateDashboardTradingConfiguration,
+  type DashboardTradingConfigurationValues,
+} from "../infrastructure/database/dashboard-trading-configurations.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
@@ -77,6 +85,36 @@ function validVersion(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) > 0;
 }
 
+function validInteger(value: unknown, minimum: number, maximum: number): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
+}
+
+function tradingConfigurationValues(
+  body: Record<string, unknown>,
+): DashboardTradingConfigurationValues {
+  if (
+    typeof body.strategyVersionId !== "string" ||
+    !/^strategy-v\d+\.\d+\.\d+$/.test(body.strategyVersionId) ||
+    !validInteger(body.maximumConcurrentPositions, 1, 3) ||
+    !validInteger(body.riskPerTradeBps, 1, 50) ||
+    !validInteger(body.maximumPositionEquityBps, 1, 500) ||
+    !validInteger(body.maximumOpenExposureBps, 1, 1000) ||
+    !validInteger(body.minimumUncommittedEquityBps, 5000, 10000) ||
+    !validInteger(body.entrySlippageBps, 1, 150) ||
+    body.maximumPositionEquityBps > body.maximumOpenExposureBps
+  )
+    throw new Error("invalid_trading_configuration");
+  return Object.freeze({
+    strategyVersionId: body.strategyVersionId,
+    maximumConcurrentPositions: body.maximumConcurrentPositions,
+    riskPerTradeBps: body.riskPerTradeBps,
+    maximumPositionEquityBps: body.maximumPositionEquityBps,
+    maximumOpenExposureBps: body.maximumOpenExposureBps,
+    minimumUncommittedEquityBps: body.minimumUncommittedEquityBps,
+    entrySlippageBps: body.entrySlippageBps,
+  });
+}
+
 function secureHeaders(response: ServerResponse): void {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader(
@@ -107,10 +145,101 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const pathname = url.pathname;
+    const configurationMatch = pathname.match(/^\/api\/trading-configurations\/([0-9a-f-]+)$/i);
     const watchlistMatch = pathname.match(/^\/api\/watchlists\/([0-9a-f-]+)$/i);
     const tokenMatch = pathname.match(
       /^\/api\/watchlists\/([0-9a-f-]+)\/tokens(?:\/([1-9A-HJ-NP-Za-km-z]+))?$/,
     );
+    if (pathname === "/api/trading-configurations" && method === "GET") {
+      try {
+        const configurations = await listDashboardTradingConfigurations(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        sendJson(response, 200, { configurations });
+      } catch {
+        sendJson(response, 503, { error: "trading_configurations_unavailable" });
+      }
+      return;
+    }
+    if (pathname.startsWith("/api/trading-configurations") && method !== "GET") {
+      if (!authorized(request, dependencies.mutationToken)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const body = await readJson(request);
+        if (pathname === "/api/trading-configurations" && method === "POST") {
+          if (!validName(body.name)) throw new Error("invalid_configuration_name");
+          const configuration = await createDashboardTradingConfiguration(
+            dependencies.database,
+            dependencies.wallet,
+            body.name,
+            tradingConfigurationValues(body),
+            now(),
+          );
+          sendJson(response, 201, { configuration });
+          return;
+        }
+        const id = configurationMatch?.[1];
+        if (id === undefined || !UUID.test(id)) throw new Error("invalid_configuration_id");
+        if (!validVersion(body.expectedVersion)) throw new Error("invalid_expected_version");
+        if (configurationMatch !== null && method === "PUT") {
+          if (!validName(body.name)) throw new Error("invalid_configuration_name");
+          const configuration = await updateDashboardTradingConfiguration(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            body.expectedVersion,
+            body.name,
+            tradingConfigurationValues(body),
+            now(),
+          );
+          sendJson(response, 200, { configuration });
+          return;
+        }
+        if (configurationMatch !== null && method === "DELETE") {
+          if (!validName(body.confirmedName)) throw new Error("invalid_confirmation");
+          await deleteDashboardTradingConfiguration(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            body.expectedVersion,
+            body.confirmedName,
+            now(),
+          );
+          response.writeHead(204, { "Cache-Control": "no-store" });
+          response.end();
+          return;
+        }
+        sendJson(response, 405, { error: "method_not_allowed" });
+      } catch (error) {
+        if (error instanceof TradingConfigurationConflictError) {
+          sendJson(response, 409, { error: "trading_configuration_version_conflict" });
+        } else if (
+          error instanceof Error &&
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_configuration_name",
+            "invalid_configuration_id",
+            "invalid_expected_version",
+            "invalid_confirmation",
+            "invalid_trading_configuration",
+          ].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "trading_configuration_mutation_unavailable" });
+        }
+      }
+      return;
+    }
     if (pathname === "/api/watchlists" && method === "GET") {
       try {
         const watchlists = await listDashboardWatchlists(
