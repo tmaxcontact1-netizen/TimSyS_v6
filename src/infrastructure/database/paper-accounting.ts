@@ -91,8 +91,17 @@ export class PostgresPaperAccountingLedger {
           paperFillHash(fill),
         ],
       );
-      if (inserted.rowCount !== 1)
-        throw new InvariantViolationError("Paper fill already exists or conflicts");
+      if (inserted.rowCount !== 1) {
+        const replay = await client.query<{ matches: boolean }>(
+          `SELECT content_hash=$3 AS matches FROM paper_fills
+           WHERE id=$1 AND wallet=$2`,
+          [fill.id, fill.wallet, paperFillHash(fill)],
+        );
+        if (replay.rows[0]?.matches !== true)
+          throw new InvariantViolationError("Paper fill replay conflicts with durable authority");
+        await client.query("COMMIT");
+        return;
+      }
       if (fill.side === "buy") {
         await client.query(
           `INSERT INTO paper_position_lots

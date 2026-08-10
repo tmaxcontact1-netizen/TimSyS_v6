@@ -27,6 +27,29 @@ export interface PaperExecutionRequest {
   readonly requestedAt: Timestamp;
 }
 
+export interface PaperEntryLease {
+  readonly signalId: string;
+  readonly riskRunId: string;
+  readonly tokenMint: MintAddress;
+  readonly inputAmountRaw: bigint;
+  readonly leaseOwner: string;
+}
+
+export interface PaperEntryWorkQueue {
+  claim(input: {
+    readonly ownerId: string;
+    readonly now: Timestamp;
+    readonly leaseExpiresAt: Timestamp;
+    readonly limit: number;
+  }): Promise<readonly PaperEntryLease[]>;
+  complete(input: { readonly lease: PaperEntryLease; readonly fill: PaperFill }): Promise<void>;
+  retry(input: {
+    readonly lease: PaperEntryLease;
+    readonly availableAt: Timestamp;
+    readonly reason: string;
+  }): Promise<void>;
+}
+
 function fillId(wallet: WalletAddress, side: "buy" | "sell", fingerprint: string): string {
   const hex = createHash("sha256")
     .update(["paper-fill", wallet, side, fingerprint].join("\0"))
@@ -34,6 +57,51 @@ function fillId(wallet: WalletAddress, side: "buy" | "sell", fingerprint: string
   return asUuid(
     `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`,
   );
+}
+
+export async function runPaperEntryExecutionCycle(input: {
+  readonly queue: PaperEntryWorkQueue;
+  readonly execution: PaperQuoteExecutionService;
+  readonly ownerId: string;
+  readonly now: () => Timestamp;
+  readonly leaseExpiresAt: (at: Timestamp) => Timestamp;
+  readonly retryAt: (at: Timestamp) => Timestamp;
+  readonly batchSize?: number;
+}): Promise<readonly PaperFill[]> {
+  const limit = input.batchSize ?? 25;
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 1_000)
+    throw new RangeError("Paper entry batch size must be between 1 and 1000");
+  const claimedAt = input.now();
+  const leases = await input.queue.claim({
+    ownerId: input.ownerId,
+    now: claimedAt,
+    leaseExpiresAt: input.leaseExpiresAt(claimedAt),
+    limit,
+  });
+  if (leases.length > limit)
+    throw new RangeError("Paper entry queue exceeded the requested batch size");
+  const fills: PaperFill[] = [];
+  for (const lease of leases) {
+    try {
+      const requestedAt = input.now();
+      const fill = await input.execution.execute({
+        side: "buy",
+        tokenMint: lease.tokenMint,
+        inputAmountRaw: lease.inputAmountRaw,
+        requestedAt,
+      });
+      await input.queue.complete({ lease, fill });
+      fills.push(fill);
+    } catch (error) {
+      const failedAt = input.now();
+      await input.queue.retry({
+        lease,
+        availableAt: input.retryAt(failedAt),
+        reason: error instanceof Error ? error.message : "Unknown paper entry failure",
+      });
+    }
+  }
+  return Object.freeze(fills);
 }
 
 export class PaperQuoteExecutionService {
