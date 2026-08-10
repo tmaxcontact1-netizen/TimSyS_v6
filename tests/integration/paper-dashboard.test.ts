@@ -67,6 +67,9 @@ describe("paper dashboard", () => {
     const page = await get(address.port, "/");
     expect(page.status).toBe(200);
     expect(page.body).toContain("Paper desk");
+    expect(page.body).toContain("Portfolio allocation");
+    expect(page.body).toContain("Token watchlist");
+    expect(page.body).toContain('data-sort="cost_raw"');
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
   });

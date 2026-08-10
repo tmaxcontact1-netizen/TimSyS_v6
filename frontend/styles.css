@@ -158,6 +158,58 @@ main {
   min-height: 390px;
   margin-top: 18px;
 }
+.panel-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+.allocation-chart {
+  display: grid;
+  gap: 10px;
+  margin-top: 25px;
+}
+.allocation-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) 2fr minmax(150px, auto);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #f3f6f2;
+  background: #0c100e;
+  cursor: pointer;
+  text-align: left;
+}
+.allocation-row i {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--green);
+}
+.allocation-row span,
+.allocation-row strong {
+  z-index: 1;
+  font:
+    11px ui-monospace,
+    monospace;
+}
+.allocation-row strong {
+  text-align: right;
+}
+.watch-button {
+  padding: 8px 11px;
+  border: 1px solid #355844;
+  border-radius: 7px;
+  color: var(--green);
+  background: #14231a;
+  cursor: pointer;
+}
+.watch-remove {
+  color: var(--red);
+  cursor: pointer;
+}
 .range-controls {
   display: flex;
   gap: 6px;
@@ -447,6 +499,28 @@ th {
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+.sort-button {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+.sort-button::after {
+  content: " ↕";
+  color: #536159;
+}
+.sort-button[data-direction="asc"]::after {
+  content: " ↑";
+  color: var(--green);
+}
+.sort-button[data-direction="desc"]::after {
+  content: " ↓";
+  color: var(--green);
 }
 td {
   font-family: ui-monospace, monospace;

@@ -113,6 +113,17 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 - Schedule live candidate discovery from the production supervisor before each position batch,
   persisting retry-safe candidates and evaluation work through the existing atomic repository.
 
+# Frontend watchlist, allocation, and sorting
+
+| File                                        | Change                                                                        | Reason                                                    | Authority              |
+| ------------------------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------- | ---------------------- |
+| `frontend/index.html`                       | Added portfolio allocation, local watchlist, and sortable table controls      | Improve paper portfolio inspection without mutation paths | Authorized by operator |
+| `frontend/styles.css`                       | Added allocation, watchlist, and sorting presentation                         | Keep the new observation controls legible across layouts  | Authorized by operator |
+| `frontend/app.js`                           | Added exact allocation derivation, browser-local watchlist, and table sorting | Provide operator focus without changing backend authority | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts` | Added static-page assertions for the new frontend controls                    | Prove the delivered dashboard contains the approved slice | Authorized by operator |
+| `docs/PROJECT_MAP.md`                       | Recorded the expanded local dashboard observation surface                     | Keep the architecture inventory current                   | Authorized by operator |
+| `docs/CHANGELOG.md`                         | Recorded the frontend portfolio-focus batch                                   | Maintain the file-touch audit                             | Authorized by operator |
+
 # Frontend alerts and refresh controls
 
 | File                                             | Change                                                                                 | Reason                                                | Authority              |

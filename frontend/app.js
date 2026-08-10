@@ -46,12 +46,41 @@ const ids = [
   "refresh-rate",
   "refresh-label",
   "connection-history",
+  "allocation-total",
+  "allocation-chart",
+  "watchlist-count",
+  "watchlist-rows",
+  "toggle-watchlist",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
 let selectedRange = "7d";
 let refreshTimer;
 const connectionEvents = [];
+const watchlistKey = "memecoined.paper.watchlist.v1";
+let selectedToken = null;
+let watchlist = loadWatchlist();
+const sortState = {
+  positions: { key: "opened_at", kind: "date", direction: "desc" },
+  fills: { key: "filled_at", kind: "date", direction: "desc" },
+  performance: { key: "realized_at", kind: "date", direction: "desc" },
+  events: { key: "evaluated_at", kind: "date", direction: "desc" },
+};
+function loadWatchlist() {
+  try {
+    const value = JSON.parse(localStorage.getItem(watchlistKey) ?? "[]");
+    return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+function saveWatchlist() {
+  try {
+    localStorage.setItem(watchlistKey, JSON.stringify([...watchlist].sort()));
+  } catch {
+    // The dashboard remains usable when browser storage is unavailable.
+  }
+}
 function sol(raw) {
   const value = BigInt(raw);
   const absolute = value < 0n ? -value : value;
@@ -128,13 +157,97 @@ function filterToken(records) {
       )
     : records;
 }
+function sorted(records, table) {
+  const state = sortState[table];
+  if (!state) return records;
+  const direction = state.direction === "asc" ? 1 : -1;
+  return [...records].sort((left, right) => {
+    let a = left[state.key] ?? "";
+    let b = right[state.key] ?? "";
+    if (state.kind === "bigint") {
+      a = BigInt(a || 0);
+      b = BigInt(b || 0);
+    } else if (state.kind === "date") {
+      a = Date.parse(String(a)) || 0;
+      b = Date.parse(String(b)) || 0;
+    } else if (state.kind === "number") {
+      a = Number(a) || 0;
+      b = Number(b) || 0;
+    } else {
+      return String(a).localeCompare(String(b)) * direction;
+    }
+    return (a < b ? -1 : a > b ? 1 : 0) * direction;
+  });
+}
+function renderAllocation() {
+  const positions = detailSnapshot.positions;
+  const total = positions.reduce((sum, item) => sum + BigInt(item.cost_raw), 0n);
+  elements["allocation-total"].textContent = total === 0n ? "0 SOL" : sol(total);
+  elements["allocation-chart"].replaceChildren();
+  if (total === 0n) {
+    const empty = document.createElement("span");
+    empty.className = "empty";
+    empty.textContent = "No open cost to allocate";
+    elements["allocation-chart"].append(empty);
+    return;
+  }
+  for (const position of [...positions].sort((a, b) => {
+    const costOrder =
+      BigInt(a.cost_raw) > BigInt(b.cost_raw)
+        ? -1
+        : BigInt(a.cost_raw) < BigInt(b.cost_raw)
+          ? 1
+          : 0;
+    return costOrder || String(a.token_mint).localeCompare(String(b.token_mint));
+  })) {
+    const share = Number((BigInt(position.cost_raw) * 10_000n) / total) / 100;
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "allocation-row";
+    row.dataset.tokenMint = position.token_mint;
+    const label = document.createElement("span");
+    label.textContent = short(position.token_mint);
+    label.title = position.token_mint;
+    const bar = document.createElement("i");
+    bar.style.width = `${Math.max(share, 0.5)}%`;
+    const value = document.createElement("strong");
+    value.textContent = `${share.toFixed(2)}% · ${sol(position.cost_raw)}`;
+    row.append(label, bar, value);
+    elements["allocation-chart"].append(row);
+  }
+}
+function renderWatchlist() {
+  const records = [...watchlist].map((mint) => {
+    const position = detailSnapshot.positions.find((item) => item.token_mint === mint);
+    return {
+      token_mint: mint,
+      cost_raw: position?.cost_raw ?? "0",
+      status: position ? "OPEN" : "WATCHING",
+    };
+  });
+  elements["watchlist-count"].textContent = records.length;
+  renderRows(
+    elements["watchlist-rows"],
+    records,
+    [
+      token,
+      (r) => ({ text: sol(r.cost_raw) }),
+      (r) => ({ text: r.status }),
+      (r) => ({ text: "Remove", className: "watch-remove", title: r.token_mint }),
+    ],
+    "No watched tokens",
+  );
+}
 function renderDetails() {
-  const positions = filterToken(detailSnapshot.positions);
-  const performance = filterToken(detailSnapshot.performance);
-  const events = filterToken(detailSnapshot.events);
-  const fills = filterToken(detailSnapshot.fills).filter(
-    (record) =>
-      elements["side-filter"].value === "all" || record.side === elements["side-filter"].value,
+  const positions = sorted(filterToken(detailSnapshot.positions), "positions");
+  const performance = sorted(filterToken(detailSnapshot.performance), "performance");
+  const events = sorted(filterToken(detailSnapshot.events), "events");
+  const fills = sorted(
+    filterToken(detailSnapshot.fills).filter(
+      (record) =>
+        elements["side-filter"].value === "all" || record.side === elements["side-filter"].value,
+    ),
+    "fills",
   );
   elements["filter-status"].textContent =
     `Showing ${positions.length + fills.length + performance.length + events.length} records`;
@@ -195,6 +308,8 @@ function renderDetails() {
     ],
     "No matching exit evaluations",
   );
+  renderAllocation();
+  renderWatchlist();
 }
 function renderChart(points) {
   const target = elements["performance-chart"];
@@ -252,6 +367,10 @@ async function openToken(mint) {
   });
   if (!response.ok) return;
   const { token: details } = await response.json();
+  selectedToken = mint;
+  elements["toggle-watchlist"].textContent = watchlist.has(mint)
+    ? "Remove from watchlist"
+    : "Add to watchlist";
   elements["token-title"].textContent = short(mint);
   elements["token-address"].textContent = mint;
   elements["token-amount"].textContent = BigInt(details.summary.open_amount_raw).toLocaleString();
@@ -386,6 +505,33 @@ elements["clear-filters"].addEventListener("click", () => {
   renderDetails();
 });
 elements["close-token"].addEventListener("click", () => elements["token-dialog"].close());
+elements["toggle-watchlist"].addEventListener("click", () => {
+  if (!selectedToken) return;
+  if (watchlist.has(selectedToken)) watchlist.delete(selectedToken);
+  else watchlist.add(selectedToken);
+  saveWatchlist();
+  elements["toggle-watchlist"].textContent = watchlist.has(selectedToken)
+    ? "Remove from watchlist"
+    : "Add to watchlist";
+  renderWatchlist();
+});
+document.querySelectorAll(".sort-button").forEach((button) =>
+  button.addEventListener("click", () => {
+    const current = sortState[button.dataset.table];
+    const direction =
+      current?.key === button.dataset.sort && current.direction === "asc" ? "desc" : "asc";
+    sortState[button.dataset.table] = {
+      key: button.dataset.sort,
+      kind: button.dataset.kind ?? "text",
+      direction,
+    };
+    document
+      .querySelectorAll(`.sort-button[data-table="${button.dataset.table}"]`)
+      .forEach((item) => item.removeAttribute("data-direction"));
+    button.dataset.direction = direction;
+    renderDetails();
+  }),
+);
 document.querySelectorAll("[data-range]").forEach((button) =>
   button.addEventListener("click", () => {
     selectedRange = button.dataset.range;
@@ -403,6 +549,13 @@ document.querySelectorAll("[data-range]").forEach((button) =>
 );
 document.addEventListener("click", (event) => {
   if (!(event.target instanceof Element)) return;
-  const cell = event.target.closest("td[data-token-mint]");
-  if (cell?.dataset.tokenMint) void openToken(cell.dataset.tokenMint);
+  const remove = event.target.closest("td.watch-remove");
+  if (remove?.title) {
+    watchlist.delete(remove.title);
+    saveWatchlist();
+    renderWatchlist();
+    return;
+  }
+  const target = event.target.closest("[data-token-mint]");
+  if (target?.dataset.tokenMint) void openToken(target.dataset.tokenMint);
 });
