@@ -1,5 +1,12 @@
 # Memecoined Changelog
 
+## Unreleased — Durable operational-safety facts
+
+- Persisted immutable reconciliation-failure events instead of relying on mutable latest-error state.
+- Added restart-safe provider-disagreement intervals with explicit resolution evidence.
+- Added PostgreSQL reconstruction sources for rolling failures and continuous disagreement duration.
+- Added migration 0026 and focused persistence coverage.
+
 ## Unreleased — Durable portfolio operational safety authority
 
 - Added immutable, hash-verified operational safety observations.

@@ -131,15 +131,22 @@ export class PostgresReconciliationJobStore
         session.failedAttempts !== lease.failedAttempts
       )
         throw new InvariantViolationError("Reconciliation lease does not match the held lock");
-      const result = await client.query(
-        `UPDATE jobs
+      const updateSql = `UPDATE jobs
          SET state = $3,
              attempts = attempts + $4,
              available_at = COALESCE($5::timestamptz, available_at),
              last_error_json = $7::jsonb,
              last_error_at = CASE WHEN $7::jsonb IS NULL THEN NULL ELSE $8::timestamptz END,
              updated_at = now()
-         WHERE id = $1 AND job_type = $2 AND attempts = $6`,
+         WHERE id = $1 AND job_type = $2 AND attempts = $6`;
+      const result = await client.query(
+        failure === null
+          ? updateSql
+          : `WITH updated AS (${updateSql} RETURNING id)
+             INSERT INTO reconciliation_failure_events
+               (position_id,occurred_at,attempt,failure_json)
+             SELECT id,$8,$4 + $6,$7::jsonb FROM updated
+             RETURNING position_id`,
         [
           lease.positionId,
           JOB_TYPE,

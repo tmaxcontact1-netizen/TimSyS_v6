@@ -102,6 +102,7 @@ describe("PostgreSQL reconciliation job locking", () => {
       occurredAt: now,
     });
     expect(database.queries[2]?.text).toContain("last_error_json");
+    expect(database.queries[2]?.text).toContain("reconciliation_failure_events");
     expect(database.queries[2]?.values.slice(0, 6)).toEqual([
       positionId,
       "position_runtime",
