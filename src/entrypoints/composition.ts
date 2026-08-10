@@ -83,6 +83,12 @@ import {
   LivePortfolioCheckpointPublicationCycle,
   type PortfolioCheckpointPublicationCycle,
 } from "../application/services/portfolio-checkpoint-publication.js";
+import { runScheduledPortfolioProductionCycle } from "../application/services/portfolio-production-schedule.js";
+import { PostgresPortfolioProductionSchedule } from "../infrastructure/database/portfolio-production-schedule.js";
+import { PostgresRiskEvaluationWorkQueue } from "../infrastructure/database/risk-evaluation-jobs.js";
+import { PostgresRiskAuthorityRepository } from "../infrastructure/database/risk-authority.js";
+import { PostgresRiskDecisionRepository } from "../infrastructure/database/risk-decisions.js";
+import { runLeasedRiskEvaluationCycle } from "../application/services/risk-evaluation-work.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -233,6 +239,19 @@ export function composeProductionPositionRuntime(input: {
     new PostgresWalletIntelligenceRepository(input.database),
     () => clock.now(),
   );
+  const portfolioSchedule = new PostgresPortfolioProductionSchedule(input.database);
+  const riskQueue = new PostgresRiskEvaluationWorkQueue(input.database);
+  const riskAuthority = new PostgresRiskAuthorityRepository(input.database);
+  const riskDecisions = new PostgresRiskDecisionRepository(input.database);
+  let portfolioPublication: Promise<CompletePortfolioPublicationCycle> | undefined;
+  const publication = () =>
+    (portfolioPublication ??= providers.signer.publicIdentity().then((wallet) =>
+      composeCompletePortfolioPublication({
+        database: input.database,
+        providers,
+        wallet,
+      }),
+    ));
   const publisherCheckpoints = new PostgresPositionWorkerCheckpointRepository(input.database);
   const observations = new PostgresPositionObservationStore(input.database);
   const publications = new PostgresPositionRuntimeFactPublisher(input.database);
@@ -337,6 +356,26 @@ export function composeProductionPositionRuntime(input: {
     supervisor: Object.freeze({
       ...runtime.supervisor,
       beforeBatch: async () => {
+        await runScheduledPortfolioProductionCycle({
+          schedule: portfolioSchedule,
+          ownerId: input.config.instanceId,
+          now: () => clock.now(),
+          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 120_000)),
+          nextAvailableAt: (at) => asTimestamp(new Date(Date.parse(at) + 30_000)),
+          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+          publish: async (observedAt) => (await publication()).publish(observedAt),
+          evaluateRisk: () =>
+            runLeasedRiskEvaluationCycle({
+              queue: riskQueue,
+              facts: riskAuthority,
+              repository: riskDecisions,
+              ownerId: input.config.instanceId,
+              now: () => clock.now(),
+              leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+              retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+              batchSize: 25,
+            }),
+        });
         await runDiscoveryWorkerCycle({
           source: discoverySource,
           candidates: discoveryCandidates,
