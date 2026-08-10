@@ -66,21 +66,34 @@ describe("paper dashboard details", () => {
       query: async (text: string, values: readonly unknown[]) => {
         queries.push({ text, values });
         return {
-          rows: [{ positions: [{ token_mint: "mint" }], fills: [], performance: [], events: [] }],
+          rows: [
+            {
+              positions: [{ token_mint: "mint", close_pending: false }],
+              pending_entries: [{ signal_id: "signal", version: 2 }],
+              fills: [],
+              performance: [],
+              events: [],
+            },
+          ],
         };
       },
     };
     const result = await readPaperDashboardDetails(database as never, "wallet" as never);
     expect(result.positions).toHaveLength(1);
+    expect(result.pendingEntries).toEqual([{ signal_id: "signal", version: 2 }]);
     expect(queries).toHaveLength(1);
     expect(queries[0]?.values).toEqual(["wallet"]);
     expect(queries[0]?.text).toContain("LIMIT 50");
+    expect(queries[0]?.text).toContain("paper_position_close_requests");
+    expect(queries[0]?.text).toContain("j.state='available'");
     expect(queries[0]?.text.match(/LIMIT 100/g)).toHaveLength(3);
   });
 
   it("rejects malformed database payloads", async () => {
     const database = {
-      query: async () => ({ rows: [{ positions: null, fills: [], performance: [], events: [] }] }),
+      query: async () => ({
+        rows: [{ positions: null, pending_entries: [], fills: [], performance: [], events: [] }],
+      }),
     };
     await expect(readPaperDashboardDetails(database as never, "wallet" as never)).rejects.toThrow(
       /positions/,

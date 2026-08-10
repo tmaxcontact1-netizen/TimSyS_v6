@@ -420,11 +420,40 @@
                       Opened
                     </button>
                   </th>
+                  <th>Paper control</th>
                 </tr>
               </thead>
               <tbody id="position-rows">
                 <tr>
-                  <td colspan="5" class="empty">Awaiting durable data</td>
+                  <td colspan="6" class="empty">Awaiting durable data</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel table-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">SIMULATED ENTRIES</p>
+              <h2>Cancellable paper orders</h2>
+            </div>
+            <span id="pending-entry-count" class="count-chip">—</span>
+          </div>
+          <p class="panel-note">Only available, unleased paper entries can be cancelled.</p>
+          <output id="paper-control-message" class="preference-message" aria-live="polite"></output>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>Token</th>
+                  <th>Amount</th>
+                  <th>Created</th>
+                  <th>Paper control</th>
+                </tr>
+              </thead>
+              <tbody id="pending-entry-rows">
+                <tr>
+                  <td colspan="4" class="empty">Awaiting durable data</td>
                 </tr>
               </tbody>
             </table>
@@ -747,7 +776,7 @@
       </div>
     </dialog>
     <footer>
-      <span>Read-only observation surface</span
+      <span>Paper observation with guarded simulated controls</span
       ><span id="refresh-label">Auto-refresh · 10 seconds</span>
     </footer>
     <script src="/app.js" defer></script>

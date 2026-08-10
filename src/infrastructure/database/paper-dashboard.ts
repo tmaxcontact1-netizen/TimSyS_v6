@@ -4,6 +4,7 @@ import type { MintAddress, WalletAddress } from "../../domain/shared/types.js";
 
 export interface PaperDashboardDetails {
   readonly positions: readonly Record<string, unknown>[];
+  readonly pendingEntries: readonly Record<string, unknown>[];
   readonly fills: readonly Record<string, unknown>[];
   readonly performance: readonly Record<string, unknown>[];
   readonly events: readonly Record<string, unknown>[];
@@ -11,6 +12,7 @@ export interface PaperDashboardDetails {
 
 interface DashboardRow {
   readonly positions: unknown;
+  readonly pending_entries: unknown;
   readonly fills: unknown;
   readonly performance: unknown;
   readonly events: unknown;
@@ -207,9 +209,24 @@ export async function readPaperDashboardDetails(
        COALESCE((SELECT jsonb_agg(p ORDER BY p.opened_at DESC, p.token_mint)
          FROM (SELECT token_mint, sum(current_amount_raw)::text AS amount_raw,
                       sum(remaining_cost_raw)::text AS cost_raw, min(opened_at) AS opened_at,
-                      count(*)::int AS lots
+                      count(*)::int AS lots,
+                      EXISTS (SELECT 1 FROM paper_position_close_requests r
+                        WHERE r.wallet=$1 AND r.token_mint=paper_position_lots.token_mint
+                          AND r.state='pending') AS close_pending
                FROM paper_position_lots WHERE wallet=$1 AND current_amount_raw>0
                GROUP BY token_mint ORDER BY min(opened_at) DESC, token_mint LIMIT 50) p),'[]') AS positions,
+       COALESCE((SELECT jsonb_agg(e ORDER BY e.created_at,e.signal_id)
+         FROM (SELECT o.signal_id::text,c.mint_address AS token_mint,
+                      o.intended_input_amount::text AS input_amount_raw,
+                      j.version,j.created_at
+               FROM orders o
+               JOIN entry_plans ep ON ep.signal_id=o.signal_id AND ep.state='planned'
+               JOIN signals s ON s.id=o.signal_id
+               JOIN candidates c ON c.id=s.candidate_id
+               JOIN jobs j ON j.id=ep.signal_id AND j.job_type='entry_planning'
+                 AND j.state='available' AND j.lease_owner IS NULL
+               WHERE o.wallet_address=$1 AND o.state='approved'
+               ORDER BY j.created_at,o.signal_id LIMIT 50) e),'[]') AS pending_entries,
        COALESCE((SELECT jsonb_agg(f ORDER BY f.filled_at DESC, f.id)
          FROM (SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
                       quoted_at,filled_at
@@ -230,6 +247,7 @@ export async function readPaperDashboardDetails(
   if (row === undefined) throw new Error("Paper dashboard details are unavailable");
   return Object.freeze({
     positions: rows(row.positions, "positions"),
+    pendingEntries: rows(row.pending_entries, "pending entries"),
     fills: rows(row.fills, "fills"),
     performance: rows(row.performance, "performance"),
     events: rows(row.events, "events"),

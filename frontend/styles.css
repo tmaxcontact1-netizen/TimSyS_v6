@@ -1043,3 +1043,12 @@ footer {
 .panel-preference-row button {
   padding: 0.4rem 0.6rem;
 }
+
+[data-paper-action] {
+  white-space: nowrap;
+}
+
+[data-paper-action][disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}

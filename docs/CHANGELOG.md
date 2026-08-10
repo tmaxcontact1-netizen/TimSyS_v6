@@ -245,3 +245,16 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 | `docs/SYSTEM_SCHEMA.md`                                  | Documented command concurrency and fulfillment invariants                                      | Define durable control semantics                            | Authorized by operator |
 | `docs/SERVICE_CONTRACTS.md`                              | Documented authentication, exact confirmation, retry, and paper-only boundaries                | Define the operator control contract                        | Authorized by operator |
 | `docs/SECURITY_MODEL.md`                                 | Documented exclusion of live signing, submission, activation, and mode changes                 | Preserve structural safety                                  | Authorized by operator |
+
+# Guarded paper-control frontend
+
+| File                                             | Change                                                                                          | Purpose                                                          | Authority              |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | ---------------------- |
+| `src/infrastructure/database/paper-dashboard.ts` | Added bounded cancellable-entry versions and pending-close facts to the durable detail snapshot | Supply exact mutation inputs without creating frontend authority | Authorized by operator |
+| `frontend/index.html`                            | Added paper-only order cancellation and full-position close controls                            | Expose the approved guarded controls                             | Authorized by operator |
+| `frontend/app.js`                                | Added session-authenticated confirmed requests and authoritative reloads                        | Prevent stale or inferred control mutations                      | Authorized by operator |
+| `frontend/styles.css`                            | Added disabled and compact paper-control button styling                                         | Make unavailable authority visually explicit                     | Authorized by operator |
+| `tests/unit/paper-dashboard-details.test.ts`     | Added bounded control-read-model contracts                                                      | Prove the snapshot carries exact durable inputs                  | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts`      | Added static frontend control contracts                                                         | Prevent the guarded surface from disappearing silently           | Authorized by operator |
+| `docs/SECURITY_MODEL.md`                         | Documented session, confirmation, reload, and duplicate-prevention behavior                     | Preserve the paper-only authority boundary                       | Authorized by operator |
+| `docs/SERVICE_CONTRACTS.md`                      | Documented bounded paper-control read facts                                                     | Define the final frontend contract                               | Authorized by operator |

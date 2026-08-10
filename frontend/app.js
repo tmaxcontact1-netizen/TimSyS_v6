@@ -17,10 +17,13 @@ const ids = [
   "wallet",
   "observed",
   "position-count",
+  "pending-entry-count",
   "fill-count",
   "performance-count",
   "event-count",
   "position-rows",
+  "pending-entry-rows",
+  "paper-control-message",
   "fill-rows",
   "performance-rows",
   "event-rows",
@@ -92,7 +95,7 @@ const ids = [
   "preferences-message",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
-let detailSnapshot = { positions: [], fills: [], performance: [], events: [] };
+let detailSnapshot = { positions: [], pendingEntries: [], fills: [], performance: [], events: [] };
 let selectedRange = "7d";
 let refreshTimer;
 const connectionEvents = [];
@@ -504,6 +507,16 @@ function renderRows(target, records, cells, empty) {
     for (const render of cells) {
       const cell = row.insertCell();
       const value = render(record);
+      if (value.action) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = value.text;
+        button.dataset.paperAction = value.action;
+        for (const [key, item] of Object.entries(value.data ?? {})) button.dataset[key] = item;
+        button.disabled = Boolean(value.disabled);
+        cell.append(button);
+        continue;
+      }
       cell.textContent = value.text;
       if (value.className) cell.className = value.className;
       if (value.title) cell.title = value.title;
@@ -621,6 +634,7 @@ function renderWatchlist() {
 }
 function renderDetails() {
   const positions = sorted(filterToken(detailSnapshot.positions), "positions");
+  const pendingEntries = filterToken(detailSnapshot.pendingEntries);
   const performance = sorted(filterToken(detailSnapshot.performance), "performance");
   const events = sorted(filterToken(detailSnapshot.events), "events");
   const fills = sorted(
@@ -633,6 +647,7 @@ function renderDetails() {
   elements["filter-status"].textContent =
     `Showing ${positions.length + fills.length + performance.length + events.length} records`;
   elements["position-count"].textContent = positions.length;
+  elements["pending-entry-count"].textContent = pendingEntries.length;
   elements["fill-count"].textContent = fills.length;
   elements["performance-count"].textContent = performance.length;
   elements["event-count"].textContent = events.length;
@@ -645,8 +660,30 @@ function renderDetails() {
       (r) => ({ text: sol(r.cost_raw) }),
       (r) => ({ text: String(r.lots) }),
       (r) => ({ text: time(r.opened_at) }),
+      (r) => ({
+        text: r.close_pending ? "Close requested" : "Request full close",
+        action: "close-position",
+        disabled: !mutationToken || r.close_pending,
+        data: { mint: r.token_mint, amountRaw: r.amount_raw },
+      }),
     ],
     "No matching positions",
+  );
+  renderRows(
+    elements["pending-entry-rows"],
+    pendingEntries,
+    [
+      token,
+      (r) => amount(r.input_amount_raw),
+      (r) => ({ text: time(r.created_at) }),
+      (r) => ({
+        text: "Cancel entry",
+        action: "cancel-entry",
+        disabled: !mutationToken,
+        data: { signalId: r.signal_id, version: String(r.version) },
+      }),
+    ],
+    "No cancellable paper entries",
   );
   renderRows(
     elements["fill-rows"],
@@ -793,6 +830,40 @@ async function refreshDetails() {
   const { details } = await response.json();
   detailSnapshot = details;
   renderDetails();
+}
+function setPaperControlMessage(message, state = "ok") {
+  elements["paper-control-message"].textContent = message;
+  elements["paper-control-message"].dataset.state = state;
+}
+async function paperControlRequest(path, body) {
+  if (!mutationToken) {
+    setPaperControlMessage("Enable changes with the session mutation token first.", "error");
+    return;
+  }
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${mutationToken}` },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(
+        response.status === 409
+          ? "Durable paper state changed. Controls reloaded."
+          : (payload.error ?? "Paper control failed."),
+      );
+    }
+    setPaperControlMessage("Paper-only request accepted.");
+  } catch (error) {
+    setPaperControlMessage(
+      error instanceof Error ? error.message : "Paper control failed.",
+      "error",
+    );
+  } finally {
+    await refreshDetails().catch(() => undefined);
+    await refresh().catch(() => undefined);
+  }
 }
 async function refreshAlerts() {
   const response = await fetch("/api/paper/alerts", { cache: "no-store" });
@@ -994,6 +1065,7 @@ elements["watchlist-connect"].addEventListener("click", () => {
   elements["watchlist-token"].value = "";
   renderWatchlistControls();
   renderConfigurations();
+  renderDetails();
   setWatchlistMessage(
     mutationToken ? "Changes enabled for this page session." : "Enter a mutation token.",
     mutationToken ? "ok" : "error",
@@ -1125,6 +1197,28 @@ document.addEventListener("click", (event) => {
       void mutateWatchlist(`/api/watchlists/${selected.id}/tokens/${remove.title}`, "DELETE", {
         expectedVersion: selected.version,
       });
+    return;
+  }
+  const control = event.target.closest("[data-paper-action]");
+  if (control?.dataset.paperAction === "cancel-entry") {
+    const signalId = control.dataset.signalId;
+    const version = Number(control.dataset.version);
+    if (!signalId || prompt(`Type ${signalId} to cancel this paper entry`) !== signalId) return;
+    void paperControlRequest(`/api/paper/orders/${signalId}/cancel`, {
+      expectedVersion: version,
+      confirmedSignalId: signalId,
+    });
+    return;
+  }
+  if (control?.dataset.paperAction === "close-position") {
+    const mint = control.dataset.mint;
+    const amountRaw = control.dataset.amountRaw;
+    if (!mint || !amountRaw || prompt(`Type ${mint} to request a full paper close`) !== mint)
+      return;
+    void paperControlRequest(`/api/paper/positions/${mint}/close`, {
+      confirmedMint: mint,
+      expectedOpenAmountRaw: amountRaw,
+    });
     return;
   }
   const target = event.target.closest("[data-token-mint]");

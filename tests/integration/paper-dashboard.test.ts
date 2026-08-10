@@ -90,6 +90,9 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('id="configuration-form"');
     expect(page.body).toContain('id="configuration-select"');
     expect(page.body).toContain('id="configuration-delete"');
+    expect(page.body).toContain('id="pending-entry-rows"');
+    expect(page.body).toContain('id="paper-control-message"');
+    expect(page.body).toContain("Only available, unleased paper entries can be cancelled.");
     expect(page.body).toContain("Draft storage only");
     expect(page.body).toContain('type="password"');
     expect(page.body).toContain('data-sort="cost_raw"');
@@ -133,7 +136,15 @@ describe("paper dashboard", () => {
   it("serves bounded detail data without exposing a mutation route", async () => {
     const database = {
       query: async () => ({
-        rows: [{ positions: [], fills: [{ side: "buy" }], performance: [], events: [] }],
+        rows: [
+          {
+            positions: [],
+            pending_entries: [],
+            fills: [{ side: "buy" }],
+            performance: [],
+            events: [],
+          },
+        ],
       }),
       end: async () => undefined,
     };

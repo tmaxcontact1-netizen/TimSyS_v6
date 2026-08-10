@@ -429,5 +429,7 @@ No provider adapter, database schema, dependency manifest or executable code is 
 - Paper controls use the dashboard mutation token, exact same-origin check, bounded JSON body, wallet scope, and immutable audit boundary.
 - Entry cancellation requires the exact signal identifier and current job version. Only a planned entry with an available, unleased paper job can be cancelled.
 - Full-position close requires exact mint confirmation and the exact observed open raw amount. A mismatch or duplicate pending request fails closed.
+- The paper detail response includes at most 50 currently cancellable, available, unleased entries with their current job versions and marks open positions that already have a pending full-close request.
+- The browser reloads the bounded durable detail response after every control attempt and never fabricates a version, amount, mint, or signal identifier.
 - Close requests are evaluated through the existing authoritative paper quote, simulated execution, and accounting path. Quote or accounting failure leaves the request pending for retry.
 - These routes are available only in the paper dashboard composition and cannot sign, submit, activate a configuration, change mode, or reach live execution adapters.
