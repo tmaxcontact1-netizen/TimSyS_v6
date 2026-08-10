@@ -40,6 +40,7 @@ const schema = z
     SOLANA_CLUSTER: z.enum(["mainnet-beta", "devnet"]).optional(),
     HELIUS_API_KEY: nonempty.optional(),
     JUPITER_API_KEY: nonempty.optional(),
+    PAPER_TRADING_WALLET_ADDRESS: nonempty.optional(),
     TRADING_WALLET_SECRET_FILE: absolutePath.optional(),
     TRANSACTION_ALLOWED_PROGRAM_IDS: nonempty.optional(),
     TRANSACTION_ALLOWED_FEE_RECIPIENTS: nonempty.optional(),
@@ -59,6 +60,11 @@ export interface RuntimeConfig {
     primaryRpcUrl: string;
     fallbackRpcUrl: string;
     cluster: "mainnet-beta" | "devnet";
+  }>;
+  readonly paper: null | Readonly<{
+    heliusApiKey: string;
+    jupiterApiKey: string;
+    walletAddress: string;
   }>;
   readonly execution: null | Readonly<{
     heliusApiKey: string;
@@ -80,6 +86,14 @@ const liveReads = new Set<OperatingMode>([
   "full_auto",
 ]);
 const liveExecution = new Set<OperatingMode>(["supervised_live", "limited_auto", "full_auto"]);
+
+const liveExecutionOnlyVariables = [
+  "TRADING_WALLET_SECRET_FILE",
+  "TRANSACTION_ALLOWED_PROGRAM_IDS",
+  "TRANSACTION_ALLOWED_FEE_RECIPIENTS",
+  "TRANSACTION_ALLOWED_DESTINATIONS",
+  "TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS",
+] as const;
 
 function required(value: string | undefined, name: string): string {
   if (value === undefined) throw new Error(`${name} is required for the selected mode`);
@@ -112,6 +126,19 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
     : null;
   if (solana !== null && new URL(solana.primaryRpcUrl).host === new URL(solana.fallbackRpcUrl).host)
     throw new Error("Primary and fallback Solana RPC providers must be independent");
+  const paper =
+    value.MEMECOINED_MODE === "paper"
+      ? Object.freeze({
+          heliusApiKey: required(value.HELIUS_API_KEY, "HELIUS_API_KEY"),
+          jupiterApiKey: required(value.JUPITER_API_KEY, "JUPITER_API_KEY"),
+          walletAddress: required(
+            value.PAPER_TRADING_WALLET_ADDRESS,
+            "PAPER_TRADING_WALLET_ADDRESS",
+          ),
+        })
+      : null;
+  if (paper !== null && liveExecutionOnlyVariables.some((name) => environment[name] !== undefined))
+    throw new Error("Paper mode forbids signer secrets and transaction-submission policy");
   const execution = liveExecution.has(value.MEMECOINED_MODE)
     ? Object.freeze({
         heliusApiKey: required(value.HELIUS_API_KEY, "HELIUS_API_KEY"),
@@ -145,6 +172,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
     configDirectory: value.MEMECOINED_CONFIG_DIR,
     databaseUrl: value.DATABASE_URL,
     solana,
+    paper,
     execution,
   });
 }

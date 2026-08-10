@@ -37,6 +37,48 @@ describe("runtime configuration", () => {
         SOLANA_CLUSTER: "mainnet-beta",
       }).execution,
     ).toBeNull());
+  it("loads paper authority without any signing or submission capability", () => {
+    const config = loadRuntimeConfig({
+      ...base,
+      MEMECOINED_MODE: "paper",
+      SOLANA_PRIMARY_RPC_URL: "https://primary.example/rpc",
+      SOLANA_FALLBACK_RPC_URL: "https://fallback.example/rpc",
+      SOLANA_CLUSTER: "mainnet-beta",
+      HELIUS_API_KEY: "helius-key",
+      JUPITER_API_KEY: "jupiter-key",
+      PAPER_TRADING_WALLET_ADDRESS: "paper-wallet",
+    });
+    expect(config.paper).toEqual({
+      heliusApiKey: "helius-key",
+      jupiterApiKey: "jupiter-key",
+      walletAddress: "paper-wallet",
+    });
+    expect(config.execution).toBeNull();
+  });
+  it("requires explicit paper wallet and provider authority", () =>
+    expect(() =>
+      loadRuntimeConfig({
+        ...base,
+        MEMECOINED_MODE: "paper",
+        SOLANA_PRIMARY_RPC_URL: "https://primary.example/rpc",
+        SOLANA_FALLBACK_RPC_URL: "https://fallback.example/rpc",
+        SOLANA_CLUSTER: "mainnet-beta",
+      }),
+    ).toThrow(/HELIUS_API_KEY/));
+  it("rejects live signing authority in paper mode", () =>
+    expect(() =>
+      loadRuntimeConfig({
+        ...base,
+        MEMECOINED_MODE: "paper",
+        SOLANA_PRIMARY_RPC_URL: "https://primary.example/rpc",
+        SOLANA_FALLBACK_RPC_URL: "https://fallback.example/rpc",
+        SOLANA_CLUSTER: "mainnet-beta",
+        HELIUS_API_KEY: "helius-key",
+        JUPITER_API_KEY: "jupiter-key",
+        PAPER_TRADING_WALLET_ADDRESS: "paper-wallet",
+        TRADING_WALLET_SECRET_FILE: "/run/secrets/wallet.json",
+      }),
+    ).toThrow(/forbids signer secrets/));
   it("requires all execution credentials for live execution", () =>
     expect(() =>
       loadRuntimeConfig({
