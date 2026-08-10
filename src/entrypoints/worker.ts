@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import { createRuntimePool } from "../infrastructure/database/pool.js";
 import { loadRuntimeConfig, type RuntimeConfig } from "../infrastructure/config/load-config.js";
 import {
+  composePaperTradingRuntime,
   composeProductionPositionRuntime,
   type PositionRuntimeComposition,
 } from "./composition.js";
@@ -26,7 +27,14 @@ const productionFactories: ProductionWorkerFactories = Object.freeze({
       connectionString: config.databaseUrl,
       production: config.environment === "production",
     }),
-  compose: composeProductionPositionRuntime,
+  compose: (input: {
+    readonly config: RuntimeConfig;
+    readonly database: Pool;
+    readonly signal: AbortSignal;
+  }) =>
+    input.config.mode === "paper"
+      ? composePaperTradingRuntime(input)
+      : composeProductionPositionRuntime(input),
   run: runProductionProcess,
 });
 

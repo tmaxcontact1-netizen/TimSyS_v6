@@ -47,6 +47,34 @@ export interface ProductionProviderServices {
   readonly walletHistory: WalletHistoryObservationPort;
 }
 
+export interface PaperProviderServices {
+  readonly swap: Pick<SwapPort, "quote">;
+}
+
+/** Constructs quote-only paper providers without signer or submission capability. */
+export function composePaperProviders(config: RuntimeConfig): PaperProviderServices {
+  if (config.solana === null || config.paper === null || config.execution !== null)
+    throw new Error("Paper providers require paper-only read and quote configuration");
+  const primaryUrl = new URL(config.solana.primaryRpcUrl);
+  const fallbackUrl = new URL(config.solana.fallbackRpcUrl);
+  const rpcHttp = new BoundedJsonHttpTransport({
+    allowedOrigins: new Set([primaryUrl.origin, fallbackUrl.origin]),
+  });
+  const primary = new SolanaRpcClient(
+    new SolanaRpcHttpTransport(rpcHttp, config.solana.primaryRpcUrl),
+  );
+  const publicHttp = new BoundedJsonHttpTransport({
+    allowedOrigins: new Set(["https://api.jup.ag"]),
+  });
+  const identities = new DeterministicEvidenceIdentityFactory();
+  const adapter = new JupiterSwapAdapter(
+    new JupiterSwapApiClient(publicHttp, config.paper.jupiterApiKey),
+    new SolanaExecutionRpc(primary),
+    identities,
+  );
+  return Object.freeze({ swap: Object.freeze({ quote: adapter.quote.bind(adapter) }) });
+}
+
 /** Constructs all completed live provider clients from validated configuration. */
 export function composeProductionProviders(
   config: RuntimeConfig,

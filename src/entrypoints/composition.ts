@@ -25,7 +25,12 @@ import {
   createRuntimeLogger,
   StructuredReconciliationEscalation,
 } from "../infrastructure/runtime/escalation.js";
-import { composeProductionProviders, type ProductionProviderServices } from "./providers.js";
+import {
+  composePaperProviders,
+  composeProductionProviders,
+  type PaperProviderServices,
+  type ProductionProviderServices,
+} from "./providers.js";
 import { PostgresReconciliationJobStore } from "../infrastructure/database/job-store.js";
 import { PostgresPositionWorkerCheckpointRepository } from "../infrastructure/database/repositories.js";
 import { PostgresPositionObservationStore } from "../infrastructure/database/position-observations.js";
@@ -89,6 +94,13 @@ import { PostgresRiskEvaluationWorkQueue } from "../infrastructure/database/risk
 import { PostgresRiskAuthorityRepository } from "../infrastructure/database/risk-authority.js";
 import { PostgresRiskDecisionRepository } from "../infrastructure/database/risk-decisions.js";
 import { runLeasedRiskEvaluationCycle } from "../application/services/risk-evaluation-work.js";
+import { initializePaperAccount } from "../application/services/paper-deployment.js";
+import {
+  PaperQuoteExecutionService,
+  runPaperEntryExecutionCycle,
+} from "../application/services/paper-execution.js";
+import { PostgresPaperAccountingLedger } from "../infrastructure/database/paper-accounting.js";
+import { PostgresPaperEntryWorkQueue } from "../infrastructure/database/paper-entry-work.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -103,6 +115,62 @@ export interface PositionRuntimeComposition {
 
 export interface CompletePortfolioPublicationCycle {
   publish(observedAt: Timestamp): Promise<void>;
+}
+
+/** Composes the non-capital paper worker with no live-position execution path. */
+export function composePaperTradingRuntime(input: {
+  readonly config: RuntimeConfig;
+  readonly database: Pool;
+  readonly signal: AbortSignal;
+  readonly providers?: PaperProviderServices;
+}): PositionRuntimeComposition {
+  if (input.config.paper === null || input.config.execution !== null)
+    throw new Error("Paper trading runtime requires paper-only configuration");
+  const clock = new SystemSchedulerClock();
+  const providers = input.providers ?? composePaperProviders(input.config);
+  const wallet = input.config.paper.walletAddress as WalletAddress;
+  const ledger = new PostgresPaperAccountingLedger(input.database);
+  const queue = new PostgresPaperEntryWorkQueue(input.database);
+  const execution = new PaperQuoteExecutionService(wallet, providers.swap, ledger, () =>
+    clock.now(),
+  );
+  let initialized = false;
+  const noPositionJobs = Object.freeze({
+    recoverAbandoned: async () => Object.freeze([]),
+    findDue: async () => Object.freeze([]),
+  });
+  return Object.freeze({
+    checkpoints: new PostgresPositionWorkerCheckpointRepository(input.database),
+    supervisor: Object.freeze({
+      jobs: noPositionJobs,
+      now: () => clock.now(),
+      run: async () => {
+        throw new Error("Paper runtime cannot execute live position jobs");
+      },
+      wait: clock,
+      signal: input.signal,
+      beforeBatch: async () => {
+        if (!initialized) {
+          await initializePaperAccount({
+            wallet,
+            initialCashLamports: input.config.paper!.initialCashLamports,
+            initializedAt: clock.now(),
+            ledger,
+          });
+          initialized = true;
+        }
+        await runPaperEntryExecutionCycle({
+          queue,
+          execution,
+          ownerId: input.config.instanceId,
+          now: () => clock.now(),
+          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+          batchSize: 25,
+        });
+      },
+    }),
+  });
 }
 
 /** Composes operational-safety production immediately before the matching accounting checkpoint. */
