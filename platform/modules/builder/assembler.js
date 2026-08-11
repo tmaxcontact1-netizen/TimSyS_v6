@@ -1,3 +1,4 @@
+// File: platform/modules/builder/assembler.js
 'use strict';
 
 const fs = require('fs');
@@ -20,6 +21,7 @@ const MODULES_DIR = path.resolve(__dirname, '../../modules');
  * @param {Object} [spec.functions] - Function declarations
  * @param {Object} [spec.schema] - Schema with tables/migrations
  * @param {Object} [spec.events] - Event subscriptions/publications
+ * @param {Object} [spec.statusConfig] - Status action config for withdraw/reinstate/permanentDelete
  * @returns {Object} - Assembly result
  */
 function assemble(spec) {
@@ -64,7 +66,7 @@ function assemble(spec) {
     functions = spec.routes.map(function(route) {
       return {
         name: route.handler,
-        exports: route.handler, // Match handler name exactly
+        exports: route.handler,
         params: ['req', 'ctx'],
         returns: 'any'
       };
@@ -82,6 +84,7 @@ function assemble(spec) {
     components: components,
     routes: spec.routes || [],
     functions: functions,
+    statusConfig: spec.statusConfig || null,
     schema: spec.schema || { tables: [], migrations: [] },
     events: spec.events || { publishes: [], subscribes: [] }
   };
@@ -104,8 +107,40 @@ function assemble(spec) {
     return "  var " + comp + " = require(" + sourcePath + "); // Component: " + compData.type;
   }).join('\n');
 
+  // Generate smart stubs for status action handlers, generic stubs for everything else
+  var statusConfigJson = spec.statusConfig ? JSON.stringify(spec.statusConfig) : null;
+
   var handlerStubs = functions.map(function(func) {
     var handlerName = func.name;
+
+    // Smart stub: withdraw
+    if (handlerName.match(/_withdraw$/) && statusConfigJson) {
+      return [
+        'async function ' + handlerName + '(req, ctx) {',
+        '  return statusActions.withdraw(' + statusConfigJson + ', req, ctx);',
+        '}'
+      ].join('\n');
+    }
+
+    // Smart stub: reinstate
+    if (handlerName.match(/_reinstate$/) && statusConfigJson) {
+      return [
+        'async function ' + handlerName + '(req, ctx) {',
+        '  return statusActions.reinstate(' + statusConfigJson + ', req, ctx);',
+        '}'
+      ].join('\n');
+    }
+
+    // Smart stub: permanentDelete
+    if (handlerName.match(/_permanentDelete$/) && statusConfigJson) {
+      return [
+        'async function ' + handlerName + '(req, ctx) {',
+        '  return statusActions.permanentDelete(' + statusConfigJson + ', req, ctx);',
+        '}'
+      ].join('\n');
+    }
+
+    // Generic stub
     return [
       'async function ' + handlerName + '(req, ctx) {',
       '  // Handler for processing requests',
@@ -120,16 +155,24 @@ function assemble(spec) {
     '',
     '// Required components',
     componentRequires,
-    '',
-    'function boot(ctx) {',
-    '  ctx.log.info("' + name + ' booting", { module: "' + name + '" });',
-    '}',
-    '',
-    'function teardown(ctx) {',
-    '  ctx.log.info("' + name + ' tearing down", { module: "' + name + '" });',
-    '}',
     ''
   ];
+
+  // Add statusActions import if statusConfig is present
+  if (spec.statusConfig) {
+    indexJs.push("// Shared utility for withdraw/reinstate/permanentDelete");
+    indexJs.push("var statusActions = require('../../shared/services/statusActions');");
+    indexJs.push('');
+  }
+
+  indexJs.push('function boot(ctx) {');
+  indexJs.push('  ctx.log.info("' + name + ' booting", { module: "' + name + '" });');
+  indexJs.push('}');
+  indexJs.push('');
+  indexJs.push('function teardown(ctx) {');
+  indexJs.push('  ctx.log.info("' + name + ' tearing down", { module: "' + name + '" });');
+  indexJs.push('}');
+  indexJs.push('');
 
   if (handlerStubs) {
     indexJs.push(handlerStubs);
@@ -207,7 +250,6 @@ function dryRun(spec) {
   var moduleDir = path.join(MODULES_DIR, spec.name);
   var exists = fs.existsSync(moduleDir);
 
-  // Auto-generate functions from routes for validation
   var functions = spec.functions || [];
   if (functions.length === 0 && spec.routes && spec.routes.length > 0) {
     functions = spec.routes.map(function(route) {
@@ -252,3 +294,4 @@ module.exports = {
   assemble: assemble,
   dryRun: dryRun
 };
+// Total lines: 245

@@ -1,8 +1,0 @@
-CREATE TABLE IF NOT EXISTS modules_config (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    module_name TEXT NOT NULL UNIQUE,
-    enabled INTEGER NOT NULL DEFAULT 1,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-CREATE INDEX IF NOT EXISTS idx_modules_enabled ON modules_config(enabled);

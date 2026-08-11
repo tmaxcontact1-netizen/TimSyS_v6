@@ -13,6 +13,7 @@ const log = require('../../shared/services/log');
  * @param {Array<Object>} [input.routes] - Optional route overrides
  * @param {string} [input.version] - Version string
  * @param {string} [input.author] - Author
+ * @param {Object} [input.statusConfig] - Status action configuration
  * @returns {Object} Composition result with spec
  */
 function compose(input) {
@@ -61,12 +62,10 @@ function compose(input) {
   var conflicts = [];
 
   componentData.forEach(function(comp) {
-    // Add owner module as a dependency
     if (comp.ownerModule) {
       dependencies.add(comp.ownerModule);
     }
 
-    // Add component-level dependencies
     if (comp.dependencies) {
       comp.dependencies.forEach(function(dep) {
         requires.push(dep);
@@ -75,7 +74,6 @@ function compose(input) {
     }
   });
 
-  // Deduplicate requires
   var uniqueRequires = Array.from(new Set(requires));
   var dependencyList = Array.from(dependencies);
 
@@ -183,6 +181,7 @@ function compose(input) {
     components: componentNames,
     routes: routes,
     functions: functions,
+    statusConfig: input.statusConfig || null,
     schema: {
       tables: [],
       migrations: []
@@ -226,10 +225,11 @@ function compose(input) {
  * POST /<resource> — create
  * GET /<resource>/:id — read
  * PUT /<resource>/:id — update
- * DELETE /<resource>/:id — delete
+ * PUT /<resource>/:id/withdraw — soft-delete (status change)
+ * PUT /<resource>/:id/reinstate — restore active status
+ * DELETE /<resource>/:id/permanent — hard delete (requires withdrawn or ?force=true)
  */
 function generateCrudRoutes(moduleName, componentNames) {
-  // Convert module name to kebab-case path
   var resourcePath = '/' + moduleName.replace(/_/g, '-').replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
   var baseHandler = moduleName.replace(/[-_]/g, '_');
 
@@ -238,7 +238,9 @@ function generateCrudRoutes(moduleName, componentNames) {
     { path: resourcePath, method: 'POST', handler: baseHandler + '_create', auth_required: true },
     { path: resourcePath + '/:id', method: 'GET', handler: baseHandler + '_read', auth_required: true },
     { path: resourcePath + '/:id', method: 'PUT', handler: baseHandler + '_update', auth_required: true },
-    { path: resourcePath + '/:id', method: 'DELETE', handler: baseHandler + '_delete', auth_required: true }
+    { path: resourcePath + '/:id/withdraw', method: 'PUT', handler: baseHandler + '_withdraw', auth_required: true },
+    { path: resourcePath + '/:id/reinstate', method: 'PUT', handler: baseHandler + '_reinstate', auth_required: true },
+    { path: resourcePath + '/:id/permanent', method: 'DELETE', handler: baseHandler + '_permanentDelete', auth_required: true }
   ];
 }
 

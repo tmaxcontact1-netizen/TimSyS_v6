@@ -1,402 +1,151 @@
-// Path: /home/tmax/TimSyS_v6/platform/modules/student_registry/index.js
-// Total lines: 350
-
 'use strict';
 
+var db = require('../../shared/services/db');
+
+// Shared utility for withdraw/reinstate/permanentDelete
+var statusActions = require('../../shared/services/statusActions');
+
 function boot(ctx) {
-  ctx.log.info('student_registry booting', { module: 'student_registry' });
+  ctx.log.info("student_registry booting", { module: "student_registry" });
 }
 
 function teardown(ctx) {
-  ctx.log.info('student_registry tearing down', { module: 'student_registry' });
+  ctx.log.info("student_registry tearing down", { module: "student_registry" });
 }
 
-// ============================================================================
-// STUDENTS — CRUD
-// ============================================================================
-
-async function listStudents(req, ctx) {
-  var page = parseInt(req.query.page, 10) || 1;
-  var limit = parseInt(req.query.limit, 10) || 50;
-  if (limit > 500) limit = 500;
-  var offset = (page - 1) * limit;
-
-  var conditions = [];
-  var params = [];
-
-  if (req.query.last_name) {
-    conditions.push('last_name LIKE ?');
-    params.push('%' + req.query.last_name + '%');
-  }
-  if (req.query.first_name) {
-    conditions.push('first_name LIKE ?');
-    params.push('%' + req.query.first_name + '%');
-  }
-  if (req.query.student_id) {
-    conditions.push('student_id = ?');
-    params.push(req.query.student_id);
-  }
-  if (req.query.enrollment_status) {
-    conditions.push('enrollment_status = ?');
-    params.push(req.query.enrollment_status);
-  }
-  if (req.query.grade_level) {
-    conditions.push('current_grade_level = ?');
-    params.push(req.query.grade_level);
-  }
-  if (req.query.sex) {
-    conditions.push('sex = ?');
-    params.push(req.query.sex);
-  }
-
-  var where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
-  var sql = 'SELECT * FROM students' + where + ' ORDER BY last_name ASC, first_name ASC LIMIT ? OFFSET ?';
-  params.push(limit, offset);
-
-  var result = ctx.db.query(sql, params);
-  var countSql = 'SELECT COUNT(*) as total FROM students' + where;
-  var countResult = ctx.db.query(countSql, conditions.length > 0 ? params.slice(0, conditions.length) : []);
-
-  return {
-    success: true,
-    students: result.rows,
-    total: parseInt(countResult.rows[0].total, 10),
-    page: page,
-    limit: limit
-  };
+async function student_registry_listStudents(req, ctx) {
+  var result = db.query('SELECT * FROM students ORDER BY id DESC');
+  return { success: true, students: result.rows || [] };
 }
 
-async function createStudent(req, ctx) {
-  var b = req.body;
+async function student_registry_createStudent(req, ctx) {
+  var b = req.body || {};
   if (!b.student_id || !b.first_name || !b.last_name || !b.date_of_birth || !b.sex) {
-    return {
-      success: false,
-      statusCode: 400,
-      error: { code: 'VALIDATION_ERROR', message: 'student_id, first_name, last_name, date_of_birth, and sex are required' }
-    };
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'Student ID, first name, last name, date of birth, and sex are required' } };
   }
-
-  if (b.sex !== 'Male' && b.sex !== 'Female') {
-    return {
-      success: false,
-      statusCode: 400,
-      error: { code: 'VALIDATION_ERROR', message: 'sex must be Male or Female' }
-    };
-  }
-
-  var existing = ctx.db.query('SELECT id FROM students WHERE student_id = ?', [b.student_id]);
-  if (existing.rows.length > 0) {
-    return {
-      success: false,
-      statusCode: 409,
-      error: { code: 'DUPLICATE', message: 'Student with student_id "' + b.student_id + '" already exists' }
-    };
-  }
-
-  var result = ctx.db.query(
-    `INSERT INTO students (
-      student_id, first_name, last_name, middle_name, preferred_name,
-      date_of_birth, sex, photo_url, nationality, ethnicity,
-      primary_language, secondary_language, identity_custom,
-      enrollment_date, enrollment_status, current_grade_level, homeroom,
-      term_start, term_end, school_year, enrollment_custom,
-      medical_alert_flag, special_education_flag, free_lunch_eligible,
-      gifted_talented_flag, esl_flag,
-      notes, custom_fields
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      b.student_id, b.first_name, b.last_name, b.middle_name || null, b.preferred_name || null,
-      b.date_of_birth, b.sex, b.photo_url || null, b.nationality || null, b.ethnicity || null,
-      b.primary_language || null, b.secondary_language || null, b.identity_custom || '{}',
-      b.enrollment_date || new Date().toISOString().slice(0, 10),
-      b.enrollment_status || 'active', b.current_grade_level || null, b.homeroom || null,
-      b.term_start || null, b.term_end || null, b.school_year || null, b.enrollment_custom || '{}',
-      b.medical_alert_flag === true ? 1 : 0, b.special_education_flag === true ? 1 : 0, b.free_lunch_eligible === true ? 1 : 0,
-      b.gifted_talented_flag === true ? 1 : 0, b.esl_flag === true ? 1 : 0,
-      b.notes || null, b.custom_fields || '{}'
-    ]
+  var result = db.query(
+    "INSERT INTO students (student_id, first_name, last_name, date_of_birth, sex, middle_name, preferred_name, nationality, ethnicity, primary_language, secondary_language, enrollment_date, enrollment_status, current_grade_level, homeroom, school_year, medical_alert_flag, special_education_flag, gifted_talented_flag, esl_flag, photo_url, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    [b.student_id, b.first_name, b.last_name, b.date_of_birth, b.sex, b.middle_name || null, b.preferred_name || null, b.nationality || null, b.ethnicity || null, b.primary_language || null, b.secondary_language || null, b.enrollment_date || null, b.enrollment_status || 'active', b.current_grade_level || null, b.homeroom || null, b.school_year || null, b.medical_alert_flag || 0, b.special_education_flag || 0, b.gifted_talented_flag || 0, b.esl_flag || 0, b.photo_url || null, b.notes || null]
   );
-
-  var insertedId = result.lastInsertRowid;
-  var student = ctx.db.query('SELECT * FROM students WHERE id = ?', [insertedId]);
-
-  ctx.events.publish('student.created', { studentId: insertedId, studentIdText: b.student_id, entityType: 'student', entityId: insertedId, __module: 'student_registry' });
-
-  if (ctx.intelligence) {
-    try {
-      await ctx.intelligence.storeMetadata('student', insertedId.toString(), student.rows[0]);
-    } catch (e) {
-      ctx.log.error('Failed to store metadata for student', { studentId: insertedId, error: e.message });
-    }
-  }
-
+  var id = result.lastInsertRowid || result.insertId;
   if (ctx.audit) {
-    ctx.audit.action('student.create', req.user.id, {
-      entityType: 'student',
-      entityId: insertedId,
-      newValue: student.rows[0]
-    });
+    ctx.audit.action('student.create', req.user.id, { entityType: 'student', entityId: id, newValue: b });
   }
-
-  return { success: true, student: student.rows[0] };
+  if (ctx.events) {
+    ctx.events.publish('student.created', { entityId: id, entityType: 'student', __module: 'student_registry' });
+  }
+  return { success: true, id: id };
 }
 
-async function readStudent(req, ctx) {
+async function student_registry_readStudent(req, ctx) {
   var id = req.params.id;
-  var result = ctx.db.query('SELECT * FROM students WHERE id = ? OR student_id = ?', [id, id]);
-
-  if (result.rows.length === 0) {
+  var result = db.query('SELECT * FROM students WHERE id = ? OR student_id = ?', [id, id]);
+  if (!result.rows || result.rows.length === 0) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Student not found' } };
   }
-
   return { success: true, student: result.rows[0] };
 }
 
-async function updateStudent(req, ctx) {
+async function student_registry_updateStudent(req, ctx) {
   var id = req.params.id;
-  var b = req.body;
-
-  var existing = ctx.db.query('SELECT * FROM students WHERE id = ? OR student_id = ?', [id, id]);
-  if (existing.rows.length === 0) {
+  var existing = db.query('SELECT * FROM students WHERE id = ? OR student_id = ?', [id, id]);
+  if (!existing.rows || existing.rows.length === 0) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Student not found' } };
   }
-
-  var allowedFields = [
-    'first_name', 'last_name', 'middle_name', 'preferred_name', 'date_of_birth', 'sex',
-    'photo_url', 'nationality', 'ethnicity', 'primary_language', 'secondary_language',
-    'identity_custom', 'enrollment_date', 'enrollment_status', 'current_grade_level',
-    'homeroom', 'term_start', 'term_end', 'school_year', 'enrollment_custom',
-    'medical_alert_flag', 'special_education_flag', 'free_lunch_eligible',
-    'gifted_talented_flag', 'esl_flag', 'notes', 'custom_fields'
-  ];
-
-  var updates = [];
-  var params = [];
-
-  for (var i = 0; i < allowedFields.length; i++) {
-    var field = allowedFields[i];
-    if (b[field] !== undefined) {
-      if (field === 'sex' && b[field] !== 'Male' && b[field] !== 'Female') {
-        return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'sex must be Male or Female' } };
-      }
-      if (field === 'medical_alert_flag' || field === 'special_education_flag' || field === 'free_lunch_eligible' || field === 'gifted_talented_flag' || field === 'esl_flag') {
-        params.push(b[field] === true ? 1 : 0);
-      } else {
-        params.push(b[field]);
-      }
-      updates.push(field + ' = ?');
-    }
-  }
-
-  if (updates.length === 0) {
-    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } };
-  }
-
-  updates.push("updated_at = datetime('now')");
-  params.push(existing.rows[0].id);
-
-  ctx.db.query('UPDATE students SET ' + updates.join(', ') + ' WHERE id = ?', params);
-
-  var updated = ctx.db.query('SELECT * FROM students WHERE id = ?', [existing.rows[0].id]);
-
-  ctx.events.publish('student.updated', { studentId: existing.rows[0].id, entityType: 'student', entityId: existing.rows[0].id, __module: 'student_registry' });
-
-  if (ctx.intelligence) {
-    try {
-      await ctx.intelligence.storeMetadata('student', existing.rows[0].id.toString(), updated.rows[0]);
-    } catch (e) {
-      ctx.log.error('Failed to store metadata for student', { studentId: existing.rows[0].id, error: e.message });
-    }
-  }
-
-  if (ctx.audit) {
-    ctx.audit.action('student.update', req.user.id, {
-      entityType: 'student',
-      entityId: existing.rows[0].id,
-      oldValue: existing.rows[0],
-      newValue: updated.rows[0]
-    });
-  }
-
-  return { success: true, student: updated.rows[0] };
-}
-
-async function deleteStudent(req, ctx) {
-  var id = req.params.id;
-  var existing = ctx.db.query('SELECT * FROM students WHERE id = ? OR student_id = ?', [id, id]);
-
-  if (existing.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Student not found' } };
-  }
-
-  ctx.db.query("UPDATE students SET enrollment_status = 'withdrawn', updated_at = datetime('now') WHERE id = ?", [existing.rows[0].id]);
-
-  ctx.events.publish('student.withdrawn', { studentId: existing.rows[0].id, entityType: 'student', entityId: existing.rows[0].id, __module: 'student_registry' });
-
-  if (ctx.audit) {
-    ctx.audit.action('student.delete', req.user.id, {
-      entityType: 'student',
-      entityId: existing.rows[0].id,
-      oldValue: existing.rows[0]
-    });
-  }
-
-  return { success: true, message: 'Student withdrawn (soft delete)' };
-}
-
-// ============================================================================
-// STUDENT CONTACTS — CRUD
-// ============================================================================
-
-async function listContacts(req, ctx) {
-  var studentId = req.params.id;
-  var student = ctx.db.query('SELECT id FROM students WHERE id = ? OR student_id = ?', [studentId, studentId]);
-
-  if (student.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Student not found' } };
-  }
-
-  var result = ctx.db.query('SELECT * FROM student_contacts WHERE student_id = ? ORDER BY is_primary_contact DESC, last_name ASC', [student.rows[0].id]);
-
-  return { success: true, contacts: result.rows, total: result.rows.length };
-}
-
-async function addContact(req, ctx) {
-  var studentId = req.params.id;
-  var b = req.body;
-  var student = ctx.db.query('SELECT id FROM students WHERE id = ? OR student_id = ?', [studentId, studentId]);
-
-  if (student.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Student not found' } };
-  }
-
-  if (!b.first_name || !b.last_name || !b.contact_type) {
-    return {
-      success: false,
-      statusCode: 400,
-      error: { code: 'VALIDATION_ERROR', message: 'contact_type, first_name, and last_name are required' }
-    };
-  }
-
-  if (b.is_primary_contact) {
-    ctx.db.query('UPDATE student_contacts SET is_primary_contact = 0 WHERE student_id = ?', [student.rows[0].id]);
-  }
-
-  var result = ctx.db.query(
-    `INSERT INTO student_contacts (
-      student_id, contact_type, first_name, last_name, relationship,
-      phone_primary, phone_secondary, email, address_line1, address_line2,
-      city, state_province, postal_code, country,
-      is_primary_contact, has_custody, pickup_authorization,
-      employer, occupation, notes, contact_custom, custom_fields
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      student.rows[0].id, b.contact_type, b.first_name, b.last_name, b.relationship || null,
-      b.phone_primary || null, b.phone_secondary || null, b.email || null,
-      b.address_line1 || null, b.address_line2 || null,
-      b.city || null, b.state_province || null, b.postal_code || null, b.country || null,
-      b.is_primary_contact === true ? 1 : 0, b.has_custody === true ? 1 : 0, b.pickup_authorization === true ? 1 : 0,
-      b.employer || null, b.occupation || null, b.notes || null,
-      JSON.stringify(b.contact_custom || {}), JSON.stringify(b.custom_fields || {})
-    ]
+  var record = existing.rows[0];
+  var b = req.body || {};
+  db.query(
+    "UPDATE students SET student_id = ?, first_name = ?, last_name = ?, date_of_birth = ?, sex = ?, middle_name = ?, preferred_name = ?, nationality = ?, ethnicity = ?, primary_language = ?, secondary_language = ?, enrollment_date = ?, enrollment_status = ?, current_grade_level = ?, homeroom = ?, school_year = ?, medical_alert_flag = ?, special_education_flag = ?, gifted_talented_flag = ?, esl_flag = ?, photo_url = ?, notes = ?, updated_at = datetime('now') WHERE id = ?",
+    [b.student_id || record.student_id, b.first_name || record.first_name, b.last_name || record.last_name, b.date_of_birth || record.date_of_birth, b.sex || record.sex, b.middle_name !== undefined ? b.middle_name : record.middle_name, b.preferred_name !== undefined ? b.preferred_name : record.preferred_name, b.nationality !== undefined ? b.nationality : record.nationality, b.ethnicity !== undefined ? b.ethnicity : record.ethnicity, b.primary_language !== undefined ? b.primary_language : record.primary_language, b.secondary_language !== undefined ? b.secondary_language : record.secondary_language, b.enrollment_date || record.enrollment_date, b.enrollment_status || record.enrollment_status, b.current_grade_level !== undefined ? b.current_grade_level : record.current_grade_level, b.homeroom !== undefined ? b.homeroom : record.homeroom, b.school_year !== undefined ? b.school_year : record.school_year, b.medical_alert_flag !== undefined ? b.medical_alert_flag : record.medical_alert_flag, b.special_education_flag !== undefined ? b.special_education_flag : record.special_education_flag, b.gifted_talented_flag !== undefined ? b.gifted_talented_flag : record.gifted_talented_flag, b.esl_flag !== undefined ? b.esl_flag : record.esl_flag, b.photo_url !== undefined ? b.photo_url : record.photo_url, b.notes !== undefined ? b.notes : record.notes, record.id]
   );
-
-  var inserted = ctx.db.query('SELECT * FROM student_contacts WHERE id = ?', [result.lastInsertRowid]);
-
-  ctx.events.publish('student.contact_added', { studentId: student.rows[0].id, contactId: result.lastInsertRowid, entityType: 'student', entityId: student.rows[0].id, __module: 'student_registry' });
-
-  return { success: true, contact: inserted.rows[0] };
-}
-
-// ============================================================================
-// ENROLLMENT HISTORY
-// ============================================================================
-
-async function getEnrollmentHistory(req, ctx) {
-  var studentId = req.params.id;
-  var student = ctx.db.query('SELECT id FROM students WHERE id = ? OR student_id = ?', [studentId, studentId]);
-
-  if (student.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Student not found' } };
+  if (ctx.audit) {
+    ctx.audit.action('student.update', req.user.id, { entityType: 'student', entityId: record.id, oldValue: record, newValue: b });
   }
-
-  var result = ctx.db.query('SELECT * FROM student_enrollment_history WHERE student_id = ? ORDER BY academic_year DESC', [student.rows[0].id]);
-
-  return { success: true, history: result.rows, total: result.rows.length };
+  if (ctx.events) {
+    ctx.events.publish('student.updated', { entityId: record.id, entityType: 'student', __module: 'student_registry' });
+  }
+  return { success: true };
 }
 
+async function student_registry_withdraw(req, ctx) {
+  return statusActions.withdraw({"table":"students","altIdField":"student_id","statusField":"enrollment_status","withdrawnValue":"withdrawn","activeValue":"active","entityType":"Student","moduleName":"student_registry"}, req, ctx);
+}
 
-var csvParser = require('../../shared/services/csv_parser');
+async function student_registry_reinstate(req, ctx) {
+  return statusActions.reinstate({"table":"students","altIdField":"student_id","statusField":"enrollment_status","withdrawnValue":"withdrawn","activeValue":"active","entityType":"Student","moduleName":"student_registry"}, req, ctx);
+}
 
-var studentColumnMap = {
-  'studentid': 'student_id', 'id': 'student_id', 'studentnumber': 'student_id',
-  'firstname': 'first_name', 'givenname': 'first_name', 'fname': 'first_name',
-  'lastname': 'last_name', 'surname': 'last_name', 'lname': 'last_name',
-  'middlename': 'middle_name',
-  'preferredname': 'preferred_name', 'nickname': 'preferred_name',
-  'dateofbirth': 'date_of_birth', 'dob': 'date_of_birth', 'birthdate': 'date_of_birth',
-  'sex': 'sex', 'gender': 'sex',
-  'nationality': 'nationality',
-  'ethnicity': 'ethnicity',
-  'primarylanguage': 'primary_language', 'firstlanguage': 'primary_language',
-  'secondarylanguage': 'secondary_language', 'secondlanguage': 'secondary_language',
-  'enrollmentdate': 'enrollment_date', 'enroldate': 'enrollment_date',
-  'enrollmentstatus': 'enrollment_status', 'status': 'enrollment_status',
-  'currentgradelevel': 'current_grade_level', 'grade': 'current_grade_level', 'gradelevel': 'current_grade_level',
-  'homeroom': 'homeroom',
-  'notes': 'notes'
-};
+async function student_registry_permanentDelete(req, ctx) {
+  return statusActions.permanentDelete({"table":"students","altIdField":"student_id","statusField":"enrollment_status","withdrawnValue":"withdrawn","activeValue":"active","entityType":"Student","moduleName":"student_registry"}, req, ctx);
+}
 
-async function importStudents(req, ctx) {
-  var body = req.body || {};
-  if (!body.csv) return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV data required in request body as { csv: "..." }' } };
-  
-  var parsed = csvParser.parse(Buffer.from(body.csv));
-  var mapped = csvParser.mapRows(parsed.rows, studentColumnMap);
-  var inserted = 0, skipped = 0, errors = [];
-  
-  for (var i = 0; i < mapped.length; i++) {
-    var m = mapped[i].mapped;
-    if (!m.student_id || !m.first_name || !m.last_name || !m.date_of_birth || !m.sex) {
-      errors.push({ row: i + 2, reason: 'Missing required field (student_id, first_name, last_name, date_of_birth, sex)' });
-      skipped++;
-      continue;
-    }
-    var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex;
-    var existing = ctx.db.query('SELECT id FROM students WHERE student_id = ?', [m.student_id]);
-    if (existing.rows.length > 0) {
-      errors.push({ row: i + 2, reason: 'Duplicate student_id: ' + m.student_id });
-      skipped++;
+async function student_registry_listContacts(req, ctx) {
+  var id = req.params.id;
+  var result = db.query('SELECT * FROM student_contacts WHERE student_id = ? ORDER BY id ASC', [id]);
+  return { success: true, contacts: result.rows || [] };
+}
+
+async function student_registry_addContact(req, ctx) {
+  var id = req.params.id;
+  var b = req.body || {};
+  db.query(
+    "INSERT INTO student_contacts (student_id, contact_type, first_name, last_name, relationship, phone, email, address, is_primary, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    [id, b.contact_type || 'guardian', b.first_name || null, b.last_name || null, b.relationship || null, b.phone || null, b.email || null, b.address || null, b.is_primary || 0, b.notes || null]
+  );
+  return { success: true };
+}
+
+async function student_registry_getEnrollmentHistory(req, ctx) {
+  var id = req.params.id;
+  var result = db.query('SELECT * FROM student_enrollment_history WHERE student_id = ? ORDER BY school_year DESC', [id]);
+  return { success: true, history: result.rows || [] };
+}
+
+async function student_registry_importStudents(req, ctx) {
+  if (!req.files || !req.files.csv_file) {
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV file required' } };
+  }
+  var csvContent = req.files.csv_file.data ? req.files.csv_file.data.toString('utf8') : '';
+  var lines = csvContent.split('\n').filter(function(l) { return l.trim(); });
+  if (lines.length < 2) {
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV must have header row and at least one data row' } };
+  }
+  var headers = lines[0].split(',').map(function(h) { return h.trim(); });
+  var imported = 0;
+  var errors = [];
+  for (var i = 1; i < lines.length; i++) {
+    var values = lines[i].split(',').map(function(v) { return v.trim(); });
+    var row = {};
+    headers.forEach(function(h, idx) { row[h] = values[idx] || null; });
+    if (!row.student_id || !row.first_name || !row.last_name || !row.date_of_birth || !row.sex) {
+      errors.push('Row ' + (i + 1) + ': missing required fields');
       continue;
     }
     try {
-      ctx.db.query(
-        'INSERT INTO students (student_id, first_name, last_name, date_of_birth, sex, enrollment_date, enrollment_status, current_grade_level, homeroom, notes, identity_custom, enrollment_custom, custom_fields, medical_alert_flag, special_education_flag, free_lunch_eligible, gifted_talented_flag, esl_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [m.student_id, m.first_name, m.last_name, m.date_of_birth, sexVal,
-         m.enrollment_date || new Date().toISOString().slice(0,10),
-         m.enrollment_status || 'active', m.current_grade_level || null,
-         m.homeroom || null, m.notes || null, '{}', '{}', '{}', 0, 0, 0, 0, 0]
+      db.query(
+        "INSERT INTO students (student_id, first_name, last_name, date_of_birth, sex, middle_name, preferred_name, nationality, ethnicity, primary_language, secondary_language, enrollment_date, enrollment_status, current_grade_level, homeroom, school_year, medical_alert_flag, special_education_flag, gifted_talented_flag, esl_flag, photo_url, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+        [row.student_id, row.first_name, row.last_name, row.date_of_birth, row.sex, row.middle_name || null, row.preferred_name || null, row.nationality || null, row.ethnicity || null, row.primary_language || null, row.secondary_language || null, row.enrollment_date || null, row.enrollment_status || 'active', row.current_grade_level || null, row.homeroom || null, row.school_year || null, row.medical_alert_flag || 0, row.special_education_flag || 0, row.gifted_talented_flag || 0, row.esl_flag || 0, row.photo_url || null, row.notes || null]
       );
-      inserted++;
+      imported++;
     } catch (e) {
-      errors.push({ row: i + 2, reason: e.message });
-      skipped++;
+      errors.push('Row ' + (i + 1) + ': ' + e.message);
     }
   }
-  if (ctx.audit) ctx.audit.action('student.import', req.user ? req.user.id : 'unknown', { entityType: 'student', entityId: 'batch', newValue: { inserted: inserted, skipped: skipped, errors: errors.length } });
-  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+  return { success: true, imported: imported, errors: errors };
 }
 
 module.exports = {
-  importStudents: importStudents,
   boot: boot,
   teardown: teardown,
-  listStudents: listStudents,
-  createStudent: createStudent,
-  readStudent: readStudent,
-  updateStudent: updateStudent,
-  deleteStudent: deleteStudent,
-  listContacts: listContacts,
-  addContact: addContact,
-  getEnrollmentHistory: getEnrollmentHistory
+  student_registry_listStudents: student_registry_listStudents,
+  student_registry_createStudent: student_registry_createStudent,
+  student_registry_readStudent: student_registry_readStudent,
+  student_registry_updateStudent: student_registry_updateStudent,
+  student_registry_withdraw: student_registry_withdraw,
+  student_registry_reinstate: student_registry_reinstate,
+  student_registry_permanentDelete: student_registry_permanentDelete,
+  student_registry_listContacts: student_registry_listContacts,
+  student_registry_addContact: student_registry_addContact,
+  student_registry_getEnrollmentHistory: student_registry_getEnrollmentHistory,
+  student_registry_importStudents: student_registry_importStudents
 };

@@ -10,172 +10,183 @@
     "validate",
     "events"
   ],
-  "provides": [
-    "capability:staff.read",
-    "capability:staff.write",
-    "capability:staff_certifications.read",
-    "capability:staff_certifications.write"
-  ],
+  "provides": [],
   "requires": [],
+  "components": [],
   "routes": [
     {
       "path": "/staff",
       "method": "GET",
       "handler": "staff_registry_listStaff",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:read"
-      ]
+      "auth_required": true
     },
     {
       "path": "/staff",
       "method": "POST",
       "handler": "staff_registry_createStaff",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:write"
-      ]
+      "auth_required": true
     },
     {
       "path": "/staff/:id",
       "method": "GET",
       "handler": "staff_registry_readStaff",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:read"
-      ]
+      "auth_required": true
     },
     {
       "path": "/staff/:id",
       "method": "PUT",
       "handler": "staff_registry_updateStaff",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:write"
-      ]
+      "auth_required": true
     },
     {
-      "path": "/staff/:id",
+      "path": "/staff/:id/withdraw",
+      "method": "PUT",
+      "handler": "staff_registry_withdraw",
+      "auth_required": true
+    },
+    {
+      "path": "/staff/:id/reinstate",
+      "method": "PUT",
+      "handler": "staff_registry_reinstate",
+      "auth_required": true
+    },
+    {
+      "path": "/staff/:id/permanent",
       "method": "DELETE",
-      "handler": "staff_registry_deleteStaff",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:delete"
-      ]
+      "handler": "staff_registry_permanentDelete",
+      "auth_required": true
     },
     {
       "path": "/staff/:id/certifications",
       "method": "GET",
       "handler": "staff_registry_listCertifications",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:read"
-      ]
+      "auth_required": true
     },
     {
       "path": "/staff/:id/certifications",
       "method": "POST",
       "handler": "staff_registry_addCertification",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:write"
-      ]
+      "auth_required": true
     },
     {
       "path": "/api/staff/import",
       "method": "POST",
       "handler": "staff_registry_importStaff",
-      "auth_required": true,
-      "permissions": [
-        "admin:staff:write"
-      ]
+      "auth_required": true
     }
   ],
   "functions": [
     {
       "name": "staff_registry_listStaff",
-      "exports": "listStaff",
+      "exports": "staff_registry_listStaff",
       "params": [
-        "filter",
-        "page",
-        "limit"
+        "req",
+        "ctx"
       ],
-      "returns": "Staff[]"
+      "returns": "any"
     },
     {
       "name": "staff_registry_createStaff",
-      "exports": "createStaff",
+      "exports": "staff_registry_createStaff",
       "params": [
-        "data"
+        "req",
+        "ctx"
       ],
-      "returns": "Staff"
+      "returns": "any"
     },
     {
       "name": "staff_registry_readStaff",
-      "exports": "readStaff",
+      "exports": "staff_registry_readStaff",
       "params": [
-        "id"
+        "req",
+        "ctx"
       ],
-      "returns": "Staff"
+      "returns": "any"
     },
     {
       "name": "staff_registry_updateStaff",
-      "exports": "updateStaff",
+      "exports": "staff_registry_updateStaff",
       "params": [
-        "id",
-        "data"
+        "req",
+        "ctx"
       ],
-      "returns": "Staff"
+      "returns": "any"
     },
     {
-      "name": "staff_registry_deleteStaff",
-      "exports": "deleteStaff",
+      "name": "staff_registry_withdraw",
+      "exports": "staff_registry_withdraw",
       "params": [
-        "id"
+        "req",
+        "ctx"
       ],
-      "returns": "boolean"
+      "returns": "any"
+    },
+    {
+      "name": "staff_registry_reinstate",
+      "exports": "staff_registry_reinstate",
+      "params": [
+        "req",
+        "ctx"
+      ],
+      "returns": "any"
+    },
+    {
+      "name": "staff_registry_permanentDelete",
+      "exports": "staff_registry_permanentDelete",
+      "params": [
+        "req",
+        "ctx"
+      ],
+      "returns": "any"
     },
     {
       "name": "staff_registry_listCertifications",
-      "exports": "listCertifications",
+      "exports": "staff_registry_listCertifications",
       "params": [
-        "staffId"
+        "req",
+        "ctx"
       ],
-      "returns": "StaffCertification[]"
+      "returns": "any"
     },
     {
       "name": "staff_registry_addCertification",
-      "exports": "addCertification",
+      "exports": "staff_registry_addCertification",
       "params": [
-        "staffId",
-        "data"
+        "req",
+        "ctx"
       ],
-      "returns": "StaffCertification"
+      "returns": "any"
     },
     {
       "name": "staff_registry_importStaff",
-      "exports": "importStaff",
+      "exports": "staff_registry_importStaff",
       "params": [
-        "csv"
+        "req",
+        "ctx"
       ],
-      "returns": "{inserted, skipped, errors}"
+      "returns": "any"
     }
   ],
+  "statusConfig": {
+    "table": "staff",
+    "altIdField": "staff_id",
+    "statusField": "employment_status",
+    "withdrawnValue": "terminated",
+    "activeValue": "active",
+    "entityType": "Staff",
+    "moduleName": "staff_registry"
+  },
   "schema": {
-    "tables": [
-      "staff",
-      "staff_certifications"
-    ],
-    "migrations": [
-      "migrations/001_staff.sql"
-    ]
+    "tables": [],
+    "migrations": []
   },
   "events": {
     "publishes": [
       "staff.created",
       "staff.updated",
-      "staff.terminated",
-      "staff.certification_added"
+      "staff.withdrawn",
+      "staff.reinstated",
+      "staff.deleted_permanently"
     ],
     "subscribes": []
   }
