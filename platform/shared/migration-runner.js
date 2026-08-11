@@ -1,12 +1,50 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const log = require('./services/log');
-const db = require('./services/db');
+var fs = require('fs');
+var path = require('path');
+var log = require('./services/log');
+var db = require('./services/db');
 
-var MIGRATIONS_DIR = path.resolve(__dirname, '../migrations');
 var MODULES_DIR = path.resolve(__dirname, '../modules');
+var MIGRATIONS_DIR = path.resolve(__dirname, '../migrations');
+
+function findMigrationFilesInDir(dir, modName, files) {
+  var modMigDir = path.join(dir, 'migrations');
+  if (fs.existsSync(modMigDir)) {
+    var modFiles = fs.readdirSync(modMigDir)
+      .filter(function(f) { return f.endsWith('.sql'); })
+      .sort();
+
+    for (var j = 0; j < modFiles.length; j++) {
+      files.push({
+        version: modName + '_' + modFiles[j].replace('.sql', ''),
+        file: modFiles[j],
+        path: path.join(modMigDir, modFiles[j]),
+        module: modName,
+      });
+    }
+  }
+}
+
+function walkModules(dir, files) {
+  var entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    if (!entry.isDirectory()) continue;
+    if (entry.name === '.gitkeep' || entry.name === 'node_modules') continue;
+
+    var fullPath = path.join(dir, entry.name);
+    var modName = entry.name;
+
+    // Check if this dir is a module (has module.json)
+    if (fs.existsSync(path.join(fullPath, 'module.json'))) {
+      findMigrationFilesInDir(fullPath, modName, files);
+    }
+
+    // Always recurse for nested modules
+    walkModules(fullPath, files);
+  }
+}
 
 function findMigrationFiles() {
   var files = [];
@@ -27,27 +65,7 @@ function findMigrationFiles() {
   }
 
   if (fs.existsSync(MODULES_DIR)) {
-    var moduleDirs = fs.readdirSync(MODULES_DIR)
-      .filter(function(d) { return fs.statSync(path.join(MODULES_DIR, d)).isDirectory(); });
-
-    for (var m = 0; m < moduleDirs.length; m++) {
-      var modName = moduleDirs[m];
-      var modMigDir = path.join(MODULES_DIR, modName, 'migrations');
-      if (fs.existsSync(modMigDir)) {
-        var modFiles = fs.readdirSync(modMigDir)
-          .filter(function(f) { return f.endsWith('.sql'); })
-          .sort();
-
-        for (var j = 0; j < modFiles.length; j++) {
-          files.push({
-            version: modName + '_' + modFiles[j].replace('.sql', ''),
-            file: modFiles[j],
-            path: path.join(modMigDir, modFiles[j]),
-            module: modName,
-          });
-        }
-      }
-    }
+    walkModules(MODULES_DIR, files);
   }
 
   files.sort(function(a, b) {

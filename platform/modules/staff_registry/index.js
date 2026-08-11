@@ -1,144 +1,242 @@
 'use strict';
 
-var db = require('../../shared/services/db');
-
-// Shared utility for withdraw/reinstate/permanentDelete
 var statusActions = require('../../shared/services/statusActions');
+var csvParser = require('../../shared/services/csv_parser');
 
 function boot(ctx) {
-  ctx.log.info("staff_registry booting", { module: "staff_registry" });
+  ctx.log.info('staff_registry booting', { module: 'staff_registry' });
 }
 
 function teardown(ctx) {
-  ctx.log.info("staff_registry tearing down", { module: "staff_registry" });
+  ctx.log.info('staff_registry tearing down', { module: 'staff_registry' });
 }
 
-async function staff_registry_listStaff(req, ctx) {
-  var result = db.query('SELECT * FROM staff ORDER BY id DESC');
-  return { success: true, staff: result.rows || [] };
+async function listStaff(req, ctx) {
+  var page = parseInt(req.query.page, 10) || 1;
+  var limit = parseInt(req.query.limit, 10) || 50;
+  if (limit > 500) limit = 500;
+  var offset = (page - 1) * limit;
+
+  var conditions = [];
+  var params = [];
+
+  if (req.query.last_name) { conditions.push('last_name LIKE ?'); params.push('%' + req.query.last_name + '%'); }
+  if (req.query.first_name) { conditions.push('first_name LIKE ?'); params.push('%' + req.query.first_name + '%'); }
+  if (req.query.staff_id) { conditions.push('staff_id = ?'); params.push(req.query.staff_id); }
+  if (req.query.employment_status) { conditions.push('employment_status = ?'); params.push(req.query.employment_status); }
+  if (req.query.department) { conditions.push('department = ?'); params.push(req.query.department); }
+  if (req.query.job_title) { conditions.push('job_title LIKE ?'); params.push('%' + req.query.job_title + '%'); }
+  if (req.query.sex) { conditions.push('sex = ?'); params.push(req.query.sex); }
+  if (req.query.dbs_check_status) { conditions.push('dbs_check_status = ?'); params.push(req.query.dbs_check_status); }
+
+  var where = conditions.length > 0 ? ' WHERE ' + conditions.join(' AND ') : '';
+  var sql = 'SELECT * FROM staff' + where + ' ORDER BY last_name ASC, first_name ASC LIMIT ? OFFSET ?';
+  params.push(limit, offset);
+
+  var result = ctx.db.query(sql, params);
+  var countSql = 'SELECT COUNT(*) as total FROM staff' + where;
+  var countResult = ctx.db.query(countSql, conditions.length > 0 ? params.slice(0, conditions.length) : []);
+
+  return { success: true, staff: result.rows, total: parseInt(countResult.rows[0].total, 10), page: page, limit: limit };
 }
 
-async function staff_registry_createStaff(req, ctx) {
-  var b = req.body || {};
-  if (!b.staff_id || !b.first_name || !b.last_name || !b.hire_date || !b.employment_type) {
-    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'Staff ID, first name, last name, hire date, and employment type are required' } };
+async function createStaff(req, ctx) {
+  var b = req.body;
+  if (!b.staff_id || !b.first_name || !b.last_name || !b.hire_date) {
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'staff_id, first_name, last_name, and hire_date are required' } };
   }
-  var result = db.query(
-    "INSERT INTO staff (staff_id, first_name, last_name, hire_date, employment_type, job_title, middle_name, preferred_name, date_of_birth, sex, nationality, national_insurance_number, department, work_email, work_phone, phone_primary, phone_secondary, email_work, email_personal, dbs_check_status, dbs_check_date, dbs_expiry_date, qualifications_summary, address_line1, address_line2, city, postal_code, country, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, employment_status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [b.staff_id, b.first_name, b.last_name, b.hire_date, b.employment_type, b.job_title || null, b.middle_name || null, b.preferred_name || null, b.date_of_birth || null, b.sex || null, b.nationality || null, b.national_insurance_number || null, b.department || null, b.work_email || null, b.work_phone || null, b.phone_primary || null, b.phone_secondary || null, b.email_work || null, b.email_personal || null, b.dbs_check_status || 'pending', b.dbs_check_date || null, b.dbs_expiry_date || null, b.qualifications_summary || null, b.address_line1 || null, b.address_line2 || null, b.city || null, b.postal_code || null, b.country || null, b.emergency_contact_name || null, b.emergency_contact_phone || null, b.emergency_contact_relationship || null, 'active', b.notes || null]
+  if (b.sex && b.sex !== 'Male' && b.sex !== 'Female') {
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'sex must be Male or Female' } };
+  }
+
+  var existing = ctx.db.query('SELECT id FROM staff WHERE staff_id = ?', [b.staff_id]);
+  if (existing.rows.length > 0) {
+    return { success: false, statusCode: 409, error: { code: 'DUPLICATE', message: 'Staff with staff_id "' + b.staff_id + '" already exists' } };
+  }
+
+  var result = ctx.db.query(
+    "INSERT INTO staff (staff_id, user_id, first_name, last_name, middle_name, preferred_name, date_of_birth, sex, photo_url, nationality, national_insurance_number, identity_custom, hire_date, termination_date, employment_status, employment_type, job_title, department, reports_to_staff_id, pay_grade, work_email, work_phone, employment_custom, dbs_check_status, dbs_check_date, dbs_expiry_date, dbs_reference_number, dbs_certificate_url, background_checks_custom, qualifications_summary, qualifications_custom, phone_primary, phone_secondary, email_work, email_personal, address_line1, address_line2, city, state_province, postal_code, country, contact_custom, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, notes, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [b.staff_id, b.user_id || null, b.first_name, b.last_name, b.middle_name || null, b.preferred_name || null, b.date_of_birth || null, b.sex || null, b.photo_url || null, b.nationality || null, b.national_insurance_number || null, b.identity_custom || '{}', b.hire_date, b.termination_date || null, b.employment_status || 'active', b.employment_type || 'full_time', b.job_title || null, b.department || null, b.reports_to_staff_id || null, b.pay_grade || null, b.work_email || null, b.work_phone || null, b.employment_custom || '{}', b.dbs_check_status || 'pending', b.dbs_check_date || null, b.dbs_expiry_date || null, b.dbs_reference_number || null, b.dbs_certificate_url || null, b.background_checks_custom || '{}', b.qualifications_summary || null, b.qualifications_custom || '{}', b.phone_primary || null, b.phone_secondary || null, b.email_work || null, b.email_personal || null, b.address_line1 || null, b.address_line2 || null, b.city || null, b.state_province || null, b.postal_code || null, b.country || null, b.contact_custom || '{}', b.emergency_contact_name || null, b.emergency_contact_phone || null, b.emergency_contact_relationship || null, b.notes || null, b.custom_fields || '{}']
   );
-  var id = result.lastInsertRowid || result.insertId;
-  if (ctx.audit) {
-    ctx.audit.action('staff.create', req.user.id, { entityType: 'staff', entityId: id, newValue: b });
-  }
-  if (ctx.events) {
-    ctx.events.publish('staff.created', { entityId: id, entityType: 'staff', __module: 'staff_registry' });
-  }
-  return { success: true, id: id };
+
+  var insertedId = result.lastInsertRowid;
+  var staff = ctx.db.query('SELECT * FROM staff WHERE id = ?', [insertedId]);
+
+  ctx.events.publish('staff.created', { staffId: insertedId, staffIdText: b.staff_id, entityType: 'staff', entityId: insertedId, __module: 'staff_registry' });
+  if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('staff', insertedId.toString(), staff.rows[0]); } catch (e) {} }
+  if (ctx.audit) { ctx.audit.action('staff.create', req.user.id, { entityType: 'staff', entityId: insertedId, newValue: staff.rows[0] }); }
+
+  return { success: true, staff: staff.rows[0] };
 }
 
-async function staff_registry_readStaff(req, ctx) {
+async function readStaff(req, ctx) {
   var id = req.params.id;
-  var result = db.query('SELECT * FROM staff WHERE id = ? OR staff_id = ?', [id, id]);
-  if (!result.rows || result.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Staff member not found' } };
+  var result = ctx.db.query('SELECT * FROM staff WHERE id = ? OR staff_id = ?', [id, id]);
+  if (result.rows.length === 0) {
+    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Staff not found' } };
   }
   return { success: true, staff: result.rows[0] };
 }
 
-async function staff_registry_updateStaff(req, ctx) {
+async function updateStaff(req, ctx) {
   var id = req.params.id;
-  var existing = db.query('SELECT * FROM staff WHERE id = ? OR staff_id = ?', [id, id]);
-  if (!existing.rows || existing.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Staff member not found' } };
+  var b = req.body;
+
+  var existing = ctx.db.query('SELECT * FROM staff WHERE id = ? OR staff_id = ?', [id, id]);
+  if (existing.rows.length === 0) {
+    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Staff not found' } };
   }
-  var record = existing.rows[0];
-  var b = req.body || {};
-  db.query(
-    "UPDATE staff SET staff_id = ?, first_name = ?, last_name = ?, hire_date = ?, employment_type = ?, job_title = ?, middle_name = ?, preferred_name = ?, date_of_birth = ?, sex = ?, nationality = ?, national_insurance_number = ?, department = ?, work_email = ?, work_phone = ?, phone_primary = ?, phone_secondary = ?, email_work = ?, email_personal = ?, dbs_check_status = ?, dbs_check_date = ?, dbs_expiry_date = ?, qualifications_summary = ?, address_line1 = ?, address_line2 = ?, city = ?, postal_code = ?, country = ?, emergency_contact_name = ?, emergency_contact_phone = ?, emergency_contact_relationship = ?, notes = ?, updated_at = datetime('now') WHERE id = ?",
-    [b.staff_id || record.staff_id, b.first_name || record.first_name, b.last_name || record.last_name, b.hire_date || record.hire_date, b.employment_type || record.employment_type, b.job_title !== undefined ? b.job_title : record.job_title, b.middle_name !== undefined ? b.middle_name : record.middle_name, b.preferred_name !== undefined ? b.preferred_name : record.preferred_name, b.date_of_birth !== undefined ? b.date_of_birth : record.date_of_birth, b.sex !== undefined ? b.sex : record.sex, b.nationality !== undefined ? b.nationality : record.nationality, b.national_insurance_number !== undefined ? b.national_insurance_number : record.national_insurance_number, b.department !== undefined ? b.department : record.department, b.work_email !== undefined ? b.work_email : record.work_email, b.work_phone !== undefined ? b.work_phone : record.work_phone, b.phone_primary !== undefined ? b.phone_primary : record.phone_primary, b.phone_secondary !== undefined ? b.phone_secondary : record.phone_secondary, b.email_work !== undefined ? b.email_work : record.email_work, b.email_personal !== undefined ? b.email_personal : record.email_personal, b.dbs_check_status !== undefined ? b.dbs_check_status : record.dbs_check_status, b.dbs_check_date !== undefined ? b.dbs_check_date : record.dbs_check_date, b.dbs_expiry_date !== undefined ? b.dbs_expiry_date : record.dbs_expiry_date, b.qualifications_summary !== undefined ? b.qualifications_summary : record.qualifications_summary, b.address_line1 !== undefined ? b.address_line1 : record.address_line1, b.address_line2 !== undefined ? b.address_line2 : record.address_line2, b.city !== undefined ? b.city : record.city, b.postal_code !== undefined ? b.postal_code : record.postal_code, b.country !== undefined ? b.country : record.country, b.emergency_contact_name !== undefined ? b.emergency_contact_name : record.emergency_contact_name, b.emergency_contact_phone !== undefined ? b.emergency_contact_phone : record.emergency_contact_phone, b.emergency_contact_relationship !== undefined ? b.emergency_contact_relationship : record.emergency_contact_relationship, b.notes !== undefined ? b.notes : record.notes, record.id]
+
+  var allowedFields = ['first_name', 'last_name', 'middle_name', 'preferred_name', 'date_of_birth', 'sex', 'photo_url', 'nationality', 'national_insurance_number', 'identity_custom', 'hire_date', 'termination_date', 'employment_status', 'employment_type', 'job_title', 'department', 'reports_to_staff_id', 'pay_grade', 'work_email', 'work_phone', 'employment_custom', 'dbs_check_status', 'dbs_check_date', 'dbs_expiry_date', 'dbs_reference_number', 'dbs_certificate_url', 'background_checks_custom', 'qualifications_summary', 'qualifications_custom', 'phone_primary', 'phone_secondary', 'email_work', 'email_personal', 'address_line1', 'address_line2', 'city', 'state_province', 'postal_code', 'country', 'contact_custom', 'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship', 'notes', 'custom_fields', 'user_id'];
+
+  var updates = [];
+  var params = [];
+
+  for (var i = 0; i < allowedFields.length; i++) {
+    var field = allowedFields[i];
+    if (b[field] !== undefined) {
+      if (field === 'sex' && b[field] !== 'Male' && b[field] !== 'Female') {
+        return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'sex must be Male or Female' } };
+      }
+      updates.push(field + ' = ?');
+      params.push(b[field]);
+    }
+  }
+
+  if (updates.length === 0) {
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'No valid fields to update' } };
+  }
+
+  updates.push("updated_at = datetime('now')");
+  params.push(existing.rows[0].id);
+
+  ctx.db.query('UPDATE staff SET ' + updates.join(', ') + ' WHERE id = ?', params);
+  var updated = ctx.db.query('SELECT * FROM staff WHERE id = ?', [existing.rows[0].id]);
+
+  ctx.events.publish('staff.updated', { staffId: existing.rows[0].id, entityType: 'staff', entityId: existing.rows[0].id, __module: 'staff_registry' });
+  if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('staff', existing.rows[0].id.toString(), updated.rows[0]); } catch (e) {} }
+  if (ctx.audit) { ctx.audit.action('staff.update', req.user.id, { entityType: 'staff', entityId: existing.rows[0].id, oldValue: existing.rows[0], newValue: updated.rows[0] }); }
+
+  return { success: true, staff: updated.rows[0] };
+}
+
+var statusConfig = {
+  "table": "staff",
+  "altIdField": "staff_id",
+  "statusField": "employment_status",
+  "withdrawnValue": "terminated",
+  "activeValue": "active",
+  "entityType": "Staff",
+  "moduleName": "staff_registry"
+};
+
+async function withdraw(req, ctx) {
+  return statusActions.withdraw(statusConfig, req, ctx);
+}
+
+async function reinstate(req, ctx) {
+  return statusActions.reinstate(statusConfig, req, ctx);
+}
+
+async function permanentDelete(req, ctx) {
+  return statusActions.permanentDelete(statusConfig, req, ctx);
+}
+
+async function listCertifications(req, ctx) {
+  var staffId = req.params.id;
+  var staff = ctx.db.query('SELECT id FROM staff WHERE id = ? OR staff_id = ?', [staffId, staffId]);
+  if (staff.rows.length === 0) {
+    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Staff not found' } };
+  }
+  var result = ctx.db.query('SELECT * FROM staff_certifications WHERE staff_id = ? ORDER BY expiry_date ASC', [staff.rows[0].id]);
+  return { success: true, certifications: result.rows, total: result.rows.length };
+}
+
+async function addCertification(req, ctx) {
+  var staffId = req.params.id;
+  var b = req.body;
+  var staff = ctx.db.query('SELECT id FROM staff WHERE id = ? OR staff_id = ?', [staffId, staffId]);
+  if (staff.rows.length === 0) {
+    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Staff not found' } };
+  }
+  if (!b.certification_name) {
+    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'certification_name is required' } };
+  }
+
+  var result = ctx.db.query(
+    "INSERT INTO staff_certifications (staff_id, certification_name, issuing_body, certification_number, issue_date, expiry_date, status, document_url, notes, certification_custom, custom_fields) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [staff.rows[0].id, b.certification_name, b.issuing_body || null, b.certification_number || null, b.issue_date || null, b.expiry_date || null, b.status || 'valid', b.document_url || null, b.notes || null, b.certification_custom || '{}', b.custom_fields || '{}']
   );
-  if (ctx.audit) {
-    ctx.audit.action('staff.update', req.user.id, { entityType: 'staff', entityId: record.id, oldValue: record, newValue: b });
-  }
-  if (ctx.events) {
-    ctx.events.publish('staff.updated', { entityId: record.id, entityType: 'staff', __module: 'staff_registry' });
-  }
-  return { success: true };
+
+  var inserted = ctx.db.query('SELECT * FROM staff_certifications WHERE id = ?', [result.lastInsertRowid]);
+  ctx.events.publish('staff.certification_added', { staffId: staff.rows[0].id, certificationId: result.lastInsertRowid, entityType: 'staff', entityId: staff.rows[0].id, __module: 'staff_registry' });
+  return { success: true, certification: inserted.rows[0] };
 }
 
-async function staff_registry_withdraw(req, ctx) {
-  return statusActions.withdraw({"table":"staff","altIdField":"staff_id","statusField":"employment_status","withdrawnValue":"terminated","activeValue":"active","entityType":"Staff","moduleName":"staff_registry"}, req, ctx);
-}
+var staffColumnMap = {
+  'staffid': 'staff_id', 'id': 'staff_id', 'employeenumber': 'staff_id',
+  'firstname': 'first_name', 'givenname': 'first_name', 'fname': 'first_name',
+  'lastname': 'last_name', 'surname': 'last_name', 'lname': 'last_name',
+  'dateofbirth': 'date_of_birth', 'dob': 'date_of_birth', 'birthdate': 'date_of_birth',
+  'sex': 'sex', 'gender': 'sex', 'nationality': 'nationality',
+  'hiredate': 'hire_date', 'startdate': 'hire_date',
+  'employmentstatus': 'employment_status', 'status': 'employment_status',
+  'employmenttype': 'employment_type', 'jobtype': 'employment_type',
+  'jobtitle': 'job_title', 'title': 'job_title', 'position': 'job_title',
+  'department': 'department', 'paygrade': 'pay_grade',
+  'workemail': 'work_email', 'workphone': 'work_phone',
+  'phoneprimary': 'phone_primary', 'phone': 'phone_primary',
+  'phonesecondary': 'phone_secondary', 'emailwork': 'email_work',
+  'emailpersonal': 'email_personal', 'notes': 'notes'
+};
 
-async function staff_registry_reinstate(req, ctx) {
-  return statusActions.reinstate({"table":"staff","altIdField":"staff_id","statusField":"employment_status","withdrawnValue":"terminated","activeValue":"active","entityType":"Staff","moduleName":"staff_registry"}, req, ctx);
-}
-
-async function staff_registry_permanentDelete(req, ctx) {
-  return statusActions.permanentDelete({"table":"staff","altIdField":"staff_id","statusField":"employment_status","withdrawnValue":"terminated","activeValue":"active","entityType":"Staff","moduleName":"staff_registry"}, req, ctx);
-}
-
-async function staff_registry_listCertifications(req, ctx) {
-  var id = req.params.id;
-  var result = db.query('SELECT * FROM staff_certifications WHERE staff_id = ? ORDER BY id ASC', [id]);
-  return { success: true, certifications: result.rows || [] };
-}
-
-async function staff_registry_addCertification(req, ctx) {
-  var id = req.params.id;
-  var b = req.body || {};
-  db.query(
-    "INSERT INTO staff_certifications (staff_id, certification_name, issuing_body, date_obtained, expiry_date, certificate_number, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [id, b.certification_name || null, b.issuing_body || null, b.date_obtained || null, b.expiry_date || null, b.certificate_number || null, b.notes || null]
-  );
-  return { success: true };
-}
-
-async function staff_registry_importStaff(req, ctx) {
-  if (!req.files || !req.files.csv_file) {
-    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV file required' } };
-  }
-  var csvContent = req.files.csv_file.data ? req.files.csv_file.data.toString('utf8') : '';
-  var lines = csvContent.split('\n').filter(function(l) { return l.trim(); });
-  if (lines.length < 2) {
-    return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV must have header row and at least one data row' } };
-  }
-  var headers = lines[0].split(',').map(function(h) { return h.trim(); });
-  var imported = 0;
-  var errors = [];
-  for (var i = 1; i < lines.length; i++) {
-    var values = lines[i].split(',').map(function(v) { return v.trim(); });
-    var row = {};
-    headers.forEach(function(h, idx) { row[h] = values[idx] || null; });
-    if (!row.staff_id || !row.first_name || !row.last_name || !row.hire_date || !row.employment_type) {
-      errors.push('Row ' + (i + 1) + ': missing required fields');
+async function importStaff(req, ctx) {
+  var body = req.body || {};
+  if (!body.csv) return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'CSV data required' } };
+  
+  var parsed = csvParser.parse(Buffer.from(body.csv));
+  var mapped = csvParser.mapRows(parsed.rows, staffColumnMap);
+  var inserted = 0, skipped = 0, errors = [];
+  
+  for (var i = 0; i < mapped.length; i++) {
+    var m = mapped[i].mapped;
+    if (!m.staff_id || !m.first_name || !m.last_name || !m.hire_date) {
+      errors.push({ row: i + 2, reason: 'Missing required field' });
+      skipped++;
+      continue;
+    }
+    var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex || null;
+    var existing = ctx.db.query('SELECT id FROM staff WHERE staff_id = ?', [m.staff_id]);
+    if (existing.rows.length > 0) {
+      errors.push({ row: i + 2, reason: 'Duplicate staff_id: ' + m.staff_id });
+      skipped++;
       continue;
     }
     try {
-      db.query(
-        "INSERT INTO staff (staff_id, first_name, last_name, hire_date, employment_type, job_title, middle_name, preferred_name, date_of_birth, sex, nationality, national_insurance_number, department, work_email, work_phone, phone_primary, phone_secondary, email_work, email_personal, dbs_check_status, dbs_check_date, dbs_expiry_date, qualifications_summary, address_line1, address_line2, city, postal_code, country, emergency_contact_name, emergency_contact_phone, emergency_contact_relationship, employment_status, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-        [row.staff_id, row.first_name, row.last_name, row.hire_date, row.employment_type, row.job_title || null, row.middle_name || null, row.preferred_name || null, row.date_of_birth || null, row.sex || null, row.nationality || null, row.national_insurance_number || null, row.department || null, row.work_email || null, row.work_phone || null, row.phone_primary || null, row.phone_secondary || null, row.email_work || null, row.email_personal || null, row.dbs_check_status || 'pending', row.dbs_check_date || null, row.dbs_expiry_date || null, row.qualifications_summary || null, row.address_line1 || null, row.address_line2 || null, row.city || null, row.postal_code || null, row.country || null, row.emergency_contact_name || null, row.emergency_contact_phone || null, row.emergency_contact_relationship || null, 'active', row.notes || null]
+      ctx.db.query(
+        'INSERT INTO staff (staff_id, first_name, last_name, date_of_birth, sex, hire_date, employment_status, employment_type, job_title, department, pay_grade, work_email, work_phone, phone_primary, phone_secondary, email_work, email_personal, notes, identity_custom, employment_custom, contact_custom, qualifications_custom, background_checks_custom, custom_fields, dbs_check_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [m.staff_id, m.first_name, m.last_name, m.date_of_birth || null, sexVal, m.hire_date, m.employment_status || 'active', m.employment_type || 'full_time', m.job_title || null, m.department || null, m.pay_grade || null, m.work_email || null, m.work_phone || null, m.phone_primary || null, m.phone_secondary || null, m.email_work || null, m.email_personal || null, m.notes || null, '{}', '{}', '{}', '{}', '{}', '{}', m.dbs_check_status || 'pending']
       );
-      imported++;
+      inserted++;
     } catch (e) {
-      errors.push('Row ' + (i + 1) + ': ' + e.message);
+      errors.push({ row: i + 2, reason: e.message });
+      skipped++;
     }
   }
-  return { success: true, imported: imported, errors: errors };
+  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
 }
 
 module.exports = {
   boot: boot,
   teardown: teardown,
-  staff_registry_listStaff: staff_registry_listStaff,
-  staff_registry_createStaff: staff_registry_createStaff,
-  staff_registry_readStaff: staff_registry_readStaff,
-  staff_registry_updateStaff: staff_registry_updateStaff,
-  staff_registry_withdraw: staff_registry_withdraw,
-  staff_registry_reinstate: staff_registry_reinstate,
-  staff_registry_permanentDelete: staff_registry_permanentDelete,
-  staff_registry_listCertifications: staff_registry_listCertifications,
-  staff_registry_addCertification: staff_registry_addCertification,
-  staff_registry_importStaff: staff_registry_importStaff
+  listStaff: listStaff,
+  createStaff: createStaff,
+  readStaff: readStaff,
+  updateStaff: updateStaff,
+  withdraw: withdraw,
+  reinstate: reinstate,
+  permanentDelete: permanentDelete,
+  listCertifications: listCertifications,
+  addCertification: addCertification,
+  importStaff: importStaff
 };

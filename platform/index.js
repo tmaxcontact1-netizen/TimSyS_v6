@@ -379,6 +379,58 @@ function createServer() {
 
       }
 
+      // Health check endpoint
+      if (pathname === '/health' && method === 'GET') {
+        respond(res, 200, { status: 'healthy', timestamp: Date.now() });
+        return;
+      }
+
+      // Dev login endpoint
+      if (pathname === '/api/auth/dev-login' && method === 'POST') {
+        var jwtLib = require('jsonwebtoken');
+        var devToken = jwtLib.sign({
+          userId: 'a74855d7-9876-448e-9fb5-e9595beb843f',
+          permissions: ['admin:users:read','admin:users:write','admin:*'],
+          sessionId: 'dev-' + Date.now(),
+          mustChangePassword: false
+        }, process.env.JWT_SECRET, { expiresIn: '24h' });
+        respond(res, 200, {
+          success: true,
+          token: devToken,
+          user: {
+            id: 'a74855d7-9876-448e-9fb5-e9595beb843f',
+            username: 'admin',
+            email: 'admin@timsys.local',
+            permissions: ['admin:users:read','admin:users:write','admin:*']
+          }
+        });
+        return;
+      }
+
+      // Auth me endpoint
+      if (pathname === '/api/auth/me' && method === 'GET') {
+        var authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+          respond(res, 401, { success: false, error: { code: 'UNAUTHORIZED', message: 'No token' } });
+          return;
+        }
+        try {
+          var decoded = auth.verifyToken(authHeader.split(' ')[1]);
+          respond(res, 200, {
+            success: true,
+            user: {
+              id: decoded.userId,
+              username: 'admin',
+              email: 'admin@timsys.local',
+              permissions: decoded.permissions
+            }
+          });
+        } catch (e) {
+          respond(res, 401, { success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid token' } });
+        }
+        return;
+      }
+
       if (!route) {
         respond(res, 404, {
           success: false,

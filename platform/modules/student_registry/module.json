@@ -10,178 +10,13 @@
     "validate",
     "events"
   ],
-  "provides": [],
+  "provides": [
+    "capability:student.read",
+    "capability:student.write",
+    "capability:student_contacts.read",
+    "capability:student_enrollment_history.read"
+  ],
   "requires": [],
-  "components": [],
-  "routes": [
-    {
-      "path": "/students",
-      "method": "GET",
-      "handler": "student_registry_listStudents",
-      "auth_required": true
-    },
-    {
-      "path": "/students",
-      "method": "POST",
-      "handler": "student_registry_createStudent",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id",
-      "method": "GET",
-      "handler": "student_registry_readStudent",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id",
-      "method": "PUT",
-      "handler": "student_registry_updateStudent",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id/withdraw",
-      "method": "PUT",
-      "handler": "student_registry_withdraw",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id/reinstate",
-      "method": "PUT",
-      "handler": "student_registry_reinstate",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id/permanent",
-      "method": "DELETE",
-      "handler": "student_registry_permanentDelete",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id/contacts",
-      "method": "GET",
-      "handler": "student_registry_listContacts",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id/contacts",
-      "method": "POST",
-      "handler": "student_registry_addContact",
-      "auth_required": true
-    },
-    {
-      "path": "/students/:id/enrollment-history",
-      "method": "GET",
-      "handler": "student_registry_getEnrollmentHistory",
-      "auth_required": true
-    },
-    {
-      "path": "/api/students/import",
-      "method": "POST",
-      "handler": "student_registry_importStudents",
-      "auth_required": true
-    }
-  ],
-  "functions": [
-    {
-      "name": "student_registry_listStudents",
-      "exports": "student_registry_listStudents",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_createStudent",
-      "exports": "student_registry_createStudent",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_readStudent",
-      "exports": "student_registry_readStudent",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_updateStudent",
-      "exports": "student_registry_updateStudent",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_withdraw",
-      "exports": "student_registry_withdraw",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_reinstate",
-      "exports": "student_registry_reinstate",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_permanentDelete",
-      "exports": "student_registry_permanentDelete",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_listContacts",
-      "exports": "student_registry_listContacts",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_addContact",
-      "exports": "student_registry_addContact",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_getEnrollmentHistory",
-      "exports": "student_registry_getEnrollmentHistory",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    },
-    {
-      "name": "student_registry_importStudents",
-      "exports": "student_registry_importStudents",
-      "params": [
-        "req",
-        "ctx"
-      ],
-      "returns": "any"
-    }
-  ],
   "statusConfig": {
     "table": "students",
     "altIdField": "student_id",
@@ -191,9 +26,116 @@
     "entityType": "Student",
     "moduleName": "student_registry"
   },
+  "routes": [
+    {
+      "path": "/students",
+      "method": "GET",
+      "handler": "student_registry_listStudents",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:read"
+      ]
+    },
+    {
+      "path": "/students",
+      "method": "POST",
+      "handler": "student_registry_createStudent",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:write"
+      ]
+    },
+    {
+      "path": "/students/:id",
+      "method": "GET",
+      "handler": "student_registry_readStudent",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:read"
+      ]
+    },
+    {
+      "path": "/students/:id",
+      "method": "PUT",
+      "handler": "student_registry_updateStudent",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:write"
+      ]
+    },
+    {
+      "path": "/students/:id/withdraw",
+      "method": "PUT",
+      "handler": "student_registry_withdraw",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:write"
+      ]
+    },
+    {
+      "path": "/students/:id/reinstate",
+      "method": "PUT",
+      "handler": "student_registry_reinstate",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:write"
+      ]
+    },
+    {
+      "path": "/students/:id/permanent",
+      "method": "DELETE",
+      "handler": "student_registry_permanentDelete",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:delete"
+      ]
+    },
+    {
+      "path": "/students/:id/contacts",
+      "method": "GET",
+      "handler": "student_registry_listContacts",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:read"
+      ]
+    },
+    {
+      "path": "/students/:id/contacts",
+      "method": "POST",
+      "handler": "student_registry_addContact",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:write"
+      ]
+    },
+    {
+      "path": "/students/:id/enrollment-history",
+      "method": "GET",
+      "handler": "student_registry_getEnrollmentHistory",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:read"
+      ]
+    },
+    {
+      "path": "/api/students/import",
+      "method": "POST",
+      "handler": "student_registry_importStudents",
+      "auth_required": true,
+      "permissions": [
+        "admin:students:write"
+      ]
+    }
+  ],
   "schema": {
-    "tables": [],
-    "migrations": []
+    "tables": [
+      "students",
+      "student_contacts",
+      "student_enrollment_history"
+    ],
+    "migrations": [
+      "migrations/001_students.sql"
+    ]
   },
   "events": {
     "publishes": [
@@ -201,8 +143,103 @@
       "student.updated",
       "student.withdrawn",
       "student.reinstated",
-      "student.deleted_permanently"
+      "student.deleted_permanently",
+      "student.contact_added"
     ],
     "subscribes": []
-  }
+  },
+  "functions": [
+    {
+      "name": "student_registry_listStudents",
+      "exports": "listStudents",
+      "params": [
+        "filter",
+        "page",
+        "limit"
+      ],
+      "returns": "Student[]"
+    },
+    {
+      "name": "student_registry_createStudent",
+      "exports": "createStudent",
+      "params": [
+        "data"
+      ],
+      "returns": "Student"
+    },
+    {
+      "name": "student_registry_readStudent",
+      "exports": "readStudent",
+      "params": [
+        "id"
+      ],
+      "returns": "Student"
+    },
+    {
+      "name": "student_registry_updateStudent",
+      "exports": "updateStudent",
+      "params": [
+        "id",
+        "data"
+      ],
+      "returns": "Student"
+    },
+    {
+      "name": "student_registry_withdraw",
+      "exports": "withdraw",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "student_registry_reinstate",
+      "exports": "reinstate",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "student_registry_permanentDelete",
+      "exports": "permanentDelete",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "student_registry_listContacts",
+      "exports": "listContacts",
+      "params": [
+        "studentId"
+      ],
+      "returns": "StudentContact[]"
+    },
+    {
+      "name": "student_registry_addContact",
+      "exports": "addContact",
+      "params": [
+        "studentId",
+        "data"
+      ],
+      "returns": "StudentContact"
+    },
+    {
+      "name": "student_registry_getEnrollmentHistory",
+      "exports": "getEnrollmentHistory",
+      "params": [
+        "studentId"
+      ],
+      "returns": "StudentEnrollmentHistory[]"
+    },
+    {
+      "name": "student_registry_importStudents",
+      "exports": "importStudents",
+      "params": [
+        "csv"
+      ],
+      "returns": "{inserted, skipped, errors}"
+    }
+  ]
 }

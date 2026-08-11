@@ -1,0 +1,97 @@
+{
+  "name": "school_analytics",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events"
+  ],
+  "provides": [
+    "capability:analytics.read",
+    "capability:insights.read",
+    "capability:dashboard.read"
+  ],
+  "requires": [],
+  "statusConfig": null,
+  "routes": [
+    {
+      "path": "/analytics/all-metrics",
+      "method": "GET",
+      "handler": "school_analytics_getAllMetrics",
+      "auth_required": true
+    },
+    {
+      "path": "/analytics/ratios",
+      "method": "GET",
+      "handler": "school_analytics_getRatios",
+      "auth_required": true
+    },
+    {
+      "path": "/analytics/insights",
+      "method": "GET",
+      "handler": "school_analytics_generateInsights",
+      "auth_required": true
+    },
+    {
+      "path": "/analytics/dashboard",
+      "method": "GET",
+      "handler": "school_analytics_getDashboardData",
+      "auth_required": true
+    },
+    {
+      "path": "/analytics",
+      "method": "GET",
+      "handler": "school_analytics_serveDashboard",
+      "auth_required": false
+    }
+  ],
+  "functions": [
+    {
+      "name": "school_analytics_getAllMetrics",
+      "exports": "getAllMetrics",
+      "params": [],
+      "returns": "Metrics"
+    },
+    {
+      "name": "school_analytics_getRatios",
+      "exports": "getRatios",
+      "params": [],
+      "returns": "Ratios"
+    },
+    {
+      "name": "school_analytics_generateInsights",
+      "exports": "generateInsights",
+      "params": [],
+      "returns": "InsightsReport"
+    },
+    {
+      "name": "school_analytics_getDashboardData",
+      "exports": "getDashboardData",
+      "params": [],
+      "returns": "DashboardData"
+    },
+    {
+      "name": "school_analytics_serveDashboard",
+      "exports": "serveDashboard",
+      "params": [],
+      "returns": "HTML"
+    }
+  ],
+  "schema": {
+    "tables": [],
+    "migrations": []
+  },
+  "events": {
+    "publishes": [],
+    "subscribes": [
+      "student.created",
+      "staff.created",
+      "room.created",
+      "item.created"
+    ]
+  }
+}

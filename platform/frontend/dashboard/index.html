@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Administration Dashboard</title>
+  <style>
+    :root{--bg:#f5f5f7;--card:#fff;--text:#1d1d1f;--sec:#86868b;--purple:#6d4aff;--green:#34c759;--orange:#ff9500;--red:#ff3b30;--border:#e5e5ea}
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+    header{background:var(--card);border-bottom:1px solid var(--border);padding:1rem 2rem;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:100}
+    h1{font-size:1.5rem;font-weight:600;color:var(--purple)}
+    .ts{color:var(--sec);font-size:.875rem}
+    main{padding:2rem;max-width:1600px;margin:0 auto}
+    .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:1.5rem;margin-bottom:2rem}
+    .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem;margin-bottom:2rem}
+    .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-bottom:2rem}
+    @media(max-width:1200px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:1fr}}
+    @media(max-width:768px){.g2{grid-template-columns:1fr}.g4{grid-template-columns:1fr}}
+    .card{background:var(--card);border-radius:12px;padding:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.06);border:1px solid var(--border)}
+    .ch{display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem}
+    .ct{font-size:1rem;font-weight:500;color:var(--sec);text-transform:uppercase;letter-spacing:.5px}
+    .kv{font-size:2.5rem;font-weight:700;line-height:1.2}
+    .kl{font-size:.875rem;color:var(--sec);margin-top:.5rem}
+    .kd{font-size:.875rem;margin-left:.5rem}
+    .kd.up{color:var(--green)}.kd.down{color:var(--red)}.kd.flat{color:var(--sec)}
+    .rg{display:grid;grid-template-columns:repeat(5,1fr);gap:1rem}
+    .ri{text-align:center;padding:1rem;background:var(--bg);border-radius:8px}
+    .rv{font-size:1.5rem;font-weight:600;color:var(--purple)}
+    .rl{font-size:.75rem;color:var(--sec);margin-top:.25rem}
+    .al{list-style:none}
+    .ai{display:flex;align-items:flex-start;padding:.75rem;margin-bottom:.5rem;background:var(--bg);border-radius:8px}
+    .ax{width:24px;height:24px;margin-right:.75rem;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:#fff;font-size:.75rem}
+    .ai.critical .ax{background:var(--red)}.ai.warning .ax{background:var(--orange)}.ai.info .ax{background:var(--purple)}
+    .ac{flex:1}.at{font-weight:500;font-size:.875rem}.ab{font-size:.75rem;color:var(--sec);margin-top:.25rem}
+    .bc{height:200px;display:flex;align-items:flex-end;gap:.5rem;padding:1rem 0}
+    .bar{flex:1;background:var(--purple);border-radius:4px 4px 0 0;min-width:30px;position:relative;transition:height .3s}
+    .bl{position:absolute;bottom:-24px;left:50%;transform:translateX(-50%);font-size:.625rem;color:var(--sec);white-space:nowrap}
+    .bv{position:absolute;top:-20px;left:50%;transform:translateX(-50%);font-size:.625rem;font-weight:600}
+    .btn{background:var(--purple);color:#fff;border:none;padding:.5rem 1rem;border-radius:6px;cursor:pointer;font-size:.875rem}
+    .btn:hover{background:#5a43cc}
+    .tabs{display:flex;gap:.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
+    .tab{padding:.75rem 1.5rem;background:none;border:none;cursor:pointer;font-size:.875rem;color:var(--sec);border-bottom:2px solid transparent;margin-bottom:-1px}
+    .tab.active{color:var(--purple);border-bottom-color:var(--purple);font-weight:500}
+    section.hidden{display:none}
+    .pb{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;margin-top:.5rem}
+    .pf{height:100%;background:var(--purple);border-radius:4px;transition:width .3s}
+  </style>
+</head>
+<body>
+<header>
+  <h1>🏫 School Administration Dashboard</h1>
+  <div>
+    <button class="btn" onclick="loadDashboard()">↻ Refresh</button>
+    <span class="ts" id="ts">Loading...</span>
+  </div>
+</header>
+<main>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('overview',this)">Overview</button>
+    <button class="tab" onclick="showTab('students',this)">Students</button>
+    <button class="tab" onclick="showTab('staff',this)">Staff</button>
+    <button class="tab" onclick="showTab('facilities',this)">Facilities</button>
+    <button class="tab" onclick="showTab('inventory',this)">Inventory</button>
+  </div>
+  <section id="overview">
+    <div class="g4" id="kpi"></div>
+    <div class="card" style="margin-bottom:2rem"><div class="ch"><span class="ct">Key Ratios</span></div><div class="rg" id="ratios"></div></div>
+    <div class="g2">
+      <div class="card"><div class="ch"><span class="ct">Active Alerts</span></div><ul class="al" id="alerts"></ul></div>
+      <div class="card"><div class="ch"><span class="ct">Compliance Status</span></div><div id="compliance"></div></div>
+    </div>
+  </section>
+  <section id="students" class="hidden">
+    <div class="g2">
+      <div class="card"><div class="ch"><span class="ct">By Grade Level</span></div><div class="bc" id="gradeChart"></div></div>
+      <div class="card"><div class="ch"><span class="ct">By Gender</span></div><div class="bc" id="genderChart"></div></div>
+    </div>
+    <div class="g4" id="programs"></div>
+  </section>
+  <section id="staff" class="hidden">
+    <div class="g2">
+      <div class="card"><div class="ch"><span class="ct">By Department</span></div><div class="bc" id="deptChart"></div></div>
+      <div class="card"><div class="ch"><span class="ct">DBS Compliance</span></div><div id="dbs"></div></div>
+    </div>
+  </section>
+  <section id="facilities" class="hidden">
+    <div class="g2">
+      <div class="card"><div class="ch"><span class="ct">Rooms by Type</span></div><div class="bc" id="roomChart"></div></div>
+      <div class="card"><div class="ch"><span class="ct">Room Utilization</span></div><div style="padding:2rem"><div style="font-size:3rem;font-weight:700;color:var(--purple)" id="utilRate"></div><div style="color:var(--sec);margin-top:.5rem">Available Rooms</div><div class="pb"><div class="pf" id="utilBar"></div></div><div style="margin-top:1rem"><span id="roomCounts"></span></div></div></div>
+    </div>
+  </section>
+  <section id="inventory" class="hidden">
+    <div class="g2">
+      <div class="card"><div class="ch"><span class="ct">By Category</span></div><div class="bc" id="invChart"></div></div>
+      <div class="card"><div class="ch"><span class="ct">Assignment Status</span></div><div class="g3" id="assignGrid"></div></div>
+    </div>
+  </section>
+</main>
+<script>
+let D=null;
+async function loadDashboard(){
+  try{
+    const r=await fetch('/analytics/dashboard',{headers:{'Authorization':'Bearer '+getToken()}});
+    D=await r.json();
+    renderOverview();renderStudents();renderStaff();renderFacilities();renderInventory();
+    document.getElementById('ts').textContent='Updated: '+new Date().toLocaleTimeString();
+  }catch(e){console.error(e);alert('Failed to load. Server running?')}
+}
+function getToken(){return localStorage.getItem('timsys_token')||''}
+function setToken(t){localStorage.setItem('timsys_token',t)}
+function showTab(id,btn){document.querySelectorAll('section').forEach(s=>s.classList.add('hidden'));document.getElementById(id).classList.remove('hidden');document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));btn.classList.add('active')}
+function bars(data,id,color){
+  const mx=Math.max(...Object.values(data),1);
+  document.getElementById(id).innerHTML=Object.entries(data).map(([k,v])=>'<div class="bar" style="height:'+((v/mx)*180)+'px;'+(color?'background:'+color:'')+'"><span class="bv">'+v+'</span><span class="bl">'+k+'</span></div>').join('');
+}
+function renderOverview(){
+  const d=D,k=d.keyMetrics;
+  document.getElementById('kpi').innerHTML=[
+    {t:'Total Students',v:k.students.total,d:k.students.retentionRate+'% active',dir:k.students.retentionRate>=90?'up':'flat'},
+    {t:'Active Staff',v:k.staff.active,d:k.staff.retentionRate+'% active',dir:k.staff.retentionRate>=95?'up':'flat'},
+    {t:'Available Rooms',v:k.rooms.available,d:k.rooms.utilizationRate+'%',dir:parseFloat(k.rooms.utilizationRate)>=70?'up':'down'},
+    {t:'Inventory Items',v:k.inventory.total,d:k.inventory.retentionRate+'%',dir:parseFloat(k.inventory.retentionRate)>=70?'up':'flat'}
+  ].map(k=>'<div class="card"><div class="kv">'+k.v+'</div><div class="kl">'+k.t+'</div><div class="kd '+k.dir+'">'+k.d+'</div></div>').join('');
+  document.getElementById('ratios').innerHTML=Object.entries(D.ratios).map(([k,v])=>'<div class="ri"><div class="rv">'+v+'</div><div class="rl">'+k.replace(/([A-Z])/g,' $1').replace(/^./,c=>c.toUpperCase())+'</div></div>').join('');
+  const a=D.alerts||{},items=[];
+  if(a.dbsExpired>0)items.push({s:'critical',t:a.dbsExpired+' Expired DBS',b:'Requires immediate attention'});
+  if(a.dbsPending>0)items.push({s:'warning',t:a.dbsPending+' Pending DBS',b:'New staff awaiting clearance'});
+  if(a.roomsBlocked>0)items.push({s:'info',t:a.roomsBlocked+' Rooms Blocked',b:'Under maintenance or unavailable'});
+  document.getElementById('alerts').innerHTML=items.length?items.map(a=>'<li class="ai '+a.s+'"><div class="ax">!</div><div class="ac"><div class="at">'+a.t+'</div><div class="ab">'+a.b+'</div></div></li>').join(''):'<div style="padding:1rem;color:var(--sec)">✓ No active alerts</div>';
+  document.getElementById('compliance').innerHTML='<div style="margin-bottom:1rem"><div style="display:flex;justify-content:space-between;margin-bottom:.25rem"><span>Pending DBS</span><strong>'+(a.dbsPending||0)+'</strong></div><div class="pb"><div class="pf" style="background:var(--orange);width:'+Math.min((a.dbsPending||0)/20*100,100)+'%"></div></div></div><div><div style="display:flex;justify-content:space-between;margin-bottom:.25rem"><span>Expired DBS</span><strong>'+(a.dbsExpired||0)+'</strong></div><div class="pb"><div class="pf" style="background:var(--red);width:'+Math.min((a.dbsExpired||0)/20*100,100)+'%"></div></div></div>';
+}
+function renderStudents(){
+  bars(D.distributions.studentsByGrade||{},'gradeChart');
+  bars(D.distributions.studentsByGender||{},'genderChart','#9b51e0');
+  const p=(D.metrics&&D.metrics.students&&D.metrics.students.programs)||{};
+  document.getElementById('programs').innerHTML=Object.entries(p).map(([k,v])=>'<div class="card" style="text-align:center;padding:1rem"><div class="kv" style="font-size:2rem">'+v+'</div><div class="kl">'+k.replace(/([A-Z])/g,' $1')+'</div></div>').join('');
+}
+function renderStaff(){
+  bars(D.distributions.staffByDept||{},'deptChart','#34c759');
+  const a=D.alerts||{};
+  document.getElementById('dbs').innerHTML='<div style="text-align:center"><div style="font-size:3rem;font-weight:700;color:var(--red)">'+(a.dbsExpired||0)+'</div><div style="color:var(--sec)">Expired DBS Checks</div><div style="margin-top:1rem;padding:1rem;background:var(--bg);border-radius:8px"><div style="font-size:1.5rem;font-weight:600">'+(a.dbsPending||0)+'</div><div style="color:var(--sec)">Pending Clearance</div></div></div>';
+}
+function renderFacilities(){
+  bars(D.distributions.roomsByType||{},'roomChart','#ff9500');
+  document.getElementById('utilRate').textContent=D.keyMetrics.rooms.utilizationRate;
+  document.getElementById('utilBar').style.width=D.keyMetrics.rooms.utilizationRate+'%';
+  document.getElementById('roomCounts').textContent=D.keyMetrics.rooms.available+'/'+D.keyMetrics.rooms.total+' rooms available';
+}
+function renderInventory(){
+  bars(D.distributions.inventoryByCat||{},'invChart','#ff3b30');
+  const a=(D.metrics&&D.metrics.inventory&&D.metrics.inventory.assigned)||{};
+  [['toStaff','To Staff',a.toStaff||0],['toStudents','To Students',a.toStudents||0],['unassigned','Unassigned',a.unassigned||0]].forEach(x=>{
+    document.getElementById('assignGrid').innerHTML+='<div class="card" style="text-align:center;padding:1rem"><div class="kv" style="font-size:1.5rem">'+x[2]+'</div><div class="kl">'+x[1]+'</div></div>';
+  });
+}
+const p=new URLSearchParams(location.search);if(p.get('token'))setToken(p.get('token'));
+loadDashboard();
+</script>
+</body>
+</html>

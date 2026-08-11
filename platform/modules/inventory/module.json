@@ -1,0 +1,211 @@
+{
+  "name": "inventory",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events"
+  ],
+  "provides": [
+    "capability:inventory.read",
+    "capability:inventory.write",
+    "capability:inventory_item.read"
+  ],
+  "requires": [],
+  "statusConfig": {
+    "table": "inventory_items",
+    "altIdField": "item_number",
+    "statusField": "status",
+    "withdrawnValue": "retired",
+    "activeValue": "available",
+    "entityType": "InventoryItem",
+    "moduleName": "inventory"
+  },
+  "routes": [
+    {
+      "path": "/inventory",
+      "method": "GET",
+      "handler": "inventory_listItems",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:read"
+      ]
+    },
+    {
+      "path": "/inventory",
+      "method": "POST",
+      "handler": "inventory_createItem",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:write"
+      ]
+    },
+    {
+      "path": "/inventory/:id",
+      "method": "GET",
+      "handler": "inventory_readItem",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:read"
+      ]
+    },
+    {
+      "path": "/inventory/:id",
+      "method": "PUT",
+      "handler": "inventory_updateItem",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:write"
+      ]
+    },
+    {
+      "path": "/inventory/:id/withdraw",
+      "method": "PUT",
+      "handler": "inventory_withdraw",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:write"
+      ]
+    },
+    {
+      "path": "/inventory/:id/reinstate",
+      "method": "PUT",
+      "handler": "inventory_reinstate",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:write"
+      ]
+    },
+    {
+      "path": "/inventory/:id/permanent",
+      "method": "DELETE",
+      "handler": "inventory_permanentDelete",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:delete"
+      ]
+    },
+    {
+      "path": "/inventory/:id/checkouts",
+      "method": "GET",
+      "handler": "inventory_listCheckouts",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:read"
+      ]
+    },
+    {
+      "path": "/api/inventory/import",
+      "method": "POST",
+      "handler": "inventory_importInventory",
+      "auth_required": true,
+      "permissions": [
+        "admin:inventory:write"
+      ]
+    }
+  ],
+  "schema": {
+    "tables": [
+      "inventory_items",
+      "inventory_checkouts"
+    ],
+    "migrations": [
+      "migrations/001_inventory.sql"
+    ]
+  },
+  "events": {
+    "publishes": [
+      "item.created",
+      "item.updated",
+      "item.withdrawn",
+      "item.reinstated",
+      "item.deleted_permanently",
+      "item.checkout",
+      "item.returned",
+      "item.low_stock",
+      "item.maintenance_due"
+    ],
+    "subscribes": []
+  },
+  "functions": [
+    {
+      "name": "inventory_listItems",
+      "exports": "listItems",
+      "params": [
+        "filter",
+        "page",
+        "limit"
+      ],
+      "returns": "InventoryItem[]"
+    },
+    {
+      "name": "inventory_createItem",
+      "exports": "createItem",
+      "params": [
+        "data"
+      ],
+      "returns": "InventoryItem"
+    },
+    {
+      "name": "inventory_readItem",
+      "exports": "readItem",
+      "params": [
+        "id"
+      ],
+      "returns": "InventoryItem"
+    },
+    {
+      "name": "inventory_updateItem",
+      "exports": "updateItem",
+      "params": [
+        "id",
+        "data"
+      ],
+      "returns": "InventoryItem"
+    },
+    {
+      "name": "inventory_withdraw",
+      "exports": "withdraw",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "inventory_reinstate",
+      "exports": "reinstate",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "inventory_permanentDelete",
+      "exports": "permanentDelete",
+      "params": [
+        "id"
+      ],
+      "returns": "boolean"
+    },
+    {
+      "name": "inventory_listCheckouts",
+      "exports": "listCheckouts",
+      "params": [
+        "itemId"
+      ],
+      "returns": "InventoryCheckout[]"
+    },
+    {
+      "name": "inventory_importInventory",
+      "exports": "importInventory",
+      "params": [
+        "csv"
+      ],
+      "returns": "{inserted, skipped, errors}"
+    }
+  ]
+}

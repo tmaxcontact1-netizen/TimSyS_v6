@@ -10,8 +10,13 @@ export default defineConfig({
       allow: ['/home/tmax/TimSyS_v6']
     },
     watch: {
-      usePolling: true,
-      interval: 500
+      ignored: [
+        '**/node_modules/**',
+        '**/platform/**',
+        '**/apps/memecoined/**',
+        '**/apps/principaled/**',
+        '**/.git/**',
+      ]
     },
     proxy: {
       '/api': { target: 'http://localhost:3000', changeOrigin: true },
@@ -21,6 +26,7 @@ export default defineConfig({
       '/rooms': { target: 'http://localhost:3000', changeOrigin: true },
       '/inventory': { target: 'http://localhost:3000', changeOrigin: true },
       '/apps': { target: 'http://localhost:3000', changeOrigin: true },
+      '/analytics': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },
   resolve: {
