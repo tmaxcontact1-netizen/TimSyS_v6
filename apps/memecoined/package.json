@@ -1,0 +1,52 @@
+{
+  "name": "memecoined",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.18.1",
+    "npm": "11.9.0"
+  },
+  "packageManager": "npm@11.9.0",
+  "scripts": {
+    "start": "node dist/src/entrypoints/worker.js",
+    "migrate": "tsx scripts/migrate.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "report:paper": "tsx scripts/generate-report.ts",
+    "dashboard:paper": "node dist/src/entrypoints/dashboard.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "description": "",
+  "dependencies": {
+    "@solana-program/token": "0.15.0",
+    "@solana/kit": "7.0.0",
+    "csv-stringify": "6.8.2",
+    "decimal.js": "10.6.0",
+    "grammy": "1.45.1",
+    "pg": "8.22.0",
+    "pino": "10.3.1",
+    "ws": "8.21.1",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/pg": "8.20.3",
+    "@types/ws": "8.18.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "eslint": "10.8.0",
+    "eslint-plugin-import-x": "4.17.1",
+    "prettier": "3.9.6",
+    "testcontainers": "12.0.4",
+    "tsx": "4.23.5",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.66.0",
+    "vitest": "4.1.10"
+  }
+}

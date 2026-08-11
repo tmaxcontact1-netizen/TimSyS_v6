@@ -1,0 +1,98 @@
+import type { PoolClient } from "pg";
+import type {
+  CandidateEvaluationRepository,
+  PersistCandidateEvaluation,
+} from "../../application/ports/repositories.js";
+
+interface DatabasePort {
+  connect(): Promise<Pick<PoolClient, "query" | "release">>;
+}
+
+export class PostgresCandidateEvaluationRepository implements CandidateEvaluationRepository {
+  public constructor(private readonly database: DatabasePort) {}
+
+  public async saveEvaluation(input: PersistCandidateEvaluation): Promise<void> {
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      for (const result of input.decision.results) {
+        await client.query(
+          `INSERT INTO rule_evaluations
+             (candidate_id, evaluation_run_id, rule_id, outcome, reason, measurements_json, evidence_json, evaluated_at)
+           VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)`,
+          [
+            input.candidateId,
+            input.evaluationRunId,
+            result.ruleId,
+            result.outcome,
+            result.reason,
+            JSON.stringify(result.measurements, (_key, value) =>
+              typeof value === "bigint" ? value.toString() : value,
+            ),
+            JSON.stringify(result.evidence, (_key, value) =>
+              typeof value === "bigint" ? value.toString() : value,
+            ),
+            input.evaluatedAt,
+          ],
+        );
+      }
+      await client.query(
+        `INSERT INTO score_breakdowns (candidate_id, evaluation_run_id, breakdown_json, total_score, evaluated_at)
+         VALUES ($1,$2,$3::jsonb,$4,$5)`,
+        [
+          input.candidateId,
+          input.evaluationRunId,
+          JSON.stringify(input.decision.score),
+          input.decision.score.total,
+          input.evaluatedAt,
+        ],
+      );
+      if (input.decision.eligible) {
+        if (input.signalId === null)
+          throw new TypeError("Eligible evaluation requires a signal ID");
+        await client.query(
+          `INSERT INTO signals (id, candidate_id, state, strategy_version_id, created_at, eligibility_hash)
+           SELECT $1, id, 'eligible', strategy_version_id, $3, $2 FROM candidates WHERE id=$4`,
+          [input.signalId, input.evaluationRunId, input.evaluatedAt, input.candidateId],
+        );
+        await client.query(
+          `INSERT INTO jobs (id, job_type, idempotency_key, payload_json, state, available_at)
+           VALUES ($1, 'risk_evaluation', $2, $3::jsonb, 'available', $4)`,
+          [
+            input.signalId,
+            `risk_evaluation:${input.signalId}`,
+            JSON.stringify({ signalId: input.signalId }),
+            input.evaluatedAt,
+          ],
+        );
+      } else {
+        for (const ruleId of input.decision.failedRuleIds)
+          await client.query(
+            `INSERT INTO rejections (candidate_id, evaluation_run_id, rule_id, rejected_at) VALUES ($1,$2,$3,$4)`,
+            [input.candidateId, input.evaluationRunId, ruleId, input.evaluatedAt],
+          );
+      }
+      await client.query(
+        `UPDATE candidates SET state=$2, last_evaluated_at=$3, updated_at=$3, version=version+1 WHERE id=$1`,
+        [input.candidateId, input.decision.eligible ? "eligible" : "rejected", input.evaluatedAt],
+      );
+      const completed = await client.query(
+        `UPDATE jobs SET state='completed', lease_owner=NULL, lease_expires_at=NULL,
+                         updated_at=$2, version=version+1
+         WHERE id=$1 AND job_type='candidate_evaluation'
+           AND ($3::text IS NULL OR (state='leased' AND lease_owner=$3))`,
+        [input.candidateId, input.evaluatedAt, input.leaseOwner ?? null],
+      );
+      if (input.leaseOwner !== undefined && completed.rowCount !== 1)
+        throw new Error("Candidate evaluation completion requires the active lease");
+      await client.query("COMMIT");
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+}
