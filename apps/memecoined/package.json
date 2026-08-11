@@ -14,6 +14,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
+    "verify:environment": "tsx scripts/verify-environment.ts",
+    "verify:handoff": "npm run typecheck && npm test && npm run build",
     "test:coverage": "vitest run --coverage",
     "report:paper": "tsx scripts/generate-report.ts",
     "dashboard:paper": "node dist/src/entrypoints/dashboard.js",
