@@ -4,6 +4,8 @@ import { resolve } from "node:path";
 
 import { Pool, type PoolClient } from "pg";
 
+import { resolveApplicationRoot } from "../src/infrastructure/runtime/application-root.js";
+
 export interface MigrationFile {
   readonly name: string;
   readonly checksum: string;
@@ -106,7 +108,9 @@ async function main(): Promise<void> {
   try {
     const client: PoolClient = await pool.connect();
     try {
-      const files = await loadMigrationFiles(resolve(process.cwd(), "migrations"));
+      const files = await loadMigrationFiles(
+        resolve(resolveApplicationRoot(process.env), "migrations"),
+      );
       const applied = await applyMigrations(client, files);
       process.stdout.write(`${JSON.stringify({ event: "migrations_applied", applied })}\n`);
     } finally {

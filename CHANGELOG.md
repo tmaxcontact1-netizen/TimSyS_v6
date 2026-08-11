@@ -1,5 +1,21 @@
 # Memecoined Changelog
 
+## Unreleased — TimSyS supervised-child boundary
+
+### 2026-08-11
+
+| File                                             | Change                                                                 | Reason                                                                            | Status                 |
+| ------------------------------------------------ | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------- |
+| `timsys.app.json`                                | Declared isolated worker, dashboard, readiness, and shutdown lifecycle | Give TimSyS a narrow machine-readable launcher contract                           | Authorized by operator |
+| `.env.example`                                   | Added the explicit application-root variable                           | Support relocation beneath `TimSyS_v6/apps` without storing credentials in source | Authorized by operator |
+| `src/infrastructure/runtime/application-root.ts` | Added absolute managed-root resolution with standalone fallback        | Remove install-asset dependence on the caller's working directory                 | Authorized by operator |
+| `scripts/migrate.ts`                             | Resolved migration files from the application root                     | Keep migrations correct after relocation and launcher-managed startup             | Authorized by operator |
+| `src/entrypoints/dashboard.ts`                   | Added readiness response, relocatable assets, and graceful termination | Enable TimSyS health monitoring and bounded child-process shutdown                | Authorized by operator |
+| `tests/unit/application-root.test.ts`            | Added managed, standalone, and invalid-root coverage                   | Prove relocation behavior                                                         | Authorized by operator |
+| `tests/integration/paper-dashboard.test.ts`      | Added readiness route and method-boundary coverage                     | Prove the launcher health contract is read-only                                   | Authorized by operator |
+| `vitest.config.ts`                               | Registered the application-root suite                                  | Include relocation behavior in every repository gate                              | Authorized by operator |
+| `CHANGELOG.md`                                   | Recorded the supervised-child boundary                                 | Maintain the required file-touch audit                                            | Authorized by operator |
+
 ## Unreleased — Durable operational-safety facts
 
 - Persisted immutable reconciliation-failure events instead of relying on mutable latest-error state.

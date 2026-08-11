@@ -40,6 +40,7 @@ import {
   requestPaperPositionClose,
 } from "../infrastructure/database/paper-operator-controls.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
+import { resolveApplicationRoot } from "../infrastructure/runtime/application-root.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
   ".css": "text/css; charset=utf-8",
@@ -150,6 +151,14 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const pathname = url.pathname;
+    if (pathname === "/api/health") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      sendJson(response, 200, { status: "ok", mode: "paper" });
+      return;
+    }
     const configurationMatch = pathname.match(/^\/api\/trading-configurations\/([0-9a-f-]+)$/i);
     const watchlistMatch = pathname.match(/^\/api\/watchlists\/([0-9a-f-]+)$/i);
     const tokenMatch = pathname.match(
@@ -544,7 +553,7 @@ export async function startPaperDashboard(environment: NodeJS.ProcessEnv): Promi
   const server = createPaperDashboardServer({
     database,
     wallet: config.paper.walletAddress as WalletAddress,
-    publicDirectory: join(process.cwd(), "frontend"),
+    publicDirectory: join(resolveApplicationRoot(environment), "frontend"),
     ...(mutationToken === undefined ? {} : { mutationToken }),
   });
   const port = Number(environment.PAPER_DASHBOARD_PORT ?? "8080");
@@ -554,6 +563,13 @@ export async function startPaperDashboard(environment: NodeJS.ProcessEnv): Promi
   server.listen(port, "127.0.0.1", () =>
     process.stdout.write(`Paper dashboard: http://127.0.0.1:${port}\n`),
   );
+  const shutdown = () => server.close();
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+  server.once("close", () => {
+    process.removeListener("SIGINT", shutdown);
+    process.removeListener("SIGTERM", shutdown);
+  });
 }
 
 const invokedPath = process.argv[1];

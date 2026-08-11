@@ -109,6 +109,10 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('data-dashboard-panel="trading"');
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
+    const health = await get(address.port, "/api/health");
+    expect(health.status).toBe(200);
+    expect(JSON.parse(health.body)).toEqual({ status: "ok", mode: "paper" });
+    expect((await get(address.port, "/api/health", "POST")).status).toBe(405);
   });
 
   it("fails closed when the durable snapshot is unavailable", async () => {

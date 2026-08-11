@@ -26,6 +26,7 @@ export default defineConfig({
       "tests/unit/paper-position-monitor.test.ts",
       "tests/unit/paper-exit-authority.test.ts",
       "tests/unit/paper-performance-report.test.ts",
+      "tests/unit/application-root.test.ts",
       "tests/integration/execution.test.ts",
       "tests/integration/candidate-discovery.test.ts",
       "tests/integration/candidate-evaluation-work.test.ts",

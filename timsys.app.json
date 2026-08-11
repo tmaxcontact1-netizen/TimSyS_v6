@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "memecoined",
+  "name": "Memecoined",
+  "kind": "supervised-child",
+  "applicationRootEnvironment": "MEMECOINED_APP_ROOT",
+  "workingDirectory": ".",
+  "processes": {
+    "worker": {
+      "command": "node",
+      "arguments": ["dist/src/entrypoints/worker.js"]
+    },
+    "dashboard": {
+      "command": "node",
+      "arguments": ["dist/src/entrypoints/dashboard.js"],
+      "health": {
+        "url": "http://127.0.0.1:${PAPER_DASHBOARD_PORT}/api/health",
+        "expectedStatus": 200
+      }
+    }
+  },
+  "shutdown": {
+    "signal": "SIGTERM",
+    "timeoutMilliseconds": 10000
+  },
+  "ownership": {
+    "runtime": "memecoined",
+    "database": "memecoined",
+    "configuration": "memecoined"
+  }
+}
