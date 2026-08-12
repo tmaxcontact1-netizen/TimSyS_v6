@@ -59,7 +59,7 @@ async function createRoom(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var room = ctx.db.query('SELECT * FROM rooms WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('room.created', { roomId: insertedId, roomNumber: b.room_number, entityType: 'room', entityId: insertedId, __module: 'room_registry' });
+  ctx.events.publish('room.created', { roomId: insertedId, roomNumber: b.room_number, entityType: 'room', entityId: insertedId, record: room.rows[0], actorId: req.user.id, __module: 'room_registry' });
   if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('room', insertedId.toString(), room.rows[0]); } catch (e) {} }
   if (ctx.audit) { ctx.audit.action('room.create', req.user.id, { entityType: 'room', entityId: insertedId, newValue: room.rows[0] }); }
 
@@ -116,7 +116,7 @@ async function updateRoom(req, ctx) {
   ctx.db.query('UPDATE rooms SET ' + updates.join(', ') + ' WHERE id = ?', params);
   var updated = ctx.db.query('SELECT * FROM rooms WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('room.updated', { roomId: existing.rows[0].id, entityType: 'room', entityId: existing.rows[0].id, __module: 'room_registry' });
+  ctx.events.publish('room.updated', { roomId: existing.rows[0].id, entityType: 'room', entityId: existing.rows[0].id, record: updated.rows[0], actorId: req.user.id, __module: 'room_registry' });
   if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('room', existing.rows[0].id.toString(), updated.rows[0]); } catch (e) {} }
   if (ctx.audit) { ctx.audit.action('room.update', req.user.id, { entityType: 'room', entityId: existing.rows[0].id, oldValue: existing.rows[0], newValue: updated.rows[0] }); }
 

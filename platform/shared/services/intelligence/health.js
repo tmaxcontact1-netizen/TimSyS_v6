@@ -1,0 +1,12 @@
+'use strict';
+var db=require('../db'),schema=require('../../schema-contract'),runner=require('./providerRunner');
+function count(sql,params){return Number(db.scalar(sql,params||[])||0);}
+function evaluate(){var checks=[],schemaResult;try{schemaResult=schema.verify();checks.push({name:'canonical_schema',status:'pass',detail:schemaResult});}catch(error){checks.push({name:'canonical_schema',status:'fail',detail:error.message});}
+ var providers=runner.list(),scheduled=count('SELECT COUNT(*) FROM provider_schedules WHERE enabled=1'),unscheduled=providers.filter(function(p){return !db.scalar('SELECT COUNT(*) FROM provider_schedules WHERE provider_id=? AND enabled=1',[p.id]);});checks.push({name:'provider_scheduling',status:unscheduled.length?'fail':'pass',detail:{registered:providers.length,scheduled:scheduled,unscheduled:unscheduled.map(function(p){return p.id;})}});
+ var failed=count("SELECT COUNT(*) FROM provider_runs WHERE status='failed' AND started_at>=?",[Date.now()-7*86400000]);checks.push({name:'recent_provider_runs',status:failed?'fail':'pass',detail:{failedLastSevenDays:failed}});
+ var noEvidence=count("SELECT COUNT(*) FROM insight_products WHERE evidence IS NULL OR evidence='[]'");checks.push({name:'traceable_evidence',status:noEvidence?'fail':'pass',detail:{productsWithoutEvidence:noEvidence}});
+ var unexplained=count("SELECT COUNT(*) FROM insight_products WHERE confidence<1 AND (uncertainty IS NULL OR trim(uncertainty)='')");checks.push({name:'uncertainty_reporting',status:unexplained?'fail':'pass',detail:{lowConfidenceWithoutUncertainty:unexplained}});
+ var orphanActions=count('SELECT COUNT(*) FROM insight_actions a LEFT JOIN insight_products p ON p.id=a.insight_id WHERE p.id IS NULL');checks.push({name:'insight_action_integrity',status:orphanActions?'fail':'pass',detail:{orphanActions:orphanActions}});
+ var positive=count("SELECT COUNT(*) FROM insight_products WHERE severity='positive'"),attention=count("SELECT COUNT(*) FROM insight_products WHERE severity IN ('warning','critical')");checks.push({name:'signal_balance',status:'pass',detail:{positive:positive,attention:attention,note:'Counts are descriptive; TimSyS does not manufacture either signal type to create balance.'}});
+ var failures=checks.filter(function(c){return c.status==='fail';});return {status:failures.length?'degraded':'healthy',evaluatedAt:Date.now(),checks:checks,failures:failures.length};}
+module.exports={evaluate:evaluate};

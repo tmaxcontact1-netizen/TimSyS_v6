@@ -1,0 +1,7 @@
+'use strict';
+var db = require('../../services/db');
+module.exports = {
+  define: function(definition) { db.query('INSERT OR REPLACE INTO metric_definitions (id,name,description,unit,scope_types,provider_id,provider_version,created_at) VALUES (?,?,?,?,?,?,?,?)', [definition.id, definition.name, definition.description, definition.unit, JSON.stringify(definition.scopeTypes || []), definition.providerId, definition.providerVersion, Date.now()]); return definition.id; },
+  record: function(point) { db.query('INSERT INTO metric_points (metric_id,scope_type,scope_id,period_start,period_end,value,dimensions,evidence,calculated_at,provider_run_id) VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(metric_id,scope_type,scope_id,period_start,period_end,dimensions) DO UPDATE SET value=excluded.value,evidence=excluded.evidence,calculated_at=excluded.calculated_at,provider_run_id=excluded.provider_run_id', [point.metricId, point.scope.type, String(point.scope.id), point.period.start, point.period.end, point.value, JSON.stringify(point.dimensions || {}), JSON.stringify(point.evidence || []), Date.now(), point.providerRunId || null]); },
+  series: function(metricId, scope, from, to) { return db.query('SELECT * FROM metric_points WHERE metric_id=? AND scope_type=? AND scope_id=? AND period_end>=? AND period_start<=? ORDER BY period_end', [metricId, scope.type, String(scope.id), from || 0, to || Date.now()]).rows.map(function(row) { row.dimensions=JSON.parse(row.dimensions); row.evidence=JSON.parse(row.evidence); return row; }); }
+};

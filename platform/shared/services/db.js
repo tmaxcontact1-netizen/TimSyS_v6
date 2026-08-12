@@ -5,11 +5,18 @@ const path = require('path');
 const Database = require('better-sqlite3');
 
 var conn = null;
+var PLATFORM_ROOT = path.resolve(__dirname, '../..');
+
+function databasePath() {
+  var configured = process.env.DB_PATH;
+  if (!configured) return path.join(PLATFORM_ROOT, 'data', 'timsys.sqlite');
+  return path.isAbsolute(configured) ? configured : path.resolve(PLATFORM_ROOT, configured);
+}
 
 function init() {
   if (conn) return conn;
 
-  var DB_PATH = process.env.DB_PATH || './data/timsys.sqlite';
+  var DB_PATH = databasePath();
   var DB_DIR = path.dirname(DB_PATH);
 
   try {

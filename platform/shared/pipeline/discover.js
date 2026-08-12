@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const MODULES_DIR = path.resolve(process.cwd(), 'modules');
+const MODULES_DIR = path.resolve(__dirname, '../../modules');
 
 function discoverDir(dir, discovered) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -24,6 +24,9 @@ function discoverDir(dir, discovered) {
         );
       }
 
+      if (manifest.status === 'draft') {
+        continue;
+      }
       discovered.push({
         name: manifest.name || entry.name,
         dir: moduleDir,

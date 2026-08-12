@@ -1,4 +1,4 @@
--- Path: /home/tmax/TimSyS_v6/modules/student_registry/migrations/001_students.sql
+-- Student registry schema migration.
 -- Migration: student_registry_001_students
 -- Purpose: Core student identity, contacts, enrollment history
 

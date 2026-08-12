@@ -1,8 +1,0 @@
-No tests found, exiting with code 1
-Run with `--passWithNoTests` to exit with code 0
-In /home/tmax/TimSyS_v6/platform
-  46 files checked.
-  testMatch: **/tests/integration/**/*.test.js - 0 matches
-  testPathIgnorePatterns: /node_modules/ - 46 matches
-  testRegex:  - 0 matches
-Pattern: tests/integration/builder.test.js - 0 matches

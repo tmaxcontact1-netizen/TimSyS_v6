@@ -3,7 +3,11 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
-const DB_PATH = process.env.DB_PATH || './data/timsys.sqlite';
+const PLATFORM_ROOT = path.resolve(__dirname, '../..');
+const configuredDbPath = process.env.DB_PATH;
+const DB_PATH = configuredDbPath
+  ? (path.isAbsolute(configuredDbPath) ? configuredDbPath : path.resolve(PLATFORM_ROOT, configuredDbPath))
+  : path.join(PLATFORM_ROOT, 'data', 'timsys.sqlite');
 const MIGRATIONS_DIR = path.resolve(__dirname, '../../migrations');
 const MODULES_DIR = path.resolve(__dirname, '../../modules');
 

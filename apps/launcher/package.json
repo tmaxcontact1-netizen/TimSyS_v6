@@ -5,8 +5,8 @@
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vite --configLoader runner",
+    "build": "vite build --configLoader runner",
     "preview": "vite preview",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "vite build && electron-builder",
@@ -15,7 +15,7 @@
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
+    "react-router-dom": "7.18.2",
     "zustand": "^4.4.0",
     "axios": "^1.6.0",
     "@dnd-kit/core": "^6.1.0",
@@ -23,10 +23,10 @@
     "@dnd-kit/utilities": "^3.2.0"
   },
   "devDependencies": {
-    "vite": "^5.0.0",
-    "@vitejs/plugin-react": "^4.2.0",
-    "electron": "^28.0.0",
-    "electron-builder": "^24.9.0",
+    "vite": "8.2.1",
+    "@vitejs/plugin-react": "6.0.5",
+    "electron": "43.2.0",
+    "electron-builder": "26.0.12",
     "tailwindcss": "^3.4.0",
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
@@ -34,7 +34,7 @@
     "wait-on": "^7.2.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=24.18.0 <25"
   },
   "build": {
     "appId": "me.timsys.launcher",
@@ -42,9 +42,33 @@
     "directories": {
       "output": "dist-electron"
     },
+    "asar": true,
     "files": [
       "dist/**/*",
       "electron/**/*"
-    ]
+    ],
+    "extraResources": [
+      { "from": "dist", "to": "launcher-ui" },
+      { "from": "runtime-stage/platform", "to": "platform" },
+      { "from": "runtime-stage/apps", "to": "apps" },
+      { "from": "runtime-stage/runtime", "to": "runtime" }
+    ],
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        { "target": "portable", "arch": ["x64"] },
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "artifactName": "TimSyS-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "TimSyS-Portable-${version}-${arch}.${ext}"
+    }
   }
 }

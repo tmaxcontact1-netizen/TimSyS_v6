@@ -67,49 +67,6 @@ class Store {
     };
   }
 
-  async insertInsight(scopeType, scopeId, insightType, summary, metricsData, trendsData, alerts, expiresAt) {
-    const id = crypto.randomUUID();
-    const now = Date.now();
-    db.query(
-      'INSERT INTO intelligence_insights (id, scope_type, scope_id, insight_type, summary, metrics_data, trends_data, alerts, generated_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        id, scopeType, scopeId, insightType, summary,
-        JSON.stringify(metricsData || {}),
-        JSON.stringify(trendsData || []),
-        JSON.stringify(alerts || []),
-        now, expiresAt || null
-      ]
-    );
-    return id;
-  }
-
-  async getInsights(scopeType, scopeId, insightType) {
-    let sql = 'SELECT * FROM intelligence_insights WHERE scope_type = ? AND scope_id = ?';
-    const params = [scopeType, scopeId];
-    if (insightType) {
-      sql += ' AND insight_type = ?';
-      params.push(insightType);
-    }
-    const result = db.query(sql, params);
-    return result.rows.map(row => ({
-      id: row.id,
-      scopeType: row.scope_type,
-      scopeId: row.scope_id,
-      insightType: row.insight_type,
-      summary: row.summary,
-      metricsData: typeof row.metrics_data === 'string' ? JSON.parse(row.metrics_data) : row.metrics_data,
-      trendsData: typeof row.trends_data === 'string' ? JSON.parse(row.trends_data) : row.trends_data,
-      alerts: typeof row.alerts === 'string' ? JSON.parse(row.alerts) : row.alerts,
-      generatedAt: row.generated_at,
-      expiresAt: row.expires_at,
-    }));
-  }
-
-  async deleteOldInsights() {
-    const now = Date.now();
-    db.query('DELETE FROM intelligence_insights WHERE expires_at IS NOT NULL AND expires_at <= ?', [now]);
-  }
-
   async insertRule(name, description, conditions, actions, priority) {
     const id = crypto.randomUUID();
     const now = Date.now();

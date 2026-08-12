@@ -157,6 +157,8 @@ function verifyTables() {
   var result = db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
   var tables = result.rows.map(function(r) { return r.name; });
   log.info('Table verification passed', { tables: tables.length });
+  var contract = require('./schema-contract').verify();
+  log.info('Canonical schema contract passed', contract);
 }
 
 module.exports = { runMigrations: runMigrations, verifyTables: verifyTables };

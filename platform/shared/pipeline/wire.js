@@ -1,4 +1,4 @@
-// Path: /home/tmax/TimSyS_v6/platform/shared/pipeline/wire.js
+// Platform module wiring.
 // Total lines: ~65
 
 'use strict';

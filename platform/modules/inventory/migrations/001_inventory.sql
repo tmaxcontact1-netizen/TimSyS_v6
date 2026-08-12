@@ -1,4 +1,4 @@
--- Path: /home/tmax/TimSyS_v6/platform/modules/inventory/migrations/001_inventory.sql
+-- Inventory schema migration.
 -- Migration: inventory_001_items
 -- Purpose: Inventory items and checkout tracking
 

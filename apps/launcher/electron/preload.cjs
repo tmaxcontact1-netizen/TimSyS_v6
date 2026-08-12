@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   platformCheck: () => ipcRenderer.invoke('platform:check'),
+  platformSession: () => ipcRenderer.invoke('platform:session'),
   supervisedApp: {
     start: (appId) => ipcRenderer.invoke('supervised-app:start', appId),
     stop: (appId) => ipcRenderer.invoke('supervised-app:stop', appId),

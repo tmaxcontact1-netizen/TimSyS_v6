@@ -107,7 +107,7 @@ async function createStudent(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var student = ctx.db.query('SELECT * FROM students WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('student.created', { studentId: insertedId, studentIdText: b.student_id, entityType: 'student', entityId: insertedId, __module: 'student_registry' });
+  ctx.events.publish('student.created', { studentId: insertedId, studentIdText: b.student_id, entityType: 'student', entityId: insertedId, record: student.rows[0], actorId: req.user.id, __module: 'student_registry' });
 
   if (ctx.intelligence) {
     try { ctx.intelligence.storeMetadata('student', insertedId.toString(), student.rows[0]); } catch (e) {}
@@ -171,7 +171,7 @@ async function updateStudent(req, ctx) {
 
   var updated = ctx.db.query('SELECT * FROM students WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('student.updated', { studentId: existing.rows[0].id, entityType: 'student', entityId: existing.rows[0].id, __module: 'student_registry' });
+  ctx.events.publish('student.updated', { studentId: existing.rows[0].id, entityType: 'student', entityId: existing.rows[0].id, record: updated.rows[0], actorId: req.user.id, __module: 'student_registry' });
 
   if (ctx.intelligence) {
     try { ctx.intelligence.storeMetadata('student', existing.rows[0].id.toString(), updated.rows[0]); } catch (e) {}

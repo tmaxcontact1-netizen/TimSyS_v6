@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "timsys-platform",
+  "name": "TimSyS Platform",
+  "kind": "supervised-child",
+  "applicationRootEnvironment": "TIMSYS_PLATFORM_ROOT",
+  "workingDirectory": ".",
+  "environmentDefaults": { "NODE_ENV": "production", "PORT": "3000" },
+  "processes": {
+    "backend": {
+      "command": "node",
+      "arguments": ["index.js"],
+      "health": { "url": "http://127.0.0.1:${PORT}/health", "expectedStatus": 200 }
+    }
+  },
+  "shutdown": { "signal": "SIGTERM", "timeoutMilliseconds": 10000 }
+}

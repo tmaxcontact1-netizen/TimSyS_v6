@@ -1,0 +1,7 @@
+{
+  "name": "staff_registry",
+  "type": "registry",
+  "dependencies": [],
+  "capabilities": ["capability:staff.read", "capability:staff.write", "capability:staff_certifications.read", "capability:staff_certifications.write"],
+  "intelligence": {"version":1,"entities":[{"type":"staff","source":{"table":"staff","idField":"id"},"displayFields":["preferred_name","first_name","last_name"],"statusField":"employment_status","events":[{"channel":"staff.created","kind":"created"},{"channel":"staff.updated","kind":"updated"},{"channel":"staff.withdrawn","kind":"withdrawn"},{"channel":"staff.reinstated","kind":"reinstated"},{"channel":"staff.deleted_permanently","kind":"deleted"}],"relationships":[{"field":"reports_to_staff_id","type":"reports_to","targetType":"staff"}],"dataQuality":[{"field":"first_name","expectation":"required"},{"field":"last_name","expectation":"required"},{"field":"hire_date","expectation":"required"}]},{"type":"staff_certification","source":{"table":"staff_certifications","idField":"id"},"displayFields":["certification_name"],"statusField":"status","relationships":[{"field":"staff_id","type":"certification_for","targetType":"staff"}],"dataQuality":[{"field":"staff_id","expectation":"required"},{"field":"certification_name","expectation":"required"},{"field":"status","expectation":"required"}]}]}
+}

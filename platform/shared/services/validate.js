@@ -15,7 +15,7 @@ class ValidationServiceImpl extends ValidationService {
 
     return {
       success: false,
-      errors: result.error.errors.map((err) => ({
+      errors: result.error.issues.map((err) => ({
         path: err.path.join('.'),
         message: err.message,
       })),

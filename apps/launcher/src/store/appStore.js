@@ -3,9 +3,7 @@ import { create } from 'zustand';
 const useAppStore = create((set, get) => ({
   apps: [
     { appId: 'principal-ed', displayName: "Principal'Ed", description: 'School administration dashboard' },
-    { appId: 'memecoined', displayName: 'MemecoinEd', description: 'Solana memecoin trading dashboard', url: 'http://127.0.0.1:8080' },
-    { appId: 'compete-ed', displayName: "Compete'Ed", description: 'Assessment and benchmarking' },
-    { appId: 'sanctify-ed', displayName: "Sanctify'Ed", description: 'Compliance and reporting' },
+    { appId: 'memecoined', displayName: 'MemecoinEd', description: 'Independent Solana trading application', supervised: true },
     { appId: 'builder', displayName: 'Builder', description: 'Module configuration' }
   ],
   selectedApp: null,

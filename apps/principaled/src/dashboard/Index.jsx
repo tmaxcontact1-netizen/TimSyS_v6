@@ -8,6 +8,7 @@ import InventoryWidget from './widgets/InventoryWidget';
 import StudentProfileWidget from './widgets/StudentProfileWidget';
 import StaffProfileWidget from './widgets/StaffProfileWidget';
 import ModuleStatusWidget from './widgets/ModuleStatusWidget';
+import IntelligenceWorkspace from './widgets/IntelligenceWorkspace';
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
@@ -91,7 +92,7 @@ function PrincipalEdDashboard() {
   const fetchEnabledModules = async () => {
     try {
       const token = localStorage.getItem('jwt_token');
-      const response = await fetch('/api/modules/list-for-app?appId=principaled', {
+      const response = await fetch('/modules/list-for-app?appId=principal-ed', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'X-Requested-With': 'XMLHttpRequest'
@@ -118,6 +119,7 @@ function PrincipalEdDashboard() {
 
   const navItems = [
     { id: 'overview', label: 'Overview' },
+    { id: 'intelligence_workspace', label: 'Insights' },
     ...Object.keys(MODULE_TO_VIEW)
       .filter(moduleName => {
         if (!enabledModules.includes(moduleName)) return false;
@@ -134,6 +136,7 @@ function PrincipalEdDashboard() {
     if (activeView === 'overview') {
       return <OverviewWidget data={data} />;
     }
+    if (activeView === 'intelligence_workspace') return <IntelligenceWorkspace />;
 
     const moduleEntry = Object.entries(MODULE_TO_VIEW).find(([_, config]) => config.id === activeView);
     if (!moduleEntry) return <div className="text-gray-500">Unknown view</div>;
@@ -147,6 +150,8 @@ function PrincipalEdDashboard() {
           onImport={handleImportStudents}
           onAdd={handleAddStudent}
           onEdit={handleEditStudent}
+          onWithdraw={(id) => handleLifecycle(api.withdrawStudent, id)}
+          onReinstate={(id) => handleLifecycle(api.reinstateStudent, id)}
           onDelete={handleDeleteStudent}
         />
       ) : null;
@@ -158,6 +163,8 @@ function PrincipalEdDashboard() {
           onImport={handleImportStaff}
           onAdd={handleAddStaff}
           onEdit={handleEditStaff}
+          onWithdraw={(id) => handleLifecycle(api.withdrawStaff, id)}
+          onReinstate={(id) => handleLifecycle(api.reinstateStaff, id)}
           onDelete={handleDeleteStaff}
         />
       ) : null;
@@ -169,6 +176,8 @@ function PrincipalEdDashboard() {
           onImport={handleImportRooms}
           onAdd={handleAddRoom}
           onEdit={handleEditRoom}
+          onWithdraw={(id) => handleLifecycle(api.withdrawRoom, id)}
+          onReinstate={(id) => handleLifecycle(api.reinstateRoom, id)}
           onDelete={handleDeleteRoom}
         />
       ) : null;
@@ -180,6 +189,8 @@ function PrincipalEdDashboard() {
           onImport={handleImportInventory}
           onAdd={handleAddInventory}
           onEdit={handleEditInventory}
+          onWithdraw={(id) => handleLifecycle(api.withdrawItem, id)}
+          onReinstate={(id) => handleLifecycle(api.reinstateItem, id)}
           onDelete={handleDeleteInventory}
         />
       ) : null;
@@ -207,6 +218,11 @@ function PrincipalEdDashboard() {
     }
   };
 
+  const handleLifecycle = async (action, id) => {
+    try { await action(id); await fetchData(); return { success: true }; }
+    catch (err) { return { success: false, error: err.response?.data?.error?.message || err.message }; }
+  };
+
   const handleAddStudent = async (formData) => {
     try {
       await api.createStudent(formData);
@@ -228,7 +244,7 @@ function PrincipalEdDashboard() {
   };
 
   const handleDeleteStudent = async (id) => {
-    if (!confirm('Delete this student?')) return { success: true };
+    if (!confirm('Permanently delete this withdrawn student? This cannot be undone.')) return { success: true };
     try {
       await api.deleteStudent(id);
       await fetchData();
@@ -269,7 +285,7 @@ function PrincipalEdDashboard() {
   };
 
   const handleDeleteStaff = async (id) => {
-    if (!confirm('Delete this staff member?')) return { success: true };
+    if (!confirm('Permanently delete this withdrawn staff member? This cannot be undone.')) return { success: true };
     try {
       await api.deleteStaff(id);
       await fetchData();
@@ -310,7 +326,7 @@ function PrincipalEdDashboard() {
   };
 
   const handleDeleteRoom = async (id) => {
-    if (!confirm('Delete this room?')) return { success: true };
+    if (!confirm('Permanently delete this withdrawn room? This cannot be undone.')) return { success: true };
     try {
       await api.deleteRoom(id);
       await fetchData();
@@ -351,7 +367,7 @@ function PrincipalEdDashboard() {
   };
 
   const handleDeleteInventory = async (id) => {
-    if (!confirm('Delete this item?')) return { success: true };
+    if (!confirm('Permanently delete this withdrawn item? This cannot be undone.')) return { success: true };
     try {
       await api.deleteItem(id);
       await fetchData();
@@ -362,7 +378,7 @@ function PrincipalEdDashboard() {
   };
 
   useEffect(() => {
-    const availableViews = ['overview', ...navItems.slice(1).map(n => n.id)];
+    const availableViews = navItems.map(n => n.id);
     if (!availableViews.includes(activeView)) {
       setActiveView(availableViews[0] || 'overview');
     }

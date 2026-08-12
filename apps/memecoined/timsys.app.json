@@ -5,6 +5,9 @@
   "kind": "supervised-child",
   "applicationRootEnvironment": "MEMECOINED_APP_ROOT",
   "workingDirectory": ".",
+  "environmentDefaults": {
+    "PAPER_DASHBOARD_PORT": "8080"
+  },
   "processes": {
     "worker": {
       "command": "node",

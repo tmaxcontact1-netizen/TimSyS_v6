@@ -32,7 +32,7 @@ tests/ helpers/ test-server.js Shared test infrastructure unit/ ... Unit tests (
 
 ### Infrastructure Pattern
 
-All integration tests MUST use tests/helpers/test-server.js. Do not write your own server setup code.
+All integration tests MUST use platform/tests/helpers/test-server.js. Do not write your own server setup code.
 
 javascript 'use strict'; const { createTestServer, adminLogin } = require('../../helpers/test-server');
 
@@ -149,11 +149,11 @@ These override production values and ensure safe test execution. Never set these
 
 ### Individual File
 
-bash npx jest tests/integration/http/feature_name.test.js --verbose
+bash npx jest platform/tests/integration/http/feature_name.test.js --verbose
 
 ### All HTTP Tests
 
-bash npx jest tests/integration/http/ --verbose
+bash npx jest platform/tests/integration/http/ --verbose
 
 ### Full Suite
 
@@ -161,7 +161,7 @@ bash npx jest --verbose
 
 ### Debug Mode
 
-bash npx jest tests/integration/http/feature_name.test.js --no-cache --verbose 2>&1 | head -50
+bash npx jest platform/tests/integration/http/feature_name.test.js --no-cache --verbose 2>&1 | head -50
 
 ### Parallel Execution
 
@@ -205,7 +205,7 @@ The path changes based on directory depth. The helper handles this correctly.
 
 ## Checklist For New Test Files
 
-1. File location: tests/integration/http/<feature>.test.js
+1. File location: platform/tests/integration/http/<feature>.test.js
 2. Requires createTestServer and adminLogin from helpers
 3. Single beforeAll with createTestServer using unique db suffix
 4. Single afterAll with server.cleanup()
@@ -213,6 +213,6 @@ The path changes based on directory depth. The helper handles this correctly.
 6. No hardcoded ports anywhere
 7. No shared database files
 8. Test names are descriptive
-9. Tests pass when run individually: npx jest tests/integration/http/<feature>.test.js
+9. Tests pass when run individually: npx jest platform/tests/integration/http/<feature>.test.js
 10. Tests pass when run as part of full suite: npx jest
 11. No console.log debug statements left in committed code

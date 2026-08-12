@@ -4,12 +4,13 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 
 const TERMINAL_STATES = new Set(['failed', 'stopped']);
+const ACTIVE_STATES = new Set(['starting', 'running', 'degraded']);
 
 function assertManifest(value, manifestPath) {
   if (!value || value.schemaVersion !== 1 || value.kind !== 'supervised-child') {
     throw new Error(`Unsupported supervised-app manifest: ${manifestPath}`);
   }
-  if (!value.id || !value.applicationRootEnvironment || !value.processes?.dashboard) {
+  if (!value.id || !value.applicationRootEnvironment || !value.processes || Object.keys(value.processes).length === 0) {
     throw new Error(`Incomplete supervised-app manifest: ${manifestPath}`);
   }
   return value;
@@ -30,8 +31,11 @@ class SupervisedAppManager extends EventEmitter {
     this.fetchHealth = options.fetchHealth || fetch;
     this.readManifest = options.readManifest || readFile;
     this.now = options.now || (() => new Date().toISOString());
-    this.healthIntervalMilliseconds = options.healthIntervalMilliseconds || 1000;
-    this.startTimeoutMilliseconds = options.startTimeoutMilliseconds || 30000;
+    this.healthIntervalMilliseconds = options.healthIntervalMilliseconds ?? 1000;
+    this.startTimeoutMilliseconds = options.startTimeoutMilliseconds ?? 30000;
+    this.runtimeHealthIntervalMilliseconds = options.runtimeHealthIntervalMilliseconds ?? 5000;
+    this.runtimeExecutable = options.runtimeExecutable || process.execPath;
+    this.runtimeEnvironment = options.runtimeEnvironment || {};
     this.applications = new Map();
   }
 
@@ -44,6 +48,7 @@ class SupervisedAppManager extends EventEmitter {
     const record = {
       id: manifest.id, manifest, applicationRoot, state: 'stopped', detail: null,
       processes: new Map(), startedAt: null, updatedAt: this.now(), stopPromise: null,
+      environment: null, healthTimer: null, healthFailures: 0,
     };
     this.applications.set(manifest.id, record);
     return this.snapshot(record);
@@ -54,14 +59,19 @@ class SupervisedAppManager extends EventEmitter {
     const record = this.applications.get(loaded.id);
     this.transition(record, 'starting');
     const environment = {
-      ...process.env, ...extraEnvironment,
+      ...record.manifest.environmentDefaults, ...process.env, ...extraEnvironment,
       [record.manifest.applicationRootEnvironment]: record.applicationRoot,
     };
+    record.environment = environment;
     const workingDirectory = path.resolve(record.applicationRoot, record.manifest.workingDirectory || '.');
     try {
       for (const [name, specification] of Object.entries(record.manifest.processes)) {
-        const child = this.spawnProcess(specification.command, specification.arguments || [], {
-          cwd: workingDirectory, env: environment, stdio: ['ignore', 'pipe', 'pipe'],
+        const command = specification.command === 'node' ? this.runtimeExecutable : specification.command;
+        const childEnvironment = specification.command === 'node'
+          ? { ...environment, ...this.runtimeEnvironment }
+          : environment;
+        const child = this.spawnProcess(command, specification.arguments || [], {
+          cwd: workingDirectory, env: childEnvironment, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
         });
         record.processes.set(name, child);
         this.observeChild(record, name, child);
@@ -69,6 +79,7 @@ class SupervisedAppManager extends EventEmitter {
       record.startedAt = this.now();
       await this.waitUntilHealthy(record, environment);
       this.transition(record, 'running');
+      this.beginRuntimeHealthMonitoring(record);
       return this.snapshot(record);
     } catch (error) {
       this.transition(record, 'failed', error.message);
@@ -79,7 +90,7 @@ class SupervisedAppManager extends EventEmitter {
   }
 
   async waitUntilHealthy(record, environment) {
-    const health = record.manifest.processes.dashboard.health;
+    const health = this.healthSpecification(record);
     if (!health) return;
     const url = interpolateEnvironment(health.url, environment);
     const deadline = Date.now() + this.startTimeoutMilliseconds;
@@ -103,14 +114,46 @@ class SupervisedAppManager extends EventEmitter {
       stream?.on?.('data', (chunk) => this.emit('log', { appId: record.id, process: name, level, message: String(chunk).trimEnd() }));
     }
     child.once('error', (error) => {
-      if (!['stopping', 'stopped'].includes(record.state)) this.transition(record, 'failed', `${name}: ${error.message}`);
+      if (ACTIVE_STATES.has(record.state)) {
+        this.clearRuntimeHealthMonitoring(record);
+        this.transition(record, 'failed', `${name}: ${error.message}`);
+        void this.stop(record.id).catch(() => {});
+      }
     });
     child.once('exit', (code, signal) => {
       record.processes.delete(name);
-      if (!['stopping', 'stopped', 'failed'].includes(record.state)) {
-        this.transition(record, 'degraded', `${name} exited (${signal || code})`);
+      if (ACTIVE_STATES.has(record.state)) {
+        this.clearRuntimeHealthMonitoring(record);
+        this.transition(record, 'failed', `${name} exited (${signal || code})`);
+        void this.stop(record.id).catch(() => {});
       }
     });
+  }
+
+  beginRuntimeHealthMonitoring(record) {
+    this.clearRuntimeHealthMonitoring(record);
+    const health = this.healthSpecification(record);
+    if (!health || this.runtimeHealthIntervalMilliseconds <= 0) return;
+    record.healthTimer = setInterval(async () => {
+      if (record.state !== 'running') return;
+      try {
+        const response = await this.fetchHealth(interpolateEnvironment(health.url, record.environment));
+        if (response.status !== health.expectedStatus) throw new Error(`health endpoint returned ${response.status}`);
+        record.healthFailures = 0;
+      } catch (error) {
+        record.healthFailures += 1;
+        if (record.healthFailures >= 3) {
+          this.transition(record, 'degraded', `Runtime health check failed: ${error.message}`);
+        }
+      }
+    }, this.runtimeHealthIntervalMilliseconds);
+    record.healthTimer.unref?.();
+  }
+
+  clearRuntimeHealthMonitoring(record) {
+    if (record.healthTimer) clearInterval(record.healthTimer);
+    record.healthTimer = null;
+    record.healthFailures = 0;
   }
 
   async stop(appId) {
@@ -122,6 +165,7 @@ class SupervisedAppManager extends EventEmitter {
   }
 
   async stopProcesses(record) {
+    this.clearRuntimeHealthMonitoring(record);
     const preserveFailure = record.state === 'failed';
     if (!preserveFailure) this.transition(record, 'stopping');
     const signal = record.manifest.shutdown?.signal || 'SIGTERM';
@@ -151,10 +195,11 @@ class SupervisedAppManager extends EventEmitter {
 
   status(appId) { return this.snapshot(this.requireRecord(appId)); }
 
-  dashboardUrl(appId, environment = process.env) {
-    const healthUrl = this.requireRecord(appId).manifest.processes.dashboard.health?.url;
+  dashboardUrl(appId, environment) {
+    const record = this.requireRecord(appId);
+    const healthUrl = this.healthSpecification(record)?.url;
     if (!healthUrl) throw new Error(`${appId} has no dashboard URL`);
-    const url = new URL(interpolateEnvironment(healthUrl, environment));
+    const url = new URL(interpolateEnvironment(healthUrl, environment || record.environment || process.env));
     url.pathname = '/'; url.search = ''; url.hash = '';
     return url.toString();
   }
@@ -163,6 +208,10 @@ class SupervisedAppManager extends EventEmitter {
     const record = this.applications.get(appId);
     if (!record) throw new Error(`Unknown supervised app: ${appId}`);
     return record;
+  }
+
+  healthSpecification(record) {
+    return Object.values(record.manifest.processes).find((process) => process.health)?.health || null;
   }
 
   transition(record, state, detail = null) {

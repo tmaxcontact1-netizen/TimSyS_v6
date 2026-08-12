@@ -1,21 +1,19 @@
 #!/usr/bin/env bash
 # TimSyS Application Spawner
 # Copies a clean TimSyS engine into a new application folder.
-# Usage: bash Tools/spawn_app.sh <NewAppName>
-# Example: bash Tools/spawn_app.sh ChurchOS
+# Usage: bash Tools/spawn_app.sh <NewAppName> [TargetDirectory]
 
 set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
-  echo "Usage: bash Tools/spawn_app.sh <NewAppName>"
-  echo "Example: bash Tools/spawn_app.sh ChurchOS"
+  echo "Usage: bash Tools/spawn_app.sh <NewAppName> [TargetDirectory]"
   exit 1
 fi
 
 APP_NAME="$1"
 APP_NAME_LOWER=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]_')
 SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET_ROOT="$HOME/$APP_NAME"
+TARGET_ROOT="${2:-$(cd "$SOURCE_ROOT/.." && pwd)/$APP_NAME}"
 
 echo "=== Spawning $APP_NAME from TimSyS ==="
 echo "Source: $SOURCE_ROOT"
@@ -40,9 +38,7 @@ rm -rf backups
 # 4. Fix architecture map script to auto-detect root
 sed -i 's|PROJECT_ROOT=".*"|PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." \&\& pwd)"|' Tools/update_architecture_map.sh
 
-# 5. Replace path references in docs
-sed -i "s|/home/[^ ]*/TimSyS_v6|$TARGET_ROOT|g" \
-  CONTEXT.md HANDOVER.md DECISIONS.md ARCHITECTURE_MAP.md 2>/dev/null || true
+# 5. Update product-name references in docs
 sed -i "s|TimSyS_v6|$APP_NAME|g" \
   CONTEXT.md HANDOVER.md DECISIONS.md 2>/dev/null || true
 

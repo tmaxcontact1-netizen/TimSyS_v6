@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 const SEX_OPTIONS = ['Male', 'Female'];
 const ENROLLMENT_STATUS = ['active', 'withdrawn', 'graduated', 'suspended'];
 
-function StudentsWidget({ students, onImport, onAdd, onEdit, onDelete }) {
+function StudentsWidget({ students, onImport, onAdd, onEdit, onWithdraw, onReinstate, onDelete }) {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -166,7 +166,7 @@ function StudentsWidget({ students, onImport, onAdd, onEdit, onDelete }) {
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
         <table className="w-full">
           <thead><tr className="border-b border-gray-800"><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">ID</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Name</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">DOB</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Sex</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Status</th><th className="text-right px-4 py-3 text-gray-400 text-sm font-medium">Actions</th></tr></thead>
-          <tbody>{filtered.map((r) => (<tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50"><td className="px-4 py-3 text-white text-sm">{r.student_id}</td><td className="px-4 py-3 text-white text-sm">{r.first_name} {r.last_name}</td><td className="px-4 py-3 text-gray-400 text-sm">{r.date_of_birth}</td><td className="px-4 py-3 text-gray-400 text-sm">{r.sex}</td><td className="px-4 py-3 text-gray-400 text-sm">{r.enrollment_status}</td><td className="px-4 py-3 text-right space-x-2"><button onClick={() => handleEditClick(r)} className="text-timsys-primary hover:text-white text-sm">Edit</button><button onClick={() => onDelete(r.id)} className="text-red-400 hover:text-red-300 text-sm">Delete</button></td></tr>))}{filtered.length === 0 && <tr><td colSpan="6" className="px-4 py-8 text-center text-gray-500">No students found.</td></tr>}</tbody>
+          <tbody>{filtered.map((r) => (<tr key={r.id} className="border-b border-gray-800 hover:bg-gray-800/50"><td className="px-4 py-3 text-white text-sm">{r.student_id}</td><td className="px-4 py-3 text-white text-sm">{r.first_name} {r.last_name}</td><td className="px-4 py-3 text-gray-400 text-sm">{r.date_of_birth}</td><td className="px-4 py-3 text-gray-400 text-sm">{r.sex}</td><td className="px-4 py-3 text-gray-400 text-sm">{r.enrollment_status}</td><td className="px-4 py-3 text-right space-x-2"><button onClick={() => handleEditClick(r)} className="text-timsys-primary hover:text-white text-sm">Edit</button>{r.enrollment_status === 'withdrawn' ? <><button onClick={() => onReinstate(r.id)} className="text-green-400 hover:text-green-300 text-sm">Reinstate</button><button onClick={() => onDelete(r.id)} className="text-red-400 hover:text-red-300 text-sm">Delete</button></> : <button onClick={() => onWithdraw(r.id)} className="text-amber-400 hover:text-amber-300 text-sm">Withdraw</button>}</td></tr>))}{filtered.length === 0 && <tr><td colSpan="6" className="px-4 py-8 text-center text-gray-500">No students found.</td></tr>}</tbody>
         </table>
       </div>
     </div>

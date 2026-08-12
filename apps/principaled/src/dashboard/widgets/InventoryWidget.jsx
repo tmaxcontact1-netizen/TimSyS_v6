@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function InventoryWidget({ inventory, onImport, onAdd, onEdit, onDelete }) {
+function InventoryWidget({ inventory, onImport, onAdd, onEdit, onWithdraw, onReinstate, onDelete }) {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -111,7 +111,7 @@ function InventoryWidget({ inventory, onImport, onAdd, onEdit, onDelete }) {
       <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
         <table className="w-full">
           <thead><tr className="border-b border-gray-800"><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Name</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Category</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Qty</th><th className="text-left px-4 py-3 text-gray-400 text-sm font-medium">Location</th><th className="text-right px-4 py-3 text-gray-400 text-sm font-medium">Actions</th></tr></thead>
-          <tbody>{filtered.map((i) => (<tr key={i.id} className="border-b border-gray-800 hover:bg-gray-800/50"><td className="px-4 py-3 text-white text-sm">{i.item_name}</td><td className="px-4 py-3 text-gray-400 text-sm">{i.category || '—'}</td><td className="px-4 py-3 text-gray-400 text-sm">{i.quantity || '0'}</td><td className="px-4 py-3 text-gray-400 text-sm">{i.location || '—'}</td><td className="px-4 py-3 text-right space-x-2"><button onClick={() => handleEditClick(i)} className="text-timsys-primary hover:text-white text-sm">Edit</button><button onClick={() => onDelete(i.id)} className="text-red-400 hover:text-red-300 text-sm">Delete</button></td></tr>))}{filtered.length === 0 && <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">No items found.</td></tr>}</tbody>
+          <tbody>{filtered.map((i) => (<tr key={i.id} className="border-b border-gray-800 hover:bg-gray-800/50"><td className="px-4 py-3 text-white text-sm">{i.item_name}</td><td className="px-4 py-3 text-gray-400 text-sm">{i.category || '—'}</td><td className="px-4 py-3 text-gray-400 text-sm">{i.quantity || '0'}</td><td className="px-4 py-3 text-gray-400 text-sm">{i.location || '—'}</td><td className="px-4 py-3 text-right space-x-2"><button onClick={() => handleEditClick(i)} className="text-timsys-primary hover:text-white text-sm">Edit</button>{i.status === 'retired' ? <><button onClick={() => onReinstate(i.id)} className="text-green-400 hover:text-green-300 text-sm">Reinstate</button><button onClick={() => onDelete(i.id)} className="text-red-400 hover:text-red-300 text-sm">Delete</button></> : <button onClick={() => onWithdraw(i.id)} className="text-amber-400 hover:text-amber-300 text-sm">Withdraw</button>}</td></tr>))}{filtered.length === 0 && <tr><td colSpan="5" className="px-4 py-8 text-center text-gray-500">No items found.</td></tr>}</tbody>
         </table>
       </div>
     </div>

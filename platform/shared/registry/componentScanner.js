@@ -5,6 +5,7 @@ const path = require('path');
 const componentRegistry = require('./componentRegistry');
 const moduleRegistry = require('./moduleRegistry');
 const log = require('../services/log');
+const intelligenceContribution = require('../contracts/intelligenceContribution');
 
 const MODULES_DIR = path.resolve(__dirname, '../../modules');
 
@@ -39,6 +40,11 @@ function scan() {
 
   moduleDirs.forEach(function(modDir) {
     const modName = path.basename(modDir);
+    const candidateManifest = path.join(modDir, 'module.json');
+    if (fs.existsSync(candidateManifest)) {
+      const candidate = JSON.parse(fs.readFileSync(candidateManifest, 'utf8'));
+      if (candidate.status === 'draft') return;
+    }
 
     // Look for explicit component.json
     const componentFile = path.join(modDir, 'component.json');
@@ -46,6 +52,19 @@ function scan() {
       try {
         const componentSpec = JSON.parse(fs.readFileSync(componentFile, 'utf8'));
         componentSpec.ownerModule = modName;
+        if (componentSpec.intelligence) {
+          intelligenceContribution.assertValid(componentSpec.intelligence, componentSpec.name);
+          intelligenceContribution.assertSchema(componentSpec.intelligence, componentSpec.name, require('../services/db'));
+        }
+        const manifestFile = path.join(modDir, 'module.json');
+        if (fs.existsSync(manifestFile)) {
+          const manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+          componentSpec.dependencies = componentSpec.dependencies || manifest.requires || [];
+          componentSpec.routes = componentSpec.routes || manifest.routes || null;
+          componentSpec.schema = componentSpec.schema || manifest.schema || null;
+          componentSpec.capabilities = componentSpec.capabilities || manifest.provides || null;
+          componentSpec.events = componentSpec.events || manifest.events || null;
+        }
 
         componentRegistry.register(componentSpec);
         componentsFound.push({
@@ -63,6 +82,7 @@ function scan() {
           module: modName,
           error: err.message
         });
+        throw err;
       }
       return;
     }

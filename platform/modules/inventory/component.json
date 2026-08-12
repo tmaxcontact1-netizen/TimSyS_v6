@@ -1,0 +1,7 @@
+{
+  "name": "inventory",
+  "type": "stuff",
+  "dependencies": [],
+  "capabilities": ["capability:inventory.read", "capability:inventory.write", "capability:inventory_item.read"],
+  "intelligence": {"version":1,"entities":[{"type":"inventory_item","source":{"table":"inventory_items","idField":"id"},"displayFields":["item_name","item_number"],"statusField":"status","events":[{"channel":"item.created","kind":"created"},{"channel":"item.updated","kind":"updated"},{"channel":"inventoryitem.withdrawn","kind":"withdrawn"},{"channel":"inventoryitem.reinstated","kind":"reinstated"},{"channel":"inventoryitem.deleted_permanently","kind":"deleted"}],"relationships":[{"field":"assigned_to_staff_id","type":"assigned_to","targetType":"staff"},{"field":"assigned_to_student_id","type":"assigned_to","targetType":"student"}],"dataQuality":[{"field":"item_name","expectation":"required"},{"field":"item_number","expectation":"required"},{"field":"quantity","expectation":"non_negative_number"}]},{"type":"inventory_checkout","source":{"table":"inventory_checkouts","idField":"id"},"displayFields":["purpose"],"relationships":[{"field":"item_id","type":"checkout_for","targetType":"inventory_item"},{"field":"checkout_staff_id","type":"checked_out_by","targetType":"staff"},{"field":"checkout_student_id","type":"checked_out_by","targetType":"student"}],"dataQuality":[{"field":"item_id","expectation":"required"},{"field":"checkout_date","expectation":"required"},{"field":"quantity","expectation":"positive_number"}]}]}
+}

@@ -1,5 +1,5 @@
 import React from 'react';
-import PrincipalEdDashboard from '../principaled/Index';
+import PrincipalEdDashboard from '../../../principaled/src/dashboard/Index';
 
 function PrincipalEdPage() {
   return <PrincipalEdDashboard />;

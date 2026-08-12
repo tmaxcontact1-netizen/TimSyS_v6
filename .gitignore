@@ -1,7 +1,15 @@
 node_modules/
+.npm-cache/
+**/dist/
+apps/launcher/runtime-stage/
+apps/launcher/dist-electron/
+apps/launcher/.cache/
 .env
 *.sqlite
 .vscode/
 data/*.sqlite
 data/*.sqlite-shm
 data/*.sqlite-wal
+**/test_*.sqlite
+**/test_*.sqlite-shm
+**/test_*.sqlite-wal

@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { open } from "node:fs/promises";
+import { lstat, open } from "node:fs/promises";
 import { isAbsolute } from "node:path";
 
 import { z } from "zod";
@@ -16,14 +16,19 @@ export class RestrictedWalletSecretFile implements WalletSecretSource {
   }
 
   public async loadKeypairBytes(): Promise<Readonly<Uint8Array>> {
+    const linkMetadata = await lstat(this.path);
+    if (linkMetadata.isSymbolicLink()) throw new Error("Wallet secret must not be a symbolic link");
     const handle = await open(this.path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const metadata = await handle.stat();
       if (!metadata.isFile()) throw new Error("Wallet secret must be a regular file");
-      if (metadata.uid !== process.getuid?.())
-        throw new Error("Wallet secret must be owned by the runtime user");
-      if ((metadata.mode & 0o077) !== 0)
-        throw new Error("Wallet secret permissions must exclude group and other access");
+      const runtimeUserId = process.getuid?.();
+      if (runtimeUserId !== undefined) {
+        if (metadata.uid !== runtimeUserId)
+          throw new Error("Wallet secret must be owned by the runtime user");
+        if ((metadata.mode & 0o077) !== 0)
+          throw new Error("Wallet secret permissions must exclude group and other access");
+      }
       if (metadata.size < 2 || metadata.size > MAXIMUM_SECRET_BYTES)
         throw new Error("Wallet secret file size is invalid");
       const contents = await handle.readFile({ encoding: "utf8" });

@@ -1,0 +1,7 @@
+{
+  "name": "room_manifest",
+  "type": "place",
+  "dependencies": [],
+  "capabilities": ["capability:room.read", "capability:room.write", "capability:room_availability.read"],
+  "intelligence": {"version":1,"entities":[{"type":"room","source":{"table":"rooms","idField":"id"},"displayFields":["room_number"],"statusField":"status","events":[{"channel":"room.created","kind":"created"},{"channel":"room.updated","kind":"updated"},{"channel":"room.withdrawn","kind":"withdrawn"},{"channel":"room.reinstated","kind":"reinstated"},{"channel":"room.deleted_permanently","kind":"deleted"}],"dataQuality":[{"field":"room_number","expectation":"required"},{"field":"capacity","expectation":"positive_number"}]},{"type":"room_booking","source":{"table":"room_bookings","idField":"id"},"displayFields":["title"],"statusField":"status","relationships":[{"field":"room_id","type":"booking_for","targetType":"room"},{"field":"booker_staff_id","type":"booked_by","targetType":"staff"},{"field":"booker_student_id","type":"booked_by","targetType":"student"}],"dataQuality":[{"field":"room_id","expectation":"required"},{"field":"title","expectation":"required"},{"field":"start_time","expectation":"required"},{"field":"end_time","expectation":"required"}]}]}
+}

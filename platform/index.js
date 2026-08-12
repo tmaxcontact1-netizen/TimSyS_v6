@@ -6,8 +6,11 @@ const CONFIG_FILE = path.join(__dirname, 'config', 'session-policy.json');
 // Bypass modes: TEST or DEV_MODE
 const IS_TEST = process.env.NODE_ENV === 'test' || process.argv.includes('jest') || process.argv.includes('coverage');
 const IS_DEV = process.env.DEV_MODE === '1' || process.env.DEV_MODE === 'true';
+const IS_DESKTOP = typeof process.env.TIMSYS_DESKTOP_TOKEN === 'string' && process.env.TIMSYS_DESKTOP_TOKEN.length >= 32;
 
-if (IS_DEV) {
+if (IS_DESKTOP) {
+  console.log('Desktop-managed mode active');
+} else if (IS_DEV) {
   console.log('⚠ DEV MODE active — skipping config check');
 } else if (!IS_TEST && !fs.existsSync(CONFIG_FILE)) {
   console.error('\n[ERROR] Initial setup not completed.');
@@ -58,10 +61,15 @@ const audit = require('./shared/services/audit');
 const decisionLog = require('./shared/services/decision_log');
 const eventStore = require('./shared/services/event_store');
 const sse = require('./shared/services/sse');
+const events = require('./shared/services/events');
+const worldModel = require('./shared/services/world_model');
+const worldBackfill = require('./shared/services/world_model/backfill');
+const intelligenceScheduler = require('./shared/services/intelligence/scheduler');
 
-var PORT = process.env.PORT !== undefined ? parseInt(process.env.PORT, 10) : 3000;
 var contextRegistry = {};
 var wiredModules = [];
+var persistPublishedEvent = function(channel, payload) { eventStore.persist(channel, payload); };
+var projectPublishedEvent = function(channel, payload) { worldModel.project(channel, payload); };
 
 var CORS_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(function(s) { return s.trim(); });
 var RATE_LIMIT_WINDOW = 60000;
@@ -84,6 +92,12 @@ async function bootPlatform() {
   await runMigrations();
   verifyTables();
   log.info('Migrations complete');
+
+  events.unsubscribeGlobal(persistPublishedEvent);
+  events.subscribeGlobal(persistPublishedEvent);
+  events.unsubscribeGlobal(projectPublishedEvent);
+  events.subscribeGlobal(projectPublishedEvent);
+  log.info('Durable domain event capture initialized');
 
   db.query('DELETE FROM module_registry');
   db.query('DELETE FROM route_registry');
@@ -136,13 +150,19 @@ async function bootPlatform() {
     throw new Error('Platform boot failed: ' + failedNames.join(', '));
   }
 
+  var backfillResult = worldBackfill.run();
+  log.info('World model backfill complete', backfillResult);
+  intelligenceScheduler.start();
+  log.info('Intelligence scheduler initialized');
+
   log.info('=== Platform Boot Complete ===');
 
   var server = createServer();
+  var port = process.env.PORT !== undefined ? parseInt(process.env.PORT, 10) : 3000;
 
   return new Promise(function(resolve, reject) {
-    server.listen(PORT, function() {
-      log.info('HTTP server listening on port ' + PORT);
+    server.listen(port, '127.0.0.1', function() {
+      log.info('HTTP server listening on port ' + port);
       var events = require('./shared/services/events');
       events.publish('platform.ready', { timestamp: Date.now() });
       resolve(server);
@@ -258,7 +278,9 @@ function authenticationMiddleware(req, res, route) {
   try {
     var token = authHeader.split(' ')[1];
     var payload = auth.verifyToken(token);
-    req.user = { id: payload.userId, permissions: payload.permissions || [], mustChangePassword: payload.mustChangePassword || false };
+    var permissions = payload.permissions || [];
+    var derivedRole = payload.role || (permissions.indexOf('admin:*') !== -1 ? 'developer' : 'viewer');
+    req.user = { id: payload.userId, permissions: permissions, role: derivedRole, mustChangePassword: payload.mustChangePassword || false };
     return true;
   } catch (err) {
     respond(res, 401, {
@@ -318,6 +340,9 @@ function shutdownPlatform(server) {
   return new Promise(function(resolve) {
     function cleanup() {
       sse.shutdown();
+      intelligenceScheduler.stop();
+      events.unsubscribeGlobal(persistPublishedEvent);
+      events.unsubscribeGlobal(projectPublishedEvent);
       var reversed = wiredModules.slice().reverse();
       for (var i = 0; i < reversed.length; i++) {
         try { unstage(reversed[i]); } catch (err) { log.error('Shutdown teardown failed: ' + reversed[i].manifest.name, { error: err.message }); }
@@ -328,16 +353,6 @@ function shutdownPlatform(server) {
       resolve();
     }
     if (server) { server.close(cleanup); } else { cleanup(); }
-  });
-}
-
-function handleIntelligenceSynthesize(req, res) {
-  var intelligence = require('./shared/services/intelligence');
-  intelligence.synthesize(req.query).then(function(result) {
-    respond(res, 200, result);
-  }).catch(function(err) {
-    log.error('Intelligence synthesize failed', { error: err.message });
-    respond(res, 500, { success: false, error: { code: 'INTERNAL_ERROR', message: err.message } });
   });
 }
 
@@ -374,19 +389,14 @@ function createServer() {
         }
       }
 
-      if (pathname === '/api/intelligence/synthesize' && method === 'GET') {
-        return handleIntelligenceSynthesize(req, res);
-
-      }
-
       // Health check endpoint
       if (pathname === '/health' && method === 'GET') {
         respond(res, 200, { status: 'healthy', timestamp: Date.now() });
         return;
       }
 
-      // Dev login endpoint
-      if (pathname === '/api/auth/dev-login' && method === 'POST') {
+      // Development-only login endpoint.
+      if (pathname === '/api/auth/dev-login' && method === 'POST' && (IS_DEV || IS_TEST)) {
         var jwtLib = require('jsonwebtoken');
         var devToken = jwtLib.sign({
           userId: 'a74855d7-9876-448e-9fb5-e9595beb843f',
@@ -403,6 +413,30 @@ function createServer() {
             email: 'admin@timsys.local',
             permissions: ['admin:users:read','admin:users:write','admin:*']
           }
+        });
+        return;
+      }
+
+      // The desktop launcher exchanges its process-private bootstrap token for a short-lived JWT.
+      if (pathname === '/api/auth/desktop-session' && method === 'POST') {
+        var suppliedDesktopToken = req.headers['x-timsys-desktop-token'];
+        var expectedDesktopToken = process.env.TIMSYS_DESKTOP_TOKEN;
+        var remoteAddress = req.socket.remoteAddress || '';
+        var isLoopback = remoteAddress === '127.0.0.1' || remoteAddress === '::1' || remoteAddress === '::ffff:127.0.0.1';
+        var tokenMatches = typeof suppliedDesktopToken === 'string' && typeof expectedDesktopToken === 'string' &&
+          suppliedDesktopToken.length === expectedDesktopToken.length &&
+          crypto.timingSafeEqual(Buffer.from(suppliedDesktopToken), Buffer.from(expectedDesktopToken));
+        if (!isLoopback || !tokenMatches) {
+          respond(res, 401, { success: false, error: { code: 'UNAUTHORIZED', message: 'Desktop authorization failed' } });
+          return;
+        }
+        var desktopJwt = require('jsonwebtoken').sign({
+          userId: 'local-desktop-owner', permissions: ['admin:*'],
+          sessionId: 'desktop-' + crypto.randomUUID(), mustChangePassword: false
+        }, process.env.JWT_SECRET, { expiresIn: '24h' });
+        respond(res, 200, {
+          success: true, token: desktopJwt,
+          user: { id: 'local-desktop-owner', username: 'local-owner', email: '', permissions: ['admin:*'] }
         });
         return;
       }
@@ -432,6 +466,21 @@ function createServer() {
       }
 
       if (!route) {
+        if (method === 'GET' && process.env.TIMSYS_LAUNCHER_DIST) {
+          var staticRoot = path.resolve(process.env.TIMSYS_LAUNCHER_DIST);
+          var requestedAsset = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+          var staticFile = path.resolve(staticRoot, requestedAsset);
+          if (staticFile.startsWith(staticRoot + path.sep) && fs.existsSync(staticFile) && fs.statSync(staticFile).isFile()) {
+            var extension = path.extname(staticFile).toLowerCase();
+            var contentTypes = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon' };
+            res.writeHead(200, {
+              'Content-Type': contentTypes[extension] || 'application/octet-stream',
+              'Cache-Control': extension === '.html' ? 'no-cache' : 'public, max-age=31536000, immutable'
+            });
+            fs.createReadStream(staticFile).pipe(res);
+            return;
+          }
+        }
         respond(res, 404, {
           success: false,
           error: { code: 'NOT_FOUND', message: 'Route not found: ' + method + ' ' + pathname },

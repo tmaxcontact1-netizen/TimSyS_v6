@@ -5,28 +5,22 @@ import apiClient from '../api/base';
 function ModulePortalPage() {
   const navigate = useNavigate();
   const [modules, setModules] = useState([]);
-  const [apps, setApps] = useState([]);
-  const [selectedApp, setSelectedApp] = useState('');
+  const [components, setComponents] = useState([]);
+  const [selectedApp] = useState('principal-ed');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedModule, setExpandedModule] = useState(null);
 
   useEffect(() => {
-    apiClient.get('/apps').then(response => {
-      const appsList = response.data?.data || [];
-      setApps(appsList);
-      if (appsList.length > 0) {
-        setSelectedApp(appsList[0].app_id);
-      }
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
     if (!selectedApp) return;
     setLoading(true);
-    apiClient.get('/modules/list-for-app', { params: { appId: selectedApp } })
-      .then(response => {
-        setModules(response.data?.data || []);
+    Promise.all([
+      apiClient.get('/modules/list-for-app', { params: { appId: selectedApp } }),
+      apiClient.get('/components/list-for-app', { params: { appId: selectedApp } }),
+    ])
+      .then(([moduleResponse, componentResponse]) => {
+        setModules(moduleResponse.data?.data || []);
+        setComponents(componentResponse.data?.data || []);
         setError(null);
       })
       .catch(err => setError(err.message))
@@ -47,11 +41,20 @@ function ModulePortalPage() {
     }
   };
 
+  const toggleComponent = async (componentName, currentEnabled) => {
+    try {
+      if (currentEnabled) await apiClient.delete('/components/unassign', { params: { appId: selectedApp, componentName } });
+      else await apiClient.post('/components/assign', { appId: selectedApp, componentName });
+      const response = await apiClient.get('/components/list-for-app', { params: { appId: selectedApp } });
+      setComponents(response.data?.data || []);
+    } catch (err) { setError(err.response?.data?.error?.message || err.message); }
+  };
+
   const toggleExpand = (moduleName) => {
     setExpandedModule(expandedModule === moduleName ? null : moduleName);
   };
 
-  const selectedAppName = apps.find(a => a.app_id === selectedApp)?.display_name || selectedApp;
+  const selectedAppName = "Principal'Ed";
 
   if (loading) {
     return (
@@ -69,15 +72,7 @@ function ModulePortalPage() {
             <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white text-sm">← Back</button>
             <h1 className="text-2xl font-bold text-timsys-primary">Module Portal</h1>
           </div>
-          <select
-            value={selectedApp}
-            onChange={(e) => setSelectedApp(e.target.value)}
-            className="bg-gray-800 border border-gray-700 text-white rounded px-3 py-1 text-sm focus:outline-none focus:border-timsys-primary"
-          >
-            {apps.map(app => (
-              <option key={app.app_id} value={app.app_id}>{app.display_name}</option>
-            ))}
-          </select>
+          <span className="text-sm text-gray-300">{selectedAppName}</span>
         </div>
       </nav>
 
@@ -87,6 +82,22 @@ function ModulePortalPage() {
         {error && (
           <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-6">{error}</div>
         )}
+
+        <section className="mb-8">
+          <h2 className="text-xl font-bold text-white mb-2">Components</h2>
+          <p className="text-gray-400 mb-4">{components.length} registered components</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {components.map((component) => (
+              <div key={component.name} className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between gap-4">
+                <div className="min-w-0"><h3 className="text-white font-semibold truncate">{component.name}</h3><p className="text-xs text-gray-500">{component.type} · {component.ownerModule || 'platform'}</p></div>
+                <button onClick={() => toggleComponent(component.name, component.enabled)} className={`px-3 py-1 rounded text-xs ${component.enabled ? 'bg-green-900/50 text-green-300' : 'bg-gray-800 text-gray-400'}`}>{component.enabled ? 'Included' : 'Add'}</button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <h2 className="text-xl font-bold text-white mb-2">Modules</h2>
+        <p className="text-gray-400 mb-4">{modules.length} registered modules</p>
 
         <div className="space-y-2 pb-8">
           {modules.map((module) => (

@@ -24,6 +24,7 @@
     }
   ],
   "schema": {},
+  "intelligence": {"version":1,"entities":[{"type":"student_profile","source":{"table":"student_profile_extended","idField":"student_id"},"displayFields":[],"relationships":[{"field":"student_id","type":"profile_for","targetType":"student"}],"dataQuality":[{"field":"student_id","expectation":"required"}]}]},
   "events": {
     "publishes": [],
     "subscribes": []

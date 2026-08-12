@@ -1,13 +1,17 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const configDirectory = path.dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = path.resolve(configDirectory, '../..');
 
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
     fs: {
-      allow: ['/home/tmax/TimSyS_v6']
+      allow: [repositoryRoot]
     },
     watch: {
       ignored: [
@@ -30,8 +34,13 @@ export default defineConfig({
     },
   },
   resolve: {
+    // Principal'Ed is compiled from a sibling package. Force both applications to
+    // share the launcher's React runtime; two React copies break hooks at runtime.
+    dedupe: ['react', 'react-dom'],
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(configDirectory, './src'),
+      react: path.resolve(configDirectory, 'node_modules/react'),
+      'react-dom': path.resolve(configDirectory, 'node_modules/react-dom'),
     },
   },
   build: {

@@ -3,14 +3,14 @@
 # Scans actual disk state, catalogs everything found.
 # Comparison against expected layout goes in "Drift Detection" only.
 #
-# To run bash /home/tmax/TimSyS_v6/platform/Tools/update_architecture_map.sh
+# Run from any directory: python platform/Tools/update_architecture_map.py
 
 import os
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, UTC
 
-ROOT = '/home/tmax/TimSyS_v6'
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 PLATFORM = ROOT + '/platform'
 OUTPUT = ROOT + '/ARCHITECTURE_MAP.md'
 
@@ -67,18 +67,18 @@ def md_table_row(cells):
 
 out = []
 out.append('# TimSyS Architecture Map')
-out.append('Generated: ' + datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'))
+out.append('Generated: ' + datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'))
 out.append('Generator: platform/Tools/update_architecture_map.py (Discovery-Based)')
 out.append('')
 out.append('This document is auto-generated. Do not edit manually.')
-out.append('# To run bash /home/tmax/TimSyS_v6/platform/Tools/update_architecture_map.sh')
+out.append('# Run from any directory: python platform/Tools/update_architecture_map.py')
 out.append('')
 out.append('---')
 out.append('')
 out.append('## Project Root')
 out.append('')
-out.append('Path: `' + ROOT + '`')
-out.append('Platform Location: `' + PLATFORM + '`')
+out.append('Path: repository root')
+out.append('Platform Location: `platform/`')
 out.append('')
 
 # Root Documents
@@ -287,7 +287,7 @@ else:
     out.append('')
 
 # Tests
-test_base = ROOT + '/tests'
+test_base = PLATFORM + '/tests'
 out.append('## Phase 7: Testing Layer')
 out.append('')
 if os.path.isdir(test_base):
@@ -448,7 +448,7 @@ out.append('')
 out.append('---')
 out.append('End of Architecture Map.')
 
-with open(OUTPUT, 'w') as f:
+with open(OUTPUT, 'w', encoding='utf-8', newline='\n') as f:
     f.write('\n'.join(out))
 
 print('Architecture map written to: ' + OUTPUT)

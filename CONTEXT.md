@@ -27,13 +27,13 @@
 | `system_health` | standard | ❌ | 0 | Operational |
 | `user_management` | standard | ❌ | 3 | Operational |
 
-### Applications (3 scaffolded)
+### Applications (3 active)
 
 | Application | Status |
 |-------------|--------|
-| `competeed` | ✅ Ready |
-| `principaled` | ✅ Ready |
-| `sanctifyed` | ✅ Ready |
+| `launcher` | Active desktop shell |
+| `principaled` | Active school administration frontend |
+| `memecoined` | Active trading application under development |
 
 ---
 
@@ -114,19 +114,19 @@ Store these hashes. Verify after any change. Any mismatch indicates tampering or
 bash
 Start platform
 
-cd ~/TimSyS_v6/platform && node index.js
+cd platform && node index.js
 Run tests
 
-cd ~/TimSyS_v6/platform && npx jest --verbose
+cd platform && npx jest --verbose
 Run all smoke tests
 
-bash tests/intelligence.smoke.sh bash tests/student.endpoint_smoke.sh bash tests/staff.endpoint_smoke.sh bash tests/room.endpoint_smoke.sh bash tests/inventory.endpoint_smoke.sh bash tests/profile.endpoint_smoke.sh
+bash platform/tests/intelligence.smoke.sh bash platform/tests/student.endpoint_smoke.sh bash platform/tests/staff.endpoint_smoke.sh bash platform/tests/room.endpoint_smoke.sh bash platform/tests/inventory.endpoint_smoke.sh bash platform/tests/profile.endpoint_smoke.sh
 Regenerate architecture map
 
-bash ~/TimSyS_v6/platform/Tools/update_architecture_map.sh
+bash platform/Tools/update_architecture_map.sh
 Fresh database
 
-rm -rf ~/TimSyS_v6/platform/data/ && mkdir -p ~/TimSyS_v6/platform/data && chmod 755 ~/TimSyS_v6/platform/data bash ~/TimSyS_v6/platform/scripts/cli/migrate.js run
+rm -rf platform/data/ && mkdir -p platform/data && chmod 755 platform/data bash platform/scripts/cli/migrate.js run
 
 ---
 
@@ -148,9 +148,10 @@ rm -rf ~/TimSyS_v6/platform/data/ && mkdir -p ~/TimSyS_v6/platform/data && chmod
 **Solution:** Per-suite DB isolation, dynamic port allocation.  
 **Prevention:** Design tests independently, avoid mutable global state.
 
-### Intelligence Service Placeholder
-**Problem:** Initial intelligence service had placeholder methods returning sample data.  
-**Lesson:** Structure early, implement business logic when consuming modules exist.
+### Intelligence Service Consolidation
+**Problem:** The initial generic synthesis service and later provider engine created two competing definitions of an insight.
+**Solution:** Retire generic synthesis and use the canonical provider, product, evidence, action, decision and outcome lifecycle.
+**Prevention:** New intelligence enters through governed providers and component intelligence contracts only.
 
 ### Metadata Storage Silent Failures
 **Problem:** Fire-and-forget `storeMetadata()` calls swallowed errors.  

@@ -1,0 +1,8 @@
+'use strict';
+var db=require('../db');var events=require('../events');var runner=require('./providerRunner');var timer=null;var pending=new Map();var running=new Set();
+async function execute(providerId,scope){if(running.has(providerId))return;running.add(providerId);try{await runner.run(providerId,{scope:scope||{type:'organisation',id:'current'}});db.query("UPDATE provider_schedules SET last_run_at=?,last_status='completed',last_error=NULL,next_run_at=? WHERE provider_id=?",[Date.now(),Date.now()+(db.scalar('SELECT interval_ms FROM provider_schedules WHERE provider_id=?',[providerId])||86400000),providerId]);}catch(error){db.query("UPDATE provider_schedules SET last_run_at=?,last_status='failed',last_error=?,next_run_at=? WHERE provider_id=?",[Date.now(),error.message,Date.now()+3600000,providerId]);}finally{running.delete(providerId);}}
+function tick(){var now=Date.now();db.query('SELECT * FROM provider_schedules WHERE enabled=1 AND next_run_at<=?',[now]).rows.forEach(function(s){execute(s.provider_id,{type:s.scope_type,id:s.scope_id});});}
+function onEvent(channel){var triggers=db.query('SELECT * FROM provider_event_triggers WHERE channel=? AND enabled=1',[channel]).rows;triggers.forEach(function(t){if(pending.has(t.provider_id))clearTimeout(pending.get(t.provider_id));pending.set(t.provider_id,setTimeout(function(){pending.delete(t.provider_id);execute(t.provider_id);},t.debounce_ms));});}
+function start(){if(timer)return;events.subscribeGlobal(onEvent);timer=setInterval(tick,60000);if(timer.unref)timer.unref();tick();}
+function stop(){if(timer){clearInterval(timer);timer=null;}events.unsubscribeGlobal(onEvent);pending.forEach(clearTimeout);pending.clear();}
+module.exports={start:start,stop:stop,tick:tick,onEvent:onEvent,execute:execute};

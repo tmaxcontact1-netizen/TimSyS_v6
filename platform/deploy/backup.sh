@@ -40,11 +40,11 @@ echo "$(date -Iseconds) - Backup created: $BACKUP_FILE ($(du -h "$BACKUP_FILE" |
 echo "Cleaning up backups older than $RETENTION days..."
 find "$BACKUP_DIR" -name "*.sqlite" -mtime "+$RETENTION" -delete
 
-# Cloud sync if applicable
+# This script creates local backups only. Cloud transfer is deliberately outside
+# the current personal-use Windows deployment scope.
 if [ "$IS_CLOUD" = "true" ]; then
-  echo "Syncing to cloud provider: $PROVIDER"
-  # TODO: Implement based on provider (aws s3 cp, rclone, etc.)
-  echo "WARNING: Cloud sync not implemented. Configure for $PROVIDER."
+  echo "ERROR: Cloud backup is not supported by this local backup script (requested provider: $PROVIDER)."
+  exit 2
 fi
 
 echo "=== Backup Complete ==="

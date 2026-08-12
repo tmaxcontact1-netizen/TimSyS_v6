@@ -106,44 +106,17 @@ async function getProfile(req, ctx) {
       ctx.log.warn('Failed to fetch metadata', { error: e.message });
     }
 
-    // Fetch general insights (auto-generated)
+    // All profile insights come from the canonical insight product store.
     try {
-      var generalInsights = await ctx.intelligence.getInsights('student', studentEntityId, 'general');
-      profile.insights = generalInsights.map(function(insight) {
-        return { ...insight, type: 'general', status: 'active' };
+      var products = ctx.intelligence.listProducts('student', studentEntityId);
+      profile.insights = products.filter(function(insight) {
+        return insight.provider_id !== 'core.student-profile';
+      });
+      profile.deep_insights = products.filter(function(insight) {
+        return insight.provider_id === 'core.student-profile';
       });
     } catch (e) {
-      ctx.log.warn('Failed to fetch general insights', { error: e.message });
-    }
-
-    // Fetch deep insights (user-generated) with visibility filtering
-    try {
-      var deepInsights = db.query(
-        "SELECT * FROM intelligence_insights WHERE scope_type = 'student' AND scope_id = ? AND insight_level = 'deep'",
-        [studentEntityId]
-      );
-      profile.deep_insights = deepInsights.rows.map(row => ({
-        id: row.id,
-        scopeType: row.scope_type,
-        scopeId: row.scope_id,
-        insightType: row.insight_type,
-        level: row.insight_level,
-        summary: row.summary,
-        metricsData: typeof row.metrics_data === 'string' ? JSON.parse(row.metrics_data) : row.metrics_data,
-        trendsData: typeof row.trends_data === 'string' ? JSON.parse(row.trends_data) : row.trends_data,
-        alerts: typeof row.alerts === 'string' ? JSON.parse(row.alerts) : row.alerts,
-        generatedAt: row.generated_at,
-        expiresAt: row.expires_at,
-        status: row.status,
-        acknowledgedBy: row.acknowledged_by,
-        acknowledgedAt: row.acknowledged_at,
-        dismissedBy: row.dismissed_by,
-        dismissedAt: row.dismissed_at,
-        generatedForRole: row.generated_for_role,
-        viewCount: row.view_count
-      }));
-    } catch (e) {
-      ctx.log.warn('Failed to fetch deep insights', { error: e.message });
+      ctx.log.warn('Failed to fetch insight products', { error: e.message });
     }
   }
 
@@ -295,28 +268,18 @@ async function generateDeepInsight(req, ctx) {
   }
 
   // Store insight
-  var insightId = await ctx.intelligence.storeInsight(
-    'student',
-    entityId,
-    'deep',
-    summary,
-    insightBody,
-    [],
-    alerts,
-    null
-  );
-
-  // Update with level and metadata
-  db.query(
-    "UPDATE intelligence_insights SET insight_level = 'deep', generated_for_role = ? WHERE id = ?",
-    [requesterRole, insightId]
-  );
-
-  // Log generation
-  db.query(
-    "INSERT INTO insight_visibility_log (insight_id, viewer_role, viewer_id, action, entity_type, entity_id) VALUES (?, ?, ?, 'generated', ?, ?)",
-    [insightId, requesterRole, requesterId, 'student', entityId]
-  );
+  var evidence = [{ source: 'student_registry', entityType: 'student', entityId: entityId, snapshot: insightBody }];
+  var insightId = ctx.intelligence.createProduct({
+    type: alerts.length ? 'alert' : 'observation',
+    scope: { type: 'student', id: entityId },
+    title: 'Student profile analysis', summary: summary,
+    explanation: 'Generated from the current registry record, metadata, decisions and events.',
+    evidence: evidence, possibleActions: [], confidence: 0.7,
+    uncertainty: 'Confidence depends on the completeness and recency of the profile data.',
+    severity: alerts.length ? 'warning' : 'information', audience: [requesterRole],
+    providerId: 'core.student-profile', providerVersion: '1.0.0'
+  });
+  ctx.intelligence.actOnProduct(insightId, 'presented', requesterId, { metadata: { role: requesterRole } });
 
   if (ctx.audit) {
     ctx.audit.action('student.insight.generate', req.user.id, {
@@ -330,66 +293,11 @@ async function generateDeepInsight(req, ctx) {
   return { success: true, insightId: insightId };
 }
 
-async function acknowledgeInsight(req, ctx) {
-  var insightId = req.params.insightId;
-  var userId = req.user?.id || 'unknown';
-  var userRole = req.user?.role || 'viewer';
-
-  var existing = db.query('SELECT * FROM intelligence_insights WHERE id = ?', [insightId]);
-  if (existing.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Insight not found' } };
-  }
-
-  db.query(
-    "UPDATE intelligence_insights SET status = 'acknowledged', acknowledged_by = ?, acknowledged_at = strftime('%s', 'now') * 1000, updated_at = datetime('now') WHERE id = ?",
-    [userId, insightId]
-  );
-
-  db.query(
-    "INSERT INTO insight_visibility_log (insight_id, viewer_role, viewer_id, action, entity_type, entity_id) VALUES (?, ?, ?, 'acknowledged', ?, ?)",
-    [insightId, userRole, userId, existing.rows[0].entity_type, existing.rows[0].entity_id]
-  );
-
-  if (ctx.audit) {
-    ctx.audit.action('insight.acknowledge', userId, {
-      entityType: 'insight',
-      entityId: insightId
-    });
-  }
-
-  return { success: true };
-}
-
-async function dismissInsight(req, ctx) {
-  var insightId = req.params.insightId;
-  var userId = req.user?.id || 'unknown';
-  var userRole = req.user?.role || 'viewer';
-
-  var existing = db.query('SELECT * FROM intelligence_insights WHERE id = ?', [insightId]);
-  if (existing.rows.length === 0) {
-    return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Insight not found' } };
-  }
-
-  db.query(
-    "UPDATE intelligence_insights SET status = 'dismissed', dismissed_by = ?, dismissed_at = strftime('%s', 'now') * 1000, updated_at = datetime('now') WHERE id = ?",
-    [userId, insightId]
-  );
-
-  db.query(
-    "INSERT INTO insight_visibility_log (insight_id, viewer_role, viewer_id, action, entity_type, entity_id) VALUES (?, ?, ?, 'dismissed', ?, ?)",
-    [insightId, userRole, userId, existing.rows[0].entity_type, existing.rows[0].entity_id]
-  );
-
-  return { success: true };
-}
-
 module.exports = {
   boot: boot,
   teardown: teardown,
   listProfiles: listProfiles,
   getProfile: getProfile,
   updateExtendedProfile: updateExtendedProfile,
-  generateDeepInsight: generateDeepInsight,
-  acknowledgeInsight: acknowledgeInsight,
-  dismissInsight: dismissInsight
+  generateDeepInsight: generateDeepInsight
 };

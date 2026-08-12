@@ -1,6 +1,7 @@
 'use strict';
 
 var db = require('../db');
+var crypto = require('crypto');
 
 function _extractFromChannel(channel) {
   var parts = channel.split('.');
@@ -32,8 +33,11 @@ function _extractEntityId(payload) {
 function _formatRow(row) {
   return {
     id: row.id,
+    eventId: row.event_id,
     channel: row.channel,
     payload: typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload,
+    occurredAt: row.occurred_at || row.published_at,
+    recordedAt: row.recorded_at || row.published_at,
     publishedAt: row.published_at,
     entityType: row.entity_type,
     entityId: row.entity_id,
@@ -43,7 +47,10 @@ function _formatRow(row) {
 
 class EventStoreImpl {
   persist(channel, payload) {
-    var publishedAt = Date.now();
+    if (!channel || channel.indexOf('__reply:') === 0) return null;
+    var recordedAt = Date.now();
+    var occurredAt = payload && Number.isFinite(Number(payload.occurredAt)) ? Number(payload.occurredAt) : recordedAt;
+    var eventId = payload && payload.eventId ? String(payload.eventId) : crypto.randomUUID();
     var payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload || {});
 
     var entityType = null;
@@ -61,8 +68,8 @@ class EventStoreImpl {
     entityId = _extractEntityId(payload);
 
     var result = db.query(
-      'INSERT INTO event_store (channel, payload, published_at, entity_type, entity_id, module) VALUES (?, ?, ?, ?, ?, ?)',
-      [channel, payloadStr, publishedAt, entityType, entityId, moduleName]
+      'INSERT INTO event_store (event_id, channel, payload, occurred_at, recorded_at, published_at, entity_type, entity_id, module, actor_id, source, schema_version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [eventId, channel, payloadStr, occurredAt, recordedAt, recordedAt, entityType, entityId, moduleName, payload && payload.actorId || null, payload && payload.source || moduleName, payload && payload.schemaVersion || 1]
     );
 
     return (result && result.lastInsertRowid) ? result.lastInsertRowid : null;

@@ -62,7 +62,7 @@ async function createStaff(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var staff = ctx.db.query('SELECT * FROM staff WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('staff.created', { staffId: insertedId, staffIdText: b.staff_id, entityType: 'staff', entityId: insertedId, __module: 'staff_registry' });
+  ctx.events.publish('staff.created', { staffId: insertedId, staffIdText: b.staff_id, entityType: 'staff', entityId: insertedId, record: staff.rows[0], actorId: req.user.id, __module: 'staff_registry' });
   if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('staff', insertedId.toString(), staff.rows[0]); } catch (e) {} }
   if (ctx.audit) { ctx.audit.action('staff.create', req.user.id, { entityType: 'staff', entityId: insertedId, newValue: staff.rows[0] }); }
 
@@ -113,7 +113,7 @@ async function updateStaff(req, ctx) {
   ctx.db.query('UPDATE staff SET ' + updates.join(', ') + ' WHERE id = ?', params);
   var updated = ctx.db.query('SELECT * FROM staff WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('staff.updated', { staffId: existing.rows[0].id, entityType: 'staff', entityId: existing.rows[0].id, __module: 'staff_registry' });
+  ctx.events.publish('staff.updated', { staffId: existing.rows[0].id, entityType: 'staff', entityId: existing.rows[0].id, record: updated.rows[0], actorId: req.user.id, __module: 'staff_registry' });
   if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('staff', existing.rows[0].id.toString(), updated.rows[0]); } catch (e) {} }
   if (ctx.audit) { ctx.audit.action('staff.update', req.user.id, { entityType: 'staff', entityId: existing.rows[0].id, oldValue: existing.rows[0], newValue: updated.rows[0] }); }
 

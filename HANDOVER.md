@@ -102,7 +102,7 @@ Middleware stack in `/platform/index.js`:
 
 ### Phase 7: Testing (COMPLETE)
 
-Test suite structure in `/tests/`:
+Test suite structure in `/platform/tests/`:
 
 | Category | Files | Status |
 |----------|-------|--------|
@@ -200,15 +200,15 @@ All three exist and are functional.
 
 ---
 
-## Applications (3 scaffolded)
+## Applications (3 active)
 
 | Application | Status |
 |-------------|--------|
-| `competeed` | ✅ Ready |
-| `principaled` | ✅ Ready |
-| `sanctifyed` | ✅ Ready |
+| `launcher` | Active desktop shell |
+| `principaled` | Active school administration frontend |
+| `memecoined` | Active trading application under development |
 
-Each has `package.json`, `public/`, and `src/` directories.
+The launcher and Principal'Ed are Vite/React applications. Memecoined contains its TypeScript services and browser frontend.
 
 ---
 
@@ -225,7 +225,7 @@ Each has `package.json`, `public/`, and `src/` directories.
 4. **Component.json `"type"` field missing** — `builder`, `system_health`, `user_management` lack component manifests. Either add `component.json` or keep as standard modules.
 5. **Refresh tokens** — JWT TTL 24h, no rotation mechanism. Policy needed.
 6. **Default admin password** — `changeme123` must be changed for production.
-7. **Drift detection false positive** — `/platform/tests/` flagged missing, but tests live at root level (`/tests/`). Update script.
+7. **Drift detection false positive** — Architecture-map test discovery now targets `/platform/tests/`.
 
 ### Deferred
 
@@ -265,22 +265,22 @@ Verify: `sha256sum CONSTITUTION_V6.0.md LEXICON_V6.0.0.md`
 bash
 Start platform
 
-cd ~/TimSyS_v6/platform && node index.js
+cd platform && node index.js
 Run tests
 
-cd ~/TimSyS_v6/platform && npx jest --verbose
+cd platform && npx jest --verbose
 Run smoke tests
 
-cd ~/TimSyS_v6 && bash tests/intelligence.smoke.sh bash tests/student.endpoint_smoke.sh bash tests/staff.endpoint_smoke.sh bash tests/room.endpoint_smoke.sh bash tests/inventory.endpoint_smoke.sh bash tests/profile.endpoint_smoke.sh
+bash platform/tests/intelligence.smoke.sh bash platform/tests/student.endpoint_smoke.sh bash platform/tests/staff.endpoint_smoke.sh bash platform/tests/room.endpoint_smoke.sh bash platform/tests/inventory.endpoint_smoke.sh bash platform/tests/profile.endpoint_smoke.sh
 Regenerate architecture map
 
-bash ~/TimSyS_v6/platform/Tools/update_architecture_map.sh
+bash platform/Tools/update_architecture_map.sh
 Fresh database
 
-rm -rf ~/TimSyS_v6/platform/data/ && mkdir -p ~/TimSyS_v6/platform/data && chmod 755 ~/TimSyS_v6/platform/data
+rm -rf platform/data/ && mkdir -p platform/data && chmod 755 platform/data
 Run migrations manually
 
-bash ~/TimSyS_v6/platform/scripts/cli/migrate.js run
+bash platform/scripts/cli/migrate.js run
 
 ---
 

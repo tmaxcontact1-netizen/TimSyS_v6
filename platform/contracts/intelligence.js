@@ -34,7 +34,7 @@ class IntelligenceService {
    * @param {string[]} metrics - Metrics to synthesize
    * @returns {Promise<{summary: string, metrics: object, trends: object[], alerts: string[]}>}
    */
-  async synthesize(scope, scopeId, metrics) {}
+  createProduct(product) {}
 
   /**
    * Retrieves stored insights for a scope.
@@ -42,7 +42,11 @@ class IntelligenceService {
    * @param {string} entityId
    * @returns {Promise<object[]>}
    */
-  async getInsights(entityType, entityId) {}
+  listProducts(scopeType, scopeId) {}
+
+  actOnProduct(id, action, actorId, options) {}
+
+  runProvider(providerId, options) {}
 
   /**
    * Evaluates logic rules against provided data.

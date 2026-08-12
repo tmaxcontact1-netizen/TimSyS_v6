@@ -1,4 +1,4 @@
--- Path: /home/tmax/TimSyS_v6/platform/modules/room_registry/migrations/001_rooms.sql
+-- Room registry schema migration.
 -- Migration: room_registry_001_rooms
 -- Purpose: Rooms and bookings tracking
 

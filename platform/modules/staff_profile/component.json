@@ -24,6 +24,7 @@
     }
   ],
   "schema": {},
+  "intelligence": {"version":1,"entities":[{"type":"staff_profile","source":{"table":"staff_profile_extended","idField":"staff_id"},"displayFields":[],"relationships":[{"field":"staff_id","type":"profile_for","targetType":"staff"}],"dataQuality":[{"field":"staff_id","expectation":"required"}]}]},
   "events": {
     "publishes": [],
     "subscribes": []

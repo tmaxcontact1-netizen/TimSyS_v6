@@ -30,6 +30,35 @@ body {
   animation: fadeIn 0.3s ease-in;
 }
 
+.intelligence-workspace { max-width: 1180px; margin: 0 auto; padding-bottom: 4rem; }
+.workspace-hero { display:flex; justify-content:space-between; gap:2rem; align-items:center; padding:2rem; border:1px solid #334155; border-radius:20px; background:linear-gradient(135deg,#172554 0%,#1e1b4b 55%,#0f172a 100%); box-shadow:0 18px 50px rgba(0,0,0,.25); }
+.workspace-hero h1 { margin:.25rem 0 .5rem; font-size:2.15rem; line-height:1.1; }
+.workspace-hero p { color:#cbd5e1; max-width:720px; margin:0; line-height:1.55; }
+.workspace-hero button,.insight-actions button,.action-list button { border:0; border-radius:9px; padding:.7rem 1rem; background:#6d4aff; color:white; cursor:pointer; font-weight:650; }
+.workspace-hero button { white-space:nowrap; padding:.85rem 1.15rem; }
+.workspace-hero button:disabled,.insight-actions button:disabled { opacity:.55; cursor:wait; }
+.eyebrow { color:#c4b5fd; text-transform:uppercase; letter-spacing:.11em; font-size:.72rem; font-weight:750; }
+.workspace-error { margin-top:1rem; padding:1rem; background:#451a1a; border:1px solid #b91c1c; border-radius:10px; color:#fecaca; }
+.balance-strip { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin:1.25rem 0 2rem; }
+.balance-strip div { background:#111827; border:1px solid #273449; border-radius:14px; padding:1rem 1.15rem; display:flex; flex-direction:column; }
+.balance-strip strong { font-size:1.8rem; color:#fff; }.balance-strip span { color:#94a3b8; font-size:.82rem; }
+.workspace-section { margin-top:2rem; }.workspace-section-title { display:flex; align-items:center; justify-content:space-between; margin-bottom:.9rem; }
+.workspace-section-title h2 { margin:0; font-size:1.3rem; }.workspace-section-title p { margin:.25rem 0 0; color:#94a3b8; font-size:.9rem; }
+.workspace-section-title>span { display:grid; place-items:center; min-width:2rem; height:2rem; border-radius:999px; background:#1e293b; color:#cbd5e1; font-weight:700; }
+.insight-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.insight-card { background:#111827; border:1px solid #334155; border-left-width:4px; border-radius:13px; padding:1.15rem; }
+.insight-positive { border-left-color:#22c55e; background:linear-gradient(110deg,rgba(20,83,45,.28),#111827 45%); }.insight-attention { border-left-color:#f59e0b; }.insight-quality { border-left-color:#38bdf8; }.insight-neutral { border-left-color:#8b5cf6; }
+.insight-card-head { display:flex; justify-content:space-between; color:#94a3b8; font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; }
+.insight-kind { color:#d8b4fe; font-weight:750; }.insight-card h3 { margin:.7rem 0 .35rem; font-size:1.05rem; }.insight-card>p { color:#cbd5e1; margin:.25rem 0; line-height:1.45; }
+.insight-uncertainty { margin-top:.75rem!important; padding:.65rem; border-radius:8px; background:#1e293b; font-size:.83rem; }
+.link-button { color:#a78bfa; border:0; background:transparent; padding:.65rem 0; cursor:pointer; text-align:left; }
+.insight-detail { color:#cbd5e1; border-top:1px solid #263449; padding-top:.75rem; font-size:.86rem; }.insight-detail ul { margin:.35rem 0 .5rem; padding-left:1.25rem; }
+.insight-actions { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.75rem; }.insight-actions button { font-size:.78rem; padding:.55rem .7rem; }.insight-actions button:nth-child(2),.insight-actions button:nth-child(3) { background:#334155; }
+.insight-status { display:inline-block; margin-top:.7rem; padding:.3rem .55rem; border-radius:999px; background:#1e293b; color:#94a3b8; font-size:.75rem; text-transform:capitalize; }
+.workspace-empty { padding:1.2rem; border:1px dashed #334155; border-radius:12px; color:#94a3b8; background:rgba(15,23,42,.45); }
+.action-list { display:grid; gap:.65rem; }.action-list>div { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem; background:#111827; border:1px solid #334155; border-radius:12px; }.action-list p { margin:.25rem 0 0; color:#94a3b8; font-size:.82rem; }
+@media(max-width:800px){.workspace-hero{align-items:flex-start;flex-direction:column}.balance-strip{grid-template-columns:repeat(2,1fr)}.insight-grid{grid-template-columns:1fr}}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }

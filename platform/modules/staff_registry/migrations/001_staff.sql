@@ -1,4 +1,4 @@
--- Path: /home/tmax/TimSyS_v6/modules/staff_registry/migrations/001_staff.sql
+-- Staff registry schema migration.
 -- Migration: staff_registry_001_staff
 -- Purpose: Core staff identity, employment, background checks, certifications
 -- Total lines: 97

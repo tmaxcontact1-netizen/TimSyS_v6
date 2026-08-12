@@ -58,7 +58,7 @@ async function createItem(req, ctx) {
   var insertedId = result.lastInsertRowid;
   var item = ctx.db.query('SELECT * FROM inventory_items WHERE id = ?', [insertedId]);
 
-  ctx.events.publish('item.created', { itemId: insertedId, itemName: b.item_name, entityType: 'item', entityId: insertedId, __module: 'inventory' });
+  ctx.events.publish('item.created', { itemId: insertedId, itemName: b.item_name, entityType: 'inventory_item', entityId: insertedId, record: item.rows[0], actorId: req.user.id, __module: 'inventory' });
   if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('item', insertedId.toString(), item.rows[0]); } catch (e) {} }
   if (ctx.audit) { ctx.audit.action('item.create', req.user.id, { entityType: 'item', entityId: insertedId, newValue: item.rows[0] }); }
 
@@ -115,7 +115,7 @@ async function updateItem(req, ctx) {
   ctx.db.query('UPDATE inventory_items SET ' + updates.join(', ') + ' WHERE id = ?', params);
   var updated = ctx.db.query('SELECT * FROM inventory_items WHERE id = ?', [existing.rows[0].id]);
 
-  ctx.events.publish('item.updated', { itemId: existing.rows[0].id, entityType: 'item', entityId: existing.rows[0].id, __module: 'inventory' });
+  ctx.events.publish('item.updated', { itemId: existing.rows[0].id, entityType: 'inventory_item', entityId: existing.rows[0].id, record: updated.rows[0], actorId: req.user.id, __module: 'inventory' });
   if (ctx.intelligence) { try { ctx.intelligence.storeMetadata('item', existing.rows[0].id.toString(), updated.rows[0]); } catch (e) {} }
   if (ctx.audit) { ctx.audit.action('item.update', req.user.id, { entityType: 'item', entityId: existing.rows[0].id, oldValue: existing.rows[0], newValue: updated.rows[0] }); }
 
@@ -128,7 +128,7 @@ var statusConfig = {
   "statusField": "status",
   "withdrawnValue": "retired",
   "activeValue": "available",
-  "entityType": "InventoryItem",
+  "entityType": "inventory_item",
   "moduleName": "inventory"
 };
 

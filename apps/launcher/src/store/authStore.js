@@ -41,12 +41,13 @@ const useAuthStore = create((set, get) => ({
   login: async (credentials) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch('/api/auth/dev-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify(credentials)
-      });
-      const data = await response.json();
+      const data = window.electronAPI?.platformSession
+        ? await window.electronAPI.platformSession()
+        : await fetch('/api/auth/dev-login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify(credentials)
+          }).then((response) => response.json());
       if (data.success && data.token) {
         localStorage.setItem('jwt_token', data.token);
         localStorage.setItem('user_id', data.user.id);

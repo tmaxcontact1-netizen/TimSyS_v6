@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isAbsolute } from "node:path";
 
 export const operatingModes = [
   "historical",
@@ -24,7 +25,7 @@ const databaseUrl = z
     (value) => value.startsWith("postgres://") || value.startsWith("postgresql://"),
     "must be a PostgreSQL URI",
   );
-const absolutePath = z.string().startsWith("/");
+const absolutePath = z.string().refine(isAbsolute, "must be an absolute path");
 const nonempty = z.string().trim().min(1);
 
 const schema = z
@@ -117,7 +118,11 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
   if (!parsed.success)
     throw new Error(`Invalid runtime configuration: ${z.prettifyError(parsed.error)}`);
   const value = parsed.data;
-  if (value.MEMECOINED_ENV === "production" && /localhost|127\.0\.0\.1/.test(value.DATABASE_URL))
+  if (
+    value.MEMECOINED_ENV === "production" &&
+    /localhost|127\.0\.0\.1/.test(value.DATABASE_URL) &&
+    environment.MEMECOINED_MANAGED_DATABASE !== "1"
+  )
     throw new Error("Production database cannot use a loopback host");
   const solana = liveReads.has(value.MEMECOINED_MODE)
     ? Object.freeze({

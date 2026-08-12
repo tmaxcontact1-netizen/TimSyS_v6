@@ -76,6 +76,7 @@ function assemble(spec) {
   // Step 4: Build manifest
   var manifest = {
     name: name,
+    status: 'draft',
     version: spec.version || '1.0.0',
     author: spec.author || 'admin',
     dependencies: spec.dependencies || ['db', 'cache', 'auth', 'log', 'validate', 'events'],
@@ -140,12 +141,12 @@ function assemble(spec) {
       ].join('\n');
     }
 
-    // Generic stub
+    // Explicit incomplete handler. Draft modules are not staged by discovery.
     return [
       'async function ' + handlerName + '(req, ctx) {',
-      '  // Handler for processing requests',
+      '  // Replace this generated handler before setting module status to active.',
       '  // Components available: ' + components.join(', '),
-      '  return { success: true };',
+      "  return { success: false, statusCode: 501, error: { code: 'MODULE_INCOMPLETE', message: 'Generated handler has not been implemented' } };",
       '}'
     ].join('\n');
   }).join('\n\n');

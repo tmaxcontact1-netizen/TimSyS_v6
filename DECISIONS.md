@@ -9,7 +9,7 @@
 
 ### Repository Structure
 
-**Decision:** Monorepo with platform code under `/platform/`, tests at root `/tests/`, apps under `/apps/`.
+**Decision:** Monorepo with platform code under `/platform/`, backend tests under `/platform/tests/`, apps under `/apps/`.
 
 **Rationale:** Separates platform infrastructure from application layer. Tests run against platform without coupling to any single app.
 
@@ -63,9 +63,9 @@
 
 ### Recurring Test File Path Bug
 
-**Decision:** Test files under `tests/unit/` must use `../../shared` (not `../../../shared`) for require paths.
+**Decision:** Test files under `platform/tests/unit/` must use `../../shared` (not `../../../shared`) for require paths.
 
-**Root Cause:** `tests/unit/` is two levels deep from project root, not three. Recurring across sessions.
+**Root Cause:** `platform/tests/unit/` is nested below the platform directory, not three. Recurring across sessions.
 
 **Status:** IMPLEMENTED — standardize require path depth going forward
 
@@ -313,7 +313,7 @@
 
 **Decision:** Dynamic port allocation (`PORT=0`) and isolated databases (`test_<suite>.sqlite`) for all integration tests.
 
-**Files:** `TEST_PROTOCOL.md`, `tests/helpers/test-server.js`, `createTestServer()` + `adminLogin()` helpers.
+**Files:** `TEST_PROTOCOL.md`, `platform/tests/helpers/test-server.js`, `createTestServer()` + `adminLogin()` helpers.
 
 **Tests:** 172/172 → 181/181 passing across 16 suites
 
@@ -488,7 +488,7 @@ Fallback: strip `list` prefix, lowercase first char, remove trailing `s`.
 
 ---
 
-cat >> /home/tmax/TimSyS_v6/DECISIONS.md << 'EOF'
+cat >> DECISIONS.md << 'EOF'
 
 ---
 

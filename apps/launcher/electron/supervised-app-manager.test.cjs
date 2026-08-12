@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
+const path = require('node:path');
 const test = require('node:test');
 const { SupervisedAppManager, interpolateEnvironment } = require('./supervised-app-manager.cjs');
 
@@ -24,6 +25,7 @@ const manifest = JSON.stringify({
   kind: 'supervised-child',
   applicationRootEnvironment: 'MEMECOINED_APP_ROOT',
   workingDirectory: '.',
+  environmentDefaults: { PAPER_DASHBOARD_PORT: '8080' },
   processes: {
     worker: { command: 'node', arguments: ['worker.js'] },
     dashboard: {
@@ -54,8 +56,9 @@ test('starts each child once and becomes running only after health succeeds', as
   assert.equal(status.state, 'running');
   assert.deepEqual(status.processes, ['worker', 'dashboard']);
   assert.equal(spawns.length, 2);
-  assert.equal(spawns[0].options.cwd, '/platform/apps/memecoined');
-  assert.equal(spawns[0].options.env.MEMECOINED_APP_ROOT, '/platform/apps/memecoined');
+  const expectedRoot = path.resolve('/platform/apps/memecoined');
+  assert.equal(spawns[0].options.cwd, expectedRoot);
+  assert.equal(spawns[0].options.env.MEMECOINED_APP_ROOT, expectedRoot);
   await manager.stop('memecoined');
   assert.deepEqual(children.map((child) => child.signalCode), ['SIGTERM', 'SIGTERM']);
   assert.equal(manager.status('memecoined').state, 'stopped');
@@ -75,7 +78,7 @@ test('prevents duplicate managed instances', async () => {
   await manager.stopAll();
 });
 
-test('marks an unexpected child exit as degraded', async () => {
+test('fails the application and stops sibling processes after an unexpected child exit', async () => {
   const children = [];
   const manager = new SupervisedAppManager({
     readManifest: async () => manifest,
@@ -85,6 +88,41 @@ test('marks an unexpected child exit as degraded', async () => {
   await manager.start('/platform/apps/memecoined/timsys.app.json', { PAPER_DASHBOARD_PORT: '8080' });
   children[0].exitCode = 1;
   children[0].emit('exit', 1, null);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(manager.status('memecoined').state, 'failed');
+  assert.equal(children[1].signalCode, 'SIGTERM');
+});
+
+test('uses manifest environment defaults for readiness and the dashboard URL', async () => {
+  let healthUrl;
+  const manager = new SupervisedAppManager({
+    readManifest: async () => manifest,
+    spawnProcess: () => childProcess(),
+    fetchHealth: async (url) => { healthUrl = url; return { status: 200 }; },
+    runtimeHealthIntervalMilliseconds: 0,
+  });
+  await manager.start('/platform/apps/memecoined/timsys.app.json');
+  assert.equal(healthUrl, 'http://127.0.0.1:8080/api/health');
+  assert.equal(manager.dashboardUrl('memecoined'), 'http://127.0.0.1:8080/');
+  await manager.stopAll();
+});
+
+test('marks a running application degraded after three consecutive health failures', async () => {
+  let healthy = true;
+  const manager = new SupervisedAppManager({
+    readManifest: async () => manifest,
+    spawnProcess: () => childProcess(),
+    fetchHealth: async () => ({ status: healthy ? 200 : 503 }),
+    runtimeHealthIntervalMilliseconds: 2,
+  });
+  await manager.start('/platform/apps/memecoined/timsys.app.json');
+  healthy = false;
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('degraded status was not emitted')), 250);
+    manager.on('status', (next) => {
+      if (next.state === 'degraded') { clearTimeout(timeout); resolve(); }
+    });
+  });
   assert.equal(manager.status('memecoined').state, 'degraded');
   await manager.stopAll();
 });

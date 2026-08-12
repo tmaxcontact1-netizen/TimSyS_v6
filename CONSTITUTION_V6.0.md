@@ -258,17 +258,17 @@ Test Infrastructure
     Dynamic port allocation (PORT=0)
     Test helper (createTestServer(), adminLogin())
     Parallel execution safe
-    tests/helpers/test-server.js — shared infrastructure
+    platform/tests/helpers/test-server.js — shared infrastructure
     TEST_PROTOCOL.md — mandatory testing standards
 
 Test Locations
 
-    /tests/unit/services/* — Service unit tests
-    /tests/unit/registries/* — Registry unit tests
-    /tests/integration/staging/* — Pipeline tests
-    /tests/integration/http/* — HTTP endpoint tests
-    /tests/e2e/* — Boot sequence tests
-    /tests/*.sh — Smoke tests
+    /platform/tests/unit/services/* — Service unit tests
+    /platform/tests/unit/registries/* — Registry unit tests
+    /platform/tests/integration/staging/* — Pipeline tests
+    /platform/tests/integration/http/* — HTTP endpoint tests
+    /platform/tests/e2e/* — Boot sequence tests
+    /platform/tests/*.sh — Smoke tests
 
 PHASE 8: DEPLOYMENT
 Environment Variables
@@ -427,7 +427,7 @@ Registries	6 registries	8 registries (added componentRegistry, componentScanner)
 Pipeline stages	5 stages	7 stages (added resolve, unstage)
 Module standard	Only module.json	Plus component.json for Components
 Component model	Not specified	Registry/Profile/Standard types
-Intelligence	Placeholder	Full implementation (metadata, insights, logic)
+Intelligence	Placeholder	Canonical governed provider engine with evidence, uncertainty, lifecycle actions and health checks
 Token handling	JWT only	JWT + refresh tokens with rotation
 Permissions	Per-handler inline	Declarative route-level permissions
 Security	In-memory rate limit	SQLite-backed rate limit

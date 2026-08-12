@@ -33,13 +33,14 @@ function register(component) {
     routes: component.routes || null,
     schema: component.schema || null,
     capabilities: component.capabilities || null,
-    events: component.events || null
+    events: component.events || null,
+    intelligence: component.intelligence || null
   };
   
   components.set(component.name, record);
   
   db.query(
-    'INSERT OR REPLACE INTO component_registry (name, type, owner_module, dependencies, routes, schema, capabilities, events) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT OR REPLACE INTO component_registry (name, type, owner_module, dependencies, routes, schema, capabilities, events, intelligence_contract) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       record.name,
       record.type,
@@ -48,7 +49,8 @@ function register(component) {
       JSON.stringify(record.routes),
       JSON.stringify(record.schema),
       JSON.stringify(record.capabilities),
-      JSON.stringify(record.events)
+      JSON.stringify(record.events),
+      JSON.stringify(record.intelligence)
     ]
   );
   
@@ -97,7 +99,8 @@ function loadAll() {
       routes: row.routes ? JSON.parse(row.routes) : null,
       schema: row.schema ? JSON.parse(row.schema) : null,
       capabilities: row.capabilities ? JSON.parse(row.capabilities) : null,
-      events: row.events ? JSON.parse(row.events) : null
+      events: row.events ? JSON.parse(row.events) : null,
+      intelligence: row.intelligence_contract ? JSON.parse(row.intelligence_contract) : null
     });
   });
   
