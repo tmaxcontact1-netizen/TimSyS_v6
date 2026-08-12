@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { assembleModule, getPresetTemplates, getUserComponents } from '../api/builder';
+import { assembleModule, getPresetTemplates, getUserComponents, getModulesForApp, setModuleForApp } from '../api/builder';
 import useAuthStore from '../store/authStore';
 import { useAnyPermission } from '../utils/permissions';
-import apiClient from '../api/base';
+
+const TARGET_APP = 'principal-ed';
 
 function ModuleSelectorPage() {
   const navigate = useNavigate();
@@ -21,12 +22,11 @@ function ModuleSelectorPage() {
   const presets = getPresetTemplates();
   const features = getUserComponents();
 
-  // Fetch installed apps from registry
+  // Fetch the canonical module catalogue and Principal'Ed assignments.
   const fetchModules = async () => {
     try {
-      const response = await apiClient.get('/apps');
-      const apps = response.data?.data || [];
-      setInstalledModules(Array.isArray(apps) ? apps : []);
+      const modules = await getModulesForApp(TARGET_APP);
+      setInstalledModules(Array.isArray(modules) ? modules : []);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -62,7 +62,7 @@ function ModuleSelectorPage() {
       const result = await assembleModule(spec);
       
       if (result.success) {
-        alert(`"${preset.displayName}" was created! It will appear in your app list shortly.`);
+        alert(`"${preset.displayName}" was created as a draft. Implement and validate its handlers before activation.`);
         setShowCreateModal(false);
         resetForm();
         fetchModules();
@@ -76,21 +76,20 @@ function ModuleSelectorPage() {
     }
   };
 
-  const handleToggleModule = async (moduleId, active) => {
+  const handleToggleModule = async (moduleName, enabled) => {
     try {
-      await apiClient.put(`/apps/${moduleId}`, { active: !active });
+      await setModuleForApp(TARGET_APP, moduleName, !enabled);
       await fetchModules();
     } catch (err) {
       alert(`Failed: ${err.response?.data?.error?.message || err.message}`);
     }
   };
 
-  const handleDeleteModule = async (moduleId, appId) => {
-    if (!confirm(`Remove "${appId}" from this dashboard? This won't delete the app, just hide it.`)) return;
+  const handleDeleteModule = async (moduleName) => {
+    if (!confirm(`Remove "${moduleName}" from Principal'Ed? The module and its data will remain intact.`)) return;
     
     try {
-      // For now we'll soft-delete by deactivating
-      await apiClient.put(`/apps/${moduleId}`, { active: false });
+      await setModuleForApp(TARGET_APP, moduleName, false);
       await fetchModules();
     } catch (err) {
       alert(`Failed: ${err.response?.data?.error?.message || err.message}`);
@@ -98,14 +97,13 @@ function ModuleSelectorPage() {
   };
 
   const handleViewDetails = async (app) => {
-    setSelectedForDetails(app.appId);
+    setSelectedForDetails(app.name);
     setModuleDetails({
-      id: app.id,
-      appId: app.appId,
-      displayName: app.displayName,
-      description: app.description,
-      components: app.capabilities?.features || [],
-      roles: app.capabilities?.roles || []
+      name: app.name,
+      displayName: app.name.replaceAll('_', ' '),
+      description: `Version ${app.version || 'unknown'} · ${app.status || 'registered'}`,
+      components: app.capabilitiesProvided || app.provides || [],
+      roles: app.capabilitiesRequired || app.requires || []
     });
   };
 
@@ -119,7 +117,8 @@ function ModuleSelectorPage() {
       name: '',
       displayName: '',
       description: '',
-      components: []
+      components: [],
+      selectedFeatures: []
     });
   };
 
@@ -154,9 +153,9 @@ function ModuleSelectorPage() {
       templateId: null,
       displayName: '',
       description: '',
-      selectedFeatures: prev.selectedFeatures.includes(featureKey)
+      selectedFeatures: (prev.selectedFeatures || []).includes(featureKey)
         ? prev.selectedFeatures.filter(f => f !== featureKey)
-        : [...prev.selectedFeatures, featureKey]
+        : [...(prev.selectedFeatures || []), featureKey]
     }));
   };
 
@@ -178,7 +177,7 @@ function ModuleSelectorPage() {
             <h1 className="text-2xl font-bold text-timsys-primary">Module Selector</h1>
           </div>
           <div className="flex items-center gap-4 text-sm">
-            <span className="text-gray-400">Installed Apps: <span className="text-white">{installedModules.length}</span></span>
+            <span className="text-gray-400">Available Modules: <span className="text-white">{installedModules.length}</span></span>
             <button
               onClick={() => {
                 setShowCreateModal(true);
@@ -200,7 +199,7 @@ function ModuleSelectorPage() {
         )}
 
         {/* Installed Modules Grid */}
-        <h2 className="text-xl font-bold text-white mb-4">Your Installed Apps</h2>
+        <h2 className="text-xl font-bold text-white mb-4">Principal'Ed Modules</h2>
         
         {installedModules.length === 0 ? (
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-8 text-center">
@@ -215,21 +214,21 @@ function ModuleSelectorPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {installedModules.map((app) => (
-              <div key={app.id} className="bg-gray-900 border border-gray-800 rounded-lg p-5 relative">
-                <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${app.active ? 'bg-green-500' : 'bg-gray-600'}`} title={app.active ? 'Active' : 'Inactive'} />
+              <div key={app.name} className="bg-gray-900 border border-gray-800 rounded-lg p-5 relative">
+                <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${app.enabled ? 'bg-green-500' : 'bg-gray-600'}`} title={app.enabled ? 'Included' : 'Not included'} />
                 
-                <h3 className="text-white font-bold text-lg mb-1">{app.displayName}</h3>
-                <p className="text-gray-400 text-sm mb-3 line-clamp-2">{app.description}</p>
+                <h3 className="text-white font-bold text-lg mb-1">{app.name.replaceAll('_', ' ')}</h3>
+                <p className="text-gray-400 text-sm mb-3 line-clamp-2">Version {app.version || 'unknown'}</p>
                 
                 {/* Component Map Preview */}
                 <div className="mb-4">
                   <p className="text-xs text-gray-500 mb-2">Features:</p>
                   <div className="flex flex-wrap gap-1">
-                    {(app.capabilities?.features || []).slice(0, 3).map((f, i) => (
+                    {(app.capabilitiesProvided || app.provides || []).slice(0, 3).map((f, i) => (
                       <span key={i} className="bg-gray-800 text-gray-300 text-xs px-2 py-1 rounded">{f.split('.').pop()}</span>
                     ))}
-                    {(app.capabilities?.features || []).length > 3 && (
-                      <span className="text-gray-500 text-xs">+{(app.capabilities?.features || []).length - 3} more</span>
+                    {(app.capabilitiesProvided || app.provides || []).length > 3 && (
+                      <span className="text-gray-500 text-xs">+{(app.capabilitiesProvided || app.provides || []).length - 3} more</span>
                     )}
                   </div>
                 </div>
@@ -242,13 +241,13 @@ function ModuleSelectorPage() {
                     View Components
                   </button>
                   <button
-                    onClick={() => handleToggleModule(app.id, app.active)}
-                    className={`text-sm flex-1 ${app.active ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}`}
+                    onClick={() => handleToggleModule(app.name, app.enabled)}
+                    className={`text-sm flex-1 ${app.enabled ? 'text-yellow-400 hover:text-yellow-300' : 'text-green-400 hover:text-green-300'}`}
                   >
-                    {app.active ? 'Disable' : 'Enable'}
+                    {app.enabled ? 'Remove' : 'Add'}
                   </button>
                   <button
-                    onClick={() => handleDeleteModule(app.id, app.appId)}
+                    onClick={() => handleDeleteModule(app.name)}
                     className="text-red-400 hover:text-red-300 text-sm"
                     title="Remove from dashboard"
                   >
@@ -449,7 +448,7 @@ function ModuleSelectorPage() {
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
                 <button
                   onClick={() => {
-                    handleDeleteModule(moduleDetails.id, moduleDetails.appId);
+                    handleDeleteModule(moduleDetails.name);
                     closeDetails();
                   }}
                   className="text-red-400 hover:text-red-300 text-sm"

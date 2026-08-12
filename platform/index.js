@@ -71,7 +71,7 @@ var wiredModules = [];
 var persistPublishedEvent = function(channel, payload) { eventStore.persist(channel, payload); };
 var projectPublishedEvent = function(channel, payload) { worldModel.project(channel, payload); };
 
-var CORS_ORIGINS = (process.env.CORS_ORIGINS || '*').split(',').map(function(s) { return s.trim(); });
+var CORS_ORIGINS = (process.env.CORS_ORIGINS || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
 var RATE_LIMIT_WINDOW = 60000;
 var RATE_LIMIT_DEFAULT = parseInt(process.env.RATE_LIMIT_DEFAULT, 10) || 100;
 var RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;

@@ -5,6 +5,7 @@ const assembler = require('./assembler');
 const composer = require('./composer');
 const componentRegistry = require('../../shared/registry/componentRegistry');
 const moduleRegistry = require('../../shared/registry/moduleRegistry');
+const lifecycle = require('./lifecycle');
 
 function boot(ctx) {
   ctx.log.info('builder booting', { module: 'builder' });
@@ -208,6 +209,18 @@ async function validate(req, ctx) {
   };
 }
 
+async function drafts() {
+  return { success: true, data: lifecycle.listDrafts() };
+}
+
+async function activateDraft(req) {
+  const name = req.params && req.params.module;
+  const invalid = required(name, 'module'); if (invalid) return invalid;
+  const result = lifecycle.activate(name);
+  if (!result.valid) return { success: false, statusCode: 422, error: { code: 'MODULE_NOT_READY', message: 'Draft module cannot be activated', details: result.errors } };
+  return { success: true, data: { name, status: 'active', restartRequired: true } };
+}
+
 module.exports = {
   boot: boot,
   teardown: teardown,
@@ -219,6 +232,6 @@ module.exports = {
   assemble: assemble,
   components: components,
   compose: compose,
-  validate: validate,
+  validate: validate, drafts, activateDraft,
   modulesForApp, assignModule, unassignModule, componentsForApp, assignComponent, unassignComponent
 };

@@ -71,6 +71,18 @@
       "auth_required": false
     },
     {
+      "path": "/builder/drafts",
+      "method": "GET",
+      "handler": "builder_drafts",
+      "auth_required": true
+    },
+    {
+      "path": "/builder/drafts/:module/activate",
+      "method": "POST",
+      "handler": "builder_activateDraft",
+      "auth_required": true
+    },
+    {
       "path": "/modules/list-for-app",
       "method": "GET",
       "handler": "builder_modulesForApp",
@@ -168,6 +180,8 @@
       ],
       "returns": "validation_result"
     },
+    { "name": "builder_drafts", "exports": "drafts", "params": [], "returns": "draft_list" },
+    { "name": "builder_activateDraft", "exports": "activateDraft", "params": [], "returns": "activation_result" },
     { "name": "builder_modulesForApp", "exports": "modulesForApp", "params": [], "returns": "module_list" },
     { "name": "builder_assignModule", "exports": "assignModule", "params": [], "returns": "assignment" },
     { "name": "builder_unassignModule", "exports": "unassignModule", "params": [], "returns": "assignment" },

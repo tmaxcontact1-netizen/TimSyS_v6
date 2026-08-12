@@ -29,7 +29,6 @@ export default defineConfig({
       '/staff': { target: 'http://localhost:3000', changeOrigin: true },
       '/rooms': { target: 'http://localhost:3000', changeOrigin: true },
       '/inventory': { target: 'http://localhost:3000', changeOrigin: true },
-      '/apps': { target: 'http://localhost:3000', changeOrigin: true },
       '/analytics': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },

@@ -7,6 +7,7 @@ const { spawn } = require('node:child_process');
 const { SupervisedAppManager } = require('./supervised-app-manager.cjs');
 const { LocalPostgresManager, availablePort } = require('./local-postgres-manager.cjs');
 const { createRuntimeLayout } = require('./runtime-layout.cjs');
+const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
 
 // The launcher UI does not require GPU acceleration; disabling it improves compatibility on headless and older Windows systems.
 app.disableHardwareAcceleration();
@@ -211,6 +212,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   quitting = true;
   Promise.resolve(supervisedApps?.stopAll())
+    .then(() => backupPlatformDatabase(layout.dataRoot))
     .then(() => postgres?.state ? postgres.backup() : undefined)
     .then(() => postgres?.stop())
     .finally(() => app.quit());
@@ -243,6 +245,15 @@ ipcMain.handle('supervised-app:stop', async (_event, appId) => {
   await postgres.backup();
   await postgres.stop();
   return status;
+});
+
+ipcMain.handle('runtime:diagnostics', async () => {
+  const statuses = [];
+  for (const id of ['timsys-platform', 'memecoined']) {
+    try { statuses.push(supervisedApps.status(id)); }
+    catch { statuses.push({ id, state: 'stopped', detail: null, processes: [] }); }
+  }
+  return diagnostics({ layout, statuses });
 });
 
 ipcMain.handle('platform:session', async () => {

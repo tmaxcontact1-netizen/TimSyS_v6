@@ -51,6 +51,35 @@ export const getNewModuleTemplate = async (name) => {
   return response.data;
 };
 
+export const getModulesForApp = async (appId) => {
+  const response = await client.get('/modules/list-for-app', { params: { appId } });
+  return response.data.data || [];
+};
+
+export const setModuleForApp = async (appId, moduleName, enabled) => {
+  const response = enabled
+    ? await client.post('/modules/assign', { appId, moduleName })
+    : await client.delete('/modules/unassign', { params: { appId, moduleName } });
+  return response.data;
+};
+
+export const getComponentsForApp = async (appId) => {
+  const response = await client.get('/components/list-for-app', { params: { appId } });
+  return response.data.data || [];
+};
+
+export const setComponentForApp = async (appId, componentName, enabled) => {
+  const response = enabled
+    ? await client.post('/components/assign', { appId, componentName })
+    : await client.delete('/components/unassign', { params: { appId, componentName } });
+  return response.data;
+};
+
+export const getDraftModules = async () => {
+  const response = await client.get('/builder/drafts');
+  return response.data.data || [];
+};
+
 // Preset configurations for non-technical users
 export const getPresetTemplates = () => {
   return [
