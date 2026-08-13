@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "type": "profile",
   "capabilities": [
-    "capability:student_profile.read"
+    "capability:student_profile.read",
+    "capability:student_profile.write",
+    "capability:student.insight.generate"
   ],
-  "dependencies": ["db", "cache", "auth", "log", "validate", "events"],
+  "dependencies": ["student_registry"],
   "routes": [
     {
       "path": "/students/:id/profile",

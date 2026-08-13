@@ -30,9 +30,13 @@ const PLATFORM_SERVICES = new Set([
 function resolve(modules) {
   const errors = [];
   const moduleNames = new Set(modules.map((m) => m.manifest.name));
+  dependencyGraph.clear();
 
   for (const mod of modules) {
     const { manifest } = mod;
+    const effectiveDependencies = new Set((manifest.dependencies || []).filter(function(dep) {
+      return !PLATFORM_SERVICES.has(dep);
+    }));
 
     // 1. Check required capabilities exist
     if (manifest.requires && manifest.requires.length > 0) {
@@ -41,6 +45,9 @@ function resolve(modules) {
           errors.push(
             `Module "${manifest.name}" requires capability "${req}" which is not available`
           );
+        } else {
+          const provider = capabilityRegistry.get(req).module;
+          if (provider !== manifest.name) effectiveDependencies.add(provider);
         }
       }
     }
@@ -60,6 +67,7 @@ function resolve(modules) {
         }
       }
     }
+    dependencyGraph.addModule(manifest.name, Array.from(effectiveDependencies));
   }
 
   // 3. Detect circular dependencies via DependencyGraph

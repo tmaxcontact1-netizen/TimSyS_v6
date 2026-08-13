@@ -24,6 +24,7 @@ function validate(contract, componentName) {
     });
     (entity.relationships || []).forEach(function(rel, r) {
       if (!identifier(rel.field) || !identifier(rel.type) || !identifier(rel.targetType)) errors.push(at + '.relationships[' + r + '] requires field, type and targetType');
+      if (rel.when && (!identifier(rel.when.field) || rel.when.value === undefined)) errors.push(at + '.relationships[' + r + '].when requires field and value');
     });
     (entity.dataQuality || []).forEach(function(rule, q) {
       if (!identifier(rule.field) || !rule.expectation) errors.push(at + '.dataQuality[' + q + '] requires field and expectation');
@@ -43,6 +44,7 @@ function assertSchema(contract, componentName, db) {
     if (!columns.length) throw new Error('Intelligence contract for "' + componentName + '" references missing table ' + entity.source.table);
     var fields = [entity.source.idField, entity.statusField].concat(entity.displayFields || []);
     (entity.relationships || []).forEach(function(rel) { fields.push(rel.field); });
+    (entity.relationships || []).forEach(function(rel) { if (rel.when) fields.push(rel.when.field); });
     (entity.dataQuality || []).forEach(function(rule) { fields.push(rule.field); });
     fields.filter(Boolean).forEach(function(field) {
       if (columns.indexOf(field) === -1) throw new Error('Intelligence contract for "' + componentName + '" references missing column ' + entity.source.table + '.' + field + ' at entity ' + i);

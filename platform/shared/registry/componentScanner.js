@@ -6,8 +6,26 @@ const componentRegistry = require('./componentRegistry');
 const moduleRegistry = require('./moduleRegistry');
 const log = require('../services/log');
 const intelligenceContribution = require('../contracts/intelligenceContribution');
+const db = require('../services/db');
 
 const MODULES_DIR = path.resolve(__dirname, '../../modules');
+
+function applyCanonicalRelationships(componentSpec) {
+  const entities = componentSpec.intelligence && componentSpec.intelligence.entities || [];
+  entities.forEach(function(entity) {
+    const columns = db.query('PRAGMA table_info("' + entity.source.table + '")').rows.map(function(row) { return row.name; });
+    if (!columns.includes('subject_component') || !columns.includes('subject_id')) return;
+    entity.relationships = entity.relationships || [];
+    const exists = entity.relationships.some(function(rel) {
+      return rel.field === 'subject_id' && rel.targetType === 'event_record';
+    });
+    if (!exists) entity.relationships.push({
+      field: 'subject_id', type: 'supports_event', targetType: 'event_record',
+      when: { field: 'subject_component', value: 'event_record' }
+    });
+  });
+  return componentSpec;
+}
 
 function walkModuleDirs(dir, results) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -53,6 +71,7 @@ function scan() {
         const componentSpec = JSON.parse(fs.readFileSync(componentFile, 'utf8'));
         componentSpec.ownerModule = modName;
         if (componentSpec.intelligence) {
+          applyCanonicalRelationships(componentSpec);
           intelligenceContribution.assertValid(componentSpec.intelligence, componentSpec.name);
           intelligenceContribution.assertSchema(componentSpec.intelligence, componentSpec.name, require('../services/db'));
         }
@@ -168,5 +187,6 @@ function clear() {
 module.exports = {
   scan: scan,
   inferComponentType: inferComponentType,
-  clear: clear
+  clear: clear,
+  applyCanonicalRelationships: applyCanonicalRelationships
 };

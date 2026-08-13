@@ -87,11 +87,6 @@
   },
   "events": {
     "publishes": [],
-    "subscribes": [
-      "student.created",
-      "staff.created",
-      "room.created",
-      "item.created"
-    ]
+    "subscribes": []
   }
 }

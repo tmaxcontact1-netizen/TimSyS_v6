@@ -36,6 +36,7 @@ function quality(facts, rules) {
 }
 function syncRelationships(declaration, type, id, facts, moduleName, now) {
   (declaration.relationships || []).forEach(function(rel) {
+    if (rel.when && facts[rel.when.field] !== rel.when.value) return;
     var target = facts[rel.field];
     db.query('UPDATE world_relationships SET valid_to = ? WHERE subject_type = ? AND subject_id = ? AND relationship_type = ? AND object_type = ? AND valid_to IS NULL AND object_id <> ?', [now, type, id, rel.type, rel.targetType, target == null ? '' : String(target)]);
     if (target == null || target === '') return;

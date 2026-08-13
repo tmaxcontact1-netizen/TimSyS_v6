@@ -17,9 +17,10 @@ class DependencyGraph {
    * @param {Array<string>} dependencies
    */
   addModule(moduleId, dependencies = []) {
+    const previous = this._nodes.get(moduleId);
     this._nodes.set(moduleId, {
       dependencies: new Set(dependencies),
-      dependents: new Set(),
+      dependents: previous ? previous.dependents : new Set(),
     });
 
     // Link to dependent modules
@@ -28,6 +29,14 @@ class DependencyGraph {
         continue; // Will be validated separately
       }
       this._nodes.get(dep).dependents.add(moduleId);
+    }
+
+    // Discovery order must not change graph semantics. Connect modules that
+    // named this provider before it was registered.
+    for (const [otherId, otherNode] of this._nodes) {
+      if (otherId !== moduleId && otherNode.dependencies.has(moduleId)) {
+        this._nodes.get(moduleId).dependents.add(otherId);
+      }
     }
   }
 

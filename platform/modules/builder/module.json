@@ -226,8 +226,6 @@
   },
   "events": {
     "publishes": [],
-    "subscribes": [
-      "platform.ready"
-    ]
+    "subscribes": []
   }
 }
