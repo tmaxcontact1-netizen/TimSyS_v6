@@ -1,0 +1,6 @@
+{
+  "name":"documents","type":"content","dependencies":[],
+  "capabilities":["capability:documents.read","capability:documents.write","capability:documents.version","capability:documents.link"],
+  "parts":["document_record","immutable_file_version","content_hash","subject_link","document_lifecycle","history"],
+  "intelligence":{"version":1,"entities":[{"type":"document","source":{"table":"documents","idField":"id"},"displayFields":["title","category"],"statusField":"status","events":[{"channel":"documents.created","kind":"created"},{"channel":"documents.updated","kind":"updated"},{"channel":"documents.version_added","kind":"updated"},{"channel":"documents.withdrawn","kind":"withdrawn"},{"channel":"documents.reinstated","kind":"reinstated"}],"dataQuality":[{"field":"title","expectation":"required"}]}]}
+}

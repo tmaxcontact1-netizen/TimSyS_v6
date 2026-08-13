@@ -1,0 +1,1 @@
+{"name":"venue_bookings","type":"places","dependencies":["room_registry"],"capabilities":["capability:venue_booking.read","capability:venue_booking.write","capability:venue_availability.read"],"parts":["time_window","room_reference","subject_reference","capacity_check","conflict_check","booking_lifecycle"]}

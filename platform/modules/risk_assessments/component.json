@@ -1,0 +1,1 @@
+{"name":"risk_assessments","type":"safety","dependencies":["ownership","approvals"],"capabilities":["capability:risk.read","capability:risk.write","capability:risk.approve"],"parts":["hazard","people_at_risk","inherent_score","controls","residual_score","action_owner","review","approval_lifecycle"]}

@@ -1,0 +1,30 @@
+{
+  "name": "calendar",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": ["db","cache","auth","log","validate","events"],
+  "provides": ["capability:calendar.internal","capability:calendar.external","capability:calendar.entry.read","capability:calendar.entry.write","capability:calendar.conflicts.read","capability:calendar.recurrence","capability:calendar.rollover"],
+  "requires": [],
+  "routes": [
+    {"path":"/calendar/settings","method":"GET","handler":"calendar_getSettings","auth_required":true,"permissions":["admin:calendar:read"]},
+    {"path":"/calendar/settings","method":"PUT","handler":"calendar_updateSettings","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/layers","method":"GET","handler":"calendar_listLayers","auth_required":true,"permissions":["admin:calendar:read"]},
+    {"path":"/calendar/entries","method":"GET","handler":"calendar_listEntries","auth_required":true,"permissions":["admin:calendar:read"]},
+    {"path":"/calendar/entries","method":"POST","handler":"calendar_createEntry","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/entries/:id","method":"PUT","handler":"calendar_updateEntry","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/entries/:id","method":"DELETE","handler":"calendar_deleteEntry","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/entries/:id/status","method":"PUT","handler":"calendar_setStatus","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/entries/:id/exceptions","method":"POST","handler":"calendar_setException","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/entries/:id/audit","method":"GET","handler":"calendar_getAudit","auth_required":true,"permissions":["admin:calendar:read"]},
+    {"path":"/calendar/entries/:id/publish","method":"POST","handler":"calendar_publishEntry","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/entries/:id/publication","method":"DELETE","handler":"calendar_withdrawPublication","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/calendar/conflicts","method":"GET","handler":"calendar_findConflicts","auth_required":true,"permissions":["admin:calendar:read"]},
+    {"path":"/calendar/rollover","method":"POST","handler":"calendar_rollover","auth_required":true,"permissions":["admin:calendar:write"]},
+    {"path":"/public/calendar","method":"GET","handler":"calendar_publicCalendar","auth_required":false,"permissions":[]}
+  ],
+  "schema":{"tables":["calendar_settings","calendar_layers","calendar_entries","calendar_instances","calendar_exceptions"],"migrations":["migrations/001_calendar.sql","migrations/002_calendar_entry_contract.sql","migrations/003_calendar_completion.sql"]},
+  "events":{"publishes":["calendar.entry.created","calendar.entry.updated","calendar.entry.status_changed","calendar.entry.published","calendar.entry.publication_withdrawn","calendar.entry.exception_set","calendar.entry.rolled_over"],"subscribes":[]},
+  "functions":[
+    {"name":"calendar_getSettings","exports":"getSettings"},{"name":"calendar_updateSettings","exports":"updateSettings"},{"name":"calendar_listLayers","exports":"listLayers"},{"name":"calendar_listEntries","exports":"listEntries"},{"name":"calendar_createEntry","exports":"createEntry"},{"name":"calendar_updateEntry","exports":"updateEntry"},{"name":"calendar_deleteEntry","exports":"deleteEntry"},{"name":"calendar_setStatus","exports":"setStatus"},{"name":"calendar_setException","exports":"setException"},{"name":"calendar_getAudit","exports":"getAudit"},{"name":"calendar_publishEntry","exports":"publishEntry"},{"name":"calendar_withdrawPublication","exports":"withdrawPublication"},{"name":"calendar_findConflicts","exports":"findConflicts"},{"name":"calendar_rollover","exports":"rollover"},{"name":"calendar_publicCalendar","exports":"publicCalendar"}
+  ]
+}

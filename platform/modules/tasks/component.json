@@ -1,0 +1,6 @@
+{
+  "name":"tasks","type":"workflow","dependencies":[],
+  "capabilities":["capability:tasks.read","capability:tasks.write","capability:tasks.dependencies","capability:tasks.lifecycle"],
+  "parts":["task_record","subject_link","priority","deadline","lifecycle","task_dependency","responsibility_link","history"],
+  "intelligence":{"version":1,"entities":[{"type":"task","source":{"table":"tasks","idField":"id"},"displayFields":["title","priority","due_at"],"statusField":"status","events":[{"channel":"tasks.created","kind":"created"},{"channel":"tasks.updated","kind":"updated"},{"channel":"tasks.completed","kind":"updated"},{"channel":"tasks.withdrawn","kind":"withdrawn"},{"channel":"tasks.reinstated","kind":"reinstated"}],"dataQuality":[{"field":"title","expectation":"required"}]}]}
+}

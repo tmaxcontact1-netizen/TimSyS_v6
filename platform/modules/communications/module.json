@@ -1,0 +1,22 @@
+{
+  "name":"communications","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:communications.read","capability:communications.write","capability:communications.dispatch","capability:communications.templates","capability:notifications.in_app"],"requires":[],
+  "routes":[
+    {"path":"/communications","method":"GET","handler":"communications_list","auth_required":true,"permissions":["admin:communications:read"]},
+    {"path":"/communications","method":"POST","handler":"communications_create","auth_required":true,"permissions":["admin:communications:write"]},
+    {"path":"/communications/:id","method":"PUT","handler":"communications_update","auth_required":true,"permissions":["admin:communications:write"]},
+    {"path":"/communications/:id/dispatch","method":"POST","handler":"communications_dispatch","auth_required":true,"permissions":["admin:communications:dispatch"]},
+    {"path":"/communications/outbox/process","method":"POST","handler":"communications_processOutbox","auth_required":true,"permissions":["admin:communications:dispatch"]},
+    {"path":"/communications/:id/status","method":"PUT","handler":"communications_setStatus","auth_required":true,"permissions":["admin:communications:write"]},
+    {"path":"/communications/:id/recipients/:recipientId/read","method":"POST","handler":"communications_markRead","auth_required":true,"permissions":["admin:communications:read"]},
+    {"path":"/communications/:id/history","method":"GET","handler":"communications_history","auth_required":true,"permissions":["admin:communications:read"]},
+    {"path":"/communications/templates","method":"GET","handler":"communications_listTemplates","auth_required":true,"permissions":["admin:communications:read"]},
+    {"path":"/communications/templates","method":"POST","handler":"communications_createTemplate","auth_required":true,"permissions":["admin:communications:write"]},
+    {"path":"/communications/templates/:id","method":"PUT","handler":"communications_updateTemplate","auth_required":true,"permissions":["admin:communications:write"]},
+    {"path":"/communications/templates/:id/status","method":"PUT","handler":"communications_setTemplateStatus","auth_required":true,"permissions":["admin:communications:write"]}
+  ],
+  "schema":{"tables":["communication_templates","communications","communication_recipients","communication_transitions"],"migrations":["migrations/001_communications.sql"]},
+  "events":{"publishes":["communications.created","communications.updated","communications.queued","communications.delivered","communications.withdrawn","communications.reinstated","communications.read","communications.template_created","communications.template_updated"],"subscribes":[]},
+  "functions":[{"name":"communications_list","exports":"list"},{"name":"communications_create","exports":"create"},{"name":"communications_update","exports":"update"},{"name":"communications_dispatch","exports":"dispatch"},{"name":"communications_processOutbox","exports":"processOutbox"},{"name":"communications_setStatus","exports":"setStatus"},{"name":"communications_markRead","exports":"markRead"},{"name":"communications_history","exports":"history"},{"name":"communications_listTemplates","exports":"listTemplates"},{"name":"communications_createTemplate","exports":"createTemplate"},{"name":"communications_updateTemplate","exports":"updateTemplate"},{"name":"communications_setTemplateStatus","exports":"setTemplateStatus"}]
+}

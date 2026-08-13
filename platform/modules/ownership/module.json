@@ -1,0 +1,20 @@
+{
+  "name":"ownership","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:ownership.read","capability:ownership.write","capability:ownership.delegate","capability:ownership.handover","capability:ownership.escalate"],"requires":[],
+  "routes":[
+    {"path":"/ownership/responsibilities","method":"GET","handler":"ownership_list","auth_required":true,"permissions":["admin:ownership:read"]},
+    {"path":"/ownership/responsibilities","method":"POST","handler":"ownership_assign","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id","method":"PUT","handler":"ownership_update","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id/status","method":"PUT","handler":"ownership_setStatus","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id/contributors","method":"POST","handler":"ownership_addContributor","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id/delegate","method":"POST","handler":"ownership_delegate","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id/handover","method":"POST","handler":"ownership_handover","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id/escalate","method":"POST","handler":"ownership_escalate","auth_required":true,"permissions":["admin:ownership:write"]},
+    {"path":"/ownership/responsibilities/:id/history","method":"GET","handler":"ownership_history","auth_required":true,"permissions":["admin:ownership:read"]}
+  ],
+  "schema":{"tables":["responsibilities","responsibility_contributors","responsibility_transitions"],"migrations":["migrations/001_ownership.sql"]},
+  "events":{"publishes":["ownership.assigned","ownership.updated","ownership.delegated","ownership.handed_over","ownership.escalated","ownership.withdrawn","ownership.reinstated"],"subscribes":[]},
+  "functions":[{"name":"ownership_list","exports":"list"},{"name":"ownership_assign","exports":"assign"},{"name":"ownership_update","exports":"update"},{"name":"ownership_setStatus","exports":"setStatus"},{"name":"ownership_addContributor","exports":"addContributor"},{"name":"ownership_delegate","exports":"delegate"},{"name":"ownership_handover","exports":"handover"},{"name":"ownership_escalate","exports":"escalate"},{"name":"ownership_history","exports":"history"}]
+}
+

@@ -1,0 +1,1 @@
+{"name":"safeguarding_requirements","type":"safety_sensitive","dependencies":["ownership","approvals"],"capabilities":["capability:safeguarding.operational_read","capability:safeguarding.operational_write"],"parts":["operational_requirement","owner","deadline","verification","restricted_visibility","requirement_lifecycle"]}

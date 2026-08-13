@@ -1,0 +1,17 @@
+{
+  "name":"tasks","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:tasks.read","capability:tasks.write","capability:tasks.dependencies","capability:tasks.lifecycle"],"requires":[],
+  "routes":[
+    {"path":"/tasks","method":"GET","handler":"tasks_list","auth_required":true,"permissions":["admin:tasks:read"]},
+    {"path":"/tasks","method":"POST","handler":"tasks_create","auth_required":true,"permissions":["admin:tasks:write"]},
+    {"path":"/tasks/:id","method":"PUT","handler":"tasks_update","auth_required":true,"permissions":["admin:tasks:write"]},
+    {"path":"/tasks/:id/status","method":"PUT","handler":"tasks_setStatus","auth_required":true,"permissions":["admin:tasks:write"]},
+    {"path":"/tasks/:id/dependencies","method":"POST","handler":"tasks_addDependency","auth_required":true,"permissions":["admin:tasks:write"]},
+    {"path":"/tasks/:id/dependencies/:dependencyId","method":"DELETE","handler":"tasks_removeDependency","auth_required":true,"permissions":["admin:tasks:write"]},
+    {"path":"/tasks/:id/history","method":"GET","handler":"tasks_history","auth_required":true,"permissions":["admin:tasks:read"]}
+  ],
+  "schema":{"tables":["tasks","task_dependencies","task_transitions"],"migrations":["migrations/001_tasks.sql"]},
+  "events":{"publishes":["tasks.created","tasks.updated","tasks.started","tasks.blocked","tasks.completed","tasks.withdrawn","tasks.reinstated"],"subscribes":[]},
+  "functions":[{"name":"tasks_list","exports":"list"},{"name":"tasks_create","exports":"create"},{"name":"tasks_update","exports":"update"},{"name":"tasks_setStatus","exports":"setStatus"},{"name":"tasks_addDependency","exports":"addDependency"},{"name":"tasks_removeDependency","exports":"removeDependency"},{"name":"tasks_history","exports":"history"}]
+}

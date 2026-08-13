@@ -1,0 +1,6 @@
+{
+  "name":"approvals","type":"workflow","dependencies":[],
+  "capabilities":["capability:approvals.read","capability:approvals.write","capability:approvals.submit","capability:approvals.decide"],
+  "parts":["approval_request","ordered_stage","approver_target","decision_quorum","immutable_decision","approval_lifecycle","history"],
+  "intelligence":{"version":1,"entities":[{"type":"approval_request","source":{"table":"approval_requests","idField":"id"},"displayFields":["title","subject_type","subject_id"],"statusField":"status","events":[{"channel":"approvals.created","kind":"created"},{"channel":"approvals.submitted","kind":"updated"},{"channel":"approvals.approved","kind":"updated"},{"channel":"approvals.rejected","kind":"updated"},{"channel":"approvals.withdrawn","kind":"withdrawn"},{"channel":"approvals.reinstated","kind":"reinstated"}],"dataQuality":[{"field":"title","expectation":"required"},{"field":"subject_id","expectation":"required"}]}]}
+}

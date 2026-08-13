@@ -1,0 +1,19 @@
+{
+  "name":"documents","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:documents.read","capability:documents.write","capability:documents.version","capability:documents.link"],"requires":[],
+  "routes":[
+    {"path":"/documents","method":"GET","handler":"documents_list","auth_required":true,"permissions":["admin:documents:read"]},
+    {"path":"/documents","method":"POST","handler":"documents_create","auth_required":true,"permissions":["admin:documents:write"]},
+    {"path":"/documents/:id","method":"PUT","handler":"documents_update","auth_required":true,"permissions":["admin:documents:write"]},
+    {"path":"/documents/:id/status","method":"PUT","handler":"documents_setStatus","auth_required":true,"permissions":["admin:documents:write"]},
+    {"path":"/documents/:id/links","method":"POST","handler":"documents_addLink","auth_required":true,"permissions":["admin:documents:write"]},
+    {"path":"/documents/:id/links/:linkId","method":"DELETE","handler":"documents_removeLink","auth_required":true,"permissions":["admin:documents:write"]},
+    {"path":"/documents/:id/versions","method":"POST","handler":"documents_addVersion","auth_required":true,"permissions":["admin:documents:write"]},
+    {"path":"/documents/:id/versions/:versionId/content","method":"GET","handler":"documents_content","auth_required":true,"permissions":["admin:documents:read"]},
+    {"path":"/documents/:id/history","method":"GET","handler":"documents_history","auth_required":true,"permissions":["admin:documents:read"]}
+  ],
+  "schema":{"tables":["documents","document_links","document_versions"],"migrations":["migrations/001_documents.sql"]},
+  "events":{"publishes":["documents.created","documents.updated","documents.version_added","documents.linked","documents.unlinked","documents.withdrawn","documents.reinstated"],"subscribes":[]},
+  "functions":[{"name":"documents_list","exports":"list"},{"name":"documents_create","exports":"create"},{"name":"documents_update","exports":"update"},{"name":"documents_setStatus","exports":"setStatus"},{"name":"documents_addLink","exports":"addLink"},{"name":"documents_removeLink","exports":"removeLink"},{"name":"documents_addVersion","exports":"addVersion"},{"name":"documents_content","exports":"content"},{"name":"documents_history","exports":"history"}]
+}

@@ -9,6 +9,21 @@ import StudentProfileWidget from "./widgets/StudentProfileWidget";
 import StaffProfileWidget from "./widgets/StaffProfileWidget";
 import ModuleStatusWidget from "./widgets/ModuleStatusWidget";
 import IntelligenceWorkspace from "./widgets/IntelligenceWorkspace";
+import CalendarWidget from "./widgets/CalendarWidget";
+import OwnershipWidget from "./widgets/OwnershipWidget";
+import TasksWidget from "./widgets/TasksWidget";
+import ApprovalsWidget from "./widgets/ApprovalsWidget";
+import DocumentsWidget from "./widgets/DocumentsWidget";
+import CommunicationsWidget from "./widgets/CommunicationsWidget";
+import ParticipationWidget from "./widgets/ParticipationWidget";
+import CoordinationWidget from "./widgets/CoordinationWidget";
+import TransportationWidget from "./widgets/TransportationWidget";
+import CateringWidget from "./widgets/CateringWidget";
+import SafetyWidget from "./widgets/SafetyWidget";
+import ContingencyWidget from "./widgets/ContingencyWidget";
+import FinanceWidget from "./widgets/FinanceWidget";
+import EventsWidget from "./widgets/EventsWidget";
+import EventPlannerWidget from "./widgets/EventPlannerWidget";
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
@@ -37,6 +52,56 @@ const MODULE_TO_VIEW = {
     widget: InventoryWidget,
     requiresAdmin: false,
   },
+  calendar: {
+    id: "calendar",
+    label: "Calendar",
+    widget: CalendarWidget,
+    requiresAdmin: false,
+  },
+  ownership: {
+    id: "ownership",
+    label: "Ownership",
+    widget: OwnershipWidget,
+    requiresAdmin: false,
+  },
+  tasks: {
+    id: "tasks",
+    label: "Tasks",
+    widget: TasksWidget,
+    requiresAdmin: false,
+  },
+  approvals: {
+    id: "approvals",
+    label: "Approvals",
+    widget: ApprovalsWidget,
+    requiresAdmin: false,
+  },
+  documents: {
+    id: "documents",
+    label: "Documents",
+    widget: DocumentsWidget,
+    requiresAdmin: false,
+  },
+  communications: {
+    id: "communications",
+    label: "Communications",
+    widget: CommunicationsWidget,
+    requiresAdmin: false,
+  },
+  audiences: { id:"audiences",label:"Audiences",widget:ParticipationWidget,requiresAdmin:false },
+  invitations: { id:"invitations",label:"Invitations",widget:ParticipationWidget,requiresAdmin:false },
+  attendance: { id:"attendance",label:"Attendance",widget:ParticipationWidget,requiresAdmin:false },
+  venue_bookings: { id:"venue_bookings",label:"Venue Bookings",widget:CoordinationWidget,requiresAdmin:false },
+  resource_reservations: { id:"resource_reservations",label:"Resource Reservations",widget:CoordinationWidget,requiresAdmin:false },
+  transportation: { id:"transportation",label:"Transportation",widget:TransportationWidget,requiresAdmin:false },
+  catering: { id:"catering",label:"Catering",widget:CateringWidget,requiresAdmin:false },
+  risk_assessments: { id:"risk_assessments",label:"Risk Assessments",widget:SafetyWidget,requiresAdmin:false },
+  safeguarding_requirements: { id:"safeguarding_requirements",label:"Safeguarding",widget:SafetyWidget,requiresAdmin:false },
+  medical_referrals: { id:"medical_referrals",label:"Medical Referrals",widget:SafetyWidget,requiresAdmin:false },
+  contingency: { id:"contingency",label:"Contingency",widget:ContingencyWidget,requiresAdmin:false },
+  financial_planning: { id:"financial_planning",label:"Finance",widget:FinanceWidget,requiresAdmin:false },
+  event_record: { id:"event_record",label:"Events",widget:EventsWidget,requiresAdmin:false },
+  event_planner: { id:"event_planner",label:"Event Planner",widget:EventPlannerWidget,requiresAdmin:false },
   // Profile widgets (non-admin)
   student_profile: {
     id: "student_profiles",
@@ -422,6 +487,37 @@ function PrincipalEdDashboard() {
         />
       ) : null;
     }
+    if (moduleName === "calendar") {
+      return <CalendarWidget askConfirmation={askConfirmation} />;
+    }
+    if (moduleName === "ownership") {
+      return <OwnershipWidget askConfirmation={askConfirmation} />;
+    }
+    if (moduleName === "tasks") {
+      return <TasksWidget askConfirmation={askConfirmation} />;
+    }
+    if (moduleName === "approvals") {
+      return <ApprovalsWidget askConfirmation={askConfirmation} />;
+    }
+    if (moduleName === "documents") {
+      return <DocumentsWidget askConfirmation={askConfirmation} />;
+    }
+    if (moduleName === "communications") {
+      return <CommunicationsWidget askConfirmation={askConfirmation} />;
+    }
+    if (["audiences","invitations","attendance"].includes(moduleName)) {
+      return <ParticipationWidget mode={moduleName} askConfirmation={askConfirmation} />;
+    }
+    if (["venue_bookings","resource_reservations"].includes(moduleName)) {
+      return <CoordinationWidget mode={moduleName} rooms={data.rooms} inventory={data.inventory} askConfirmation={askConfirmation} />;
+    }
+    if (moduleName === "transportation") return <TransportationWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "catering") return <CateringWidget askConfirmation={askConfirmation} />;
+    if (["risk_assessments","safeguarding_requirements","medical_referrals"].includes(moduleName)) return <SafetyWidget mode={moduleName} askConfirmation={askConfirmation} />;
+    if (moduleName === "contingency") return <ContingencyWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "financial_planning") return <FinanceWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "event_record") return <EventsWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "event_planner") return <EventPlannerWidget />;
     if (moduleName === "student_profile") {
       return <StudentProfileWidget />;
     }

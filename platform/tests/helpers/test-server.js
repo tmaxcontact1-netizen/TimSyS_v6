@@ -44,6 +44,7 @@ async function createTestServer(dbSuffix) {
   [dbPath, dbPath + '-wal', dbPath + '-shm'].forEach(function(p) {
     if (fs.existsSync(p)) fs.unlinkSync(p);
   });
+  if (fs.existsSync(dbPath + '.documents')) fs.rmSync(dbPath + '.documents', { recursive: true, force: true });
 
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'test-secret-key-for-jest-minimum-32-characters';
@@ -73,6 +74,7 @@ async function createTestServer(dbSuffix) {
         [dbPath, dbPath + '-wal', dbPath + '-shm'].forEach(function(p) {
           if (fs.existsSync(p)) fs.unlinkSync(p);
         });
+        if (fs.existsSync(dbPath + '.documents')) fs.rmSync(dbPath + '.documents', { recursive: true, force: true });
       });
     }
   };

@@ -12,11 +12,18 @@ const appCatalog = require('./app-catalog');
 function boot(ctx) {
   ctx.log.info('builder booting', { module: 'builder' });
   templatesModule.seedDefaults();
-  const defaults = ['student_registry', 'staff_registry', 'room_registry', 'inventory', 'student_profile', 'staff_profile'];
+  const defaults = ['student_registry', 'staff_registry', 'room_registry', 'inventory', 'student_profile', 'staff_profile', 'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'contingency', 'financial_planning', 'event_record', 'event_planner'];
   const existing = ctx.db.query('SELECT COUNT(*) AS count FROM app_module_assignments WHERE app_id = ?', ['principal-ed']).rows[0];
   if (!existing || existing.count === 0) {
     defaults.forEach((name) => ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', name]));
   }
+  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'calendar']);
+  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'ownership']);
+  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'tasks']);
+  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'approvals']);
+  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'documents']);
+  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'communications']);
+  ['audiences','invitations','attendance','venue_bookings','resource_reservations','transportation','catering','risk_assessments','safeguarding_requirements','medical_referrals','contingency','financial_planning','event_record','event_planner'].forEach((name) => ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', name]));
   componentRegistry.getAll().forEach(function(component) {
     if (defaults.includes(component.ownerModule)) ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', ['principal-ed', component.name]);
   });

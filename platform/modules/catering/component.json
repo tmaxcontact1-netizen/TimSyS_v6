@@ -1,0 +1,1 @@
+{"name":"catering","type":"logistics","dependencies":["audiences","ownership","approvals"],"capabilities":["capability:catering.read","capability:catering.write","capability:catering.dietary_sensitive"],"parts":["provider","service_plan","menu_declaration","allergen_declaration","audience_demand","headcount","delivery_window","dietary_reference","service_lifecycle"]}

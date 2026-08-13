@@ -1,0 +1,16 @@
+{
+  "status": "decomposition",
+  "module": "event_management",
+  "principle": "Compose reusable components; do not embed their business capabilities in the module.",
+  "core": ["calendar", "event_record", "tasks", "people_audience", "approval_workflow"],
+  "standardIntegrations": ["room_manifest", "inventory", "venue_bookings", "resource_reservations", "communications", "documents"],
+  "conditional": ["attendance_registration", "transportation", "medical_referral", "catering", "safeguarding", "risk_management", "contingency", "budgeting", "petty_cash", "procurement", "evaluation"],
+  "componentContracts": {
+    "contingency": {
+      "purpose": "Define and activate fallback arrangements when a planned condition fails or a trigger occurs.",
+      "owns": ["trigger", "fallback_action", "owner", "activation_deadline", "required_resources", "activation_status", "resolution_record"],
+      "requires": ["event_record"],
+      "optionalCapabilities": ["calendar.entry.write", "notification.send", "inventory.read", "room_availability.read", "transportation.read", "budget.read"]
+    }
+  }
+}

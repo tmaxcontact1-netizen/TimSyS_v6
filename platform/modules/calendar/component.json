@@ -1,0 +1,18 @@
+{
+  "name": "calendar",
+  "type": "scheduling",
+  "dependencies": [],
+  "capabilities": ["capability:calendar.internal", "capability:calendar.external", "capability:calendar.entry.read", "capability:calendar.entry.write", "capability:calendar.conflicts.read", "capability:calendar.recurrence", "capability:calendar.rollover"],
+  "parts": ["calendar_entry", "calendar_layer", "recurrence_rule", "calendar_instance", "calendar_rollover", "calendar_publication", "calendar_source_link"],
+  "intelligence": {
+    "version": 1,
+    "entities": [{
+      "type": "calendar_entry",
+      "source": {"table": "calendar_entries", "idField": "id"},
+      "displayFields": ["title", "primary_layer"],
+      "statusField": "status",
+      "events": [{"channel":"calendar.entry.created","kind":"created"},{"channel":"calendar.entry.updated","kind":"updated"}],
+      "dataQuality": [{"field":"title","expectation":"required"},{"field":"start_at","expectation":"required"},{"field":"end_at","expectation":"required"}]
+    }]
+  }
+}

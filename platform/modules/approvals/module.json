@@ -1,0 +1,17 @@
+{
+  "name":"approvals","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:approvals.read","capability:approvals.write","capability:approvals.submit","capability:approvals.decide"],"requires":[],
+  "routes":[
+    {"path":"/approvals/requests","method":"GET","handler":"approvals_list","auth_required":true,"permissions":["admin:approvals:read"]},
+    {"path":"/approvals/requests","method":"POST","handler":"approvals_create","auth_required":true,"permissions":["admin:approvals:write"]},
+    {"path":"/approvals/requests/:id","method":"PUT","handler":"approvals_update","auth_required":true,"permissions":["admin:approvals:write"]},
+    {"path":"/approvals/requests/:id/submit","method":"POST","handler":"approvals_submit","auth_required":true,"permissions":["admin:approvals:submit"]},
+    {"path":"/approvals/requests/:id/status","method":"PUT","handler":"approvals_setStatus","auth_required":true,"permissions":["admin:approvals:write"]},
+    {"path":"/approvals/requests/:id/stages/:stageId/decisions","method":"POST","handler":"approvals_decide","auth_required":true,"permissions":["admin:approvals:decide"]},
+    {"path":"/approvals/requests/:id/history","method":"GET","handler":"approvals_history","auth_required":true,"permissions":["admin:approvals:read"]}
+  ],
+  "schema":{"tables":["approval_requests","approval_stages","approval_decisions","approval_transitions"],"migrations":["migrations/001_approvals.sql"]},
+  "events":{"publishes":["approvals.created","approvals.updated","approvals.submitted","approvals.stage_approved","approvals.approved","approvals.rejected","approvals.withdrawn","approvals.reinstated"],"subscribes":[]},
+  "functions":[{"name":"approvals_list","exports":"list"},{"name":"approvals_create","exports":"create"},{"name":"approvals_update","exports":"update"},{"name":"approvals_submit","exports":"submit"},{"name":"approvals_setStatus","exports":"setStatus"},{"name":"approvals_decide","exports":"decide"},{"name":"approvals_history","exports":"history"}]
+}

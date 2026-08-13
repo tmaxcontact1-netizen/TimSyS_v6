@@ -1,0 +1,9 @@
+{
+  "name":"ownership",
+  "type":"workflow",
+  "dependencies":[],
+  "capabilities":["capability:ownership.read","capability:ownership.write","capability:ownership.delegate","capability:ownership.handover","capability:ownership.escalate"],
+  "parts":["responsible_party","contributor_assignment","delegation","handover","escalation_path","responsibility_lifecycle"],
+  "intelligence":{"version":1,"entities":[{"type":"responsibility","source":{"table":"responsibilities","idField":"id"},"displayFields":["subject_type","role","party_id"],"statusField":"status","events":[{"channel":"ownership.assigned","kind":"created"},{"channel":"ownership.updated","kind":"updated"},{"channel":"ownership.withdrawn","kind":"withdrawn"},{"channel":"ownership.reinstated","kind":"reinstated"}],"dataQuality":[{"field":"subject_component","expectation":"required"},{"field":"subject_id","expectation":"required"},{"field":"party_id","expectation":"required"}]}]}
+}
+

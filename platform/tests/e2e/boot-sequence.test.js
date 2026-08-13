@@ -11,9 +11,9 @@ describe('E2E: boot sequence regression', function() {
     var names = registry.getAll().map(function(module) { return module.name; });
     expect(names).toEqual(expect.arrayContaining([
       'builder', 'intelligence_center', 'inventory', 'room_registry', 'school_analytics',
-      'staff_profile', 'staff_registry', 'student_profile', 'student_registry'
+      'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'contingency', 'financial_planning', 'event_record', 'event_planner', 'staff_profile', 'staff_registry', 'student_profile', 'student_registry'
     ]));
-    expect(names).toHaveLength(9);
+    expect(names).toHaveLength(29);
   });
 
   test('current migrations are durable', function() {

@@ -1,0 +1,1 @@
+{"name":"medical_referrals","type":"health_sensitive","dependencies":["ownership"],"capabilities":["capability:medical.referral_write","capability:medical.response_sensitive","capability:medical.clearance_read"],"parts":["party_reference","operational_question","clinical_response","operational_clearance","needed_by","restricted_visibility","referral_lifecycle"]}

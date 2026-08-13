@@ -1,0 +1,6 @@
+{
+  "name":"communications","type":"communication","dependencies":[],
+  "capabilities":["capability:communications.read","capability:communications.write","capability:communications.dispatch","capability:communications.templates","capability:notifications.in_app"],
+  "parts":["message","template","recipient","channel","outbox","delivery_state","read_receipt","subject_link","history"],
+  "intelligence":{"version":1,"entities":[{"type":"communication","source":{"table":"communications","idField":"id"},"displayFields":["title","scheduled_at"],"statusField":"status","events":[{"channel":"communications.created","kind":"created"},{"channel":"communications.updated","kind":"updated"},{"channel":"communications.queued","kind":"updated"},{"channel":"communications.delivered","kind":"updated"},{"channel":"communications.withdrawn","kind":"withdrawn"},{"channel":"communications.reinstated","kind":"reinstated"}],"dataQuality":[{"field":"title","expectation":"required"},{"field":"body","expectation":"required"}]}]}
+}

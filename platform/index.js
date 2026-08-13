@@ -505,7 +505,7 @@ function createServer() {
 
       var body = {};
       if (['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
-        body = await readBody(req);
+        body = await readBody(req, pathname.indexOf('/documents/') === 0 ? 14 * 1024 * 1024 : 1024 * 1024);
       }
 
       if (!sanitizationMiddleware(req)) return;
@@ -574,12 +574,13 @@ function createServer() {
   });
 }
 
-function readBody(req) {
+function readBody(req, maxBytes) {
   return new Promise(function(resolve, reject) {
     var data = '';
+    var limit = maxBytes || 1024 * 1024;
     req.on('data', function(chunk) {
       data += chunk;
-      if (data.length > 1024 * 1024) reject(new Error('Request body too large (max 1MB)'));
+      if (data.length > limit) reject(new Error('Request body too large'));
     });
     req.on('end', function() {
       try {

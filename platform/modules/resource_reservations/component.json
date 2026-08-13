@@ -1,0 +1,1 @@
+{"name":"resource_reservations","type":"stuff","dependencies":["inventory"],"capabilities":["capability:resource_reservation.read","capability:resource_reservation.write","capability:resource_availability.read"],"parts":["time_window","inventory_reference","subject_reference","quantity_allocation","availability_check","reservation_lifecycle"]}
