@@ -36,4 +36,15 @@ describe('admin application baseline contract', function() {
     expect(builderPage).not.toContain("../api/base");
     expect(heartbeat).not.toContain("../api/base");
   });
+
+  test('builder and heartbeat pages provide bounded vertical scrolling', function() {
+    const root = path.resolve(__dirname, '../../..');
+    const builderPage = fs.readFileSync(path.join(root, 'apps/launcher/src/pages/ModulePortalPage.jsx'), 'utf8');
+    const heartbeat = fs.readFileSync(path.join(root, 'apps/launcher/src/pages/AdminHeartbeatPage.jsx'), 'utf8');
+    const styles = fs.readFileSync(path.join(root, 'apps/launcher/src/styles.css'), 'utf8');
+    expect(builderPage).toContain('builder-scroll-region');
+    expect(builderPage).toContain('overflow-y-scroll');
+    expect(heartbeat).toContain('overflow-y-auto');
+    expect(styles).toContain('scrollbar-gutter: stable');
+  });
 });

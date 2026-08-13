@@ -33,12 +33,12 @@ function AdminHeartbeatPage({ app }) {
     catch (cause) { setError(cause.response?.data?.error?.message || cause.message); }
   };
 
-  return <div className="min-h-screen bg-timsys-dark text-white">
+  return <div className="h-screen bg-timsys-dark text-white flex flex-col overflow-hidden">
     <nav className="border-b border-gray-800 bg-gray-900/80"><div className="max-w-6xl mx-auto px-6 py-4 flex justify-between">
       <div className="flex gap-4 items-center"><button onClick={() => section === 'home' ? navigate('/') : setSection('home')} className="text-gray-400 hover:text-white">← Back</button><h1 className="text-2xl font-bold text-timsys-primary">{app.displayName}</h1></div>
       <button onClick={() => navigate('/')} className="text-gray-300">Return to launcher</button>
     </div></nav>
-    <main className="max-w-6xl mx-auto p-6">
+    <main className="w-full flex-1 min-h-0 overflow-y-auto overscroll-contain"><div className="max-w-6xl mx-auto p-6 pb-16">
       {error && <div className="mb-5 border border-red-600 bg-red-950/50 rounded p-3 text-red-200">{error}</div>}
       {section === 'home' ? <>
         <h2 className="text-2xl font-semibold">Application home</h2>
@@ -56,7 +56,7 @@ function AdminHeartbeatPage({ app }) {
         <form onSubmit={addItem} className="grid grid-cols-1 md:grid-cols-[160px_1fr_120px_auto] gap-3 mb-6"><input required value={item.item_number} onChange={e => setItem({ ...item, item_number: e.target.value })} placeholder="Item number" className="bg-gray-900 border border-gray-700 rounded p-3"/><input required value={item.item_name} onChange={e => setItem({ ...item, item_name: e.target.value })} placeholder="Item name" className="bg-gray-900 border border-gray-700 rounded p-3"/><input required min="0" type="number" value={item.quantity} onChange={e => setItem({ ...item, quantity: e.target.value })} className="bg-gray-900 border border-gray-700 rounded p-3"/><button className="bg-timsys-primary rounded px-5">Add item</button></form>
         <div className="rounded-xl border border-gray-800 overflow-hidden"><table className="w-full"><thead className="bg-gray-900 text-gray-400"><tr><th className="p-3 text-left">#</th><th className="p-3 text-left">Item</th><th className="p-3 text-left">Quantity</th><th className="p-3 text-left">Status</th></tr></thead><tbody>{items.map((entry, index) => <tr key={entry.id} className="border-t border-gray-800"><td className="p-3">{index + 1}</td><td className="p-3">{entry.item_name}</td><td className="p-3">{entry.quantity}</td><td className="p-3">{entry.status}</td></tr>)}</tbody></table>{!items.length && <p className="p-6 text-gray-500">No inventory has been added to this application.</p>}</div>
       </>}
-    </main>
+    </div></main>
   </div>;
 }
 

@@ -30,6 +30,11 @@ body {
   width: 100vw;
 }
 
+/* Electron keeps the document fixed; full-screen pages own their scroll area. */
+.builder-scroll-region {
+  scrollbar-gutter: stable;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

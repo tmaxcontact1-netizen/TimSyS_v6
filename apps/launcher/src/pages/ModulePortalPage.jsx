@@ -49,7 +49,7 @@ function ModulePortalPage() {
 
   if (loading) return <div className="min-h-screen bg-timsys-dark flex items-center justify-center"><div className="spinner" /></div>;
 
-  return <div className="min-h-screen bg-timsys-dark text-white">
+  return <div className="h-screen bg-timsys-dark text-white flex flex-col overflow-hidden">
     <nav className="border-b border-gray-800 bg-gray-900/80 sticky top-0 z-10">
       <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
         <div className="flex items-center gap-4">
@@ -59,7 +59,8 @@ function ModulePortalPage() {
         <button onClick={() => navigate('/')} className="text-sm text-gray-300 hover:text-white">Return to launcher</button>
       </div>
     </nav>
-    <main className="max-w-7xl mx-auto px-6 py-8">
+    <main className="builder-scroll-region w-full flex-1 min-h-0 overflow-y-scroll overscroll-contain">
+      <div className="max-w-7xl mx-auto px-6 py-8 pb-16">
       {error && <div className="mb-5 rounded border border-red-500 bg-red-950/60 p-4 text-red-200">{error}</div>}
       {notice && <div className="mb-5 rounded border border-amber-500 bg-amber-950/50 p-4 text-amber-100">{notice}</div>}
 
@@ -119,6 +120,7 @@ function ModulePortalPage() {
           </article>)}</div>
         </section>
       </>}
+      </div>
     </main>
   </div>;
 }
