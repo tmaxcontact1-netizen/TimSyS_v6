@@ -23,4 +23,17 @@ describe('admin application baseline contract', function() {
   test('rejects unregistered application scopes', function() {
     expect(function() { appScope.fromRequest({ query: { app_id: 'made-up' }, body: {} }); }).toThrow('Unknown application scope');
   });
+
+  test('launcher admin applications use the platform-root API client', function() {
+    const root = path.resolve(__dirname, '../../..');
+    const builderApi = fs.readFileSync(path.join(root, 'apps/launcher/src/api/builder.js'), 'utf8');
+    const builderPage = fs.readFileSync(path.join(root, 'apps/launcher/src/pages/ModulePortalPage.jsx'), 'utf8');
+    const heartbeat = fs.readFileSync(path.join(root, 'apps/launcher/src/pages/AdminHeartbeatPage.jsx'), 'utf8');
+    expect(builderApi).toContain("baseURL: '/'");
+    expect(builderApi).toContain("platformClient.get('/builder/catalogue')");
+    expect(builderPage).toContain('getBuilderCatalogue');
+    expect(heartbeat).toContain('platformClient');
+    expect(builderPage).not.toContain("../api/base");
+    expect(heartbeat).not.toContain("../api/base");
+  });
 });

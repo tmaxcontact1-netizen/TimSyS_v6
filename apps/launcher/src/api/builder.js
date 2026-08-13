@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const client = axios.create({
+export const platformClient = axios.create({
   baseURL: '/',
   timeout: 10000,
   headers: {
@@ -9,7 +9,7 @@ const client = axios.create({
   },
 });
 
-client.interceptors.request.use((config) => {
+platformClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('jwt_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -18,66 +18,71 @@ client.interceptors.request.use((config) => {
 });
 
 export const getDashboard = async () => {
-  const response = await client.get('/builder/dashboard');
+  const response = await platformClient.get('/builder/dashboard');
   return response.data.dashboard || {};
 };
 
 export const getRecommendations = async () => {
-  const response = await client.get('/builder/recommendations');
+  const response = await platformClient.get('/builder/recommendations');
   return response.data.recommendations || {};
 };
 
 export const getModuleAnalysis = async (moduleName) => {
-  const response = await client.get(`/builder/${moduleName}/analysis`);
+  const response = await platformClient.get(`/builder/${moduleName}/analysis`);
   return response.data.analysis || {};
 };
 
 export const assembleModule = async (spec) => {
-  const response = await client.post('/builder/assemble', spec);
+  const response = await platformClient.post('/builder/assemble', spec);
   return response.data;
 };
 
 export const dryRunAssemble = async (spec) => {
-  const response = await client.post('/builder/assemble', spec, {
+  const response = await platformClient.post('/builder/assemble', spec, {
     params: { dryRun: true }
   });
   return response.data;
 };
 
 export const getNewModuleTemplate = async (name) => {
-  const response = await client.get('/builder/new-module', {
+  const response = await platformClient.get('/builder/new-module', {
     params: { name }
   });
   return response.data;
 };
 
 export const getModulesForApp = async (appId) => {
-  const response = await client.get('/modules/list-for-app', { params: { appId } });
+  const response = await platformClient.get('/modules/list-for-app', { params: { appId } });
   return response.data.data || [];
 };
 
 export const setModuleForApp = async (appId, moduleName, enabled) => {
   const response = enabled
-    ? await client.post('/modules/assign', { appId, moduleName })
-    : await client.delete('/modules/unassign', { params: { appId, moduleName } });
+    ? await platformClient.post('/modules/assign', { appId, moduleName })
+    : await platformClient.delete('/modules/unassign', { params: { appId, moduleName } });
   return response.data;
 };
 
 export const getComponentsForApp = async (appId) => {
-  const response = await client.get('/components/list-for-app', { params: { appId } });
+  const response = await platformClient.get('/components/list-for-app', { params: { appId } });
   return response.data.data || [];
 };
 
 export const setComponentForApp = async (appId, componentName, enabled) => {
   const response = enabled
-    ? await client.post('/components/assign', { appId, componentName })
-    : await client.delete('/components/unassign', { params: { appId, componentName } });
+    ? await platformClient.post('/components/assign', { appId, componentName })
+    : await platformClient.delete('/components/unassign', { params: { appId, componentName } });
   return response.data;
 };
 
 export const getDraftModules = async () => {
-  const response = await client.get('/builder/drafts');
+  const response = await platformClient.get('/builder/drafts');
   return response.data.data || [];
+};
+
+export const getBuilderCatalogue = async () => {
+  const response = await platformClient.get('/builder/catalogue');
+  return response.data.data || null;
 };
 
 // Preset configurations for non-technical users

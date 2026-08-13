@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../api/base';
+import { getBuilderCatalogue, setComponentForApp, setModuleForApp } from '../api/builder';
 
 const label = value => String(value || '').replaceAll('_', ' ');
 
@@ -22,8 +22,7 @@ function ModulePortalPage() {
 
   const load = async () => {
     try {
-      const response = await apiClient.get('/builder/catalogue');
-      setCatalogue(response.data?.data || null);
+      setCatalogue(await getBuilderCatalogue());
       setError(null);
     } catch (err) { setError(err.response?.data?.error?.message || err.message); }
     finally { setLoading(false); }
@@ -39,10 +38,8 @@ function ModulePortalPage() {
       return;
     }
     try {
-      const path = kind === 'module' ? '/modules' : '/components';
-      const key = kind === 'module' ? 'moduleName' : 'componentName';
-      if (item.enabled) await apiClient.delete(`${path}/unassign`, { params: { appId: app.id, [key]: item.name } });
-      else await apiClient.post(`${path}/assign`, { appId: app.id, [key]: item.name });
+      if (kind === 'module') await setModuleForApp(app.id, item.name, !item.enabled);
+      else await setComponentForApp(app.id, item.name, !item.enabled);
       await load();
     } catch (err) {
       const detail = err.response?.data?.error;

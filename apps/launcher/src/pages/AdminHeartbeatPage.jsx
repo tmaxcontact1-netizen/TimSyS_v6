@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import apiClient from '../api/base';
+import { platformClient } from '../api/builder';
 
 function AdminHeartbeatPage({ app }) {
   const navigate = useNavigate();
@@ -14,8 +14,8 @@ function AdminHeartbeatPage({ app }) {
   const load = async () => {
     try {
       const [places, stuff] = await Promise.all([
-        apiClient.get('/rooms', { params: { app_id: app.appId } }),
-        apiClient.get('/inventory', { params: { app_id: app.appId } })
+        platformClient.get('/rooms', { params: { app_id: app.appId } }),
+        platformClient.get('/inventory', { params: { app_id: app.appId } })
       ]);
       setRooms(places.data.rooms || []); setItems(stuff.data.items || []); setError(null);
     } catch (cause) { setError(cause.response?.data?.error?.message || cause.message); }
@@ -24,12 +24,12 @@ function AdminHeartbeatPage({ app }) {
 
   const addRoom = async event => {
     event.preventDefault();
-    try { await apiClient.post('/rooms', { ...room, capacity: Number(room.capacity), app_id: app.appId }); setRoom({ room_number: '', capacity: 1 }); await load(); }
+    try { await platformClient.post('/rooms', { ...room, capacity: Number(room.capacity), app_id: app.appId }); setRoom({ room_number: '', capacity: 1 }); await load(); }
     catch (cause) { setError(cause.response?.data?.error?.message || cause.message); }
   };
   const addItem = async event => {
     event.preventDefault();
-    try { await apiClient.post('/inventory', { ...item, quantity: Number(item.quantity), app_id: app.appId }); setItem({ item_number: '', item_name: '', quantity: 1 }); await load(); }
+    try { await platformClient.post('/inventory', { ...item, quantity: Number(item.quantity), app_id: app.appId }); setItem({ item_number: '', item_name: '', quantity: 1 }); await load(); }
     catch (cause) { setError(cause.response?.data?.error?.message || cause.message); }
   };
 
