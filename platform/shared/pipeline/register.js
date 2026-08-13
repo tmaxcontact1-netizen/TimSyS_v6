@@ -18,13 +18,10 @@ function registerModule(moduleInfo) {
   delete require.cache[require.resolve(indexPath)];
   var modExports = require(indexPath);
 
-  moduleRegistry.register({
-    name: manifest.name,
-    version: manifest.version,
-    author: manifest.author,
-    status: 'registered',
-    booted: false,
-  });
+  // Keep the complete manifest available to introspection and the Builder.
+  // Previously this reduced record discarded dependencies, routes, functions,
+  // schema and capabilities, making registered modules appear empty.
+  moduleRegistry.register(manifest);
 
   if (manifest.routes) {
     for (var r = 0; r < manifest.routes.length; r++) {

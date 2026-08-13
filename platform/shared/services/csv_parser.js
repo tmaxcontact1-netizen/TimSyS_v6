@@ -109,9 +109,46 @@ function mapRows(rows, columnMap) {
   return results;
 }
 
+function importedValue(value) {
+  return value === undefined || value === null ? '' : String(value).trim();
+}
+
+function prepareImportedRow(mappedResult, options) {
+  options = options || {};
+  var row = Object.assign({}, mappedResult.mapped);
+  var warnings = [];
+  var required = options.required || [];
+  for (var i = 0; i < required.length; i++) {
+    var field = required[i];
+    row[field] = importedValue(row[field]);
+    if (!row[field]) warnings.push('Missing ' + field);
+  }
+  var identifier = options.identifier;
+  if (identifier && !row[identifier]) {
+    row[identifier] = 'IMPORT-' + String(options.entity || 'RECORD').toUpperCase() + '-' + Date.now() + '-' + options.rowNumber;
+    warnings.push('Generated temporary ' + identifier + ' because the source value was missing');
+  }
+  var unsupported = Object.keys(mappedResult.unmapped || {}).filter(function(key) {
+    return importedValue(mappedResult.unmapped[key]) !== '';
+  });
+  if (unsupported.length) warnings.push('Unrecognised columns retained in import metadata: ' + unsupported.join(', '));
+  return {
+    row: row,
+    warnings: warnings,
+    customFields: {
+      csv_import: {
+        source_row: options.rowNumber,
+        warnings: warnings,
+        unmapped: mappedResult.unmapped || {}
+      }
+    }
+  };
+}
+
 module.exports = {
   parse: parse,
   normalizeHeader: normalizeHeader,
   mapRow: mapRow,
-  mapRows: mapRows
+  mapRows: mapRows,
+  prepareImportedRow: prepareImportedRow
 };

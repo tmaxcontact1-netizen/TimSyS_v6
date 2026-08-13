@@ -12,13 +12,18 @@ function teardown(ctx) {
 }
 
 async function listStaff(req, ctx) {
-  var page = parseInt(req.query.page, 10) || 1;
-  var limit = parseInt(req.query.limit, 10) || 50;
-  if (limit > 500) limit = 500;
+  var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  var limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 50));
   var offset = (page - 1) * limit;
 
   var conditions = [];
   var params = [];
+
+  if (req.query.q) {
+    conditions.push("(staff_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR preferred_name LIKE ? OR job_title LIKE ? OR department LIKE ?)");
+    var search = '%' + req.query.q + '%';
+    params.push(search, search, search, search, search, search);
+  }
 
   if (req.query.last_name) { conditions.push('last_name LIKE ?'); params.push('%' + req.query.last_name + '%'); }
   if (req.query.first_name) { conditions.push('first_name LIKE ?'); params.push('%' + req.query.first_name + '%'); }
@@ -35,7 +40,7 @@ async function listStaff(req, ctx) {
 
   var result = ctx.db.query(sql, params);
   var countSql = 'SELECT COUNT(*) as total FROM staff' + where;
-  var countResult = ctx.db.query(countSql, conditions.length > 0 ? params.slice(0, conditions.length) : []);
+  var countResult = ctx.db.query(countSql, params.slice(0, -2));
 
   return { success: true, staff: result.rows, total: parseInt(countResult.rows[0].total, 10), page: page, limit: limit };
 }
@@ -88,6 +93,7 @@ async function updateStaff(req, ctx) {
   }
 
   var allowedFields = ['first_name', 'last_name', 'middle_name', 'preferred_name', 'date_of_birth', 'sex', 'photo_url', 'nationality', 'national_insurance_number', 'identity_custom', 'hire_date', 'termination_date', 'employment_status', 'employment_type', 'job_title', 'department', 'reports_to_staff_id', 'pay_grade', 'work_email', 'work_phone', 'employment_custom', 'dbs_check_status', 'dbs_check_date', 'dbs_expiry_date', 'dbs_reference_number', 'dbs_certificate_url', 'background_checks_custom', 'qualifications_summary', 'qualifications_custom', 'phone_primary', 'phone_secondary', 'email_work', 'email_personal', 'address_line1', 'address_line2', 'city', 'state_province', 'postal_code', 'country', 'contact_custom', 'emergency_contact_name', 'emergency_contact_phone', 'emergency_contact_relationship', 'notes', 'custom_fields', 'user_id'];
+  allowedFields.unshift('staff_id');
 
   var updates = [];
   var params = [];
@@ -95,11 +101,11 @@ async function updateStaff(req, ctx) {
   for (var i = 0; i < allowedFields.length; i++) {
     var field = allowedFields[i];
     if (b[field] !== undefined) {
-      if (field === 'sex' && b[field] !== 'Male' && b[field] !== 'Female') {
+      if (field === 'sex' && b[field] && b[field] !== 'Male' && b[field] !== 'Female') {
         return { success: false, statusCode: 400, error: { code: 'VALIDATION_ERROR', message: 'sex must be Male or Female' } };
       }
       updates.push(field + ' = ?');
-      params.push(b[field]);
+      params.push(field === 'sex' && !b[field] ? null : b[field]);
     }
   }
 
@@ -196,34 +202,38 @@ async function importStaff(req, ctx) {
   
   var parsed = csvParser.parse(Buffer.from(body.csv));
   var mapped = csvParser.mapRows(parsed.rows, staffColumnMap);
-  var inserted = 0, skipped = 0, errors = [];
+  var inserted = 0, skipped = 0, warnings = [], errors = [];
   
   for (var i = 0; i < mapped.length; i++) {
-    var m = mapped[i].mapped;
-    if (!m.staff_id || !m.first_name || !m.last_name || !m.hire_date) {
-      errors.push({ row: i + 2, reason: 'Missing required field' });
-      skipped++;
-      continue;
-    }
+    var prepared = csvParser.prepareImportedRow(mapped[i], { rowNumber: i + 2, entity: 'staff', identifier: 'staff_id', required: ['staff_id','first_name','last_name','hire_date'] });
+    var m = prepared.row;
+    var rowWarnings = prepared.warnings;
     var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex || null;
+    if (sexVal && sexVal !== 'Male' && sexVal !== 'Female') { rowWarnings.push('Invalid sex retained in import metadata; review required'); sexVal = null; }
+    if (m.employment_status && !['active','terminated','leave','contract'].includes(m.employment_status)) rowWarnings.push('Invalid employment_status retained in import metadata; review required');
+    if (m.employment_type && !['full_time','part_time','casual','contractor'].includes(m.employment_type)) rowWarnings.push('Invalid employment_type retained in import metadata; review required');
+    if (m.dbs_check_status && !['pending','clear','disclosed','expired'].includes(m.dbs_check_status)) rowWarnings.push('Invalid dbs_check_status retained in import metadata; review required');
     var existing = ctx.db.query('SELECT id FROM staff WHERE staff_id = ?', [m.staff_id]);
     if (existing.rows.length > 0) {
-      errors.push({ row: i + 2, reason: 'Duplicate staff_id: ' + m.staff_id });
-      skipped++;
-      continue;
+      rowWarnings.push('Duplicate staff_id: ' + m.staff_id + '; a temporary identifier was assigned');
+      m.staff_id += '-IMPORT-' + Date.now() + '-' + (i + 2);
     }
     try {
-      ctx.db.query(
+      prepared.customFields.csv_import.warnings = rowWarnings;
+      var result = ctx.db.query(
         'INSERT INTO staff (staff_id, first_name, last_name, date_of_birth, sex, hire_date, employment_status, employment_type, job_title, department, pay_grade, work_email, work_phone, phone_primary, phone_secondary, email_work, email_personal, notes, identity_custom, employment_custom, contact_custom, qualifications_custom, background_checks_custom, custom_fields, dbs_check_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [m.staff_id, m.first_name, m.last_name, m.date_of_birth || null, sexVal, m.hire_date, m.employment_status || 'active', m.employment_type || 'full_time', m.job_title || null, m.department || null, m.pay_grade || null, m.work_email || null, m.work_phone || null, m.phone_primary || null, m.phone_secondary || null, m.email_work || null, m.email_personal || null, m.notes || null, '{}', '{}', '{}', '{}', '{}', '{}', m.dbs_check_status || 'pending']
+        [m.staff_id, m.first_name, m.last_name, m.date_of_birth || null, sexVal, m.hire_date, ['active','terminated','leave','contract'].includes(m.employment_status) ? m.employment_status : 'active', ['full_time','part_time','casual','contractor'].includes(m.employment_type) ? m.employment_type : 'full_time', m.job_title || null, m.department || null, m.pay_grade || null, m.work_email || null, m.work_phone || null, m.phone_primary || null, m.phone_secondary || null, m.email_work || null, m.email_personal || null, m.notes || null, '{}', '{}', '{}', '{}', '{}', JSON.stringify(prepared.customFields), ['pending','clear','disclosed','expired'].includes(m.dbs_check_status) ? m.dbs_check_status : 'pending']
       );
+      var record = ctx.db.query('SELECT * FROM staff WHERE id = ?', [result.lastInsertRowid]).rows[0];
+      ctx.events.publish('staff.created', { entityType: 'staff', entityId: result.lastInsertRowid, record: record, actorId: req.user.id, __module: 'staff_registry' });
+      rowWarnings.forEach(function(reason) { warnings.push({ row: i + 2, reason: reason, entityId: result.lastInsertRowid }); });
       inserted++;
     } catch (e) {
       errors.push({ row: i + 2, reason: e.message });
       skipped++;
     }
   }
-  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+  return { success: true, inserted: inserted, skipped: skipped, warnings: warnings, errors: errors };
 }
 
 module.exports = {

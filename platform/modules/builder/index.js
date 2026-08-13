@@ -6,6 +6,8 @@ const composer = require('./composer');
 const componentRegistry = require('../../shared/registry/componentRegistry');
 const moduleRegistry = require('../../shared/registry/moduleRegistry');
 const lifecycle = require('./lifecycle');
+const uiStandard = require('./ui-standard');
+const appCatalog = require('./app-catalog');
 
 function boot(ctx) {
   ctx.log.info('builder booting', { module: 'builder' });
@@ -15,6 +17,15 @@ function boot(ctx) {
   if (!existing || existing.count === 0) {
     defaults.forEach((name) => ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', name]));
   }
+  componentRegistry.getAll().forEach(function(component) {
+    if (defaults.includes(component.ownerModule)) ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', ['principal-ed', component.name]);
+  });
+  ['competeed', 'sanctifyed'].forEach(function(appId) {
+    ['room_registry', 'inventory'].forEach(function(name) { ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', [appId, name]); });
+    componentRegistry.getAll().filter(function(component) { return ['room_registry', 'inventory'].includes(component.ownerModule); }).forEach(function(component) {
+      ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', [appId, component.name]);
+    });
+  });
 }
 
 function required(value, name) {
@@ -22,26 +33,75 @@ function required(value, name) {
   return null;
 }
 
+function knownApp(appId) {
+  return appCatalog.get(appId) ? null : { error: { code: 'UNKNOWN_ADMIN_APP', message: 'Unknown admin application' }, statusCode: 404, success: false };
+}
+
+function canManageProfiles(req) {
+  const permissions = (req.user && req.user.permissions) || [];
+  return permissions.includes('admin:*') || permissions.some(function(permission) { return permission.indexOf('admin:principal') === 0; });
+}
+
+function isProfile(value) { return String(value || '').indexOf('_profile') !== -1; }
+
+function moduleDependents(moduleName, assigned) {
+  const removed = moduleRegistry.get(moduleName);
+  const provisions = new Set((removed && removed.capabilitiesProvided) || []);
+  return moduleRegistry.getAll().filter(function(mod) {
+    if (mod.name === moduleName || !assigned.has(mod.name)) return false;
+    return (mod.dependencies || []).includes(moduleName) || (mod.capabilitiesRequired || []).some(function(capability) { return provisions.has(capability); });
+  }).map(function(mod) { return mod.name; });
+}
+
+function decorateModule(mod, assigned, appId) {
+  const components = componentRegistry.getByModule(mod.name);
+  const requiredModule = ['inventory', 'room_registry'].includes(mod.name);
+  return Object.assign({}, mod, {
+    provides: mod.capabilitiesProvided || [], requires: mod.capabilitiesRequired || [], enabled: assigned.has(mod.name),
+    components: components,
+    componentManifest: components,
+    removalImpact: moduleDependents(mod.name, assigned),
+    profileAccess: isProfile(mod.name) ? ['superuser', 'principal'] : null,
+    required: requiredModule,
+    removable: !requiredModule
+  });
+}
+
 async function modulesForApp(req, ctx) {
   const appId = req.query.appId;
   const invalid = required(appId, 'appId'); if (invalid) return invalid;
+  const unknown = knownApp(appId); if (unknown) return unknown;
   const assigned = new Set(ctx.db.query('SELECT module_name FROM app_module_assignments WHERE app_id = ?', [appId]).rows.map((row) => row.module_name));
-  return { success: true, data: moduleRegistry.getAll().map((mod) => ({
-    ...mod, provides: mod.capabilitiesProvided, requires: mod.capabilitiesRequired, enabled: assigned.has(mod.name)
-  })) };
+  return { success: true, data: moduleRegistry.getAll().map(function(mod) { return decorateModule(mod, assigned, appId); }) };
 }
 
 async function assignModule(req, ctx) {
   const { appId, moduleName } = req.body || {};
   const invalid = required(appId, 'appId') || required(moduleName, 'moduleName'); if (invalid) return invalid;
-  if (!moduleRegistry.get(moduleName)) return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Module not found' } };
-  ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', [appId, moduleName]);
-  return { success: true, data: { appId, moduleName, enabled: true } };
+  const unknown = knownApp(appId); if (unknown) return unknown;
+  if (isProfile(moduleName) && !canManageProfiles(req)) return { success: false, statusCode: 403, error: { code: 'PROFILE_ACCESS_RESTRICTED', message: 'User profiles can only be configured by a superuser or principal' } };
+  const selected = moduleRegistry.get(moduleName);
+  if (!selected) return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Module not found' } };
+  const providers = [];
+  (selected.capabilitiesRequired || []).forEach(function(capability) {
+    const provider = moduleRegistry.getAll().find(function(mod) { return (mod.capabilitiesProvided || []).includes(capability); });
+    if (provider && !providers.includes(provider.name)) providers.push(provider.name);
+  });
+  ctx.db.transaction(function(db) {
+    providers.concat([moduleName]).forEach(function(name) { db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', [appId, name]); });
+  });
+  return { success: true, data: { appId, moduleName, enabled: true, dependenciesAdded: providers } };
 }
 
 async function unassignModule(req, ctx) {
   const { appId, moduleName } = req.query;
   const invalid = required(appId, 'appId') || required(moduleName, 'moduleName'); if (invalid) return invalid;
+  const unknown = knownApp(appId); if (unknown) return unknown;
+  if (isProfile(moduleName) && !canManageProfiles(req)) return { success: false, statusCode: 403, error: { code: 'PROFILE_ACCESS_RESTRICTED', message: 'User profiles can only be configured by a superuser or principal' } };
+  if (['inventory', 'room_registry'].includes(moduleName)) return { success: false, statusCode: 409, error: { code: 'REQUIRED_BASELINE', message: 'Places and Stuff are required baseline modules' } };
+  const assigned = new Set(ctx.db.query('SELECT module_name FROM app_module_assignments WHERE app_id = ?', [appId]).rows.map(function(row) { return row.module_name; }));
+  const affected = moduleDependents(moduleName, assigned);
+  if (affected.length) return { success: false, statusCode: 409, error: { code: 'DEPENDENCY_IMPACT', message: 'Remove dependent modules first', affected: affected } };
   ctx.db.query('DELETE FROM app_module_assignments WHERE app_id = ? AND module_name = ?', [appId, moduleName]);
   return { success: true, data: { appId, moduleName, enabled: false } };
 }
@@ -49,6 +109,7 @@ async function unassignModule(req, ctx) {
 async function componentsForApp(req, ctx) {
   const appId = req.query.appId;
   const invalid = required(appId, 'appId'); if (invalid) return invalid;
+  const unknown = knownApp(appId); if (unknown) return unknown;
   const assigned = new Set(ctx.db.query('SELECT component_name FROM app_component_assignments WHERE app_id = ?', [appId]).rows.map((row) => row.component_name));
   return { success: true, data: componentRegistry.getAll().map((component) => ({ ...component, enabled: assigned.has(component.name) })) };
 }
@@ -56,6 +117,8 @@ async function componentsForApp(req, ctx) {
 async function assignComponent(req, ctx) {
   const { appId, componentName } = req.body || {};
   const invalid = required(appId, 'appId') || required(componentName, 'componentName'); if (invalid) return invalid;
+  const unknown = knownApp(appId); if (unknown) return unknown;
+  if (isProfile(componentName) && !canManageProfiles(req)) return { success: false, statusCode: 403, error: { code: 'PROFILE_ACCESS_RESTRICTED', message: 'User profiles can only be configured by a superuser or principal' } };
   if (!componentRegistry.get(componentName)) return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Component not found' } };
   ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', [appId, componentName]);
   return { success: true, data: { appId, componentName, enabled: true } };
@@ -64,6 +127,10 @@ async function assignComponent(req, ctx) {
 async function unassignComponent(req, ctx) {
   const { appId, componentName } = req.query;
   const invalid = required(appId, 'appId') || required(componentName, 'componentName'); if (invalid) return invalid;
+  const unknown = knownApp(appId); if (unknown) return unknown;
+  if (isProfile(componentName) && !canManageProfiles(req)) return { success: false, statusCode: 403, error: { code: 'PROFILE_ACCESS_RESTRICTED', message: 'User profiles can only be configured by a superuser or principal' } };
+  const component = componentRegistry.get(componentName);
+  if (component && ['inventory', 'room_registry'].includes(component.ownerModule)) return { success: false, statusCode: 409, error: { code: 'REQUIRED_BASELINE', message: 'Places and Stuff are required baseline components' } };
   ctx.db.query('DELETE FROM app_component_assignments WHERE app_id = ? AND component_name = ?', [appId, componentName]);
   return { success: true, data: { appId, componentName, enabled: false } };
 }
@@ -142,6 +209,32 @@ async function templates(req, ctx) {
   return { success: true, templates: templateList };
 }
 
+async function catalogue(req, ctx) {
+  const apps = appCatalog.all().map(function(app) {
+    const assigned = new Set(ctx.db.query('SELECT module_name FROM app_module_assignments WHERE app_id = ?', [app.id]).rows.map(function(row) { return row.module_name; }));
+    const assignedComponents = new Set(ctx.db.query('SELECT component_name FROM app_component_assignments WHERE app_id = ?', [app.id]).rows.map(function(row) { return row.component_name; }));
+    const visibleModules = app.id === 'principal-ed' ? moduleRegistry.getAll() : moduleRegistry.getAll().filter(function(mod) { return assigned.has(mod.name); });
+    const modules = visibleModules.map(function(mod) {
+      const decorated = decorateModule(mod, assigned, app.id);
+      decorated.components = decorated.components.map(function(component) {
+        const requiredComponent = ['room_registry', 'inventory'].includes(component.ownerModule);
+        return Object.assign({}, component, { enabled: assignedComponents.has(component.name), removalImpact: [], required: requiredComponent, removable: !requiredComponent });
+      });
+      decorated.componentManifest = decorated.components;
+      return decorated;
+    });
+    return Object.assign({}, app, {
+      essentialServices: appCatalog.essentialServices(),
+      modules: modules
+    });
+  });
+  return { success: true, data: { apps: apps, scope: 'app-specific', excludedApplications: ['memecoined'], profileAccess: ['superuser', 'principal'], recommendations: ctx.recommendation.getSuggestions() } };
+}
+
+async function applicationUiStandard() {
+  return { success: true, standard: uiStandard.contract };
+}
+
 async function assemble(req, ctx) {
   var spec = req.body || {};
   if (!spec.name) {
@@ -204,7 +297,8 @@ async function validate(req, ctx) {
     validated: {
       canBuild: true,
       composition: composed,
-      assemblyPreview: assemblyPreview
+      assemblyPreview: assemblyPreview,
+      uiStandard: uiStandard.validateDeclaration(composed.spec.manifest.uiStandard)
     }
   };
 }
@@ -228,7 +322,9 @@ module.exports = {
   newModule: newModule,
   analysis: analysis,
   recommendations: recommendations,
+  catalogue: catalogue,
   templates: templates,
+  applicationUiStandard: applicationUiStandard,
   assemble: assemble,
   components: components,
   compose: compose,

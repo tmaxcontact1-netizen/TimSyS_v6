@@ -6,6 +6,7 @@ const path = require('path');
 const componentRegistry = require('../../shared/registry/componentRegistry');
 const moduleRegistry = require('../../shared/registry/moduleRegistry');
 const log = require('../../shared/services/log');
+const uiStandard = require('./ui-standard');
 
 const MODULES_DIR = path.resolve(__dirname, '../../modules');
 
@@ -74,7 +75,7 @@ function assemble(spec) {
   }
 
   // Step 4: Build manifest
-  var manifest = {
+  var manifest = uiStandard.applyToManifest({
     name: name,
     status: 'draft',
     version: spec.version || '1.0.0',
@@ -88,7 +89,7 @@ function assemble(spec) {
     statusConfig: spec.statusConfig || null,
     schema: spec.schema || { tables: [], migrations: [] },
     events: spec.events || { publishes: [], subscribes: [] }
-  };
+  });
 
   // Step 5: Create directory structure
   var migrationsDir = path.join(moduleDir, 'migrations');
@@ -98,6 +99,7 @@ function assemble(spec) {
 
   // Step 6: Write module.json
   fs.writeFileSync(path.join(moduleDir, 'module.json'), JSON.stringify(manifest, null, 2) + '\n');
+  fs.writeFileSync(path.join(moduleDir, 'ui-standard.json'), JSON.stringify(uiStandard.contract, null, 2) + '\n');
 
   // Step 7: Generate index.js with component wiring and handler stubs
   var componentRequires = components.map(function(comp, idx) {
@@ -217,6 +219,7 @@ function assemble(spec) {
       manifest: manifest,
       filesCreated: [
         'module.json',
+        'ui-standard.json',
         'index.js',
         'migrations/.gitkeep'
       ].concat(
@@ -279,6 +282,7 @@ function dryRun(spec) {
       canBuild: missingComponents.length === 0 && !exists,
       filesCreated: [
         'module.json',
+        'ui-standard.json',
         'index.js',
         'migrations/.gitkeep'
       ],

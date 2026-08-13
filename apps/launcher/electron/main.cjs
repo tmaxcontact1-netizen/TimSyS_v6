@@ -21,6 +21,7 @@ let supervisedApps;
 let postgres;
 let desktopToken;
 let memecoinedConfigurationStatus = null;
+let platformUrl = null;
 
 const paperConfigurationFields = Object.freeze([
   'SOLANA_PRIMARY_RPC_URL', 'SOLANA_FALLBACK_RPC_URL', 'HELIUS_API_KEY', 'JUPITER_API_KEY',
@@ -115,7 +116,9 @@ async function ensureNodeModulesLink(applicationRoot) {
 
 async function startPlatform() {
   const secretRoot = path.join(layout.platformData, 'secrets');
+  const port = app.isPackaged ? await availablePort() : 3000;
   const environment = {
+    PORT: String(port),
     DB_PATH: path.join(layout.platformData, 'timsys.sqlite'),
     NODE_PATH: path.join(layout.platformRoot, 'modules-runtime'),
     JWT_SECRET: await persistentSecret(path.join(secretRoot, 'jwt-secret')),
@@ -123,7 +126,9 @@ async function startPlatform() {
     TIMSYS_DESKTOP_TOKEN: desktopToken,
     ...(layout.launcherUi ? { TIMSYS_LAUNCHER_DIST: layout.launcherUi } : {}),
   };
-  return supervisedApps.start(path.join(layout.platformRoot, 'timsys.app.json'), environment);
+  const status = await supervisedApps.start(path.join(layout.platformRoot, 'timsys.app.json'), environment);
+  platformUrl = supervisedApps.dashboardUrl('timsys-platform');
+  return status;
 }
 
 async function startMemecoined() {
@@ -176,7 +181,7 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadURL('http://127.0.0.1:3000/');
+    mainWindow.loadURL(platformUrl);
   }
 
   mainWindow.on('closed', () => {
@@ -196,9 +201,16 @@ app.whenReady().then(async () => {
   postgres = new LocalPostgresManager({ binaryRoot: layout.postgresRoot, dataRoot: layout.memecoinedData });
   desktopToken = randomBytes(48).toString('base64url');
   supervisedApps.on('status', forwardStatus);
-  try { await startPlatform(); }
-  catch (error) { forwardStatus({ id: 'timsys-platform', state: 'failed', detail: error.message, processes: [] }); }
-  createWindow();
+  try {
+    await startPlatform();
+    createWindow();
+  } catch (error) {
+    forwardStatus({ id: 'timsys-platform', state: 'failed', detail: error.message, processes: [] });
+    const escaped = String(error.message).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+    mainWindow = new BrowserWindow({ width: 900, height: 620, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    const html = `<!doctype html><meta charset="utf-8"><title>TimSyS startup failed</title><style>body{font:16px system-ui;background:#101426;color:#e8ecff;padding:48px;line-height:1.55}main{max-width:720px;margin:auto}h1{color:#ff8b8b}.detail{padding:16px;background:#24151b;border:1px solid #7f3344;border-radius:8px}</style><main><h1>TimSyS could not start</h1><p>The launcher did not connect to another TimSyS process because doing so could load an outdated application.</p><p class="detail">${escaped}</p><p>Close every TimSyS window and start this version again.</p></main>`;
+    await mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  }
 });
 
 app.on('window-all-closed', () => {
@@ -259,7 +271,7 @@ ipcMain.handle('runtime:diagnostics', async () => {
 ipcMain.handle('platform:session', async () => {
   const status = supervisedApps.status('timsys-platform');
   if (status.state !== 'running') throw new Error('TimSyS platform is not running');
-  const response = await fetch('http://127.0.0.1:3000/api/auth/desktop-session', {
+  const response = await fetch(new URL('/api/auth/desktop-session', platformUrl), {
     method: 'POST',
     headers: { 'X-TimSyS-Desktop-Token': desktopToken, 'X-Requested-With': 'XMLHttpRequest' },
   });

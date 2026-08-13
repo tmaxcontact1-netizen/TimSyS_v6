@@ -1,220 +1,129 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../api/base';
 
+const label = value => String(value || '').replaceAll('_', ' ');
+
+function Check({ checked, disabled, onChange, labelText }) {
+  return <label className={`inline-flex items-center gap-2 text-sm ${disabled ? 'text-gray-500' : 'text-gray-200 cursor-pointer'}`}>
+    <input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} className="h-4 w-4 accent-violet-500" />
+    {labelText}
+  </label>;
+}
+
 function ModulePortalPage() {
   const navigate = useNavigate();
-  const [modules, setModules] = useState([]);
-  const [components, setComponents] = useState([]);
-  const [selectedApp] = useState('principal-ed');
+  const [catalogue, setCatalogue] = useState(null);
+  const [selectedAppId, setSelectedAppId] = useState(null);
+  const [expanded, setExpanded] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [expandedModule, setExpandedModule] = useState(null);
+  const [notice, setNotice] = useState(null);
 
-  useEffect(() => {
-    if (!selectedApp) return;
-    setLoading(true);
-    Promise.all([
-      apiClient.get('/modules/list-for-app', { params: { appId: selectedApp } }),
-      apiClient.get('/components/list-for-app', { params: { appId: selectedApp } }),
-    ])
-      .then(([moduleResponse, componentResponse]) => {
-        setModules(moduleResponse.data?.data || []);
-        setComponents(componentResponse.data?.data || []);
-        setError(null);
-      })
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [selectedApp]);
-
-  const toggleModule = async (moduleName, currentEnabled) => {
+  const load = async () => {
     try {
-      if (currentEnabled) {
-        await apiClient.delete('/modules/unassign', { params: { appId: selectedApp, moduleName } });
-      } else {
-        await apiClient.post('/modules/assign', { appId: selectedApp, moduleName });
-      }
-      const response = await apiClient.get('/modules/list-for-app', { params: { appId: selectedApp } });
-      setModules(response.data?.data || []);
+      const response = await apiClient.get('/builder/catalogue');
+      setCatalogue(response.data?.data || null);
+      setError(null);
+    } catch (err) { setError(err.response?.data?.error?.message || err.message); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+  const app = useMemo(() => catalogue?.apps?.find(item => item.id === selectedAppId), [catalogue, selectedAppId]);
+
+  const toggle = async (kind, item) => {
+    setNotice(null);
+    if (item.enabled && item.removalImpact?.length) {
+      setNotice(`Cannot remove ${label(item.name)} yet. Remove these dependants first: ${item.removalImpact.map(label).join(', ')}.`);
+      return;
+    }
+    try {
+      const path = kind === 'module' ? '/modules' : '/components';
+      const key = kind === 'module' ? 'moduleName' : 'componentName';
+      if (item.enabled) await apiClient.delete(`${path}/unassign`, { params: { appId: app.id, [key]: item.name } });
+      else await apiClient.post(`${path}/assign`, { appId: app.id, [key]: item.name });
+      await load();
     } catch (err) {
-      alert('Failed: ' + err.message);
+      const detail = err.response?.data?.error;
+      setNotice(detail?.affected?.length ? `${detail.message}: ${detail.affected.map(label).join(', ')}` : detail?.message || err.message);
     }
   };
 
-  const toggleComponent = async (componentName, currentEnabled) => {
-    try {
-      if (currentEnabled) await apiClient.delete('/components/unassign', { params: { appId: selectedApp, componentName } });
-      else await apiClient.post('/components/assign', { appId: selectedApp, componentName });
-      const response = await apiClient.get('/components/list-for-app', { params: { appId: selectedApp } });
-      setComponents(response.data?.data || []);
-    } catch (err) { setError(err.response?.data?.error?.message || err.message); }
-  };
+  if (loading) return <div className="min-h-screen bg-timsys-dark flex items-center justify-center"><div className="spinner" /></div>;
 
-  const toggleExpand = (moduleName) => {
-    setExpandedModule(expandedModule === moduleName ? null : moduleName);
-  };
-
-  const selectedAppName = "Principal'Ed";
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-timsys-dark flex items-center justify-center">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-timsys-dark">
-      <nav className="border-b border-gray-800 bg-gray-900/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <button onClick={() => navigate('/')} className="text-gray-400 hover:text-white text-sm">← Back</button>
-            <h1 className="text-2xl font-bold text-timsys-primary">Module Portal</h1>
-          </div>
-          <span className="text-sm text-gray-300">{selectedAppName}</span>
+  return <div className="min-h-screen bg-timsys-dark text-white">
+    <nav className="border-b border-gray-800 bg-gray-900/80 sticky top-0 z-10">
+      <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="flex items-center gap-4">
+          <button onClick={() => app ? setSelectedAppId(null) : navigate('/')} className="text-gray-400 hover:text-white">← Back</button>
+          <h1 className="text-2xl font-bold text-timsys-primary">Builder</h1>
         </div>
-      </nav>
+        <button onClick={() => navigate('/')} className="text-sm text-gray-300 hover:text-white">Return to launcher</button>
+      </div>
+    </nav>
+    <main className="max-w-7xl mx-auto px-6 py-8">
+      {error && <div className="mb-5 rounded border border-red-500 bg-red-950/60 p-4 text-red-200">{error}</div>}
+      {notice && <div className="mb-5 rounded border border-amber-500 bg-amber-950/50 p-4 text-amber-100">{notice}</div>}
 
-      <main className="max-w-7xl mx-auto px-6 py-6 h-[calc(100vh-120px)] overflow-y-auto pr-2">
-        <p className="text-gray-400 mb-6">Configuring modules for <span className="text-white font-semibold">{selectedAppName}</span></p>
-
-        {error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-6">{error}</div>
-        )}
+      {!app ? <>
+        <h2 className="text-2xl font-semibold mb-2">Select an admin application</h2>
+        <p className="text-gray-400 mb-6">Each application shows its own configuration plus the essential platform services it uses. MemecoinEd is intentionally isolated.</p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {(catalogue?.apps || []).map(item => <button key={item.id} onClick={() => setSelectedAppId(item.id)} className="bg-gray-900 border border-gray-800 hover:border-timsys-primary rounded-xl p-6 text-left">
+            <h3 className="text-xl font-bold">{item.displayName}</h3><p className="text-sm text-gray-400 mt-2">{item.description}</p>
+            <p className="text-xs text-gray-500 mt-5">{item.modules.filter(module => module.enabled).length} app modules · {item.essentialServices.length} essential services</p>
+          </button>)}
+        </div>
+        <section className="mt-10 bg-gray-900 border border-gray-800 rounded-xl p-6">
+          <h2 className="text-xl font-semibold">Module opportunity scanner</h2>
+          <p className="text-gray-400 mt-2">The scanner uses registered capabilities, routes and functions to recommend reusable configurations. It reports confidence, current coverage, missing scripts and suggested implementation work; it does not create or activate code without review.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-5">{(catalogue?.recommendations?.suggestions || []).slice(0, 8).map((suggestion, index) => <div key={`${suggestion.moduleName}-${index}`} className="rounded-lg border border-gray-700 bg-gray-950 p-4">
+            <div className="flex justify-between gap-3"><h3 className="font-semibold capitalize">{label(suggestion.moduleName)}</h3><span className="text-sm text-timsys-primary">{suggestion.completionPercent || Math.round((suggestion.confidence || 0) * 100)}% reusable</span></div>
+            <p className="text-xs text-gray-400 mt-2">{suggestion.action === 'complete_partial' ? 'Complete an existing partial module' : 'Potential new module configuration'}</p>
+            <p className="text-xs text-gray-500 mt-2">Estimated work: {suggestion.estimatedEffort} · {suggestion.missingArtifacts} missing artefact(s)</p>
+            <ul className="mt-3 space-y-1">{(suggestion.recommendedNextSteps || []).map(step => <li key={step} className="text-xs text-gray-400">• {step}</li>)}</ul>
+          </div>)}</div>
+          {(catalogue?.recommendations?.suggestions || []).length === 0 && <p className="text-sm text-gray-500 mt-4">No safe recommendations are available from the current registry.</p>}
+        </section>
+      </> : <>
+        <h2 className="text-2xl font-semibold">{app.displayName}</h2>
+        <p className="text-gray-400 mt-1 mb-7">App-specific configuration · User-profile modules are restricted to superusers and principals.</p>
 
         <section className="mb-8">
-          <h2 className="text-xl font-bold text-white mb-2">Components</h2>
-          <p className="text-gray-400 mb-4">{components.length} registered components</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {components.map((component) => (
-              <div key={component.name} className="bg-gray-900 border border-gray-800 rounded-lg p-4 flex items-center justify-between gap-4">
-                <div className="min-w-0"><h3 className="text-white font-semibold truncate">{component.name}</h3><p className="text-xs text-gray-500">{component.type} · {component.ownerModule || 'platform'}</p></div>
-                <button onClick={() => toggleComponent(component.name, component.enabled)} className={`px-3 py-1 rounded text-xs ${component.enabled ? 'bg-green-900/50 text-green-300' : 'bg-gray-800 text-gray-400'}`}>{component.enabled ? 'Included' : 'Add'}</button>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-lg font-semibold mb-3">Essential backend services</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">{app.essentialServices.map(service => <div key={service.name} className="rounded-lg border border-gray-800 bg-gray-900 p-3"><Check checked disabled labelText={label(service.name)} /><p className="text-xs text-gray-500 mt-2">Required platform service</p></div>)}</div>
         </section>
 
-        <h2 className="text-xl font-bold text-white mb-2">Modules</h2>
-        <p className="text-gray-400 mb-4">{modules.length} registered modules</p>
-
-        <div className="space-y-2 pb-8">
-          {modules.map((module) => (
-            <div key={module.name} className={`rounded-lg border transition-all ${expandedModule === module.name ? 'border-timsys-primary bg-gray-850' : 'border-gray-800 bg-gray-900'}`}>
-              <div className="p-4 flex items-center justify-between cursor-pointer" onClick={() => toggleExpand(module.name)}>
-                <div className="flex items-center gap-3 flex-1 min-w-0">
-                  <h3 className="text-base font-semibold text-white truncate flex-1">{module.name}</h3>
-                  <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">v{module.version}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded ${module.enabled ? 'bg-green-900/50 text-green-300' : 'bg-red-900/50 text-red-300'}`}>{module.enabled ? 'ASSIGNED' : 'UNASSIGNED'}</span>
-                </div>
-                <div className="flex items-center gap-4 pl-4">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleModule(module.name, module.enabled); }}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none"
-                    style={{ backgroundColor: module.enabled ? '#6d4aff' : '#4b5563' }}
-                  >
-                    <span className="inline-block h-4 w-4 transform rounded-full bg-white transition-transform" style={{ transform: module.enabled ? 'translateX(24px)' : 'translateX(4px)' }} />
-                  </button>
-                  <svg className="w-5 h-5 text-gray-400 transition-transform duration-200" style={{ transform: expandedModule === module.name ? 'rotate(180deg)' : 'rotate(0deg)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-              </div>
-              {expandedModule === module.name && (
-                <div className="px-4 pb-4 border-t border-gray-800 pt-4 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                      <h4 className="text-sm font-semibold text-gray-300 mb-2">Dependencies</h4>
-                      {module.dependencies && module.dependencies.length > 0 ? (
-                        <ul className="space-y-1 max-h-32 overflow-y-auto">
-                          {module.dependencies.map(dep => <li key={dep} className="text-xs text-gray-400 flex items-center gap-2"><span className="w-1 h-1 bg-gray-500 rounded-full flex-shrink-0" />{dep}</li>)}
-                        </ul>
-                      ) : <p className="text-xs text-gray-600 italic">None</p>}
-                    </div>
-                    <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                      <h4 className="text-sm font-semibold text-green-400 mb-2">Provides</h4>
-                      {module.provides && module.provides.length > 0 ? (
-                        <ul className="space-y-1 max-h-32 overflow-y-auto">
-                          {module.provides.map(prov => <li key={prov} className="text-xs text-green-300/80 flex items-center gap-2"><span className="w-1 h-1 bg-green-500 rounded-full flex-shrink-0" />{prov}</li>)}
-                        </ul>
-                      ) : <p className="text-xs text-gray-600 italic">None</p>}
-                    </div>
-                    <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                      <h4 className="text-sm font-semibold text-orange-400 mb-2">Requires</h4>
-                      {module.requires && module.requires.length > 0 ? (
-                        <ul className="space-y-1 max-h-32 overflow-y-auto">
-                          {module.requires.map(req => <li key={req} className="text-xs text-orange-300/80 flex items-center gap-2"><span className="w-1 h-1 bg-orange-500 rounded-full flex-shrink-0" />{req}</li>)}
-                        </ul>
-                      ) : <p className="text-xs text-gray-600 italic">None</p>}
-                    </div>
-                  </div>
-                  <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                    <h4 className="text-sm font-semibold text-blue-400 mb-2">Functions ({module.functions?.length || 0})</h4>
-                    {module.functions && module.functions.length > 0 ? (
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
-                        {module.functions.map(fn => <div key={fn.name} className="text-xs text-gray-300 bg-gray-800 rounded px-2 py-1 flex items-center"><span className="font-mono truncate flex-1">{fn.exports}</span><span className="text-gray-500 ml-2">→ {fn.returns || 'void'}</span></div>)}
-                      </div>
-                    ) : <p className="text-xs text-gray-600 italic">None</p>}
-                  </div>
-                  <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                    <h4 className="text-sm font-semibold text-purple-400 mb-2">Routes ({module.routes?.length || 0})</h4>
-                    {module.routes && module.routes.length > 0 ? (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs min-w-[400px]">
-                          <thead>
-                            <tr className="text-gray-500 border-b border-gray-800">
-                              <th className="text-left py-1 pr-4">Method</th>
-                              <th className="text-left py-1 pr-4">Path</th>
-                              <th className="text-left py-1 pr-4">Handler</th>
-                              <th className="text-left py-1">Auth</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {module.routes.map((route, idx) => (
-                              <tr key={idx} className="border-b border-gray-800/50">
-                                <td className="py-1 pr-4">
-                                  <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${route.method === 'GET' ? 'bg-green-900/50 text-green-300' : route.method === 'POST' ? 'bg-blue-900/50 text-blue-300' : route.method === 'PUT' ? 'bg-yellow-900/50 text-yellow-300' : route.method === 'DELETE' ? 'bg-red-900/50 text-red-300' : 'bg-gray-800 text-gray-300'}`}>{route.method}</span>
-                                </td>
-                                <td className="py-1 pr-4 text-gray-300 font-mono truncate max-w-[200px]">{route.path}</td>
-                                <td className="py-1 pr-4 text-gray-400 truncate max-w-[150px]">{route.handler}</td>
-                                <td className="py-1">{route.auth_required ? <span className="text-red-300 text-xs">Required</span> : <span className="text-gray-600 text-xs">Public</span>}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : <p className="text-xs text-gray-600 italic">None</p>}
-                  </div>
-                  {module.schema && module.schema.tables && module.schema.tables.length > 0 && (
-                    <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                      <h4 className="text-sm font-semibold text-cyan-400 mb-2">Tables ({module.schema.tables.length})</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {module.schema.tables.map(table => <span key={table} className="text-xs text-cyan-300/80 bg-cyan-900/30 px-2 py-1 rounded font-mono">{table}</span>)}
-                      </div>
-                    </div>
-                  )}
-                  {(module.events?.publishes?.length > 0 || module.events?.subscribes?.length > 0) && (
-                    <div className="bg-gray-900 rounded border border-gray-800 p-3">
-                      <h4 className="text-sm font-semibold text-pink-400 mb-2">Events</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {module.events.publishes && module.events.publishes.length > 0 && (
-                          <div><h5 className="text-xs text-gray-500 mb-1">Publishes:</h5><div className="flex flex-wrap gap-1">{module.events.publishes.map(evt => <span key={evt} className="text-xs text-pink-300/80 bg-pink-900/30 px-2 py-0.5 rounded">{evt}</span>)}</div></div>
-                        )}
-                        {module.events.subscribes && module.events.subscribes.length > 0 && (
-                          <div><h5 className="text-xs text-gray-500 mb-1">Subscribes:</h5><div className="flex flex-wrap gap-1">{module.events.subscribes.map(evt => <span key={evt} className="text-xs text-pink-300/80 bg-pink-900/30 px-2 py-0.5 rounded">{evt}</span>)}</div></div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+        <section>
+          <h3 className="text-lg font-semibold">Modules and component manifests</h3>
+          <p className="text-sm text-gray-400 mt-1 mb-4">Checkboxes add or remove configuration. Dependency impact is shown before removal.</p>
+          <div className="space-y-3">{app.modules.map(module => <article key={module.name} className="rounded-xl border border-gray-800 bg-gray-900">
+            <div className="p-4 flex gap-4 items-center">
+              <Check checked={module.enabled} disabled={module.required} onChange={() => toggle('module', module)} labelText="" />
+              <button onClick={() => setExpanded(expanded === module.name ? null : module.name)} className="flex-1 text-left">
+                <span className="font-semibold capitalize">{label(module.name)}</span><span className="ml-3 text-xs text-gray-500">v{module.version || 'unknown'}</span>
+                {module.profileAccess && <span className="ml-3 text-xs text-amber-300">Superuser / Principal only</span>}{module.required && <span className="ml-3 text-xs text-green-300">Required baseline</span>}
+                <p className="text-xs text-gray-500 mt-1">{module.components.length} components · {(module.provides || []).length} capabilities</p>
+              </button>
+              <span className="text-gray-500">{expanded === module.name ? '▲' : '▼'}</span>
             </div>
-          ))}
-        </div>
-      </main>
-    </div>
-  );
+            {expanded === module.name && <div className="border-t border-gray-800 p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div><h4 className="text-sm font-semibold mb-2">Components</h4>{module.components.length ? module.components.map(component => <div key={component.name} className="mb-2 rounded border border-gray-700 bg-gray-950 p-3">
+                <div className="flex justify-between"><Check checked={component.enabled ?? module.enabled} disabled={component.required} onChange={() => toggle('component', component)} labelText={label(component.name)} /><span className="text-xs text-gray-500">{component.type}</span></div>
+                <pre className="mt-3 max-h-48 overflow-auto text-xs text-gray-400 whitespace-pre-wrap">{JSON.stringify(component, null, 2)}</pre>
+              </div>) : <p className="text-sm text-gray-500">No app-specific components. This module is a backend service.</p>}</div>
+              <div className="space-y-3">
+                <div className="rounded border border-gray-700 p-3"><h4 className="text-sm font-semibold">Dependencies</h4><p className="text-xs text-gray-400 mt-2">{(module.dependencies || []).join(', ') || 'None'}</p></div>
+                <div className="rounded border border-gray-700 p-3"><h4 className="text-sm font-semibold">Required capabilities</h4><p className="text-xs text-gray-400 mt-2">{(module.requires || []).join(', ') || 'None'}</p></div>
+                <div className={`rounded border p-3 ${module.removalImpact.length ? 'border-amber-700 bg-amber-950/20' : 'border-gray-700'}`}><h4 className="text-sm font-semibold">Removal impact</h4><p className="text-xs text-gray-400 mt-2">{module.removalImpact.length ? module.removalImpact.map(label).join(', ') : 'No enabled modules depend on this module.'}</p></div>
+              </div>
+            </div>}
+          </article>)}</div>
+        </section>
+      </>}
+    </main>
+  </div>;
 }
 
 export default ModulePortalPage;

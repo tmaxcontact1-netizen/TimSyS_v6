@@ -47,6 +47,19 @@
       "auth_required": false
     },
     {
+      "path": "/builder/catalogue",
+      "method": "GET",
+      "handler": "builder_catalogue",
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
+    },
+    {
+      "path": "/builder/ui-standard",
+      "method": "GET",
+      "handler": "builder_applicationUiStandard",
+      "auth_required": false
+    },
+    {
       "path": "/builder/assemble",
       "method": "POST",
       "handler": "builder_assemble",
@@ -86,40 +99,52 @@
       "path": "/modules/list-for-app",
       "method": "GET",
       "handler": "builder_modulesForApp",
-      "auth_required": true
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
     },
     {
       "path": "/modules/assign",
       "method": "POST",
       "handler": "builder_assignModule",
-      "auth_required": true
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
     },
     {
       "path": "/modules/unassign",
       "method": "DELETE",
       "handler": "builder_unassignModule",
-      "auth_required": true
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
     },
     {
       "path": "/components/list-for-app",
       "method": "GET",
       "handler": "builder_componentsForApp",
-      "auth_required": true
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
     },
     {
       "path": "/components/assign",
       "method": "POST",
       "handler": "builder_assignComponent",
-      "auth_required": true
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
     },
     {
       "path": "/components/unassign",
       "method": "DELETE",
       "handler": "builder_unassignComponent",
-      "auth_required": true
+      "auth_required": true,
+      "permissions": ["admin:builder:access", "admin:principal"]
     }
   ],
   "functions": [
+    {
+      "name": "builder_applicationUiStandard",
+      "exports": "applicationUiStandard",
+      "params": [],
+      "returns": "application_ui_standard"
+    },
     {
       "name": "builder_dashboard",
       "exports": "dashboard",
@@ -179,6 +204,12 @@
         "input"
       ],
       "returns": "validation_result"
+    },
+    {
+      "name": "builder_catalogue",
+      "exports": "catalogue",
+      "params": [],
+      "returns": "builder_catalogue"
     },
     { "name": "builder_drafts", "exports": "drafts", "params": [], "returns": "draft_list" },
     { "name": "builder_activateDraft", "exports": "activateDraft", "params": [], "returns": "activation_result" },

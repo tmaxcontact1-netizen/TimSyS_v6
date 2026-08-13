@@ -12,13 +12,18 @@ function teardown(ctx) {
 }
 
 async function listStudents(req, ctx) {
-  var page = parseInt(req.query.page, 10) || 1;
-  var limit = parseInt(req.query.limit, 10) || 50;
-  if (limit > 500) limit = 500;
+  var page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  var limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 50));
   var offset = (page - 1) * limit;
 
   var conditions = [];
   var params = [];
+
+  if (req.query.q) {
+    conditions.push("(student_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR preferred_name LIKE ?)");
+    var search = '%' + req.query.q + '%';
+    params.push(search, search, search, search);
+  }
 
   if (req.query.last_name) {
     conditions.push('last_name LIKE ?');
@@ -40,6 +45,10 @@ async function listStudents(req, ctx) {
     conditions.push('current_grade_level = ?');
     params.push(req.query.grade_level);
   }
+  if (req.query.homeroom) {
+    conditions.push('homeroom = ?');
+    params.push(req.query.homeroom);
+  }
   if (req.query.sex) {
     conditions.push('sex = ?');
     params.push(req.query.sex);
@@ -51,7 +60,7 @@ async function listStudents(req, ctx) {
 
   var result = ctx.db.query(sql, params);
   var countSql = 'SELECT COUNT(*) as total FROM students' + where;
-  var countResult = ctx.db.query(countSql, conditions.length > 0 ? params.slice(0, conditions.length) : []);
+  var countResult = ctx.db.query(countSql, params.slice(0, -2));
 
   return {
     success: true,
@@ -141,6 +150,7 @@ async function updateStudent(req, ctx) {
   }
 
   var allowedFields = ['first_name', 'last_name', 'middle_name', 'preferred_name', 'date_of_birth', 'sex', 'photo_url', 'nationality', 'ethnicity', 'primary_language', 'secondary_language', 'identity_custom', 'enrollment_date', 'enrollment_status', 'current_grade_level', 'homeroom', 'term_start', 'term_end', 'school_year', 'enrollment_custom', 'medical_alert_flag', 'special_education_flag', 'free_lunch_eligible', 'gifted_talented_flag', 'esl_flag', 'notes', 'custom_fields'];
+  allowedFields.unshift('student_id');
 
   var updates = [];
   var params = [];
@@ -278,34 +288,36 @@ async function importStudents(req, ctx) {
   
   var parsed = csvParser.parse(Buffer.from(body.csv));
   var mapped = csvParser.mapRows(parsed.rows, studentColumnMap);
-  var inserted = 0, skipped = 0, errors = [];
+  var inserted = 0, skipped = 0, warnings = [], errors = [];
   
   for (var i = 0; i < mapped.length; i++) {
-    var m = mapped[i].mapped;
-    if (!m.student_id || !m.first_name || !m.last_name || !m.date_of_birth || !m.sex) {
-      errors.push({ row: i + 2, reason: 'Missing required field' });
-      skipped++;
-      continue;
-    }
+    var prepared = csvParser.prepareImportedRow(mapped[i], { rowNumber: i + 2, entity: 'student', identifier: 'student_id', required: ['student_id','first_name','last_name','date_of_birth','sex'] });
+    var m = prepared.row;
+    var rowWarnings = prepared.warnings;
     var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex;
+    if (sexVal !== 'Male' && sexVal !== 'Female') { rowWarnings.push('Invalid or missing sex retained in import metadata; review required'); sexVal = 'Male'; }
+    if (m.enrollment_status && !['active','withdrawn','graduated','suspended','expelled'].includes(m.enrollment_status)) rowWarnings.push('Invalid enrollment_status retained in import metadata; review required');
     var existing = ctx.db.query('SELECT id FROM students WHERE student_id = ?', [m.student_id]);
     if (existing.rows.length > 0) {
-      errors.push({ row: i + 2, reason: 'Duplicate student_id: ' + m.student_id });
-      skipped++;
-      continue;
+      rowWarnings.push('Duplicate student_id: ' + m.student_id + '; a temporary identifier was assigned');
+      m.student_id += '-IMPORT-' + Date.now() + '-' + (i + 2);
     }
     try {
-      ctx.db.query(
+      prepared.customFields.csv_import.warnings = rowWarnings;
+      var result = ctx.db.query(
         'INSERT INTO students (student_id, first_name, last_name, date_of_birth, sex, enrollment_date, enrollment_status, current_grade_level, homeroom, notes, identity_custom, enrollment_custom, custom_fields, medical_alert_flag, special_education_flag, free_lunch_eligible, gifted_talented_flag, esl_flag) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [m.student_id, m.first_name, m.last_name, m.date_of_birth, sexVal, m.enrollment_date || new Date().toISOString().slice(0,10), m.enrollment_status || 'active', m.current_grade_level || null, m.homeroom || null, m.notes || null, '{}', '{}', '{}', 0, 0, 0, 0, 0]
+        [m.student_id, m.first_name, m.last_name, m.date_of_birth, sexVal, m.enrollment_date || '', ['active','withdrawn','graduated','suspended','expelled'].includes(m.enrollment_status) ? m.enrollment_status : 'active', m.current_grade_level || null, m.homeroom || null, m.notes || null, '{}', '{}', JSON.stringify(prepared.customFields), 0, 0, 0, 0, 0]
       );
+      var record = ctx.db.query('SELECT * FROM students WHERE id = ?', [result.lastInsertRowid]).rows[0];
+      ctx.events.publish('student.created', { entityType: 'student', entityId: result.lastInsertRowid, record: record, actorId: req.user.id, __module: 'student_registry' });
+      rowWarnings.forEach(function(reason) { warnings.push({ row: i + 2, reason: reason, entityId: result.lastInsertRowid }); });
       inserted++;
     } catch (e) {
       errors.push({ row: i + 2, reason: e.message });
       skipped++;
     }
   }
-  return { success: true, inserted: inserted, skipped: skipped, errors: errors };
+  return { success: true, inserted: inserted, skipped: skipped, warnings: warnings, errors: errors };
 }
 
 module.exports = {

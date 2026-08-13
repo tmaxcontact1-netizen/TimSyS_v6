@@ -504,7 +504,7 @@ function createServer() {
       if (!authorizationMiddleware(req, res, route)) return;
 
       var body = {};
-      if (['POST', 'PUT', 'PATCH'].indexOf(method) !== -1) {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
         body = await readBody(req);
       }
 

@@ -6,9 +6,9 @@ import useConnectionStore from './store/connectionStore';
 import PlatformCheck from './components/Splash/PlatformCheck';
 import AppSelectorPage from './pages/AppSelectorPage';
 import LoginPage from './pages/LoginPage';
-import ModulePortalPage from './pages/ModulePortalPage'
+import ModulePortalPage from './pages/ModulePortalPage';
 import AppDashboard from './pages/AppDashboard';
-import { hasPermission } from './utils/permissions';
+import { useAnyPermission } from './utils/permissions';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function ProtectedRoute({ children }) {
@@ -32,6 +32,11 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
+function BuilderRoute() {
+  const allowed = useAnyPermission(['admin:*', 'admin:builder:access', 'admin:principal']);
+  return allowed ? <ModulePortalPage /> : <Navigate to="/" replace />;
+}
+
 function App() {
   const { initialize: initAuth } = useAuthStore();
   const { initialize: initApps } = useAppStore();
@@ -50,11 +55,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (status === 'online') {
-      setWasOnline(true);
-      initApps();
-      initAuth();
-    }
+    if (status === 'online') setWasOnline(true);
   }, [status]);
 
   useEffect(() => {
@@ -79,8 +80,8 @@ function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/login/:appId" element={<LoginPage />} />
         <Route path="/" element={<AppSelectorPage />} />
-        <Route path="/modules" element={<ModulePortalPage />} />
-        <Route path="/app/:appId/modules" element={<ProtectedRoute><ModulePortalPage /></ProtectedRoute>} />
+        <Route path="/modules" element={<ProtectedRoute><BuilderRoute /></ProtectedRoute>} />
+        <Route path="/app/:appId/modules" element={<ProtectedRoute><BuilderRoute /></ProtectedRoute>} />
         <Route
           path="/app/:appId"
           element={

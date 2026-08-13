@@ -3,11 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PrincipalEdPage from './PrincipalEdPage';
 import ModulePortalPage from './ModulePortalPage';
 import useAppStore from '../store/appStore';
+import { useAnyPermission } from '../utils/permissions';
+import AdminHeartbeatPage from './AdminHeartbeatPage';
 
 function AppDashboard() {
   const { appId } = useParams();
   const navigate = useNavigate();
   const app = useAppStore((state) => state.getApp(appId));
+  const canUseBuilder = useAnyPermission(['admin:*', 'admin:builder:access', 'admin:principal']);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
 
@@ -53,7 +56,8 @@ function AppDashboard() {
   };
 
   if (appId === 'principal-ed') return <PrincipalEdPage />;
-  if (appId === 'builder') return <ModulePortalPage />;
+  if (appId === 'builder') return canUseBuilder ? <ModulePortalPage /> : <div className="min-h-screen bg-timsys-dark flex items-center justify-center"><button onClick={() => navigate('/')} className="text-white">Builder access is restricted. Return to launcher.</button></div>;
+  if (appId === 'competeed' || appId === 'sanctifyed') return <AdminHeartbeatPage app={app} />;
 
   if (app?.supervised) {
     const state = status?.state || 'stopped';

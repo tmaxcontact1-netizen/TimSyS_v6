@@ -7,6 +7,7 @@ const url = require('url');
 
 function makeRequest(baseUrl, meth, p, body, tok) {
   return new Promise(function(resolve, reject) {
+    var encodedBody = body ? JSON.stringify(body) : null;
     var parsed = url.parse(baseUrl + p);
     var opts = {
       hostname: parsed.hostname,
@@ -20,6 +21,7 @@ function makeRequest(baseUrl, meth, p, body, tok) {
     } else {
       opts.headers['X-Requested-With'] = 'XMLHttpRequest';
     }
+    if (encodedBody) opts.headers['Content-Length'] = Buffer.byteLength(encodedBody);
     var req = http.request(opts, function(res) {
       var data = '';
       res.on('data', function(c) { data += c; });
@@ -32,7 +34,7 @@ function makeRequest(baseUrl, meth, p, body, tok) {
       });
     });
     req.on('error', reject);
-    if (body) req.write(JSON.stringify(body));
+    if (encodedBody) req.write(encodedBody);
     req.end();
   });
 }

@@ -93,6 +93,18 @@ const ids = [
   "preferences-export",
   "preferences-import",
   "preferences-message",
+  "app-back",
+  "return-launcher",
+  "action-dialog",
+  "action-dialog-form",
+  "action-dialog-close",
+  "action-dialog-title",
+  "action-dialog-message",
+  "action-dialog-input-label",
+  "action-dialog-label",
+  "action-dialog-input",
+  "action-dialog-cancel",
+  "action-dialog-confirm",
 ];
 const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
 let detailSnapshot = { positions: [], pendingEntries: [], fills: [], performance: [], events: [] };
@@ -125,6 +137,41 @@ const sortState = {
   performance: { key: "realized_at", kind: "date", direction: "desc" },
   events: { key: "evaluated_at", kind: "date", direction: "desc" },
 };
+const pageSize = 50;
+const tablePages = new Map();
+const tableRenderers = new Map();
+let actionDialogResolve = null;
+let configurationDirty = false;
+
+function requestAction({
+  title,
+  message,
+  label = "Value",
+  value = "",
+  confirmLabel = "Continue",
+  input = true,
+}) {
+  elements["action-dialog-title"].textContent = title;
+  elements["action-dialog-message"].textContent = message;
+  elements["action-dialog-label"].textContent = label;
+  elements["action-dialog-input"].value = value;
+  elements["action-dialog-input-label"].hidden = !input;
+  elements["action-dialog-confirm"].textContent = confirmLabel;
+  elements["action-dialog"].showModal();
+  if (input) elements["action-dialog-input"].focus();
+  return new Promise((resolve) => {
+    actionDialogResolve = resolve;
+  });
+}
+function finishAction(value) {
+  elements["action-dialog"].close();
+  const resolve = actionDialogResolve;
+  actionDialogResolve = null;
+  resolve?.(value);
+}
+function resetTablePages() {
+  for (const key of tablePages.keys()) tablePages.set(key, 1);
+}
 function loadPreferences() {
   try {
     const value = JSON.parse(localStorage.getItem(preferencesKey) ?? "{}");
@@ -374,6 +421,7 @@ async function mutateConfiguration(path, method, body) {
     if (response.status === 204) {
       activeConfigurationId = "";
       await refreshConfigurations();
+      configurationDirty = false;
       setConfigurationMessage("Draft deleted.");
       return;
     }
@@ -388,6 +436,7 @@ async function mutateConfiguration(path, method, body) {
     const { configuration } = await response.json();
     activeConfigurationId = configuration.id;
     await refreshConfigurations();
+    configurationDirty = false;
     setConfigurationMessage(method === "POST" ? "Draft created." : "Draft saved.");
   } catch (error) {
     setConfigurationMessage(
@@ -493,17 +542,35 @@ function time(value) {
   return value ? new Date(String(value)).toLocaleString() : "—";
 }
 function renderRows(target, records, cells, empty) {
+  tableRenderers.set(target.id, () => renderRows(target, records, cells, empty));
   target.replaceChildren();
+  const key = target.id;
+  const pageCount = Math.max(1, Math.ceil(records.length / pageSize));
+  const page = Math.min(Math.max(1, tablePages.get(key) ?? 1), pageCount);
+  tablePages.set(key, page);
+  const pageRecords = records.slice((page - 1) * pageSize, page * pageSize);
+  const table = target.closest("table");
+  const heading = table?.querySelector("thead tr");
+  if (heading && !heading.querySelector("[data-row-number-heading]")) {
+    const numberHeading = document.createElement("th");
+    numberHeading.dataset.rowNumberHeading = "true";
+    numberHeading.textContent = "#";
+    heading.prepend(numberHeading);
+  }
   if (records.length === 0) {
     const row = target.insertRow();
     const cell = row.insertCell();
-    cell.colSpan = cells.length;
+    cell.colSpan = cells.length + 1;
     cell.className = "empty";
     cell.textContent = empty;
+    renderPagination(target, 1, 1, 0);
     return;
   }
-  for (const record of records) {
+  for (const [index, record] of pageRecords.entries()) {
     const row = target.insertRow();
+    const number = row.insertCell();
+    number.className = "row-number";
+    number.textContent = String((page - 1) * pageSize + index + 1);
     for (const render of cells) {
       const cell = row.insertCell();
       const value = render(record);
@@ -526,6 +593,46 @@ function renderRows(target, records, cells, empty) {
       }
     }
   }
+  renderPagination(target, page, pageCount, records.length);
+}
+function renderPagination(target, page, pageCount, total) {
+  const container = target.closest(".table-scroll");
+  if (!container) return;
+  let navigation = container.nextElementSibling;
+  if (!navigation?.classList.contains("table-pagination")) {
+    navigation = document.createElement("nav");
+    navigation.className = "table-pagination";
+    navigation.setAttribute("aria-label", "Table pagination");
+    container.after(navigation);
+  }
+  navigation.replaceChildren();
+  const first = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const last = Math.min(page * pageSize, total);
+  const summary = document.createElement("span");
+  summary.textContent =
+    total > pageSize
+      ? `Showing ${first}–${last} of ${total}`
+      : `${total} record${total === 1 ? "" : "s"}`;
+  navigation.append(summary);
+  if (pageCount <= 1) return;
+  const controls = document.createElement("div");
+  for (const [label, destination, disabled] of [
+    ["Previous", page - 1, page === 1],
+    [`Page ${page} of ${pageCount}`, page, true],
+    ["Next", page + 1, page === pageCount],
+  ]) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.disabled = disabled;
+    if (!disabled)
+      button.addEventListener("click", () => {
+        tablePages.set(target.id, destination);
+        tableRenderers.get(target.id)?.();
+      });
+    controls.append(button);
+  }
+  navigation.append(controls);
 }
 function amount(raw) {
   const value = String(raw ?? "0");
@@ -1035,12 +1142,44 @@ document.querySelectorAll('input[name="density"]').forEach((control) =>
     }
   }),
 );
-elements["token-search"].addEventListener("input", renderDetails);
-elements["side-filter"].addEventListener("change", renderDetails);
+elements["token-search"].addEventListener("input", () => {
+  resetTablePages();
+  renderDetails();
+});
+elements["side-filter"].addEventListener("change", () => {
+  resetTablePages();
+  renderDetails();
+});
 elements["clear-filters"].addEventListener("click", () => {
   elements["token-search"].value = "";
   elements["side-filter"].value = "all";
+  resetTablePages();
   renderDetails();
+});
+elements["app-back"].addEventListener("click", () => {
+  if (history.length > 1) history.back();
+  else location.hash = "#overview";
+});
+elements["return-launcher"].addEventListener("click", () => window.close());
+elements["action-dialog-form"].addEventListener("submit", (event) => {
+  event.preventDefault();
+  finishAction(
+    elements["action-dialog-input-label"].hidden ? true : elements["action-dialog-input"].value,
+  );
+});
+elements["action-dialog-cancel"].addEventListener("click", () => finishAction(null));
+elements["action-dialog-close"].addEventListener("click", () => finishAction(null));
+elements["action-dialog"].addEventListener("cancel", (event) => {
+  event.preventDefault();
+  finishAction(null);
+});
+elements["configuration-form"].addEventListener("input", () => {
+  configurationDirty = true;
+});
+window.addEventListener("beforeunload", (event) => {
+  if (!configurationDirty) return;
+  event.preventDefault();
+  event.returnValue = "";
 });
 elements["close-token"].addEventListener("click", () => elements["token-dialog"].close());
 elements["toggle-watchlist"].addEventListener("click", () => {
@@ -1094,9 +1233,16 @@ elements["configuration-form"].addEventListener("submit", (event) => {
     { ...values, ...(selected ? { expectedVersion: selected.version } : {}) },
   );
 });
-elements["configuration-delete"].addEventListener("click", () => {
+elements["configuration-delete"].addEventListener("click", async () => {
   const selected = activeConfiguration();
-  if (!selected || prompt(`Type ${selected.name} to delete this draft`) !== selected.name) return;
+  if (!selected) return;
+  const confirmation = await requestAction({
+    title: "Delete trading configuration?",
+    message: `Type ${selected.name} to permanently delete this draft.`,
+    label: "Configuration name",
+    confirmLabel: "Delete permanently",
+  });
+  if (confirmation !== selected.name) return;
   void mutateConfiguration(`/api/trading-configurations/${selected.id}`, "DELETE", {
     expectedVersion: selected.version,
     confirmedName: selected.name,
@@ -1107,24 +1253,41 @@ elements["watchlist-select"].addEventListener("change", () => {
   renderWatchlistControls();
   renderWatchlist();
 });
-elements["watchlist-create"].addEventListener("click", () => {
-  const name = prompt("New watchlist name");
+elements["watchlist-create"].addEventListener("click", async () => {
+  const name = await requestAction({
+    title: "Create watchlist",
+    message: "Give the new watchlist a clear name.",
+    label: "Watchlist name",
+    confirmLabel: "Create",
+  });
   if (name) void mutateWatchlist("/api/watchlists", "POST", { name });
 });
-elements["watchlist-rename"].addEventListener("click", () => {
+elements["watchlist-rename"].addEventListener("click", async () => {
   const selected = activeWatchlist();
   if (!selected) return;
-  const name = prompt("Rename watchlist", selected.name);
+  const name = await requestAction({
+    title: "Rename watchlist",
+    message: "Choose a new watchlist name.",
+    label: "Watchlist name",
+    value: selected.name,
+    confirmLabel: "Rename",
+  });
   if (name)
     void mutateWatchlist(`/api/watchlists/${selected.id}`, "PATCH", {
       expectedVersion: selected.version,
       name,
     });
 });
-elements["watchlist-delete"].addEventListener("click", () => {
+elements["watchlist-delete"].addEventListener("click", async () => {
   const selected = activeWatchlist();
-  if (!selected || prompt(`Type ${selected.name} to delete this watchlist`) !== selected.name)
-    return;
+  if (!selected) return;
+  const confirmation = await requestAction({
+    title: "Delete watchlist?",
+    message: `Type ${selected.name} to permanently delete this watchlist.`,
+    label: "Watchlist name",
+    confirmLabel: "Delete permanently",
+  });
+  if (confirmation !== selected.name) return;
   void mutateWatchlist(`/api/watchlists/${selected.id}`, "DELETE", {
     expectedVersion: selected.version,
     confirmedName: selected.name,
@@ -1188,7 +1351,7 @@ document.querySelectorAll("[data-range]").forEach((button) =>
     void refreshPerformance();
   }),
 );
-document.addEventListener("click", (event) => {
+document.addEventListener("click", async (event) => {
   if (!(event.target instanceof Element)) return;
   const remove = event.target.closest("td.watch-remove");
   if (remove?.title) {
@@ -1203,7 +1366,14 @@ document.addEventListener("click", (event) => {
   if (control?.dataset.paperAction === "cancel-entry") {
     const signalId = control.dataset.signalId;
     const version = Number(control.dataset.version);
-    if (!signalId || prompt(`Type ${signalId} to cancel this paper entry`) !== signalId) return;
+    if (!signalId) return;
+    const confirmation = await requestAction({
+      title: "Cancel paper entry?",
+      message: `Type ${signalId} to cancel this simulated entry.`,
+      label: "Signal ID",
+      confirmLabel: "Cancel entry",
+    });
+    if (confirmation !== signalId) return;
     void paperControlRequest(`/api/paper/orders/${signalId}/cancel`, {
       expectedVersion: version,
       confirmedSignalId: signalId,
@@ -1213,8 +1383,14 @@ document.addEventListener("click", (event) => {
   if (control?.dataset.paperAction === "close-position") {
     const mint = control.dataset.mint;
     const amountRaw = control.dataset.amountRaw;
-    if (!mint || !amountRaw || prompt(`Type ${mint} to request a full paper close`) !== mint)
-      return;
+    if (!mint || !amountRaw) return;
+    const confirmation = await requestAction({
+      title: "Request full paper close?",
+      message: `Type ${mint} to request closure of this simulated position.`,
+      label: "Token mint",
+      confirmLabel: "Request close",
+    });
+    if (confirmation !== mint) return;
     void paperControlRequest(`/api/paper/positions/${mint}/close`, {
       confirmedMint: mint,
       expectedOpenAmountRaw: amountRaw,

@@ -26,7 +26,13 @@ function quality(facts, rules) {
     if (rule.expectation === 'non_negative_number') return Number(value) >= 0;
     return false;
   }).length;
-  return passed / rules.length;
+  var declaredQuality = passed / rules.length;
+  try {
+    var custom = typeof facts.custom_fields === 'string' ? JSON.parse(facts.custom_fields) : facts.custom_fields;
+    var warnings = custom && custom.csv_import && custom.csv_import.warnings;
+    if (Array.isArray(warnings) && warnings.length) return Math.min(declaredQuality, Math.max(0, 1 - warnings.length / Math.max(rules.length, warnings.length + 1)));
+  } catch (_) {}
+  return declaredQuality;
 }
 function syncRelationships(declaration, type, id, facts, moduleName, now) {
   (declaration.relationships || []).forEach(function(rel) {

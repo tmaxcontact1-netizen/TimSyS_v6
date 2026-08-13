@@ -1,0 +1,48 @@
+{
+  "id": "timsys.application-ui",
+  "version": 1,
+  "required": true,
+  "implementation": {
+    "react": "apps/shared-ui/react/index.js",
+    "vanilla": "apps/shared-ui/vanilla/index.js"
+  },
+  "navigation": {
+    "back": true,
+    "returnToLauncher": true,
+    "historyAware": true,
+    "preserveActiveScreen": true
+  },
+  "lists": {
+    "serverPaginated": true,
+    "maximumPageSize": 50,
+    "continuousRowNumbers": true,
+    "searchAcrossDataset": true,
+    "preservePageAndFilters": true,
+    "states": ["loading", "empty", "error", "ready"]
+  },
+  "forms": {
+    "protectUnsavedChanges": true,
+    "preserveDuringBackgroundRefresh": true,
+    "explicitCancel": true,
+    "validationFeedback": true
+  },
+  "actions": {
+    "appOwnedDialogs": true,
+    "confirmDestructiveActions": true,
+    "nativePromptForbidden": true,
+    "nativeConfirmForbidden": true,
+    "successAndErrorFeedback": true
+  },
+  "refresh": {
+    "backgroundOnly": true,
+    "mustNotRemountActiveScreen": true,
+    "mustNotOverwriteDirtyForms": true
+  },
+  "accessibility": {
+    "keyboardOperable": true,
+    "labelControls": true,
+    "modalFocusManagement": true,
+    "ariaCurrentForPagination": true
+  },
+  "responsive": true
+}

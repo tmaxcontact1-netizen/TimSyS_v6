@@ -1,6 +1,7 @@
 'use strict';
 
 const componentRegistry = require('../../shared/registry/componentRegistry');
+const uiStandard = require('./ui-standard');
 const log = require('../../shared/services/log');
 
 /**
@@ -171,7 +172,7 @@ function compose(input) {
   });
 
   // Step 9: Build manifest
-  var manifest = {
+  var manifest = uiStandard.applyToManifest({
     name: name,
     version: input.version || '1.0.0',
     author: input.author || 'admin',
@@ -190,7 +191,7 @@ function compose(input) {
       publishes: publishes,
       subscribes: subscribes
     }
-  };
+  });
 
   // No schema inheritance — composite modules reference tables owned by components
   schemaTables = [];

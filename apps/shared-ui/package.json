@@ -1,0 +1,11 @@
+{
+  "name": "@timsys/shared-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "peerDependencies": { "react": ">=18" },
+  "exports": {
+    "./react": "./react/index.js",
+    "./vanilla": "./vanilla/index.js"
+  }
+}

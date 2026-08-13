@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const uiStandard = require('./ui-standard');
 
 const MODULES_DIR = path.resolve(__dirname, '../../modules');
 const INCOMPLETE_MARKERS = ['MODULE_INCOMPLETE', 'Replace this generated handler'];
@@ -25,6 +26,9 @@ function inspect(name) {
   const errors = [];
   if (manifest.name !== name) errors.push('Manifest name does not match its directory');
   if (!Array.isArray(manifest.routes) || !Array.isArray(manifest.functions)) errors.push('Routes and functions must be arrays');
+  const uiReview = uiStandard.validateDeclaration(manifest.uiStandard);
+  errors.push(...uiReview.errors);
+  if (!fs.existsSync(path.join(dir, 'ui-standard.json'))) errors.push('ui-standard.json is required');
   const functions = new Map((manifest.functions || []).map((fn) => [fn.name, fn.exports]));
   (manifest.routes || []).forEach((route) => {
     const exportName = functions.get(route.handler);

@@ -31,12 +31,17 @@ function validateWithdrawalReason(config, body, ctx) {
  * @param {string} config.moduleName - Module name for event namespacing
  */
 
-function findRecord(config, id, ctx) {
-  var sql = 'SELECT * FROM ' + config.table + ' WHERE id = ?';
+function findRecord(config, id, ctx, req) {
+  var sql = 'SELECT * FROM ' + config.table + ' WHERE (id = ?';
   var params = [id];
   if (config.altIdField) {
     sql += ' OR ' + config.altIdField + ' = ?';
     params.push(id);
+  }
+  sql += ')';
+  if (config.scopeField) {
+    sql += ' AND ' + config.scopeField + ' = ?';
+    params.push(config.getScope(req));
   }
   var result = ctx.db.query(sql, params);
   if (!result.rows || result.rows.length === 0) return null;
@@ -45,7 +50,7 @@ function findRecord(config, id, ctx) {
 
 function withdraw(config, req, ctx) {
   var id = req.params.id;
-  var record = findRecord(config, id, ctx);
+  var record = findRecord(config, id, ctx, req);
   if (!record) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: config.entityType + ' not found' } };
   }
@@ -76,7 +81,7 @@ function withdraw(config, req, ctx) {
 
 function reinstate(config, req, ctx) {
   var id = req.params.id;
-  var record = findRecord(config, id, ctx);
+  var record = findRecord(config, id, ctx, req);
   if (!record) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: config.entityType + ' not found' } };
   }
@@ -102,7 +107,7 @@ function reinstate(config, req, ctx) {
 function permanentDelete(config, req, ctx) {
   var id = req.params.id;
   var force = req.query && req.query.force === 'true';
-  var record = findRecord(config, id, ctx);
+  var record = findRecord(config, id, ctx, req);
   if (!record) {
     return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: config.entityType + ' not found' } };
   }

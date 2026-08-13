@@ -18,7 +18,8 @@ function clusterCapabilities() {
 
   for (var i = 0; i < allCaps.length; i++) {
     var cap = allCaps[i];
-    var prefix = cap.name.split('.')[0] || cap.name.split(':')[0] || 'general';
+    var normalized = cap.name.indexOf('capability:') === 0 ? cap.name.slice('capability:'.length) : cap.name;
+    var prefix = normalized.split('.')[0] || 'general';
     if (!clusters[prefix]) clusters[prefix] = [];
     clusters[prefix].push(cap.name);
   }
@@ -108,6 +109,7 @@ function analyze(intent) {
     suggestions.push({
       moduleName: p.moduleName,
       confidence: 0.7,
+      completionPercent: 75,
       action: 'complete_partial',
       existingCapabilities: p.capabilities,
       missingArtifacts: gapCount,
@@ -130,6 +132,7 @@ function analyze(intent) {
     suggestions.push({
       moduleName: m.suggestedModuleName,
       confidence: relevance,
+      completionPercent: Math.max(25, Math.min(75, 100 - (m.capabilityCount * 10))),
       action: 'build_new',
       existingCapabilities: m.capabilities,
       missingArtifacts: m.capabilityCount,

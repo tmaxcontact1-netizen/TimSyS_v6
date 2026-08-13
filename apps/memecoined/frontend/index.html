@@ -39,6 +39,8 @@
         ><a href="#events" data-short="EV">Events</a><a href="#alerts" data-short="AT">Alerts</a>
       </nav>
       <div class="sidebar-actions">
+        <button id="app-back" type="button" data-short="←">Back</button>
+        <button id="return-launcher" type="button" data-short="RL">Return to Launcher</button>
         <button id="preferences-open" type="button" data-short="DP">Display preferences</button>
         <button id="sidebar-collapse" type="button" aria-pressed="false" data-short="⇤">
           Collapse sidebar
@@ -721,6 +723,26 @@
         <button id="preferences-reset" type="button">Reset defaults</button>
         <button id="preferences-done" type="button">Done</button>
       </div>
+    </dialog>
+    <dialog id="action-dialog" class="action-dialog" aria-labelledby="action-dialog-title">
+      <form id="action-dialog-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">CONFIRM ACTION</p>
+            <h2 id="action-dialog-title">Confirm</h2>
+          </div>
+          <button id="action-dialog-close" type="button" aria-label="Close">×</button>
+        </div>
+        <p id="action-dialog-message" class="panel-note"></p>
+        <label id="action-dialog-input-label"
+          ><span id="action-dialog-label">Value</span
+          ><input id="action-dialog-input" autocomplete="off"
+        /></label>
+        <div class="preference-actions">
+          <button id="action-dialog-cancel" type="button">Cancel</button>
+          <button id="action-dialog-confirm" type="submit">Continue</button>
+        </div>
+      </form>
     </dialog>
     <dialog id="token-dialog" aria-labelledby="token-title">
       <div class="dialog-heading">
