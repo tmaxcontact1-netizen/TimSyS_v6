@@ -1,2 +1,4 @@
-# Attendance contract
-Attendance owns a checkable session and presence state for neutral party references. It does not own invitations, people, calendar entries or the subject. Expected participants can come from invitations or audiences through explicit composition. Closing locks checks; withdrawal retains all records and aggregate evidence.
+# Event Attendance contract
+Event Attendance owns a checkable session and presence state for events, meetings, activities, and other neutral subject references. It is not classroom or course attendance. It does not own invitations, people, calendar entries, or the subject. Expected participants can come from invitations or audiences through explicit composition. Closing locks checks; withdrawal retains all records and aggregate evidence.
+
+Programme Manager remains authoritative for programme enrolment. For a specific scheduled occurrence it may create a neutral `programme_offering` attendance session and seed canonical student IDs as `expected`. Roster seeding is idempotent, never removes an existing check, and does not turn Event Attendance into classroom attendance or a programme registry.

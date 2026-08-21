@@ -1,0 +1,6 @@
+{
+  "name":"scheduler","type":"operational_component","dependencies":["academic_structure"],
+  "capabilities":["capability:scheduler.read","capability:scheduler.configure","capability:scheduler.integrate","capability:scheduler.programme_windows"],
+  "parts":["scheduler_setup","scheduling_scope","rotation_cycle","period_template","day_pattern","period_instance","availability_rule","resource_block","travel_time","philosophy_constraint","scheduling_requirement","candidate_validator","validation_finding","schedule_version","placement_lock","override_audit","lifecycle_audit","publication_link"],
+  "intelligence":{"version":1,"entities":[{"type":"scheduler_setup","source":{"table":"scheduler_setups","idField":"id"},"displayFields":["name","scope_mode"],"statusField":"status","events":[{"channel":"scheduler.setup.saved","kind":"updated"}],"dataQuality":[{"field":"academic_year_id","expectation":"required"},{"field":"timezone","expectation":"required"}]}]}
+}

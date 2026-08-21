@@ -1,0 +1,2 @@
+'use strict';const contract=require('../../contracts/scheduler');
+test('validates thousands of provider requirements without identity loss',()=>{const seen=new Set();for(let i=0;i<5000;i++){const item={external_key:'requirement:'+i,academic_year_id:'2036',teaching_group_external_key:'group:'+i,name:'Group '+i,occurrences_per_cycle:5,duration_minutes:50,status:'active'};contract.validateRequirement(item);seen.add(contract.requirementIdentity(item));}expect(seen.size).toBe(5000);});

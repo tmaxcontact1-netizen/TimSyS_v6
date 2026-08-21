@@ -18,6 +18,53 @@ client.interceptors.request.use((config) => {
 });
 
 export const get = (url) => client.get(url);
+export const getGradebookManifest = () => client.get("/gradebook/manifest");
+export const getGradebookInsights = () => client.get("/gradebook/insights");
+export const listGradebooks = (params = {}) => client.get("/gradebooks", { params });
+export const getGradebookReportingPeriods = (id) => client.get(`/gradebooks/${id}/reporting-periods`);
+export const getGradebookWorkspace = (id, params = {}) => client.get(`/gradebooks/${id}/workspace`, { params });
+export const listAcademicYears = (params = {}) => client.get("/academic-structure/years", { params });
+export const getSchedulerSetup = (academicYearId) => client.get("/scheduler/setup", { params: { academic_year_id: academicYearId } });
+export const saveSchedulerSetup = (data) => client.put("/scheduler/setup", data);
+export const getSchedulerInsights = (schedulerSetupId) => client.get("/scheduler/insights", { params: { scheduler_setup_id: schedulerSetupId } });
+export const listSchedulerVersions = (schedulerSetupId, params = {}) => client.get("/scheduler/versions", { params: { scheduler_setup_id: schedulerSetupId, ...params } });
+export const generateSchedules = (data) => client.post("/scheduler/generate", data);
+export const selectScheduleDraft = (id, expectedRevision) => client.put(`/scheduler/versions/${id}/select`, { expected_revision: expectedRevision });
+export const submitSchedule = (id, reason, expectedRevision) => client.put(`/scheduler/versions/${id}/submit`, { reason, expected_revision: expectedRevision });
+export const approveSchedule = (id, reason, expectedRevision) => client.put(`/scheduler/versions/${id}/approve`, { reason, expected_revision: expectedRevision });
+export const rejectSchedule = (id, reason, expectedRevision) => client.put(`/scheduler/versions/${id}/reject`, { reason, expected_revision: expectedRevision });
+export const publishSchedule = (id, reason, expectedRevision) => client.put(`/scheduler/versions/${id}/publish`, { reason, expected_revision: expectedRevision });
+export const listTeacherPreferenceCycles = (params = {}) => client.get("/teacher-preferences/cycles", { params });
+export const createTeacherPreferenceCycle = (data) => client.post("/teacher-preferences/cycles", data);
+export const openTeacherPreferenceCycle = (id) => client.put(`/teacher-preferences/cycles/${id}/open`);
+export const closeTeacherPreferenceCycle = (id) => client.put(`/teacher-preferences/cycles/${id}/close`);
+export const listTeacherPreferences = (params = {}) => client.get("/teacher-preferences", { params });
+export const createTeacherPreference = (data) => client.post("/teacher-preferences", data);
+export const submitTeacherPreference = (id, expectedRevision) => client.put(`/teacher-preferences/${id}/submit`, { expected_revision: expectedRevision });
+export const withdrawTeacherPreference = (id, reason, expectedRevision) => client.put(`/teacher-preferences/${id}/withdraw`, { reason, expected_revision: expectedRevision });
+export const reviewTeacherRestriction = (id, decision, reason, expectedRevision) => client.post(`/teacher-preferences/${id}/review`, { decision, reason, expected_revision: expectedRevision });
+export const getTeacherPreferenceInsights = () => client.get("/teacher-preferences/insights");
+export const syncTeacherPreferences = (schedulerSetupId) => client.post("/teacher-preferences/sync-scheduler", { scheduler_setup_id: schedulerSetupId });
+export const getCoverInsights = () => client.get("/cover/insights");
+export const getCoverAnalytics = (params={}) => client.get("/cover/analytics",{params});
+export const getCoverPolicy = () => client.get("/cover/policy");
+export const saveCoverPolicy = data => client.put("/cover/policy",data);
+export const listCoverAbsences = (params={}) => client.get("/cover/absences",{params});
+export const createCoverAbsence = data => client.post("/cover/absences",data);
+export const cancelCoverAbsence = (id,data) => client.put(`/cover/absences/${id}/cancel`,data);
+export const reinstateCoverAbsence = (id,data={}) => client.put(`/cover/absences/${id}/reinstate`,data);
+export const reconcileCoverAbsence = (id,data={}) => client.post(`/cover/absences/${id}/reconcile`,data);
+export const listCoverDemands = (params={}) => client.get("/cover/demands",{params});
+export const cancelCoverDemand = (id,data) => client.put(`/cover/demands/${id}/cancel`,data);
+export const reinstateCoverDemand = (id,data={}) => client.put(`/cover/demands/${id}/reinstate`,data);
+export const generateCoverRecommendations = (id,data={}) => client.post(`/cover/demands/${id}/recommendations/generate`,data);
+export const listCoverRecommendationRuns = (id,params={}) => client.get(`/cover/demands/${id}/recommendation-runs`,{params});
+export const listCoverAssignments = id => client.get(`/cover/demands/${id}/assignments`);
+export const confirmCoverAssignment = (id,data) => client.post(`/cover/demands/${id}/assignments`,data);
+export const reassignCover = (id,data) => client.post(`/cover/assignments/${id}/reassign`,data);
+export const cancelCoverAssignment = (id,data) => client.post(`/cover/assignments/${id}/cancel`,data);
+export const completeCoverAssignment = (id,data={}) => client.post(`/cover/assignments/${id}/complete`,data);
+export const rejectCoverRecommendation = (id,data) => client.post(`/cover/recommendations/${id}/reject`,data);
 export const listStudents = (params = {}) =>
   client.get("/students", { params });
 export const createStudent = (data) => client.post("/students", data);
@@ -237,13 +284,37 @@ export const getEventHistory = id => client.get(`/events/${id}/history`);
 export const getEventPlannerManifest = () => client.get("/event-planner/manifest");
 export const listEventPlans = (params={}) => client.get("/event-planner/events",{params});
 export const getEventPlan = id => client.get(`/event-planner/events/${id}`);
+export const getSystemHealth = () => client.get("/system-health");
+
+export const getProgrammeManagerContract = () => client.get("/programme-manager/contract");
+export const getProgrammeManagerInsights = () => client.get("/programme-manager/insights");
+export const listManagedProgrammes = (params={}) => client.get("/programme-manager/programmes",{params});
+export const createManagedProgramme = data => client.post("/programme-manager/programmes",data);
+export const getManagedProgramme = id => client.get(`/programme-manager/programmes/${id}`);
+export const listProgrammeOfferings = (id,params={}) => client.get(`/programme-manager/programmes/${id}/offerings`,{params});
+export const listProgrammeSurveys = (id,params={}) => client.get(`/programme-manager/programmes/${id}/surveys`,{params});
+export const listProgrammeResponses = (id,params={}) => client.get(`/programme-manager/surveys/${id}/responses`,{params});
+export const reconcileProgrammeIdentities = id => client.post(`/programme-manager/surveys/${id}/reconcile-identities`,{limit:1000});
+export const generateProgrammeAllocations = (id,data={}) => client.post(`/programme-manager/surveys/${id}/allocation-runs`,data);
+export const listProgrammeAllocationRuns = (id,params={}) => client.get(`/programme-manager/surveys/${id}/allocation-runs`,{params});
+export const getProgrammeAllocationRun = (id,params={}) => client.get(`/programme-manager/allocation-runs/${id}`,{params});
+export const getProgrammeInterventions = (id,params={}) => client.get(`/programme-manager/allocation-runs/${id}/interventions`,{params});
+export const decideProgrammeRecommendation = (id,data) => client.put(`/programme-manager/allocation-recommendations/${id}/decision`,data);
+export const confirmProgrammeAllocationRun = (id,data) => client.put(`/programme-manager/allocation-runs/${id}/confirm`,data);
+export const publishProgrammeEnrolments = (id,data) => client.post(`/programme-manager/allocation-runs/${id}/enrolments`,data);
+export const listProgrammeEnrolments = (params={}) => client.get("/programme-manager/enrolments",{params});
+export const withdrawProgrammeEnrolment = (id,data) => client.put(`/programme-manager/enrolments/${id}/withdraw`,data);
+export const reinstateProgrammeEnrolment = (id,data) => client.put(`/programme-manager/enrolments/${id}/reinstate`,data);
+export const getProgrammeOfferingRoster = id => client.get(`/programme-manager/offerings/${id}/roster`);
+export const createProgrammeAttendanceHandoff = (id,data) => client.post(`/programme-manager/offerings/${id}/attendance-handoffs`,data);
 
 export const listInsightProducts = (
   scopeType = "organisation",
   scopeId = "current",
+  allScopes = false,
 ) =>
   client.get("/intelligence/products", {
-    params: { scope_type: scopeType, scope_id: scopeId },
+    params: { scope_type: scopeType, scope_id: scopeId, all_scopes: allScopes },
   });
 export const runWithdrawalAnalysis = (data = {}) =>
   client.post("/intelligence/providers/core.withdrawal-patterns/run", data);

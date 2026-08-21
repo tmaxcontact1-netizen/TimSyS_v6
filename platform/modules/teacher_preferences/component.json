@@ -1,0 +1,7 @@
+{
+  "name":"teacher_preferences","type":"operational_component","dependencies":["staff_registry","academic_structure","scheduler"],
+  "capabilities":["capability:teacher_preferences.read","capability:teacher_preferences.configure","capability:teacher_preferences.provider","capability:teacher_preferences.insights","capability:teacher_preferences.scheduler_sync"],
+  "parts":["preference_cycle","preference_entry","ranked_choice","advisory_weight","declared_restriction","restriction_review","effective_period","provider_record"],
+  "insights":{"platform":{"heartbeat":true,"health":true},"operational":{"enabled":true}},
+  "intelligence":{"version":1,"entities":[{"type":"teacher_preference","source":{"table":"teacher_preference_entries","idField":"id"},"displayFields":["staff_id","domain","target_label","stance"],"statusField":"status","events":[{"channel":"teacher_preference.provider_ready","kind":"updated"}],"relationships":[{"field":"staff_id","type":"preference_for","targetType":"staff"}],"dataQuality":[{"field":"staff_id","expectation":"required"},{"field":"target_key","expectation":"required"},{"field":"review_state","expectation":"required"}]}]}
+}

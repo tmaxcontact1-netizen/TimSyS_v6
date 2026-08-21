@@ -1,0 +1,8 @@
+{
+  "name":"learning_behaviours",
+  "type":"academic_operations",
+  "dependencies":["gradebook_provisioning","assessment_scales","academic_structure"],
+  "capabilities":["capability:learning_behaviours.read","capability:learning_behaviours.configure","capability:learning_behaviours.observe"],
+  "parts":["behaviour_framework","behaviour_indicator","gradebook_assignment","behaviour_observation","correction_lineage","period_summary"],
+  "intelligence":{"version":1,"entities":[{"type":"behaviour_observation","source":{"table":"behaviour_observations","idField":"id"},"displayFields":["student_id","observed_at","notes"],"events":[{"channel":"learning_behaviour.observed","kind":"created"},{"channel":"learning_behaviour.corrected","kind":"updated"}],"statusField":"status","dataQuality":[{"field":"student_id","expectation":"required"},{"field":"indicator_id","expectation":"required"},{"field":"scale_level_id","expectation":"required"}]}]}
+}

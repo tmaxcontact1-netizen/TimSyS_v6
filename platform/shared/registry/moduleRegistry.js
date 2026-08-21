@@ -28,6 +28,12 @@ class ModuleRegistry {
       schema: manifest.schema || {},
       events: manifest.events || {},
       dependencies: manifest.dependencies || [],
+      insights: manifest.insights || {
+        classification: 'inherited_from_components',
+        platform: { heartbeat:true, health:true, usage:true, performance:true, dependencies:true },
+        operational: { enabled:false, inherited:true },
+        visibility: { principal:'summary', superuser:'detailed', developer:'diagnostic' }
+      },
       registeredAt: Date.now(),
     });
 

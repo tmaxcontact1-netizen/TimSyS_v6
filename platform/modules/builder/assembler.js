@@ -47,6 +47,8 @@ function assemble(spec) {
       hint: 'Register or build the missing components first, then retry assembly.'
     };
   }
+  var uncertifiedComponents = components.filter(function(name) { var component=componentRegistry.get(name); return !component.certification || component.certification.status !== 'certified'; });
+  if (uncertifiedComponents.length) return { success:false, statusCode:422, error:{code:'UNCERTIFIED_COMPONENTS',message:'Only certified components can be assembled',components:uncertifiedComponents} };
 
   // Step 2: Check module doesn't already exist
   var moduleDir = path.join(MODULES_DIR, name);
@@ -84,6 +86,7 @@ function assemble(spec) {
     provides: spec.provides || [],
     requires: spec.requires || [],
     components: components,
+    insights: spec.insights || { classification:'composite_operational', platform:{heartbeat:true,health:true,usage:true,performance:true,dependencies:true}, operational:{enabled:true,advisoryOnly:true,evidenceRequired:true}, visibility:{principal:'summary',superuser:'detailed',developer:'diagnostic'}, inherited:true },
     routes: spec.routes || [],
     functions: functions,
     statusConfig: spec.statusConfig || null,
@@ -251,6 +254,7 @@ function dryRun(spec) {
 
   var components = spec.components || [];
   var missingComponents = componentRegistry.getMissing(components);
+  var uncertifiedComponents = components.filter(function(name) { var component=componentRegistry.get(name); return component && (!component.certification || component.certification.status !== 'certified'); });
   var moduleDir = path.join(MODULES_DIR, spec.name);
   var exists = fs.existsSync(moduleDir);
 
@@ -279,7 +283,8 @@ function dryRun(spec) {
         available: components.filter(function(c) { return componentRegistry.exists(c); }),
         missing: missingComponents
       },
-      canBuild: missingComponents.length === 0 && !exists,
+      uncertified: uncertifiedComponents,
+      canBuild: missingComponents.length === 0 && uncertifiedComponents.length === 0 && !exists,
       filesCreated: [
         'module.json',
         'ui-standard.json',

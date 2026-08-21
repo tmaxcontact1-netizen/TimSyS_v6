@@ -55,6 +55,8 @@ function compose(input) {
   var componentData = componentNames.map(function(cn) {
     return componentRegistry.get(cn);
   });
+  var uncertified = componentData.filter(function(component) { return !component.certification || component.certification.status !== 'certified'; });
+  if (uncertified.length) return { success:false, statusCode:422, error:{ code:'UNCERTIFIED_COMPONENTS', message:'Only certified components can be composed into modules', components:uncertified.map(function(component) { return component.name; }) } };
 
   // Step 3: Merge dependencies
   var dependencies = new Set(['db', 'cache', 'auth', 'log', 'validate', 'events']);
@@ -180,6 +182,7 @@ function compose(input) {
     provides: provides,
     requires: uniqueRequires,
     components: componentNames,
+    insights: input.insights || { classification:'composite_operational', platform:{heartbeat:true,health:true,usage:true,performance:true,dependencies:true}, operational:{enabled:true,advisoryOnly:true,evidenceRequired:true}, visibility:{principal:'summary',superuser:'detailed',developer:'diagnostic'}, inherited:true },
     routes: routes,
     functions: functions,
     statusConfig: input.statusConfig || null,

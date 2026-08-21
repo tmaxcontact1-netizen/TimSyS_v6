@@ -68,7 +68,12 @@ const intelligenceScheduler = require('./shared/services/intelligence/scheduler'
 
 var contextRegistry = {};
 var wiredModules = [];
-var persistPublishedEvent = function(channel, payload) { eventStore.persist(channel, payload); };
+var persistPublishedEvent = function(channel, payload) {
+  eventStore.persist(channel, payload);
+  var owner = payload && payload.__module || 'platform';
+  metrics.increment('platform.module.events_total', { module: owner });
+  metrics.gauge('platform.module.last_activity', Date.now(), { module: owner });
+};
 var projectPublishedEvent = function(channel, payload) { worldModel.project(channel, payload); };
 
 var CORS_ORIGINS = (process.env.CORS_ORIGINS || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
@@ -417,6 +422,8 @@ function createServer() {
         return;
       }
 
+      if (route) metrics.increment('platform.module.requests_total', { module: route.moduleName });
+
       // The desktop launcher exchanges its process-private bootstrap token for a short-lived JWT.
       if (pathname === '/api/auth/desktop-session' && method === 'POST') {
         var suppliedDesktopToken = req.headers['x-timsys-desktop-token'];
@@ -557,6 +564,9 @@ function createServer() {
       respond(res, statusCode, responseData);
 
       metrics.timing('http.request_duration_ms', Date.now() - start, { method: method, path: pathname });
+      metrics.timing('platform.module.request_duration_ms', Date.now() - start, { module: moduleName });
+      metrics.gauge('platform.module.last_activity', Date.now(), { module: moduleName });
+      if (statusCode >= 500) metrics.increment('platform.module.errors_total', { module: moduleName });
 
     } catch (err) {
       log.error('HTTP request failed', {
@@ -566,6 +576,7 @@ function createServer() {
         stack: err.stack,
       });
       metrics.increment('http.errors_total', { method: method, path: pathname });
+      metrics.increment('platform.module.errors_total', { module: route && route.moduleName || 'platform' });
       respond(res, 500, {
         success: false,
         error: { code: 'INTERNAL_ERROR', message: err.message },

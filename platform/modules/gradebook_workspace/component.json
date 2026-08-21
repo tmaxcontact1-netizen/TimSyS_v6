@@ -1,0 +1,20 @@
+{
+  "name": "gradebook_workspace",
+  "type": "academic_operations",
+  "dependencies": ["gradebook_provisioning", "academic_structure", "assessment_evidence", "grade_evaluation"],
+  "capabilities": ["capability:gradebook.workspace.read", "capability:gradebook.reporting_periods.resolve"],
+  "parts": ["reporting_period_resolution", "roster_projection", "assessment_projection", "evidence_cell_projection", "result_projection", "pagination"],
+  "intelligence": {
+    "version": 1,
+    "entities": [{
+      "type": "gradebook_workspace",
+      "source": {"table": "gradebook_instances", "idField": "id"},
+      "displayFields": ["name", "mode", "status"],
+      "events": [],
+      "dataQuality": [
+        {"field": "teaching_group_id", "expectation": "required"},
+        {"field": "academic_year_id", "expectation": "required"}
+      ]
+    }]
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name":"academic_commentary","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:academic_commentary.read","capability:academic_commentary.generate","capability:academic_commentary.edit"],
+  "requires":["capability:grade_evaluation.read","capability:learning_behaviours.read","capability:classroom_attendance.read","capability:student_profile.read"],
+  "routes":[
+    {"path":"/gradebooks/:id/students/:studentId/commentary/generate","method":"POST","handler":"academic_commentary_generate","auth_required":true,"permissions":["admin:commentary:write"]},
+    {"path":"/commentary-drafts/:id","method":"PUT","handler":"academic_commentary_edit","auth_required":true,"permissions":["admin:commentary:write"]},
+    {"path":"/commentary-drafts/:id/ready","method":"PUT","handler":"academic_commentary_markReady","auth_required":true,"permissions":["admin:commentary:write"]},
+    {"path":"/gradebooks/:id/students/:studentId/commentary","method":"GET","handler":"academic_commentary_list","auth_required":true,"permissions":["admin:commentary:read"]}
+  ],
+  "schema":{"tables":["academic_commentary_drafts"],"migrations":["migrations/001_academic_commentary.sql"]},
+  "events":{"publishes":["academic_commentary.generated","academic_commentary.edited","academic_commentary.ready"],"subscribes":[]},
+  "functions":[
+    {"name":"academic_commentary_generate","exports":"generate"},
+    {"name":"academic_commentary_edit","exports":"edit"},
+    {"name":"academic_commentary_markReady","exports":"markReady"},
+    {"name":"academic_commentary_list","exports":"list"}
+  ]
+}

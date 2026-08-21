@@ -1,0 +1,3 @@
+'use strict';
+const contract=require('../../contracts/teacherPreferences');
+test('five thousand preference records retain unique stable provider identities',()=>{const records=Array.from({length:5000},(_,i)=>contract.providerRecord({external_key:`preference:staff-${i}:subject:prefer:math`,staff_id:`staff-${i}`,domain:'subject',stance:'prefer',target_key:'math',target_label:'Mathematics',rank:i%20+1,confidence:'medium',review_state:'not_required',status:'active'},i+1));expect(new Set(records.map(x=>x.record_type+':'+x.external_key)).size).toBe(5000);expect(records.every(x=>x.payload.advisory_weight>0&&x.status==='active')).toBe(true);});

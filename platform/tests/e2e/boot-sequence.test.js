@@ -11,9 +11,9 @@ describe('E2E: boot sequence regression', function() {
     var names = registry.getAll().map(function(module) { return module.name; });
     expect(names).toEqual(expect.arrayContaining([
       'builder', 'intelligence_center', 'inventory', 'room_registry', 'school_analytics',
-      'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'contingency', 'financial_planning', 'event_record', 'event_planner', 'staff_profile', 'staff_registry', 'student_profile', 'student_registry'
+      'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'contingency', 'financial_planning', 'event_record', 'event_planner', 'system_health', 'staff_profile', 'staff_registry', 'student_profile', 'student_registry', 'academic_structure', 'gradebook_core', 'gradebook_workspace', 'assessment_scales', 'learning_standards', 'learning_behaviours', 'assessment_evidence', 'evaluation_policies', 'grade_evaluation', 'classroom_attendance', 'academic_commentary', 'grade_reporting', 'gradebook', 'scheduler', 'teacher_preferences', 'cover', 'programme_manager'
     ]));
-    expect(names).toHaveLength(29);
+    expect(names).toHaveLength(47);
   });
 
   test('current migrations are durable', function() {

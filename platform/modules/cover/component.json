@@ -1,0 +1,277 @@
+{
+  "name": "cover",
+  "type": "operational_component",
+  "dependencies": [
+    "staff_registry",
+    "scheduler",
+    "teacher_preferences"
+  ],
+  "capabilities": [
+    "capability:cover.read",
+    "capability:cover.configure",
+    "capability:cover.eligibility",
+    "capability:cover.intake",
+    "capability:cover.recommend",
+    "capability:cover.assign",
+    "capability:cover.insights"
+  ],
+  "parts": [
+    "candidate_pool_policy",
+    "eligibility_gate",
+    "workload_cap",
+    "scoring_weight",
+    "emergency_expansion_rule",
+    "override_rule",
+    "absence_record",
+    "cover_demand",
+    "scheduler_reconciler",
+    "intake_audit",
+    "recommendation_run",
+    "candidate_evidence_snapshot",
+    "explainable_ranker",
+    "human_decision",
+    "cover_assignment",
+    "decision_audit"
+  ],
+  "insights": {
+    "platform": {
+      "heartbeat": true,
+      "health": true
+    },
+    "operational": {
+      "enabled": true
+    }
+  },
+  "intelligence": {
+    "version": 1,
+    "entities": [
+      {
+        "type": "cover_policy",
+        "source": {
+          "table": "cover_policies",
+          "idField": "id"
+        },
+        "displayFields": [
+          "name"
+        ],
+        "statusField": "status",
+        "events": [
+          {
+            "channel": "cover.policy.saved",
+            "kind": "updated"
+          }
+        ],
+        "relationships": [],
+        "dataQuality": [
+          {
+            "field": "policy_json",
+            "expectation": "required"
+          },
+          {
+            "field": "revision",
+            "expectation": "required"
+          }
+        ]
+      },
+      {
+        "type": "cover_absence",
+        "source": {
+          "table": "cover_absences",
+          "idField": "id"
+        },
+        "displayFields": [
+          "staff_id",
+          "absence_type",
+          "starts_at",
+          "ends_at"
+        ],
+        "statusField": "status",
+        "events": [
+          {
+            "channel": "cover.absence.created",
+            "kind": "created"
+          },
+          {
+            "channel": "cover.absence.updated",
+            "kind": "updated"
+          },
+          {
+            "channel": "cover.absence.cancelled",
+            "kind": "withdrawn"
+          },
+          {
+            "channel": "cover.absence.reinstated",
+            "kind": "reinstated"
+          }
+        ],
+        "relationships": [
+          {
+            "field": "staff_id",
+            "type": "absence_for",
+            "targetType": "staff"
+          }
+        ],
+        "dataQuality": [
+          {
+            "field": "staff_id",
+            "expectation": "required"
+          },
+          {
+            "field": "starts_at",
+            "expectation": "required"
+          }
+        ]
+      },
+      {
+        "type": "cover_demand",
+        "source": {
+          "table": "cover_demands",
+          "idField": "id"
+        },
+        "displayFields": [
+          "title",
+          "starts_at",
+          "ends_at"
+        ],
+        "statusField": "status",
+        "events": [
+          {
+            "channel": "cover.demand.created",
+            "kind": "created"
+          },
+          {
+            "channel": "cover.demand.cancelled",
+            "kind": "withdrawn"
+          },
+          {
+            "channel": "cover.demand.reinstated",
+            "kind": "reinstated"
+          }
+        ],
+        "relationships": [
+          {
+            "field": "absence_id",
+            "type": "caused_by",
+            "targetType": "cover_absence"
+          }
+        ],
+        "dataQuality": [
+          {
+            "field": "title",
+            "expectation": "required"
+          },
+          {
+            "field": "starts_at",
+            "expectation": "required"
+          }
+        ]
+      },
+      {
+        "type": "cover_recommendation",
+        "source": {
+          "table": "cover_recommendations",
+          "idField": "id"
+        },
+        "displayFields": [
+          "candidate_name",
+          "score",
+          "rank"
+        ],
+        "statusField": "status",
+        "events": [
+          {
+            "channel": "cover.recommendations.generated",
+            "kind": "created"
+          },
+          {
+            "channel": "cover.recommendation.rejected",
+            "kind": "updated"
+          }
+        ],
+        "relationships": [
+          {
+            "field": "cover_demand_id",
+            "type": "recommends_for",
+            "targetType": "cover_demand"
+          }
+        ],
+        "dataQuality": [
+          {
+            "field": "candidate_ref",
+            "expectation": "required"
+          },
+          {
+            "field": "evidence_json",
+            "expectation": "required"
+          }
+        ]
+      },
+      {
+        "type": "cover_assignment",
+        "source": {
+          "table": "cover_assignments",
+          "idField": "id"
+        },
+        "displayFields": [
+          "candidate_name",
+          "candidate_type",
+          "assigned_at"
+        ],
+        "statusField": "status",
+        "events": [
+          {
+            "channel": "cover.assignment.confirmed",
+            "kind": "created"
+          },
+          {
+            "channel": "cover.assignment.overridden",
+            "kind": "created"
+          },
+          {
+            "channel": "cover.assignment.reassigned",
+            "kind": "updated"
+          },
+          {
+            "channel": "cover.assignment.cancelled",
+            "kind": "withdrawn"
+          },
+          {
+            "channel": "cover.assignment.completed",
+            "kind": "updated"
+          }
+        ],
+        "relationships": [
+          {
+            "field": "cover_demand_id",
+            "type": "fills",
+            "targetType": "cover_demand"
+          },
+          {
+            "field": "recommendation_id",
+            "type": "decided_from",
+            "targetType": "cover_recommendation"
+          },
+          {
+            "field": "candidate_ref",
+            "type": "assigned_to",
+            "targetType": "staff"
+          }
+        ],
+        "dataQuality": [
+          {
+            "field": "candidate_ref",
+            "expectation": "required"
+          },
+          {
+            "field": "decision_type",
+            "expectation": "required"
+          },
+          {
+            "field": "assigned_by",
+            "expectation": "required"
+          }
+        ]
+      }
+    ]
+  }
+}

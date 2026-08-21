@@ -7,7 +7,7 @@ function contribution(channel, moduleName) {
   for (var c = 0; c < components.length; c++) {
     var entities = components[c].intelligence && components[c].intelligence.entities || [];
     for (var e = 0; e < entities.length; e++) {
-      var declared = entities[e].events.some(function(event) { return event.channel === channel; });
+      var declared = (entities[e].events || []).some(function(event) { return event.channel === channel; });
       if (declared) return entities[e];
     }
   }

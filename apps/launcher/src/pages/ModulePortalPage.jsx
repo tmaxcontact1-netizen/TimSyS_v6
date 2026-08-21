@@ -95,7 +95,7 @@ function ModulePortalPage() {
 
         <section>
           <h3 className="text-lg font-semibold">Modules and component manifests</h3>
-          <p className="text-sm text-gray-400 mt-1 mb-4">Checkboxes add or remove configuration. Dependency impact is shown before removal.</p>
+          <p className="text-sm text-gray-400 mt-1 mb-4">Checkboxes apply to modules and certified components. Parts are descriptive internal building blocks and are not independently selectable.</p>
           <div className="space-y-3">{app.modules.map(module => <article key={module.name} className="rounded-xl border border-gray-800 bg-gray-900">
             <div className="p-4 flex gap-4 items-center">
               <Check checked={module.enabled} disabled={module.required} onChange={() => toggle('module', module)} labelText="" />
@@ -108,8 +108,9 @@ function ModulePortalPage() {
             </div>
             {expanded === module.name && <div className="border-t border-gray-800 p-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div><h4 className="text-sm font-semibold mb-2">Components</h4>{module.components.length ? module.components.map(component => <div key={component.name} className="mb-2 rounded border border-gray-700 bg-gray-950 p-3">
-                <div className="flex justify-between"><Check checked={component.enabled ?? module.enabled} disabled={component.required} onChange={() => toggle('component', component)} labelText={label(component.name)} /><span className="text-xs text-gray-500">{component.type}</span></div>
-                <pre className="mt-3 max-h-48 overflow-auto text-xs text-gray-400 whitespace-pre-wrap">{JSON.stringify(component, null, 2)}</pre>
+                <div className="flex justify-between"><Check checked={component.enabled ?? module.enabled} disabled={component.required} onChange={() => toggle('component', component)} labelText={label(component.name)} /><span className="text-xs text-green-300">{component.certification?.status || 'uncertified'} · v{component.version || 'unknown'}</span></div>
+                <p className="mt-2 text-xs text-gray-500">{component.type} component · {(component.capabilities || []).length} capabilities</p>
+                {(component.parts || []).length > 0 && <div className="mt-3"><p className="text-xs font-semibold text-gray-400">Internal parts</p><div className="mt-2 flex flex-wrap gap-2">{component.parts.map(part => <span key={part} className="rounded bg-gray-800 px-2 py-1 text-xs text-gray-400">{label(part)}</span>)}</div></div>}
               </div>) : <p className="text-sm text-gray-500">No app-specific components. This module is a backend service.</p>}</div>
               <div className="space-y-3">
                 <div className="rounded border border-gray-700 p-3"><h4 className="text-sm font-semibold">Dependencies</h4><p className="text-xs text-gray-400 mt-2">{(module.dependencies || []).join(', ') || 'None'}</p></div>

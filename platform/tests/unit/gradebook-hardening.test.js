@@ -1,0 +1,6 @@
+'use strict';
+const access=require('../../shared/services/gradebookAccess'),periods=require('../../shared/services/reportingPeriods');
+describe('Gradebook pre-Scheduler hardening contracts',()=>{
+ test('limits operational access to assigned teachers or governors',()=>{const ctx={db:{query:(_sql,p)=>({rows:p[1]==='T-1'?[{id:1}]:[]})}},book={teaching_group_id:7};expect(access.canUse({user:{id:'T-1',permissions:['admin:teacher']}},ctx,book)).toBe(true);expect(access.canUse({user:{id:'T-2',permissions:['admin:teacher']}},ctx,book)).toBe(false);expect(access.canUse({user:{id:'P-1',permissions:['admin:principal']}},ctx,book)).toBe(true);expect(access.requireGovernor({user:{id:'T-1',permissions:['admin:teacher']}}).error.code).toBe('GRADEBOOK_GOVERNANCE_DENIED')});
+ test('resolves one complete period configuration and rejects foreign periods',()=>{const db={query:(sql,p)=>{if(sql.includes('programme_id'))return{rows:[{programme_id:3}]};if(p[2]==='course')return{rows:[{id:9,code:'COURSE'}]};return{rows:[]}}},book={id:1,teaching_group_id:2,subject_id:4,app_id:'principal-ed',academic_year_id:5};expect(periods.resolve({db},book).resolved_from.scope_type).toBe('course');expect(periods.selected({db},book,9).period.code).toBe('COURSE');expect(periods.selected({db},book,99).error.error.code).toBe('REPORTING_PERIOD_NOT_RESOLVED')});
+});

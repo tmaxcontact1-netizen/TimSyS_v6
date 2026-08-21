@@ -8,10 +8,12 @@ const withdrawalPatterns = require('./providers/withdrawal-patterns');
 const registryQuality = require('./providers/registry-quality');
 const operationalStrengths = require('./providers/operational-strengths');
 const crossComponent = require('./providers/cross-component');
+const coverOperations = require('./providers/cover-operations');
 providerRunner.register(withdrawalPatterns);
 providerRunner.register(registryQuality);
 providerRunner.register(operationalStrengths);
 providerRunner.register(crossComponent);
+providerRunner.register(coverOperations);
 
 class IntelligenceServiceImpl {
   suggestMetadata(...args) { return metadataService.suggest(...args); }
@@ -26,6 +28,7 @@ class IntelligenceServiceImpl {
   getProduct(...args) { return products.get(...args); }
   listProducts(...args) { return products.list(...args); }
   listVisibleProducts(...args) { return products.listVisible(...args); }
+  listAllVisibleProducts(...args) { return products.listAllVisible(...args); }
   getPortfolio(...args) { return products.portfolio(...args); }
   runProvider(...args) { return providerRunner.run(...args); }
   listProviders(...args) { return providerRunner.list(...args); }

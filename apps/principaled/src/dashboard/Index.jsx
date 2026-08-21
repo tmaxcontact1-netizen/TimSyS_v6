@@ -24,6 +24,12 @@ import ContingencyWidget from "./widgets/ContingencyWidget";
 import FinanceWidget from "./widgets/FinanceWidget";
 import EventsWidget from "./widgets/EventsWidget";
 import EventPlannerWidget from "./widgets/EventPlannerWidget";
+import GradebookWidget from "./widgets/GradebookWidget";
+import SystemHealthDashboard from "./widgets/SystemHealthDashboard";
+import SchedulerWidget from "./widgets/SchedulerWidget";
+import TeacherPreferencesWidget from "./widgets/TeacherPreferencesWidget";
+import CoverWidget from "./widgets/CoverWidget";
+import ProgrammeManagerWidget from "./widgets/ProgrammeManagerWidget";
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
@@ -90,7 +96,7 @@ const MODULE_TO_VIEW = {
   },
   audiences: { id:"audiences",label:"Audiences",widget:ParticipationWidget,requiresAdmin:false },
   invitations: { id:"invitations",label:"Invitations",widget:ParticipationWidget,requiresAdmin:false },
-  attendance: { id:"attendance",label:"Attendance",widget:ParticipationWidget,requiresAdmin:false },
+  attendance: { id:"attendance",label:"Event Attendance",widget:ParticipationWidget,requiresAdmin:false },
   venue_bookings: { id:"venue_bookings",label:"Venue Bookings",widget:CoordinationWidget,requiresAdmin:false },
   resource_reservations: { id:"resource_reservations",label:"Resource Reservations",widget:CoordinationWidget,requiresAdmin:false },
   transportation: { id:"transportation",label:"Transportation",widget:TransportationWidget,requiresAdmin:false },
@@ -102,6 +108,11 @@ const MODULE_TO_VIEW = {
   financial_planning: { id:"financial_planning",label:"Finance",widget:FinanceWidget,requiresAdmin:false },
   event_record: { id:"event_record",label:"Events",widget:EventsWidget,requiresAdmin:false },
   event_planner: { id:"event_planner",label:"Event Planner",widget:EventPlannerWidget,requiresAdmin:false },
+  gradebook: { id:"gradebook",label:"Gradebook",widget:GradebookWidget,requiresAdmin:false },
+  scheduler: { id:"scheduler",label:"Scheduler",widget:SchedulerWidget,requiresAdmin:false },
+  teacher_preferences: { id:"teacher_preferences",label:"Teacher Preferences",widget:TeacherPreferencesWidget,requiresAdmin:false },
+  cover: { id:"cover",label:"Cover",widget:CoverWidget,requiresAdmin:false },
+  programme_manager: { id:"programme_manager",label:"Programme Manager",widget:ProgrammeManagerWidget,requiresAdmin:false },
   // Profile widgets (non-admin)
   student_profile: {
     id: "student_profiles",
@@ -518,6 +529,12 @@ function PrincipalEdDashboard() {
     if (moduleName === "financial_planning") return <FinanceWidget askConfirmation={askConfirmation} />;
     if (moduleName === "event_record") return <EventsWidget askConfirmation={askConfirmation} />;
     if (moduleName === "event_planner") return <EventPlannerWidget />;
+    if (moduleName === "gradebook") return <GradebookWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "scheduler") return <SchedulerWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "teacher_preferences") return <TeacherPreferencesWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "cover") return <CoverWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "programme_manager") return <ProgrammeManagerWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "system_health") return <SystemHealthDashboard />;
     if (moduleName === "student_profile") {
       return <StudentProfileWidget />;
     }

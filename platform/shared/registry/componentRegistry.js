@@ -34,13 +34,17 @@ function register(component) {
     schema: component.schema || null,
     capabilities: component.capabilities || null,
     events: component.events || null,
-    intelligence: component.intelligence || null
+    intelligence: component.intelligence || null,
+    insights: component.insights || null,
+    parts: component.parts || []
+    ,version: component.version || null
+    ,certification: component.certification || { status: 'uncertified', errors: ['No certification result'] }
   };
   
   components.set(component.name, record);
   
   db.query(
-    'INSERT OR REPLACE INTO component_registry (name, type, owner_module, dependencies, routes, schema, capabilities, events, intelligence_contract) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT OR REPLACE INTO component_registry (name, type, owner_module, dependencies, routes, schema, capabilities, events, intelligence_contract, insight_policy, parts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       record.name,
       record.type,
@@ -50,7 +54,9 @@ function register(component) {
       JSON.stringify(record.schema),
       JSON.stringify(record.capabilities),
       JSON.stringify(record.events),
-      JSON.stringify(record.intelligence)
+      JSON.stringify(record.intelligence),
+      JSON.stringify(record.insights),
+      JSON.stringify(record.parts)
     ]
   );
   
@@ -100,7 +106,11 @@ function loadAll() {
       schema: row.schema ? JSON.parse(row.schema) : null,
       capabilities: row.capabilities ? JSON.parse(row.capabilities) : null,
       events: row.events ? JSON.parse(row.events) : null,
-      intelligence: row.intelligence_contract ? JSON.parse(row.intelligence_contract) : null
+      intelligence: row.intelligence_contract ? JSON.parse(row.intelligence_contract) : null,
+      insights: row.insight_policy ? JSON.parse(row.insight_policy) : null,
+      parts: row.parts ? JSON.parse(row.parts) : []
+      ,version: null
+      ,certification: { status: 'uncertified', errors: ['Re-scan required'] }
     });
   });
   

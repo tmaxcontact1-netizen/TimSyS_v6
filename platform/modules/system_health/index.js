@@ -1,0 +1,1 @@
+'use strict';const health=require('../../shared/services/systemHealth');function boot(ctx){ctx.log.info('system_health booting',{module:'system_health'})}function teardown(){}async function read(){return{success:true,health:health.evaluate()}}module.exports={boot,teardown,read};

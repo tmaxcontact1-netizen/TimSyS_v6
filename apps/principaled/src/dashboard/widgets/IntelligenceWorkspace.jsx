@@ -16,6 +16,7 @@ function InsightCard({ product, onDecision }) {
   return <article className={`insight-card insight-${tone(product)}`}>
     <div className="insight-card-head"><span className="insight-kind">{product.product_type.replace('_', ' ')}</span><span>{Math.round((product.confidence || 0) * 100)}% confidence</span></div>
     <h3>{product.title}</h3><p>{product.summary}</p>
+    <ContextualPresentation product={product} />
     {product.uncertainty && <p className="insight-uncertainty"><strong>What we do not know:</strong> {product.uncertainty}</p>}
     <button className="link-button" onClick={() => setOpen(!open)}>{open ? 'Hide explanation' : 'Why am I seeing this?'}</button>
     {open && <div className="insight-detail"><p>{product.explanation || 'This was generated from recorded evidence.'}</p><p><strong>Evidence:</strong> {product.evidence?.length || 0} supporting record(s)</p>{product.possibleActions?.length > 0 && <><strong>Possible next steps</strong><ul>{product.possibleActions.map(x => <li key={x}>{x}</li>)}</ul></>}</div>}
@@ -24,9 +25,19 @@ function InsightCard({ product, onDecision }) {
   </article>;
 }
 
+function ContextualPresentation({ product }) {
+  const confidence = Math.round((product.confidence || 0) * 100);
+  if (product.product_type === 'data_quality') return <div className="insight-graphic"><div><span>Evidence confidence</span><strong>{confidence}%</strong></div><div className="insight-meter"><i style={{width:`${confidence}%`}} /></div><small>{product.evidence?.length || 0} affected or supporting records</small></div>;
+  if (product.product_type === 'recommendation') return product.possibleActions?.length ? <div className="insight-bullets"><strong>Options to consider</strong><ul>{product.possibleActions.slice(0,3).map(x=><li key={x}>{x}</li>)}</ul></div> : null;
+  if (product.product_type === 'alert') { const reasons=(product.evidence||[]).map(e=>e.reason||e.issue).filter(Boolean).slice(0,3);return reasons.length?<div className="insight-bullets"><strong>What triggered this</strong><ul>{reasons.map((x,i)=><li key={i}>{x}</li>)}</ul></div>:null; }
+  if (product.product_type === 'observation') return <blockquote className="insight-narrative">{product.explanation || 'A factual pattern found in the currently recorded evidence.'}</blockquote>;
+  if (product.product_type === 'reminder') return <div className="insight-reminder-line">Waiting for a recorded response or action</div>;
+  return null;
+}
+
 export default function IntelligenceWorkspace() {
   const [products, setProducts] = useState([]); const [actions, setActions] = useState([]); const [loading, setLoading] = useState(true); const [running, setRunning] = useState(false); const [error, setError] = useState('');
-  const load = async () => { try { setError(''); const [p, a] = await Promise.all([api.listInsightProducts(), api.listIntelligenceActions()]); setProducts(p.data.products || []); setActions(a.data.actions || []); } catch (e) { setError(e.response?.data?.error?.message || e.message); } finally { setLoading(false); } };
+  const load = async () => { try { setError(''); const [p, a] = await Promise.all([api.listInsightProducts('organisation','current',true), api.listIntelligenceActions()]); setProducts(p.data.products || []); setActions(a.data.actions || []); } catch (e) { setError(e.response?.data?.error?.message || e.message); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []);
   const groups = useMemo(() => ({
     positive: products.filter(p => tone(p) === 'positive'),

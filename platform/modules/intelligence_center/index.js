@@ -6,7 +6,7 @@ var health = require('../../shared/services/intelligence/health');
 function boot(ctx){ctx.log.info('intelligence_center booting',{module:'intelligence_center'});} function teardown(ctx){ctx.log.info('intelligence_center tearing down',{module:'intelligence_center'});}
 async function listProviders(){return {success:true,providers:intelligence.listProviders()};}
 async function runProvider(req){var b=req.body||{}; try{return {success:true,run:await intelligence.runProvider(req.params.id,{from:b.from,to:b.to,comparisonStart:b.comparisonStart,comparisonEnd:b.comparisonEnd,scope:b.scope||{type:'organisation',id:'current'}})};}catch(error){return {success:false,statusCode:400,error:{code:'PROVIDER_RUN_FAILED',message:error.message}};}}
-async function listProducts(req){var type=req.query.scope_type||'organisation';var id=req.query.scope_id||'current';return {success:true,products:intelligence.listVisibleProducts(type,id,req.user.role)};}
+async function listProducts(req){if(req.query.all_scopes==='true')return{success:true,products:intelligence.listAllVisibleProducts(req.user.role)};var type=req.query.scope_type||'organisation';var id=req.query.scope_id||'current';return {success:true,products:intelligence.listVisibleProducts(type,id,req.user.role)};}
 async function portfolio(req){var type=req.query.scope_type||'organisation';var id=req.query.scope_id||'current';return {success:true,portfolio:intelligence.getPortfolio(type,id,req.user.role)};}
 async function engineHealth(){return {success:true,health:health.evaluate()};}
 function canView(product,role){return product&&(!product.audience.length||product.audience.indexOf('all')>=0||product.audience.indexOf(role)>=0);}

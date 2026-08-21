@@ -11,6 +11,8 @@ export default defineConfig({
       '/staff': { target: 'http://localhost:3000', changeOrigin: true },
       '/rooms': { target: 'http://localhost:3000', changeOrigin: true },
       '/inventory': { target: 'http://localhost:3000', changeOrigin: true },
+      '/modules': { target: 'http://localhost:3000', changeOrigin: true },
+      '/cover': { target: 'http://localhost:3000', changeOrigin: true },
     },
   },
   build: { outDir: 'dist' },

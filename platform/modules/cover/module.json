@@ -1,0 +1,414 @@
+{
+  "name": "cover",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "cache",
+    "auth",
+    "log",
+    "validate",
+    "events",
+    "staff_registry",
+    "scheduler",
+    "teacher_preferences"
+  ],
+  "provides": [
+    "capability:cover.read",
+    "capability:cover.configure",
+    "capability:cover.eligibility",
+    "capability:cover.intake",
+    "capability:cover.recommend",
+    "capability:cover.insights",
+    "capability:cover.assign"
+  ],
+  "requires": [
+    "capability:staff.read",
+    "capability:scheduler.read",
+    "capability:teacher_preferences.read"
+  ],
+  "routes": [
+    {
+      "path": "/cover/contract",
+      "method": "GET",
+      "handler": "cover_getContract",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/policy",
+      "method": "GET",
+      "handler": "cover_getPolicy",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/policy",
+      "method": "PUT",
+      "handler": "cover_savePolicy",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:configure"
+      ]
+    },
+    {
+      "path": "/cover/policy/history",
+      "method": "GET",
+      "handler": "cover_listPolicyHistory",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/eligibility/evaluate",
+      "method": "POST",
+      "handler": "cover_evaluateEligibility",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/absences",
+      "method": "GET",
+      "handler": "cover_listAbsences",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/absences",
+      "method": "POST",
+      "handler": "cover_createAbsence",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/absences/:id",
+      "method": "PUT",
+      "handler": "cover_updateAbsence",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/absences/:id/cancel",
+      "method": "PUT",
+      "handler": "cover_cancelAbsence",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/absences/:id/reinstate",
+      "method": "PUT",
+      "handler": "cover_reinstateAbsence",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/absences/:id/reconcile",
+      "method": "POST",
+      "handler": "cover_reconcileAbsence",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/demands",
+      "method": "GET",
+      "handler": "cover_listDemands",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/demands",
+      "method": "POST",
+      "handler": "cover_createDemand",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/demands/:id/cancel",
+      "method": "PUT",
+      "handler": "cover_cancelDemand",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/demands/:id/reinstate",
+      "method": "PUT",
+      "handler": "cover_reinstateDemand",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:intake"
+      ]
+    },
+    {
+      "path": "/cover/demands/:id/recommendations/generate",
+      "method": "POST",
+      "handler": "cover_generateRecommendations",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:recommend"
+      ]
+    },
+    {
+      "path": "/cover/demands/:id/recommendation-runs",
+      "method": "GET",
+      "handler": "cover_listRecommendationRuns",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/recommendation-runs/:id",
+      "method": "GET",
+      "handler": "cover_getRecommendationRun",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/demands/:id/assignments",
+      "method": "POST",
+      "handler": "cover_createAssignment",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:assign"
+      ]
+    },
+    {
+      "path": "/cover/demands/:id/assignments",
+      "method": "GET",
+      "handler": "cover_listAssignments",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/assignments/:id/reassign",
+      "method": "POST",
+      "handler": "cover_reassignAssignment",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:assign"
+      ]
+    },
+    {
+      "path": "/cover/assignments/:id/cancel",
+      "method": "POST",
+      "handler": "cover_cancelAssignment",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:assign"
+      ]
+    },
+    {
+      "path": "/cover/assignments/:id/complete",
+      "method": "POST",
+      "handler": "cover_completeAssignment",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:assign"
+      ]
+    },
+    {
+      "path": "/cover/recommendations/:id/reject",
+      "method": "POST",
+      "handler": "cover_rejectRecommendation",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:assign"
+      ]
+    },
+    {
+      "path": "/cover/analytics",
+      "method": "GET",
+      "handler": "cover_getAnalytics",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    },
+    {
+      "path": "/cover/insights",
+      "method": "GET",
+      "handler": "cover_getInsights",
+      "auth_required": true,
+      "permissions": [
+        "admin:cover:read"
+      ]
+    }
+  ],
+  "schema": {
+    "tables": [
+      "cover_policies",
+      "cover_policy_history",
+      "cover_absences",
+      "cover_demands",
+      "cover_intake_audit",
+      "cover_recommendation_runs",
+      "cover_recommendations",
+      "cover_assignments",
+      "cover_decision_audit"
+    ],
+    "migrations": [
+      "migrations/001_cover_policy.sql",
+      "migrations/002_cover_intake.sql",
+      "migrations/003_cover_recommendations.sql",
+      "migrations/004_cover_assignments.sql",
+      "migrations/005_cover_assignment_overlap_guard.sql"
+    ]
+  },
+  "events": {
+    "publishes": [
+      "cover.policy.saved",
+      "cover.eligibility.evaluated",
+      "cover.absence.created",
+      "cover.absence.updated",
+      "cover.absence.cancelled",
+      "cover.absence.reinstated",
+      "cover.demand.created",
+      "cover.demand.cancelled",
+      "cover.demand.reinstated",
+      "cover.absence.reconciled",
+      "cover.recommendations.generated",
+      "cover.assignment.confirmed",
+      "cover.assignment.overridden",
+      "cover.assignment.reassigned",
+      "cover.assignment.cancelled",
+      "cover.recommendation.rejected",
+      "cover.assignment.completed"
+    ],
+    "subscribes": []
+  },
+  "functions": [
+    {
+      "name": "cover_getContract",
+      "exports": "getContract"
+    },
+    {
+      "name": "cover_getPolicy",
+      "exports": "getPolicy"
+    },
+    {
+      "name": "cover_savePolicy",
+      "exports": "savePolicy"
+    },
+    {
+      "name": "cover_listPolicyHistory",
+      "exports": "listPolicyHistory"
+    },
+    {
+      "name": "cover_evaluateEligibility",
+      "exports": "evaluateEligibility"
+    },
+    {
+      "name": "cover_listAbsences",
+      "exports": "listAbsences"
+    },
+    {
+      "name": "cover_createAbsence",
+      "exports": "createAbsence"
+    },
+    {
+      "name": "cover_updateAbsence",
+      "exports": "updateAbsence"
+    },
+    {
+      "name": "cover_cancelAbsence",
+      "exports": "cancelAbsence"
+    },
+    {
+      "name": "cover_reinstateAbsence",
+      "exports": "reinstateAbsence"
+    },
+    {
+      "name": "cover_reconcileAbsence",
+      "exports": "reconcileAbsence"
+    },
+    {
+      "name": "cover_listDemands",
+      "exports": "listDemands"
+    },
+    {
+      "name": "cover_createDemand",
+      "exports": "createDemand"
+    },
+    {
+      "name": "cover_cancelDemand",
+      "exports": "cancelDemand"
+    },
+    {
+      "name": "cover_reinstateDemand",
+      "exports": "reinstateDemand"
+    },
+    {
+      "name": "cover_generateRecommendations",
+      "exports": "generateRecommendations"
+    },
+    {
+      "name": "cover_listRecommendationRuns",
+      "exports": "listRecommendationRuns"
+    },
+    {
+      "name": "cover_getRecommendationRun",
+      "exports": "getRecommendationRun"
+    },
+    {
+      "name": "cover_getInsights",
+      "exports": "getInsights"
+    },
+    {
+      "name": "cover_createAssignment",
+      "exports": "createAssignment"
+    },
+    {
+      "name": "cover_listAssignments",
+      "exports": "listAssignments"
+    },
+    {
+      "name": "cover_reassignAssignment",
+      "exports": "reassignAssignment"
+    },
+    {
+      "name": "cover_cancelAssignment",
+      "exports": "cancelAssignment"
+    },
+    {
+      "name": "cover_completeAssignment",
+      "exports": "completeAssignment"
+    },
+    {
+      "name": "cover_rejectRecommendation",
+      "exports": "rejectRecommendation"
+    },
+    {
+      "name": "cover_getAnalytics",
+      "exports": "getAnalytics"
+    }
+  ]
+}

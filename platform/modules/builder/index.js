@@ -12,7 +12,7 @@ const appCatalog = require('./app-catalog');
 function boot(ctx) {
   ctx.log.info('builder booting', { module: 'builder' });
   templatesModule.seedDefaults();
-  const defaults = ['student_registry', 'staff_registry', 'room_registry', 'inventory', 'student_profile', 'staff_profile', 'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'contingency', 'financial_planning', 'event_record', 'event_planner'];
+  const defaults = ['student_registry', 'staff_registry', 'room_registry', 'inventory', 'student_profile', 'staff_profile', 'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'contingency', 'financial_planning', 'event_record', 'event_planner', 'system_health'];
   const existing = ctx.db.query('SELECT COUNT(*) AS count FROM app_module_assignments WHERE app_id = ?', ['principal-ed']).rows[0];
   if (!existing || existing.count === 0) {
     defaults.forEach((name) => ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', name]));
@@ -23,7 +23,7 @@ function boot(ctx) {
   ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'approvals']);
   ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'documents']);
   ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', 'communications']);
-  ['audiences','invitations','attendance','venue_bookings','resource_reservations','transportation','catering','risk_assessments','safeguarding_requirements','medical_referrals','contingency','financial_planning','event_record','event_planner'].forEach((name) => ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', name]));
+  ['audiences','invitations','attendance','venue_bookings','resource_reservations','transportation','catering','risk_assessments','safeguarding_requirements','medical_referrals','contingency','financial_planning','event_record','event_planner','gradebook','scheduler','teacher_preferences','cover','programme_manager','system_health'].forEach((name) => ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', ['principal-ed', name]));
   componentRegistry.getAll().forEach(function(component) {
     if (defaults.includes(component.ownerModule)) ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', ['principal-ed', component.name]);
   });
@@ -126,9 +126,15 @@ async function assignComponent(req, ctx) {
   const invalid = required(appId, 'appId') || required(componentName, 'componentName'); if (invalid) return invalid;
   const unknown = knownApp(appId); if (unknown) return unknown;
   if (isProfile(componentName) && !canManageProfiles(req)) return { success: false, statusCode: 403, error: { code: 'PROFILE_ACCESS_RESTRICTED', message: 'User profiles can only be configured by a superuser or principal' } };
-  if (!componentRegistry.get(componentName)) return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Component not found' } };
-  ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', [appId, componentName]);
-  return { success: true, data: { appId, componentName, enabled: true } };
+  const selected = componentRegistry.get(componentName);
+  if (!selected) return { success: false, statusCode: 404, error: { code: 'NOT_FOUND', message: 'Component not found' } };
+  if (!selected.certification || selected.certification.status !== 'certified') return { success:false,statusCode:422,error:{code:'COMPONENT_NOT_CERTIFIED',message:'Only certified components can be assigned'} };
+  const dependencies=[];
+  (selected.dependencies||[]).forEach(function(name){const dependency=componentRegistry.get(name)||componentRegistry.getAll().find(function(candidate){return candidate.ownerModule===name;});if(dependency&&!dependencies.includes(dependency))dependencies.push(dependency);});
+  ctx.db.transaction(function(db){
+    dependencies.concat([selected]).forEach(function(component){db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)',[appId,component.name]);if(component.ownerModule)db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)',[appId,component.ownerModule]);});
+  });
+  return { success: true, data: { appId, componentName, enabled: true, dependenciesAdded:dependencies.map(function(component){return component.name;}) } };
 }
 
 async function unassignComponent(req, ctx) {
@@ -138,6 +144,9 @@ async function unassignComponent(req, ctx) {
   if (isProfile(componentName) && !canManageProfiles(req)) return { success: false, statusCode: 403, error: { code: 'PROFILE_ACCESS_RESTRICTED', message: 'User profiles can only be configured by a superuser or principal' } };
   const component = componentRegistry.get(componentName);
   if (component && ['inventory', 'room_registry'].includes(component.ownerModule)) return { success: false, statusCode: 409, error: { code: 'REQUIRED_BASELINE', message: 'Places and Stuff are required baseline components' } };
+  const assigned=new Set(ctx.db.query('SELECT component_name FROM app_component_assignments WHERE app_id=?',[appId]).rows.map(function(row){return row.component_name;}));
+  const affected=componentRegistry.getAll().filter(function(candidate){return candidate.name!==componentName&&assigned.has(candidate.name)&&((candidate.dependencies||[]).includes(componentName)||(component&&(candidate.dependencies||[]).includes(component.ownerModule)));}).map(function(candidate){return candidate.name;});
+  if(affected.length)return {success:false,statusCode:409,error:{code:'DEPENDENCY_IMPACT',message:'Remove dependent components first',affected:affected}};
   ctx.db.query('DELETE FROM app_component_assignments WHERE app_id = ? AND component_name = ?', [appId, componentName]);
   return { success: true, data: { appId, componentName, enabled: false } };
 }

@@ -1,0 +1,28 @@
+{
+  "name":"learning_behaviours","version":"1.0.0","author":"admin",
+  "dependencies":["db","cache","auth","log","validate","events"],
+  "provides":["capability:learning_behaviours.read","capability:learning_behaviours.configure","capability:learning_behaviours.observe"],
+  "requires":["capability:gradebook.instances.read","capability:assessment_scales.read","capability:academic_structure.membership"],
+  "routes":[
+    {"path":"/behaviour-frameworks","method":"GET","handler":"learning_behaviours_listFrameworks","auth_required":true,"permissions":["admin:behaviours:read"]},
+    {"path":"/behaviour-frameworks","method":"POST","handler":"learning_behaviours_createFramework","auth_required":true,"permissions":["admin:behaviours:configure"]},
+    {"path":"/behaviour-frameworks/:id/indicators","method":"POST","handler":"learning_behaviours_addIndicator","auth_required":true,"permissions":["admin:behaviours:configure"]},
+    {"path":"/behaviour-frameworks/:id/activate","method":"PUT","handler":"learning_behaviours_activateFramework","auth_required":true,"permissions":["admin:behaviours:configure"]},
+    {"path":"/gradebooks/:id/behaviour-framework","method":"PUT","handler":"learning_behaviours_assignFramework","auth_required":true,"permissions":["admin:behaviours:configure"]},
+    {"path":"/gradebooks/:id/students/:studentId/behaviour-observations","method":"POST","handler":"learning_behaviours_recordObservation","auth_required":true,"permissions":["admin:behaviours:write"]},
+    {"path":"/behaviour-observations/:id/correct","method":"POST","handler":"learning_behaviours_correctObservation","auth_required":true,"permissions":["admin:behaviours:write"]},
+    {"path":"/gradebooks/:id/students/:studentId/behaviour-summary","method":"GET","handler":"learning_behaviours_summary","auth_required":true,"permissions":["admin:behaviours:read"]}
+  ],
+  "schema":{"tables":["behaviour_frameworks","behaviour_indicators","gradebook_behaviour_frameworks","behaviour_observations"],"migrations":["migrations/001_learning_behaviours.sql"]},
+  "events":{"publishes":["learning_behaviour.framework_created","learning_behaviour.framework_activated","learning_behaviour.framework_assigned","learning_behaviour.observed","learning_behaviour.corrected"],"subscribes":[]},
+  "functions":[
+    {"name":"learning_behaviours_listFrameworks","exports":"listFrameworks"},
+    {"name":"learning_behaviours_createFramework","exports":"createFramework"},
+    {"name":"learning_behaviours_addIndicator","exports":"addIndicator"},
+    {"name":"learning_behaviours_activateFramework","exports":"activateFramework"},
+    {"name":"learning_behaviours_assignFramework","exports":"assignFramework"},
+    {"name":"learning_behaviours_recordObservation","exports":"recordObservation"},
+    {"name":"learning_behaviours_correctObservation","exports":"correctObservation"},
+    {"name":"learning_behaviours_summary","exports":"summary"}
+  ]
+}
