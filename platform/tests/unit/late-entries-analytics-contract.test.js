@@ -1,0 +1,6 @@
+'use strict';const fs=require('fs'),path=require('path'),root=path.join(__dirname,'../../modules/late_entries'),analytics=require(path.join(root,'analytics')),manifest=JSON.parse(fs.readFileSync(path.join(root,'module.json'),'utf8'));
+describe('late entry attendance analytics contract',()=>{
+ test('calculates transparent attendance rates',()=>{expect(analytics.rate({present:80,late:5,excused:3,absent:12,unrecorded:4})).toEqual({recorded:100,attended:88,attendance_rate:88})});
+ test('publishes analytics and profile contributions',()=>{for(const name of ['analytics','studentProfileContribution','staffProfileContribution','insights'])expect(typeof require(root)[name]).toBe('function');expect(manifest.routes).toEqual(expect.arrayContaining([expect.objectContaining({path:'/late-entries/analytics'}),expect.objectContaining({path:'/late-entries/students/:studentId/profile-contribution'}),expect.objectContaining({path:'/late-entries/staff/:staffId/profile-contribution'})]))});
+ test('states the contextual safeguards explicitly',()=>{const source=fs.readFileSync(path.join(root,'analytics.js'),'utf8');expect(source).toMatch(/not an automatic legal, accreditation, diploma or behavioural determination/);expect(source).toMatch(/do not measure teacher performance/);expect(source).toMatch(/Repeated lateness is a review signal only/)});
+});

@@ -1,0 +1,8 @@
+{
+  "name":"late_entries","type":"operational_component",
+  "dependencies":["attendance","classroom_attendance","scheduler","student_registry","student_profile","staff_registry","communications","documents"],
+  "capabilities":["capability:late_entries.read","capability:late_entries.record","capability:late_entries.configure","capability:late_entries.reconcile","capability:late_entries.insights"],
+  "parts":["arrival_fact","reason_catalogue","policy_version","schedule_context_resolver","reconciliation_proposal","attendance_mutation_link","equivalence_calculation","threshold_definition","audit_entry"],
+  "insights":{"platform":{"heartbeat":true,"health":true,"usage":true,"data_quality":true},"operational":{"enabled":true,"human_context_required":true,"automated_decisions":false}}
+  ,"intelligence":{"version":1,"entities":[{"type":"late_entry","source":{"table":"late_entries","idField":"id"},"displayFields":["student_id","arrival_at","occurrence_type","status"],"statusField":"status","relationships":[{"field":"student_id","type":"arrival_of","targetType":"student"},{"field":"policy_version_id","type":"governed_by","targetType":"late_entry_policy"}],"dataQuality":[{"field":"student_id","expectation":"required"},{"field":"arrival_at","expectation":"required"},{"field":"reason_code","expectation":"required"}]}]}
+}

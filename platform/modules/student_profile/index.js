@@ -45,6 +45,7 @@ async function getProfile(req, ctx) {
     decisions: [],
     events: [],
     metadata: null,
+    attendance_context: null,
     insights: [],
     deep_insights: []
   };
@@ -117,6 +118,16 @@ async function getProfile(req, ctx) {
       });
     } catch (e) {
       ctx.log.warn('Failed to fetch insight products', { error: e.message });
+    }
+  }
+
+  var lateEntryContribution = ctx.functionRegistry.get('late_entries_studentProfileContribution');
+  if (lateEntryContribution && typeof lateEntryContribution.implementation === 'function') {
+    try {
+      var attendanceResult = await lateEntryContribution.implementation({ params: { studentId: studentResult.student.student_id || studentEntityId }, query: req.query || {}, user: req.user }, ctx);
+      if (attendanceResult && attendanceResult.success) profile.attendance_context = attendanceResult.contribution;
+    } catch (e) {
+      ctx.log.warn('Failed to fetch late-entry attendance contribution', { error: e.message });
     }
   }
 

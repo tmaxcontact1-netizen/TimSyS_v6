@@ -67,6 +67,7 @@ async function getProfile(req, ctx) {
     decisions: [],
     events: [],
     metadata: null,
+    attendance_context: null,
     insights: [],
     deep_insights: []
   };
@@ -127,6 +128,15 @@ async function getProfile(req, ctx) {
     }
   }
 
+  var lateEntryContribution = ctx.functionRegistry.get('late_entries_staffProfileContribution');
+  if (lateEntryContribution && typeof lateEntryContribution.implementation === 'function') {
+    try {
+      var attendanceResult = await lateEntryContribution.implementation({ params: { staffId: staffResult.staff.staff_id || staffEntityId }, query: req.query || {}, user: req.user }, ctx);
+      if (attendanceResult && attendanceResult.success) profile.attendance_context = attendanceResult.contribution;
+    } catch (e) {
+      ctx.log.warn('Failed to fetch late-entry staff attendance contribution', { error: e.message });
+    }
+  }
   return { success: true, profile: profile };
 }
 

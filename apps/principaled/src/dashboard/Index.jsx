@@ -20,6 +20,8 @@ import CoordinationWidget from "./widgets/CoordinationWidget";
 import TransportationWidget from "./widgets/TransportationWidget";
 import CateringWidget from "./widgets/CateringWidget";
 import SafetyWidget from "./widgets/SafetyWidget";
+import StudentExitsWidget from "./widgets/StudentExitsWidget";
+import LateEntriesWidget from "./widgets/LateEntriesWidget";
 import ContingencyWidget from "./widgets/ContingencyWidget";
 import FinanceWidget from "./widgets/FinanceWidget";
 import EventsWidget from "./widgets/EventsWidget";
@@ -103,7 +105,8 @@ const MODULE_TO_VIEW = {
   catering: { id:"catering",label:"Catering",widget:CateringWidget,requiresAdmin:false },
   risk_assessments: { id:"risk_assessments",label:"Risk Assessments",widget:SafetyWidget,requiresAdmin:false },
   safeguarding_requirements: { id:"safeguarding_requirements",label:"Safeguarding",widget:SafetyWidget,requiresAdmin:false },
-  medical_referrals: { id:"medical_referrals",label:"Medical Referrals",widget:SafetyWidget,requiresAdmin:false },
+  student_exits: { id:"student_exits",label:"Student Exits",widget:StudentExitsWidget,requiresAdmin:false },
+  late_entries: { id:"late_entries",label:"Late Entries",widget:LateEntriesWidget,requiresAdmin:false },
   contingency: { id:"contingency",label:"Contingency",widget:ContingencyWidget,requiresAdmin:false },
   financial_planning: { id:"financial_planning",label:"Finance",widget:FinanceWidget,requiresAdmin:false },
   event_record: { id:"event_record",label:"Events",widget:EventsWidget,requiresAdmin:false },
@@ -524,7 +527,8 @@ function PrincipalEdDashboard() {
     }
     if (moduleName === "transportation") return <TransportationWidget askConfirmation={askConfirmation} />;
     if (moduleName === "catering") return <CateringWidget askConfirmation={askConfirmation} />;
-    if (["risk_assessments","safeguarding_requirements","medical_referrals"].includes(moduleName)) return <SafetyWidget mode={moduleName} askConfirmation={askConfirmation} />;
+    if (["risk_assessments","safeguarding_requirements"].includes(moduleName)) return <SafetyWidget mode={moduleName} askConfirmation={askConfirmation} />;
+    if (moduleName === "student_exits") return <StudentExitsWidget askConfirmation={askConfirmation} />;
     if (moduleName === "contingency") return <ContingencyWidget askConfirmation={askConfirmation} />;
     if (moduleName === "financial_planning") return <FinanceWidget askConfirmation={askConfirmation} />;
     if (moduleName === "event_record") return <EventsWidget askConfirmation={askConfirmation} />;

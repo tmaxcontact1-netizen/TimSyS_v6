@@ -1,0 +1,5 @@
+'use strict';const fs=require('fs'),path=require('path'),root=path.join(__dirname,'../../modules/late_entries'),manifest=JSON.parse(fs.readFileSync(path.join(root,'module.json'),'utf8')),api=require(root);
+describe('late entry threshold workflow contract',()=>{
+ test('supports configurable policy thresholds and audited cases',()=>{for(const table of ['late_entry_threshold_definitions','late_entry_threshold_cases','late_entry_threshold_actions'])expect(manifest.schema.tables).toContain(table);for(const name of ['listThresholds','saveThreshold','evaluateThresholds','decideThreshold','listThresholdCases'])expect(typeof api[name]).toBe('function')});
+ test('keeps recommendation separate from human decision',()=>{const sql=fs.readFileSync(path.join(root,'migrations/005_late_entry_threshold_workflows.sql'),'utf8');expect(sql).toMatch(/status IN \('recommended','approved','modified','dismissed','completed'\)/);expect(sql).toMatch(/recommendation_json/);expect(sql).toMatch(/decision_json/)});
+});

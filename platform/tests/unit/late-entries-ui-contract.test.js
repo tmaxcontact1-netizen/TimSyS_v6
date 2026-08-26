@@ -1,0 +1,6 @@
+'use strict';const fs=require('fs'),path=require('path'),root=path.join(__dirname,'../../../'),widget=fs.readFileSync(path.join(root,'apps/principaled/src/dashboard/widgets/LateEntriesWidget.jsx'),'utf8'),dashboard=require('../../modules/late_entries/dashboard'),manifest=JSON.parse(fs.readFileSync(path.join(root,'platform/modules/late_entries/module.json'),'utf8'));
+describe('late entry front-office UI contract',()=>{
+ test('provides scan intake, proposal review, exceptions, setup and threshold views',()=>{for(const text of ['Scan ID or search name','Review attendance proposal','Retry context','Policy setup','Threshold actions'])expect(widget).toContain(text)});
+ test('uses pagination and visible exception styling',()=>{expect(widget).toContain('pageSize={50}');expect(widget).toContain('border-red-700');expect(widget).toContain('requires human reconciliation')});
+ test('publishes dashboard and retry handlers',()=>{expect(typeof dashboard.dashboard).toBe('function');expect(typeof dashboard.retryContext).toBe('function');expect(manifest.routes).toEqual(expect.arrayContaining([expect.objectContaining({path:'/late-entries/dashboard'}),expect.objectContaining({path:'/late-entries/:id/context/retry'})]))});
+});

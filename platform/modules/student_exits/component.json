@@ -1,0 +1,68 @@
+{
+  "name": "student_exits",
+  "type": "operational_component",
+  "dependencies": [
+    "student_registry",
+    "staff_registry",
+    "academic_structure",
+    "scheduler",
+    "room_registry",
+    "medical_referrals",
+    "student_profile",
+    "staff_profile",
+    "classroom_attendance",
+    "calendar",
+    "communications",
+    "approvals",
+    "documents",
+    "safeguarding_requirements",
+    "attendance",
+    "programme_manager",
+    "event_record"
+  ],
+  "capabilities": [
+    "capability:student_exits.read",
+    "capability:student_exits.write",
+    "capability:student_exits.configure",
+    "capability:student_exits.campus_authorise",
+    "capability:student_exits.insights"
+  ],
+  "parts": [
+    "exit_type_catalogue",
+    "movement_record",
+    "workflow_definition",
+    "transition_history",
+    "destination_handoff",
+    "campus_custody_transfer",
+    "specialist_record_link",
+    "operational_reason_visibility"
+  ],
+  "insights": {
+    "platform": { "heartbeat": true, "health": true, "usage": true, "data_quality": true },
+    "operational": { "enabled": true, "human_context_required": true, "automated_decisions": false }
+  },
+  "intelligence": {
+    "version": 1,
+    "entities": [
+      {
+        "type": "student_exit",
+        "source": { "table": "student_exits", "idField": "id" },
+        "displayFields": ["student_id", "exit_type_code", "status"],
+        "statusField": "status",
+        "relationships": [
+          { "field": "student_id", "type": "movement_of", "targetType": "student" },
+          { "field": "released_by_staff_id", "type": "released_by", "targetType": "staff" },
+          { "field": "origin_room_id", "type": "exited_from", "targetType": "room" },
+          { "field": "destination_room_id", "type": "directed_to", "targetType": "room" },
+          { "field": "scheduler_placement_id", "type": "occurred_during", "targetType": "scheduler_placement" },
+          { "field": "teaching_group_ref", "type": "movement_from_group", "targetType": "teaching_group" }
+        ],
+        "dataQuality": [
+          { "field": "student_id", "expectation": "required" },
+          { "field": "exit_type_code", "expectation": "required" },
+          { "field": "status", "expectation": "required" }
+        ]
+      }
+    ]
+  }
+}
