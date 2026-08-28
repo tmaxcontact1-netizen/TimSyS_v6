@@ -35,6 +35,12 @@ const columns = [
   "position_runtime_authority_snapshots.payload_json",
   "position_runtime_authority_baselines.position_id",
   "position_runtime_authority_baselines.payload_json",
+  "operator_approvals.state",
+  "operator_approvals.nonce_hash",
+  "operator_approval_events.event_type",
+  "telegram_operator_updates.state",
+  "operator_runtime_control.entry_blocked",
+  "operator_runtime_control_events.entry_blocked",
 ];
 
 const paperColumns = [
@@ -44,6 +50,7 @@ const paperColumns = [
   "paper_cash_events.amount_raw",
   "paper_fills.id",
   "paper_fills.side",
+  "paper_fills.execution_fee_raw",
   "paper_position_lots.current_amount_raw",
   "paper_position_lots.remaining_cost_raw",
   "paper_entry_executions.risk_run_id",
@@ -87,6 +94,22 @@ describe("runtime database startup", () => {
       runtimePoolConfig({ connectionString: "postgresql://secret@example/db", production: false })
         .connectionString,
     ).toBe("postgresql://secret@example/db"));
+  it("allows the launcher's managed production database only on loopback", () => {
+    expect(
+      runtimePoolConfig({
+        connectionString: "postgresql://runtime:secret@127.0.0.1:54321/memecoined",
+        production: true,
+        managedLocal: true,
+      }),
+    ).toMatchObject({ ssl: false });
+    expect(() =>
+      runtimePoolConfig({
+        connectionString: "postgresql://runtime:secret@database.example/memecoined",
+        production: true,
+        managedLocal: true,
+      }),
+    ).toThrow(/loopback/);
+  });
   it("rejects excessive connection pools", () =>
     expect(() =>
       runtimePoolConfig({

@@ -11,6 +11,17 @@ const ids = [
   "fills",
   "entries",
   "positions-due",
+  "entry-lock-state",
+  "entry-lock-reason",
+  "approval-pending",
+  "approval-approved",
+  "approval-expiring",
+  "entry-queued",
+  "entry-submitted",
+  "reconciliation-backlog",
+  "failed-work",
+  "telegram-state",
+  "operator-action",
   "integrity-title",
   "integrity-copy",
   "errors",
@@ -989,6 +1000,31 @@ async function refreshAlerts() {
     "No unresolved worker alerts",
   );
 }
+async function refreshPipeline() {
+  const response = await fetch("/api/paper/pipeline", { cache: "no-store" });
+  if (!response.ok) throw new Error("pipeline unavailable");
+  const { pipeline } = await response.json();
+  elements["pipeline-state"].textContent = pipeline.state;
+  const summary = pipeline.lastResult?.summary;
+  elements["pipeline-summary"].textContent = summary
+    ? `Last cycle: ${summary.discovered} discovered · ${summary.candidatesEvaluated} evaluated · ${summary.riskEvaluated} risk decisions`
+    : `Next acquisition ${time(pipeline.nextRunAt)}`;
+  elements["pipeline-work"].replaceChildren();
+  for (const item of pipeline.work) {
+    const row = document.createElement("li"),
+      label = document.createElement("span"),
+      count = document.createElement("strong");
+    label.textContent = `${item.jobType.replaceAll("_", " ")} · ${item.state}`;
+    count.textContent = String(item.count);
+    row.append(label, count);
+    elements["pipeline-work"].append(row);
+  }
+  if (!pipeline.work.length) {
+    const row = document.createElement("li");
+    row.textContent = "No queued downstream work";
+    elements["pipeline-work"].append(row);
+  }
+}
 function recordConnection(state, label) {
   connectionEvents.unshift({ state, label, at: new Date() });
   connectionEvents.splice(8);
@@ -1047,6 +1083,8 @@ async function refresh() {
     await refreshDetails();
     await refreshPerformance();
     await refreshAlerts();
+    await refreshPipeline();
+    await refreshOperationalStatus();
     recordConnection("healthy", "Snapshot received");
   } catch {
     setStatus("error", "Snapshot unavailable");
@@ -1055,6 +1093,44 @@ async function refresh() {
       "The last durable values remain visible. Reconnecting automatically.";
     recordConnection("error", "Refresh failed");
   }
+}
+async function refreshOperationalStatus() {
+  const response = await fetch("/api/operations/status", { cache: "no-store" });
+  if (!response.ok) throw new Error("operational status unavailable");
+  const { operations } = await response.json();
+  elements["entry-lock-state"].textContent = operations.entryBlocked
+    ? "ENTRIES BLOCKED"
+    : "ENTRY OPEN";
+  elements["entry-lock-state"].dataset.state = operations.entryBlocked ? "blocked" : "open";
+  elements["entry-lock-reason"].textContent = operations.entryBlocked
+    ? `${operations.entryBlockReason ?? "Operator stop active"}${operations.entryControlChangedBy ? ` · ${operations.entryControlChangedBy}` : ""}`
+    : "New entries may proceed only after every risk gate and explicit human approval.";
+  elements["approval-pending"].textContent = operations.approvals.pending;
+  elements["approval-approved"].textContent = operations.approvals.approved;
+  elements["approval-expiring"].textContent = operations.approvals.expiringSoon;
+  elements["entry-queued"].textContent = operations.queuedEntries;
+  elements["entry-submitted"].textContent = operations.submittedEntries;
+  elements["reconciliation-backlog"].textContent = operations.reconciliationBacklog;
+  elements["failed-work"].textContent = operations.failedWork;
+  elements["telegram-state"].textContent = operations.telegramLastUpdateAt
+    ? `Last command ${time(operations.telegramLastUpdateAt)}`
+    : "No command recorded";
+  const actions = [];
+  if (operations.entryBlocked) actions.push("Review the stop reason before re-enabling entries.");
+  if (operations.approvals.expiringSoon > 0)
+    actions.push(`${operations.approvals.expiringSoon} approval request(s) need prompt review.`);
+  if (operations.reconciliationBacklog > 0)
+    actions.push(
+      `${operations.reconciliationBacklog} submitted transaction(s) await independent reconciliation.`,
+    );
+  if (operations.failedWork > 0)
+    actions.push(`${operations.failedWork} failed or retrying work item(s) require inspection.`);
+  if (operations.telegramFailedUpdates > 0)
+    actions.push(`${operations.telegramFailedUpdates} Telegram command(s) failed.`);
+  elements["operator-action"].textContent = actions.length
+    ? actions.join(" ")
+    : "No immediate operator action is indicated by durable runtime state.";
+  elements["operator-action"].dataset.state = actions.length ? "attention" : "clear";
 }
 applyPreferences();
 void refreshWatchlists().catch(() =>

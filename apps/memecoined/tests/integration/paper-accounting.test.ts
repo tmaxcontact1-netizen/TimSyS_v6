@@ -84,6 +84,15 @@ it("rolls back a paper buy that exceeds available cash", async () => {
   expect(db.statements.some((sql) => sql.includes("INSERT INTO paper_fills"))).toBe(false);
 });
 
+it("includes the declared execution fee in paper cash and lot authority", async () => {
+  const db = database("30");
+  await new PostgresPaperAccountingLedger(db.port as never).recordFill({
+    ...fill,
+    executionFeeRaw: 5n,
+  });
+  expect(db.statements.some((sql) => sql.includes("execution_fee_raw"))).toBe(true);
+});
+
 it("accepts account initialization replay at a later startup instant", async () => {
   const statements: { sql: string; values?: readonly unknown[] }[] = [];
   const ledger = new PostgresPaperAccountingLedger({

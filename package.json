@@ -2,7 +2,10 @@
   "name": "timsys-workspace",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": ">=24.18.0 <25", "npm": ">=11.9.0 <12" },
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "npm": ">=11.9.0 <12"
+  },
   "scripts": {
     "install:all": "node scripts/workspace.mjs install",
     "test": "node scripts/workspace.mjs test",
@@ -10,7 +13,7 @@
     "preflight": "node scripts/preflight.mjs",
     "verify": "npm run preflight && node scripts/workspace.mjs verify",
     "fetch:postgres": "node scripts/fetch-postgres.mjs",
-    "stage:windows": "node scripts/prepare-windows-runtime.mjs",
-    "package:windows": "npm run verify && npm run fetch:postgres && npm run stage:windows && npm --prefix apps/launcher run electron:build"
+    "stage:windows": "node scripts/prepare-windows-runtime.mjs && node scripts/verify-windows-runtime.mjs",
+    "package:windows": "npm run verify && npm run fetch:postgres && npm run stage:windows && node scripts/build-windows-artifacts.mjs"
   }
 }

@@ -58,6 +58,8 @@ import {
 import { LiveCandidateDiscoverySource } from "../application/services/discovery.js";
 import { PostgresCandidateDiscoveryRepository } from "../infrastructure/database/candidate-discovery.js";
 import { runDiscoveryWorkerCycle } from "../workers/discovery-worker.js";
+import { runScheduledAcquisitionCycle } from "../application/services/acquisition-schedule.js";
+import { PostgresAcquisitionSchedule } from "../infrastructure/database/acquisition-schedule.js";
 import { asStrategyVersionId, asTimestamp } from "../domain/shared/types.js";
 import { runTrackedWalletObservationCycle } from "../application/services/tracked-wallet-observations.js";
 import { runTrackedWalletValuationCycle } from "../application/services/tracked-wallet-valuations.js";
@@ -100,11 +102,26 @@ import {
   runPaperEntryExecutionCycle,
 } from "../application/services/paper-execution.js";
 import { PostgresPaperAccountingLedger } from "../infrastructure/database/paper-accounting.js";
+import { PostgresPaperRiskAuthoritySource } from "../infrastructure/database/paper-risk-authority.js";
 import { PostgresPaperEntryWorkQueue } from "../infrastructure/database/paper-entry-work.js";
 import { PostgresPaperPositionWorkQueue } from "../infrastructure/database/paper-position-work.js";
 import { PostgresPaperExitAuthority } from "../infrastructure/database/paper-exit-authority.js";
 import { AuthoritativePaperExitMonitor } from "../application/services/paper-exit-authority.js";
 import { runPaperPositionMonitorCycle } from "../application/services/paper-position-monitor.js";
+import { OperatorApprovalService } from "../application/services/operator-approval.js";
+import { TelegramOperatorCycle } from "../application/services/telegram-operator.js";
+import { PostgresOperatorApprovalStore } from "../infrastructure/database/operator-approvals.js";
+import { PostgresTelegramUpdateLedger } from "../infrastructure/database/telegram-operator.js";
+import { PostgresOperatorRuntimeControl } from "../infrastructure/database/operator-runtime-control.js";
+import { TelegramBotApi } from "../infrastructure/providers/telegram/bot-api.js";
+import { prepareLiveEntryForHumanApproval } from "../application/services/live-entry-preparation.js";
+import { PostgresLiveEntryPlanningSource } from "../infrastructure/database/live-entry-planning.js";
+import { PostgresEntryPreparationRepository } from "../infrastructure/database/entry-preparations.js";
+import { PostgresPreparedEntryExecutionSource } from "../infrastructure/database/prepared-entry-executions.js";
+import { PostgresEntrySubmissionRepository } from "../infrastructure/database/entry-submissions.js";
+import { runEntrySubmissionWorkerCycle } from "../workers/entry-worker.js";
+import { reconcileLiveEntry } from "../application/services/live-entry-reconciliation.js";
+import { PostgresLiveEntryReconciliationSource } from "../infrastructure/database/live-entry-reconciliation.js";
 
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
@@ -121,6 +138,26 @@ export interface CompletePortfolioPublicationCycle {
   publish(observedAt: Timestamp): Promise<void>;
 }
 
+function composeTelegramOperator(
+  config: RuntimeConfig,
+  database: Pool,
+  clock: SystemSchedulerClock,
+  control: PostgresOperatorRuntimeControl,
+  approvals: OperatorApprovalService,
+): TelegramOperatorCycle | null {
+  if (config.telegram === null) return null;
+  return new TelegramOperatorCycle(
+    new TelegramBotApi(config.telegram.botToken),
+    new PostgresTelegramUpdateLedger(database),
+    approvals,
+    config.telegram.operatorUserIds,
+    config.telegram.chatId,
+    async () =>
+      `MemeCoined'Ed is running in ${config.mode} mode. New entries are ${(await control.entryBlocked()) ? "blocked" : "enabled"}.`,
+    (actorId) => control.stop(actorId, clock.now()),
+  );
+}
+
 /** Composes the non-capital paper worker with no live-position execution path. */
 export function composePaperTradingRuntime(input: {
   readonly config: RuntimeConfig;
@@ -134,10 +171,51 @@ export function composePaperTradingRuntime(input: {
   const providers = input.providers ?? composePaperProviders(input.config);
   const wallet = input.config.paper.walletAddress as WalletAddress;
   const ledger = new PostgresPaperAccountingLedger(input.database);
+  const operatorControl = new PostgresOperatorRuntimeControl(input.database);
+  const approvalStore = new PostgresOperatorApprovalStore(input.database);
+  const approvalService = new OperatorApprovalService(approvalStore, () => clock.now());
+  const telegram = composeTelegramOperator(
+    input.config,
+    input.database,
+    clock,
+    operatorControl,
+    approvalService,
+  );
   const queue = new PostgresPaperEntryWorkQueue(input.database);
+  const riskQueue = new PostgresRiskEvaluationWorkQueue(input.database);
+  const riskFacts = new PostgresPaperRiskAuthoritySource(
+    input.database,
+    wallet,
+    providers.swap,
+    () => clock.now(),
+  );
+  const riskDecisions = new PostgresRiskDecisionRepository(input.database);
   const positionQueue = new PostgresPaperPositionWorkQueue(input.database, wallet);
-  const execution = new PaperQuoteExecutionService(wallet, providers.swap, ledger, () =>
-    clock.now(),
+  const discoverySource = new LiveCandidateDiscoverySource({
+    provider: providers.discovery,
+    strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
+    now: () => clock.now(),
+    deduplicationWindow: (at) => asTimestamp(at).slice(0, 16),
+  });
+  const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
+  const acquisitionSchedule = new PostgresAcquisitionSchedule(input.database);
+  const trackedWalletObservations = new PostgresTrackedWalletObservationRepository(input.database);
+  const trackedWalletValuations = new PostgresTrackedWalletValuationRepository(input.database);
+  const evaluationQueue = new PostgresCandidateEvaluationWorkQueue(input.database);
+  const evaluationRepository = new PostgresCandidateEvaluationRepository(input.database);
+  const evaluationFacts = new LiveCandidateEvaluationFactSource(
+    providers.market,
+    providers.mintSecurity,
+    new PostgresCandidateWalletPurchaseSource(input.database),
+    new PostgresWalletIntelligenceRepository(input.database),
+    () => clock.now(),
+  );
+  const execution = new PaperQuoteExecutionService(
+    wallet,
+    providers.swap,
+    ledger,
+    () => clock.now(),
+    input.config.paper.executionFeeLamports,
   );
   let initialized = false;
   const noPositionJobs = Object.freeze({
@@ -155,6 +233,7 @@ export function composePaperTradingRuntime(input: {
       wait: clock,
       signal: input.signal,
       beforeBatch: async () => {
+        await telegram?.run();
         if (!initialized) {
           await initializePaperAccount({
             wallet,
@@ -164,15 +243,64 @@ export function composePaperTradingRuntime(input: {
           });
           initialized = true;
         }
-        await runPaperEntryExecutionCycle({
-          queue,
-          execution,
-          ownerId: input.config.instanceId,
-          now: () => clock.now(),
-          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
-          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
-          batchSize: 25,
-        });
+        if (!(await operatorControl.entryBlocked()))
+          await runScheduledAcquisitionCycle({
+            schedule: acquisitionSchedule,
+            ownerId: input.config.instanceId,
+            now: () => clock.now(),
+            leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 180_000)),
+            nextAvailableAt: (at) => asTimestamp(new Date(Date.parse(at) + 30_000)),
+            retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+            discover: () =>
+              runDiscoveryWorkerCycle({ source: discoverySource, candidates: discoveryCandidates }),
+            observeWallets: () =>
+              runTrackedWalletObservationCycle({
+                source: providers.trackedWalletPurchases,
+                repository: trackedWalletObservations,
+                now: () => clock.now(),
+              }),
+            valueWallets: () =>
+              runTrackedWalletValuationCycle({
+                repository: trackedWalletValuations,
+                market: providers.market,
+                balances: providers.balances,
+                now: () => clock.now(),
+                limit: 100,
+              }),
+            evaluateCandidates: () =>
+              runLeasedCandidateEvaluationCycle({
+                queue: evaluationQueue,
+                facts: evaluationFacts,
+                repository: evaluationRepository,
+                ownerId: input.config.instanceId,
+                now: () => clock.now(),
+                leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+                retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                signalId: deterministicSignalId,
+                batchSize: 25,
+              }),
+            publishPortfolioAndEvaluateRisk: () =>
+              runLeasedRiskEvaluationCycle({
+                queue: riskQueue,
+                facts: riskFacts,
+                repository: riskDecisions,
+                ownerId: input.config.instanceId,
+                now: () => clock.now(),
+                leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+                retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                batchSize: 25,
+              }),
+          });
+        if (!(await operatorControl.entryBlocked()))
+          await runPaperEntryExecutionCycle({
+            queue,
+            execution,
+            ownerId: input.config.instanceId,
+            now: () => clock.now(),
+            leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+            retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+            batchSize: 25,
+          });
         await runPaperPositionMonitorCycle({
           queue: positionQueue,
           monitor: new AuthoritativePaperExitMonitor(
@@ -316,6 +444,7 @@ export function composeProductionPositionRuntime(input: {
     deduplicationWindow: (at) => asTimestamp(at).slice(0, 16),
   });
   const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
+  const acquisitionSchedule = new PostgresAcquisitionSchedule(input.database);
   const trackedWalletObservations = new PostgresTrackedWalletObservationRepository(input.database);
   const trackedWalletValuations = new PostgresTrackedWalletValuationRepository(input.database);
   const evaluationQueue = new PostgresCandidateEvaluationWorkQueue(input.database);
@@ -331,6 +460,40 @@ export function composeProductionPositionRuntime(input: {
   const riskQueue = new PostgresRiskEvaluationWorkQueue(input.database);
   const riskAuthority = new PostgresRiskAuthorityRepository(input.database);
   const riskDecisions = new PostgresRiskDecisionRepository(input.database);
+  const operatorControl = new PostgresOperatorRuntimeControl(input.database);
+  const approvalStore = new PostgresOperatorApprovalStore(input.database);
+  const approvalService = new OperatorApprovalService(approvalStore, () => clock.now());
+  const telegram = composeTelegramOperator(
+    input.config,
+    input.database,
+    clock,
+    operatorControl,
+    approvalService,
+  );
+  let liveEntryPlanning: Promise<PostgresLiveEntryPlanningSource> | undefined;
+  if (input.config.liveTrial === null)
+    throw new Error("Live execution requires explicit low-value trial authorization");
+  const entryPlanning = () =>
+    (liveEntryPlanning ??= providers.signer.publicIdentity().then((wallet) => {
+      if (wallet !== input.config.liveTrial!.wallet)
+        throw new Error("Configured trial wallet does not match the signing wallet");
+      return new PostgresLiveEntryPlanningSource(
+        input.database,
+        wallet,
+        input.config.liveTrial!.maximumLamports,
+      );
+    }));
+  const entryPreparations = new PostgresEntryPreparationRepository(input.database);
+  const preparedEntries = new PostgresPreparedEntryExecutionSource(input.database);
+  const entrySubmissions = new PostgresEntrySubmissionRepository(input.database);
+  const entryReconciliations = new PostgresLiveEntryReconciliationSource(input.database);
+  const entryInspector = new TransactionInspector(new SolanaWireTransactionInspectionParser(), {
+    allowedProgramIds: input.config.execution.allowedProgramIds,
+    allowedFeeRecipients: input.config.execution.allowedFeeRecipients,
+    allowedDestinationOwners: input.config.execution.allowedDestinationOwners,
+    maximumPrioritizationFeeLamports: input.config.execution
+      .maximumPrioritizationFeeLamports as never,
+  });
   let portfolioPublication: Promise<CompletePortfolioPublicationCycle> | undefined;
   const publication = () =>
     (portfolioPublication ??= providers.signer.publicIdentity().then((wallet) =>
@@ -444,53 +607,102 @@ export function composeProductionPositionRuntime(input: {
     supervisor: Object.freeze({
       ...runtime.supervisor,
       beforeBatch: async () => {
-        await runScheduledPortfolioProductionCycle({
-          schedule: portfolioSchedule,
-          ownerId: input.config.instanceId,
-          now: () => clock.now(),
-          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 120_000)),
-          nextAvailableAt: (at) => asTimestamp(new Date(Date.parse(at) + 30_000)),
-          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
-          publish: async (observedAt) => (await publication()).publish(observedAt),
-          evaluateRisk: () =>
-            runLeasedRiskEvaluationCycle({
-              queue: riskQueue,
-              facts: riskAuthority,
-              repository: riskDecisions,
-              ownerId: input.config.instanceId,
+        await telegram?.run();
+        if (!(await operatorControl.entryBlocked()))
+          await runScheduledAcquisitionCycle({
+            schedule: acquisitionSchedule,
+            ownerId: input.config.instanceId,
+            now: () => clock.now(),
+            leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 180_000)),
+            nextAvailableAt: (at) => asTimestamp(new Date(Date.parse(at) + 30_000)),
+            retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+            discover: () =>
+              runDiscoveryWorkerCycle({ source: discoverySource, candidates: discoveryCandidates }),
+            observeWallets: () =>
+              runTrackedWalletObservationCycle({
+                source: providers.trackedWalletPurchases,
+                repository: trackedWalletObservations,
+                now: () => clock.now(),
+              }),
+            valueWallets: () =>
+              runTrackedWalletValuationCycle({
+                repository: trackedWalletValuations,
+                market: providers.market,
+                balances: providers.balances,
+                now: () => clock.now(),
+                limit: 100,
+              }),
+            evaluateCandidates: () =>
+              runLeasedCandidateEvaluationCycle({
+                queue: evaluationQueue,
+                facts: evaluationFacts,
+                repository: evaluationRepository,
+                ownerId: input.config.instanceId,
+                now: () => clock.now(),
+                leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+                retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                signalId: deterministicSignalId,
+                batchSize: 25,
+              }),
+            publishPortfolioAndEvaluateRisk: async () => {
+              const result = await runScheduledPortfolioProductionCycle({
+                schedule: portfolioSchedule,
+                ownerId: input.config.instanceId,
+                now: () => clock.now(),
+                leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 120_000)),
+                nextAvailableAt: (at) => asTimestamp(new Date(Date.parse(at) + 30_000)),
+                retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                publish: async (observedAt) => (await publication()).publish(observedAt),
+                evaluateRisk: () =>
+                  runLeasedRiskEvaluationCycle({
+                    queue: riskQueue,
+                    facts: riskAuthority,
+                    repository: riskDecisions,
+                    ownerId: input.config.instanceId,
+                    now: () => clock.now(),
+                    leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
+                    retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                    batchSize: 25,
+                  }),
+              });
+              if (result.status === "retry_scheduled")
+                throw new Error("Portfolio and risk acquisition was rescheduled");
+              return result.evaluated;
+            },
+          });
+        if (!(await operatorControl.entryBlocked())) {
+          if (telegram === null)
+            throw new Error("Supervised live entry preparation requires an operator channel");
+          for (const work of await (await entryPlanning()).nextBatch(25))
+            await prepareLiveEntryForHumanApproval({
+              work,
+              swap: providers.swap,
+              signer: providers.signer,
+              repository: entryPreparations,
+              approvals: approvalService,
+              notify: (message) => telegram.notify(message),
               now: () => clock.now(),
-              leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
-              retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
-              batchSize: 25,
-            }),
-        });
-        await runDiscoveryWorkerCycle({
-          source: discoverySource,
-          candidates: discoveryCandidates,
-        });
-        await runTrackedWalletObservationCycle({
-          source: providers.trackedWalletPurchases,
-          repository: trackedWalletObservations,
-          now: () => clock.now(),
-        });
-        await runTrackedWalletValuationCycle({
-          repository: trackedWalletValuations,
-          market: providers.market,
-          balances: providers.balances,
-          now: () => clock.now(),
-          limit: 100,
-        });
-        await runLeasedCandidateEvaluationCycle({
-          queue: evaluationQueue,
-          facts: evaluationFacts,
-          repository: evaluationRepository,
-          ownerId: input.config.instanceId,
-          now: () => clock.now(),
-          leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
-          retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
-          signalId: deterministicSignalId,
-          batchSize: 25,
-        });
+            });
+          await runEntrySubmissionWorkerCycle({
+            source: preparedEntries,
+            repository: entrySubmissions,
+            inspector: entryInspector,
+            signer: providers.signer,
+            submission: providers.submission,
+            authority: providers.authority,
+            approvals: approvalStore,
+            batchSize: 25,
+          });
+          for (const work of await entryReconciliations.nextBatch(25))
+            await reconcileLiveEntry({
+              work,
+              transactions: providers.transactions,
+              balances: providers.balances,
+              security: providers.mintSecurity,
+              positions: publisherCheckpoints,
+              now: () => clock.now(),
+            });
+        }
       },
     }),
   });

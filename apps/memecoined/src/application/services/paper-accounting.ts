@@ -15,6 +15,7 @@ export interface PaperFill {
   readonly tokenMint: MintAddress;
   readonly tokenAmountRaw: bigint;
   readonly settlementAmountRaw: bigint;
+  readonly executionFeeRaw?: bigint;
   readonly quotedAt: Timestamp;
   readonly filledAt: Timestamp;
   readonly quoteFingerprint: string;
@@ -53,6 +54,8 @@ export function verifyPaperFill(fill: PaperFill): void {
     throw new InvariantViolationError("Paper fill requires quote identity");
   if (fill.filledAt < fill.quotedAt)
     throw new InvariantViolationError("Paper fill cannot predate its quote");
+  if ((fill.executionFeeRaw ?? 0n) < 0n)
+    throw new InvariantViolationError("Paper execution fee cannot be negative");
 }
 
 export function paperLotId(fill: PaperFill): string {
@@ -97,6 +100,9 @@ export function paperFillHash(fill: PaperFill): string {
         ...fill,
         tokenAmountRaw: fill.tokenAmountRaw.toString(),
         settlementAmountRaw: fill.settlementAmountRaw.toString(),
+        ...(fill.executionFeeRaw === undefined
+          ? {}
+          : { executionFeeRaw: fill.executionFeeRaw.toString() }),
       }),
     )
     .digest("hex");

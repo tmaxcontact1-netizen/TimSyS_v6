@@ -24,6 +24,10 @@ const execution: PreparedEntryExecution = Object.freeze({
   serializedTransactionBase64: "AQ==",
   lastValidBlockHeight: 20n,
   prioritizationFeeLamports: 1n,
+  intendedInputAmount: 25n,
+  quoteFingerprint: "quote",
+  approvalId: "approval",
+  approvalEligibilityHash: "eligibility",
 });
 const signed = Object.freeze({
   serializedTransactionBase64: "Ag==",
@@ -60,6 +64,7 @@ function dependencies() {
     },
     signer: { publicIdentity: async () => wallet, sign: async () => signed },
     authority: { now: () => signedAt, currentBlockHeight: async () => 10n },
+    approvals: { consume: async () => undefined },
     submissionPort: {
       submit: async () => ({ provider: "helius" as const, signature: "signature", acknowledgedAt }),
     },
@@ -93,8 +98,9 @@ describe("durable entry submission", () => {
         },
       },
       authority: d.authority,
+      approvals: { consume: async () => { calls.push("approval"); } },
     });
-    expect(calls).toEqual(["signing", "external", "submitted"]);
+    expect(calls).toEqual(["approval", "signing", "external", "submitted"]);
     expect(d.signing?.deliveryId).toBe(`entry:${orderId}`);
     expect(d.submission?.receipt).toEqual(receipt);
   });
@@ -109,6 +115,7 @@ describe("durable entry submission", () => {
         signer: { ...d.signer, publicIdentity: async () => "other" as WalletAddress },
         submission: d.submissionPort,
         authority: d.authority,
+        approvals: d.approvals,
       }),
     ).rejects.toThrow("does not match");
     expect(d.signing).toBeUndefined();
@@ -128,6 +135,7 @@ describe("durable entry submission", () => {
           },
         },
         authority: d.authority,
+        approvals: d.approvals,
       }),
     ).rejects.toThrow("unavailable");
     expect(d.signing?.signedTransaction.signature).toBe("signature");

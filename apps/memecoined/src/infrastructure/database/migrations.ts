@@ -39,6 +39,12 @@ const requiredColumns = Object.freeze([
   "position_runtime_authority_snapshots.payload_json",
   "position_runtime_authority_baselines.position_id",
   "position_runtime_authority_baselines.payload_json",
+  "operator_approvals.state",
+  "operator_approvals.nonce_hash",
+  "operator_approval_events.event_type",
+  "telegram_operator_updates.state",
+  "operator_runtime_control.entry_blocked",
+  "operator_runtime_control_events.entry_blocked",
 ]);
 
 const paperRequiredColumns = Object.freeze([
@@ -48,6 +54,7 @@ const paperRequiredColumns = Object.freeze([
   "paper_cash_events.amount_raw",
   "paper_fills.id",
   "paper_fills.side",
+  "paper_fills.execution_fee_raw",
   "paper_position_lots.current_amount_raw",
   "paper_position_lots.remaining_cost_raw",
   "paper_entry_executions.risk_run_id",

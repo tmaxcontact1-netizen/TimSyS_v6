@@ -270,7 +270,7 @@ function hydrate(row: SnapshotRow, expected: RiskEvaluationLease) {
 export class PostgresRiskAuthorityRepository implements RiskEvaluationFactSource {
   public constructor(private readonly database: Pick<Pool, "query">) {}
 
-  public async record(input: PersistRiskAuthoritySnapshot): Promise<void> {
+  public async recordIfAbsent(input: PersistRiskAuthoritySnapshot): Promise<boolean> {
     const portfolio = createPortfolioSnapshot({
       ...input.portfolio,
       observedAt: input.observedAt,
@@ -315,7 +315,11 @@ export class PostgresRiskAuthorityRepository implements RiskEvaluationFactSource
         JSON.stringify(evidenceJson),
       ],
     );
-    if (result.rowCount !== 1)
+    return result.rowCount === 1;
+  }
+
+  public async record(input: PersistRiskAuthoritySnapshot): Promise<void> {
+    if (!(await this.recordIfAbsent(input)))
       throw new InvariantViolationError("Risk authority already exists for this signal");
   }
 

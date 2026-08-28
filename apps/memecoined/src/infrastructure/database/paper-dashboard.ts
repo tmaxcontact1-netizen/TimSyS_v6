@@ -25,6 +25,84 @@ export interface PaperWorkerAlert {
   readonly lastMonitoredAt: string | null;
 }
 
+export interface AcquisitionPipelineStatus {
+  readonly state: string;
+  readonly nextRunAt: string;
+  readonly leaseOwner: string | null;
+  readonly leaseExpiresAt: string | null;
+  readonly attempts: number;
+  readonly lastResult: Readonly<Record<string, unknown>>;
+  readonly lastError: Readonly<Record<string, unknown>> | null;
+  readonly work: readonly Readonly<{
+    jobType: string;
+    state: string;
+    count: number;
+    retrying: number;
+    maximumAttempts: number;
+    lastError: string | null;
+  }>[];
+}
+
+interface PipelineRow {
+  readonly state: string;
+  readonly available_at: Date | string;
+  readonly lease_owner: string | null;
+  readonly lease_expires_at: Date | string | null;
+  readonly attempts: number;
+  readonly payload_json: unknown;
+  readonly last_error_json: unknown;
+  readonly work_json: unknown;
+}
+
+/** Reports durable acquisition scheduling and downstream work without changing authority. */
+export async function readAcquisitionPipelineStatus(
+  database: Pick<Pool, "query">,
+): Promise<AcquisitionPipelineStatus> {
+  const result = await database.query<PipelineRow>(
+    `SELECT schedule.state,schedule.available_at,schedule.lease_owner,schedule.lease_expires_at,
+            schedule.attempts,schedule.payload_json,schedule.last_error_json,
+            COALESCE((SELECT jsonb_agg(work ORDER BY work.job_type,work.state)
+              FROM (SELECT job_type,state,count(*)::int AS count,
+                           count(*) FILTER (WHERE last_error_json IS NOT NULL)::int AS retrying,
+                           max(attempts)::int AS maximum_attempts,
+                           max(COALESCE(last_error_json->>'reason',last_error_json->>'message')) AS last_error
+                    FROM jobs
+                    WHERE job_type IN ('candidate_evaluation','risk_evaluation','entry_planning','position_reconciliation')
+                    GROUP BY job_type,state) work),'[]'::jsonb) AS work_json
+     FROM jobs schedule WHERE schedule.job_type='candidate_acquisition'`,
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error("Acquisition schedule is unavailable");
+  const work = Array.isArray(row.work_json) ? row.work_json : [];
+  return Object.freeze({
+    state: row.state,
+    nextRunAt: timestamp(row.available_at),
+    leaseOwner: row.lease_owner,
+    leaseExpiresAt: row.lease_expires_at === null ? null : timestamp(row.lease_expires_at),
+    attempts: Number(row.attempts),
+    lastResult: Object.freeze((row.payload_json ?? {}) as Record<string, unknown>),
+    lastError:
+      row.last_error_json === null
+        ? null
+        : Object.freeze(row.last_error_json as Record<string, unknown>),
+    work: Object.freeze(
+      work.map((item) =>
+        Object.freeze({
+          jobType: String((item as Record<string, unknown>).job_type),
+          state: String((item as Record<string, unknown>).state),
+          count: Number((item as Record<string, unknown>).count),
+          retrying: Number((item as Record<string, unknown>).retrying ?? 0),
+          maximumAttempts: Number((item as Record<string, unknown>).maximum_attempts ?? 0),
+          lastError:
+            typeof (item as Record<string, unknown>).last_error === "string"
+              ? String((item as Record<string, unknown>).last_error)
+              : null,
+        }),
+      ),
+    ),
+  });
+}
+
 interface WorkerAlertRow {
   readonly token_mint: string;
   readonly last_error: string;
@@ -172,7 +250,8 @@ export async function readPaperTokenDetails(
                FROM paper_position_lots WHERE wallet=$1 AND token_mint=$2
                ORDER BY opened_at DESC,id LIMIT 50) l),'[]') AS lots,
        COALESCE((SELECT jsonb_agg(f ORDER BY f.filled_at DESC,f.id)
-         FROM (SELECT id,side,token_amount_raw::text,settlement_amount_raw::text,quoted_at,filled_at
+         FROM (SELECT id,side,token_amount_raw::text,settlement_amount_raw::text,
+                      execution_fee_raw::text,quoted_at,filled_at
                FROM paper_fills WHERE wallet=$1 AND token_mint=$2
                ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
        COALESCE((SELECT jsonb_agg(r ORDER BY r.realized_at DESC,r.fill_id)
@@ -229,7 +308,7 @@ export async function readPaperDashboardDetails(
                ORDER BY j.created_at,o.signal_id LIMIT 50) e),'[]') AS pending_entries,
        COALESCE((SELECT jsonb_agg(f ORDER BY f.filled_at DESC, f.id)
          FROM (SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
-                      quoted_at,filled_at
+                      execution_fee_raw::text,quoted_at,filled_at
                FROM paper_fills WHERE wallet=$1 ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
        COALESCE((SELECT jsonb_agg(r ORDER BY r.realized_at DESC, r.fill_id)
          FROM (SELECT fill_id,token_mint,proceeds_raw::text,released_cost_raw::text,

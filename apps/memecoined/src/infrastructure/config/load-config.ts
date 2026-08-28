@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { isAbsolute } from "node:path";
+import {
+  authorizeLowValueTrial,
+  type LowValueTrialAuthorization,
+} from "../runtime/low-value-trial-gate.js";
 
 export const operatingModes = [
   "historical",
@@ -43,6 +47,13 @@ const schema = z
     JUPITER_API_KEY: nonempty.optional(),
     PAPER_TRADING_WALLET_ADDRESS: nonempty.optional(),
     PAPER_INITIAL_CASH_LAMPORTS: z.string().regex(/^\d+$/).optional(),
+    PAPER_EXECUTION_FEE_LAMPORTS: z.string().regex(/^\d+$/).optional(),
+    TELEGRAM_BOT_TOKEN: nonempty.optional(),
+    TELEGRAM_OPERATOR_USER_IDS: nonempty.optional(),
+    TELEGRAM_CHAT_ID: z
+      .string()
+      .regex(/^-?\d+$/)
+      .optional(),
     TRADING_WALLET_SECRET_FILE: absolutePath.optional(),
     TRANSACTION_ALLOWED_PROGRAM_IDS: nonempty.optional(),
     TRANSACTION_ALLOWED_FEE_RECIPIENTS: nonempty.optional(),
@@ -58,6 +69,7 @@ export interface RuntimeConfig {
   readonly logLevel: z.infer<typeof logLevelSchema>;
   readonly configDirectory: string;
   readonly databaseUrl: string;
+  readonly managedDatabase: boolean;
   readonly solana: null | Readonly<{
     primaryRpcUrl: string;
     fallbackRpcUrl: string;
@@ -68,6 +80,7 @@ export interface RuntimeConfig {
     jupiterApiKey: string;
     walletAddress: string;
     initialCashLamports: bigint;
+    executionFeeLamports: bigint;
   }>;
   readonly execution: null | Readonly<{
     heliusApiKey: string;
@@ -77,6 +90,12 @@ export interface RuntimeConfig {
     allowedFeeRecipients: ReadonlySet<string>;
     allowedDestinationOwners: ReadonlySet<string>;
     maximumPrioritizationFeeLamports: bigint;
+  }>;
+  readonly liveTrial: LowValueTrialAuthorization | null;
+  readonly telegram: null | Readonly<{
+    botToken: string;
+    operatorUserIds: ReadonlySet<string>;
+    chatId: string;
   }>;
 }
 
@@ -118,6 +137,8 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
   if (!parsed.success)
     throw new Error(`Invalid runtime configuration: ${z.prettifyError(parsed.error)}`);
   const value = parsed.data;
+  if (value.MEMECOINED_MODE === "limited_auto" || value.MEMECOINED_MODE === "full_auto")
+    throw new Error(`${value.MEMECOINED_MODE} is not an implemented or authorized operating mode`);
   if (
     value.MEMECOINED_ENV === "production" &&
     /localhost|127\.0\.0\.1/.test(value.DATABASE_URL) &&
@@ -145,6 +166,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
           initialCashLamports: BigInt(
             required(value.PAPER_INITIAL_CASH_LAMPORTS, "PAPER_INITIAL_CASH_LAMPORTS"),
           ),
+          executionFeeLamports: BigInt(value.PAPER_EXECUTION_FEE_LAMPORTS ?? "5000"),
         })
       : null;
   if (paper !== null && liveExecutionOnlyVariables.some((name) => environment[name] !== undefined))
@@ -174,6 +196,29 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
         ),
       })
     : null;
+  const telegramVariables = [
+    value.TELEGRAM_BOT_TOKEN,
+    value.TELEGRAM_OPERATOR_USER_IDS,
+    value.TELEGRAM_CHAT_ID,
+  ];
+  if (
+    telegramVariables.some((item) => item !== undefined) &&
+    telegramVariables.some((item) => item === undefined)
+  )
+    throw new Error("Telegram configuration requires bot token, operator user IDs, and chat ID");
+  const telegram =
+    value.TELEGRAM_BOT_TOKEN === undefined
+      ? null
+      : Object.freeze({
+          botToken: value.TELEGRAM_BOT_TOKEN,
+          operatorUserIds: requiredSet(
+            value.TELEGRAM_OPERATOR_USER_IDS,
+            "TELEGRAM_OPERATOR_USER_IDS",
+          ),
+          chatId: required(value.TELEGRAM_CHAT_ID, "TELEGRAM_CHAT_ID"),
+        });
+  const liveTrial =
+    value.MEMECOINED_MODE === "supervised_live" ? authorizeLowValueTrial(environment) : null;
   return Object.freeze({
     environment: value.MEMECOINED_ENV,
     mode: value.MEMECOINED_MODE,
@@ -181,8 +226,11 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
     logLevel: value.MEMECOINED_LOG_LEVEL,
     configDirectory: value.MEMECOINED_CONFIG_DIR,
     databaseUrl: value.DATABASE_URL,
+    managedDatabase: environment.MEMECOINED_MANAGED_DATABASE === "1",
     solana,
     paper,
     execution,
+    liveTrial,
+    telegram,
   });
 }

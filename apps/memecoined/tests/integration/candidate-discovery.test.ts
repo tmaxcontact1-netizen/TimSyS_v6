@@ -43,6 +43,44 @@ function hint(overrides: Partial<CandidateDiscoveryHint> = {}): CandidateDiscove
 }
 
 describe("candidate discovery", () => {
+  it("accepts provider receipt evidence produced after the request began", async () => {
+    const requestedAt = asTimestamp("2026-08-04T17:59:59.900Z");
+    const source = new LiveCandidateDiscoverySource({
+      provider: {
+        discoverLatestTokens: async () => ({
+          ok: true,
+          value: [
+            {
+              mint,
+              sourceReference: "profile:network-latency",
+              observedAt,
+              trace: {
+                evidenceId,
+                provider: "dexscreener" as const,
+                method: "GET",
+                requestedAt,
+                respondedAt: observedAt,
+                sourceTimestamp: null,
+                normalizedAt: observedAt,
+                sourceKey: "network-latency",
+                contentHash: "a".repeat(64),
+              },
+            },
+          ],
+        }),
+      },
+      strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
+      now: (() => {
+        const values = [requestedAt, observedAt];
+        return () => values.shift() ?? observedAt;
+      })(),
+      deduplicationWindow: () => "2026-08-04T18:00Z",
+    });
+    await expect(source.nextBatch()).resolves.toEqual([
+      expect.objectContaining({ discoveredAt: observedAt }),
+    ]);
+  });
+
   it("turns live observations into stable retry-safe identities", async () => {
     const source = new LiveCandidateDiscoverySource({
       provider: {

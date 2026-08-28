@@ -49,9 +49,14 @@ export interface ProductionProviderServices {
 
 export interface PaperProviderServices {
   readonly swap: Pick<SwapPort, "quote">;
+  readonly market: MarketObservationPort;
+  readonly discovery: CandidateDiscoveryPort;
+  readonly balances: ChainObservationPort;
+  readonly mintSecurity: MintSecurityObservationPort;
+  readonly trackedWalletPurchases: TrackedWalletPurchasePort;
 }
 
-/** Constructs quote-only paper providers without signer or submission capability. */
+/** Constructs read-and-quote paper providers without signer or submission capability. */
 export function composePaperProviders(config: RuntimeConfig): PaperProviderServices {
   if (config.solana === null || config.paper === null || config.execution !== null)
     throw new Error("Paper providers require paper-only read and quote configuration");
@@ -64,15 +69,34 @@ export function composePaperProviders(config: RuntimeConfig): PaperProviderServi
     new SolanaRpcHttpTransport(rpcHttp, config.solana.primaryRpcUrl),
   );
   const publicHttp = new BoundedJsonHttpTransport({
-    allowedOrigins: new Set(["https://api.jup.ag"]),
+    allowedOrigins: new Set(["https://api.dexscreener.com", "https://api.jup.ag"]),
+  });
+  const heliusDataHttp = new BoundedJsonHttpTransport({
+    allowedOrigins: new Set(["https://api.helius.xyz"]),
   });
   const identities = new DeterministicEvidenceIdentityFactory();
+  const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
+  const fallback = new SolanaRpcClient(
+    new SolanaRpcHttpTransport(rpcHttp, config.solana.fallbackRpcUrl),
+  );
+  const chain = new SolanaChainObservationAdapter(primary, fallback, identities);
   const adapter = new JupiterSwapAdapter(
     new JupiterSwapApiClient(publicHttp, config.paper.jupiterApiKey),
     new SolanaExecutionRpc(primary),
     identities,
   );
-  return Object.freeze({ swap: Object.freeze({ quote: adapter.quote.bind(adapter) }) });
+  return Object.freeze({
+    swap: Object.freeze({ quote: adapter.quote.bind(adapter) }),
+    market: dexScreener,
+    discovery: dexScreener,
+    balances: chain,
+    mintSecurity: new SolanaMintSecurityAdapter(primary, fallback, identities),
+    trackedWalletPurchases: new HeliusTrackedWalletPurchaseAdapter(
+      heliusDataHttp,
+      config.paper.heliusApiKey,
+      identities,
+    ),
+  });
 }
 
 /** Constructs all completed live provider clients from validated configuration. */

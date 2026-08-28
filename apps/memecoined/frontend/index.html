@@ -36,7 +36,8 @@
         ><a href="#allocation" data-short="AL">Allocation</a
         ><a href="#watchlist" data-short="WA">Watchlist</a
         ><a href="#configurations" data-short="CF">Configurations</a
-        ><a href="#events" data-short="EV">Events</a><a href="#alerts" data-short="AT">Alerts</a>
+        ><a href="#events" data-short="EV">Events</a><a href="#alerts" data-short="AT">Alerts</a
+        ><a href="#operator-status" data-short="OS">Operator status</a>
       </nav>
       <div class="sidebar-actions">
         <button id="app-back" type="button" data-short="←">Back</button>
@@ -262,6 +263,19 @@
             <li>Connecting…</li>
           </ol>
         </article>
+        <article class="panel connection-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">ACQUISITION PIPELINE</p>
+              <h2>Discovery and evaluation</h2>
+            </div>
+            <span id="pipeline-state" class="count-chip">—</span>
+          </div>
+          <p id="pipeline-summary" class="panel-copy">Awaiting durable pipeline status</p>
+          <ol id="pipeline-work" class="connection-history" aria-live="polite">
+            <li>No queued work reported</li>
+          </ol>
+        </article>
       </section>
       <section
         id="performance"
@@ -304,6 +318,29 @@
         data-dashboard-panel="operations"
         data-panel-title="Runtime operations"
       >
+        <article id="operator-status" class="panel operator-status-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow">SUPERVISED AUTHORITY</p>
+              <h2>Operator status</h2>
+            </div>
+            <span id="entry-lock-state" class="count-chip">CHECKING</span>
+          </div>
+          <p id="entry-lock-reason" class="panel-note">Reading durable entry authority.</p>
+          <div class="operational-facts">
+            <div><span>Pending approvals</span><strong id="approval-pending">—</strong></div>
+            <div><span>Approved, awaiting use</span><strong id="approval-approved">—</strong></div>
+            <div><span>Expiring within 5 min</span><strong id="approval-expiring">—</strong></div>
+            <div><span>Entry plans queued</span><strong id="entry-queued">—</strong></div>
+            <div><span>Submitted entries</span><strong id="entry-submitted">—</strong></div>
+            <div>
+              <span>Reconciliation backlog</span><strong id="reconciliation-backlog">—</strong>
+            </div>
+            <div><span>Failed work</span><strong id="failed-work">—</strong></div>
+            <div><span>Telegram operator</span><strong id="telegram-state">—</strong></div>
+          </div>
+          <p id="operator-action" class="operator-action" aria-live="polite"></p>
+        </article>
         <article class="panel activity-panel">
           <div class="panel-heading">
             <div>

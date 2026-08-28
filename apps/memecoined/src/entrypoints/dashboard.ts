@@ -16,6 +16,7 @@ import {
   readPaperPerformanceHistory,
   readPaperTokenDetails,
   readPaperWorkerAlerts,
+  readAcquisitionPipelineStatus,
 } from "../infrastructure/database/paper-dashboard.js";
 import {
   addDashboardWatchlistToken,
@@ -41,6 +42,7 @@ import {
 } from "../infrastructure/database/paper-operator-controls.js";
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 import { resolveApplicationRoot } from "../infrastructure/runtime/application-root.js";
+import { readOperationalDashboardStatus } from "../infrastructure/database/operational-dashboard.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
   ".css": "text/css; charset=utf-8",
@@ -156,7 +158,42 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 405, { error: "method_not_allowed" });
         return;
       }
-      sendJson(response, 200, { status: "ok", mode: "paper" });
+      try {
+        await dependencies.database.query("SELECT 1 AS ready");
+        sendJson(response, 200, { status: "ok", mode: "paper", database: "ready" });
+      } catch {
+        sendJson(response, 503, { status: "degraded", mode: "paper", database: "unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/pipeline") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const pipeline = await readAcquisitionPipelineStatus(dependencies.database);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), pipeline });
+      } catch {
+        sendJson(response, 503, { error: "pipeline_status_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/operations/status") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const operations = await readOperationalDashboardStatus(dependencies.database);
+        sendJson(response, 200, {
+          mode: "paper",
+          observedAt: now().toISOString(),
+          operations,
+        });
+      } catch {
+        sendJson(response, 503, { error: "operational_status_unavailable" });
+      }
       return;
     }
     const configurationMatch = pathname.match(/^\/api\/trading-configurations\/([0-9a-f-]+)$/i);
@@ -545,6 +582,7 @@ export async function startPaperDashboard(environment: NodeJS.ProcessEnv): Promi
   const database = createRuntimePool({
     connectionString: config.databaseUrl,
     production: config.environment === "production",
+    managedLocal: config.managedDatabase,
   });
   await verifyRuntimeDatabase(database, "paper", true);
   const mutationToken = environment.PAPER_DASHBOARD_MUTATION_TOKEN;

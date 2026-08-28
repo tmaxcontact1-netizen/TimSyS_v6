@@ -63,6 +63,7 @@ describe("paper quote execution", () => {
       tokenMint: token,
       tokenAmountRaw: 1_000n,
       settlementAmountRaw: side === "buy" ? 25n : 30n,
+      executionFeeRaw: 5_000n,
       quoteFingerprint: `quote-${side}`,
     });
     expect(fill.id).toMatch(/^[0-9a-f-]{36}$/);

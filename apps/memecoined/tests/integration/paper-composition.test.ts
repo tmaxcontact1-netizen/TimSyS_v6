@@ -40,7 +40,14 @@ describe("paper production composition", () => {
       config,
       database: database as never,
       signal: new AbortController().signal,
-      providers: { swap: { quote: vi.fn() } },
+      providers: {
+        swap: { quote: vi.fn() },
+        discovery: { discoverLatestTokens: async () => ({ ok: true, value: [] }) },
+        market: { observePrimaryPool: vi.fn() },
+        balances: { observeBalances: vi.fn(), observeWalletInventory: vi.fn() },
+        mintSecurity: { observeMintSecurity: vi.fn() },
+        trackedWalletPurchases: { observePurchases: vi.fn() },
+      } as never,
     });
 
     await runtime.supervisor.beforeBatch?.();

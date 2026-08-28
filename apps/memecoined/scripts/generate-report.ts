@@ -13,6 +13,7 @@ export async function generatePaperReport(environment: NodeJS.ProcessEnv): Promi
   const database = createRuntimePool({
     connectionString: config.databaseUrl,
     production: config.environment === "production",
+    managedLocal: config.managedDatabase,
   });
   try {
     const readiness = await verifyRuntimeDatabase(database, "paper");

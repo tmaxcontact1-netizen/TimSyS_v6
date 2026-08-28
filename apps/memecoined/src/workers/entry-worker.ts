@@ -15,6 +15,7 @@ import type {
   SubmissionReceipt,
 } from "../application/ports/signer.js";
 import { submitPreparedEntry } from "../application/services/entry-submission.js";
+import type { OperatorApprovalStore } from "../application/services/operator-approval.js";
 
 export interface EntryPreparationWork {
   readonly signalId: SignalId;
@@ -30,6 +31,7 @@ export async function runEntrySubmissionWorkerCycle(dependencies: {
   readonly signer: LocalSignerPort;
   readonly submission: TransactionSubmissionPort;
   readonly authority: ExecutionAuthorityPort;
+  readonly approvals: Pick<OperatorApprovalStore, "consume">;
   readonly batchSize?: number;
 }): Promise<readonly SubmissionReceipt[]> {
   const limit = dependencies.batchSize ?? 25;

@@ -35,6 +35,12 @@ const required = [
   "position_runtime_authority_snapshots.payload_json",
   "position_runtime_authority_baselines.position_id",
   "position_runtime_authority_baselines.payload_json",
+  "operator_approvals.state",
+  "operator_approvals.nonce_hash",
+  "operator_approval_events.event_type",
+  "telegram_operator_updates.state",
+  "operator_runtime_control.entry_blocked",
+  "operator_runtime_control_events.entry_blocked",
 ];
 function database(schemaReady = true) {
   const end = vi.fn(async () => undefined);

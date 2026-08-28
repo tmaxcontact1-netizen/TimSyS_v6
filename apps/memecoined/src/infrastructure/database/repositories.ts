@@ -197,6 +197,25 @@ export class PostgresPositionWorkerCheckpointRepository
       );
       if (plan.rowCount !== 1)
         throw new InvariantViolationError("Position opening requires one submitted entry plan");
+      const order = await client.query(
+        `UPDATE orders SET state='reconciled',updated_at=$2,version=version+1
+          WHERE id=$1 AND state='submitted'`,
+        [position.entryOrderId, position.openedAt],
+      );
+      if (order.rowCount !== 1)
+        throw new InvariantViolationError("Position opening requires one submitted order");
+      await client.query(
+        `UPDATE signals SET state='converted'
+          WHERE id=(SELECT signal_id FROM orders WHERE id=$1) AND state='approval_pending'`,
+        [position.entryOrderId],
+      );
+      const reconciliation = await client.query(
+        `UPDATE jobs SET state='completed',updated_at=$2,version=version+1
+          WHERE id=$1 AND job_type='entry_reconciliation' AND state='available'`,
+        [position.entryOrderId, position.openedAt],
+      );
+      if (reconciliation.rowCount !== 1)
+        throw new InvariantViolationError("Position opening requires reconciliation work");
       await client.query("COMMIT");
       return positionCheckpointFromRow(result.rows[0]);
     } catch (error) {

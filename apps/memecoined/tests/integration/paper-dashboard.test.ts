@@ -107,12 +107,127 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('id="preferences-import"');
     expect(page.body).toContain('data-dashboard-panel="overview"');
     expect(page.body).toContain('data-dashboard-panel="trading"');
+    expect(page.body).toContain('id="pipeline-state"');
+    expect(page.body).toContain('id="operator-status"');
+    expect(page.body).toContain('id="entry-lock-state"');
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
     const health = await get(address.port, "/api/health");
     expect(health.status).toBe(200);
-    expect(JSON.parse(health.body)).toEqual({ status: "ok", mode: "paper" });
+    expect(JSON.parse(health.body)).toEqual({ status: "ok", mode: "paper", database: "ready" });
     expect((await get(address.port, "/api/health", "POST")).status).toBe(405);
+  });
+
+  it("serves the unified operational projection and keeps it read only", async () => {
+    const database = {
+      query: async (sql: string) => ({
+        rows: sql.includes("operator_runtime_control")
+          ? [
+              {
+                entry_blocked: false,
+                entry_block_reason: null,
+                entry_control_changed_at: null,
+                entry_control_changed_by: null,
+                pending_approvals: 1,
+                approved_approvals: 0,
+                expiring_approvals: 1,
+                oldest_approval_at: "2026-08-27T09:58:00.000Z",
+                queued_entries: 2,
+                submitted_entries: 0,
+                reconciliation_backlog: 0,
+                failed_work: 0,
+                telegram_last_update_at: null,
+                telegram_failed_updates: 0,
+              },
+            ]
+          : [],
+      }),
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+      now: () => new Date("2026-08-27T10:00:00.000Z"),
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const response = await get(address.port, "/api/operations/status");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper",
+      operations: { entryBlocked: false, approvals: { pending: 1 }, queuedEntries: 2 },
+    });
+    expect((await get(address.port, "/api/operations/status", "POST")).status).toBe(405);
+  });
+
+  it("fails readiness when its database is unavailable", async () => {
+    const server = createPaperDashboardServer({
+      database: {
+        query: async () => {
+          throw new Error("offline");
+        },
+        end: async () => undefined,
+      } as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const health = await get(address.port, "/api/health");
+    expect(health.status).toBe(503);
+    expect(JSON.parse(health.body)).toEqual({
+      status: "degraded",
+      mode: "paper",
+      database: "unavailable",
+    });
+  });
+
+  it("reports durable acquisition and downstream work state", async () => {
+    const database = {
+      query: async () => ({
+        rows: [
+          {
+            state: "available",
+            available_at: "2026-08-10T12:00:30Z",
+            lease_owner: null,
+            lease_expires_at: null,
+            attempts: 4,
+            payload_json: {
+              status: "completed",
+              summary: { discovered: 2, candidatesEvaluated: 2, riskEvaluated: 1 },
+            },
+            last_error_json: null,
+            work_json: [{ job_type: "candidate_evaluation", state: "available", count: 3 }],
+          },
+        ],
+      }),
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const response = await get(address.port, "/api/paper/pipeline");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body).pipeline).toMatchObject({
+      state: "available",
+      attempts: 4,
+      work: [{ jobType: "candidate_evaluation", state: "available", count: 3 }],
+    });
+    expect((await get(address.port, "/api/paper/pipeline", "POST")).status).toBe(405);
   });
 
   it("fails closed when the durable snapshot is unavailable", async () => {

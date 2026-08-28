@@ -110,9 +110,12 @@ export class PaperQuoteExecutionService {
     private readonly quotes: Pick<SwapPort, "quote">,
     private readonly ledger: PaperFillLedger,
     private readonly now: () => Timestamp,
+    private readonly executionFeeRaw: bigint = 5_000n,
   ) {}
 
   public async execute(request: PaperExecutionRequest): Promise<PaperFill> {
+    if (this.executionFeeRaw < 0n)
+      throw new InvariantViolationError("Paper execution fee cannot be negative");
     if (request.tokenMint === WRAPPED_SOL_MINT)
       throw new InvariantViolationError("Paper trade token must differ from settlement mint");
     if (request.inputAmountRaw <= 0n)
@@ -147,6 +150,7 @@ export class PaperQuoteExecutionService {
       tokenMint: request.tokenMint,
       tokenAmountRaw: request.side === "buy" ? quote.expectedOutputAmount : quote.inputAmount,
       settlementAmountRaw: request.side === "buy" ? quote.inputAmount : quote.expectedOutputAmount,
+      executionFeeRaw: this.executionFeeRaw,
       quotedAt: quote.receivedAt,
       filledAt,
       quoteFingerprint: quote.fingerprint,

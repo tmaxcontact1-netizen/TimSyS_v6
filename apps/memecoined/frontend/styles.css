@@ -1106,3 +1106,39 @@ footer {
   cursor: not-allowed;
   opacity: 0.55;
 }
+
+.operator-status-panel {
+  grid-column: 1 / -1;
+}
+
+.operational-facts {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-top: 1rem;
+}
+
+.operational-facts > div {
+  background: color-mix(in srgb, var(--panel) 82%, var(--accent) 18%);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.8rem;
+}
+
+.operational-facts span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.operator-action {
+  border-left: 3px solid var(--accent);
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.8rem;
+}
+
+.operator-action[data-state="attention"],
+#entry-lock-state[data-state="blocked"] {
+  color: var(--danger);
+}

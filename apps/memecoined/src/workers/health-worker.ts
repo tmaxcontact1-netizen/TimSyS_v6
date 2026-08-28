@@ -34,7 +34,9 @@ export async function readPaperPerformanceReport(
 ): Promise<PaperPerformanceReport> {
   const result = await database.query<ReportRow>(
     `SELECT a.initial_cash_raw::text,
-       (a.initial_cash_raw + COALESCE((SELECT sum(CASE event_type WHEN 'sell' THEN amount_raw ELSE -amount_raw END) FROM paper_cash_events WHERE wallet=a.wallet),0))::text AS cash_raw,
+       (a.initial_cash_raw
+        + COALESCE((SELECT sum(CASE event_type WHEN 'sell' THEN amount_raw ELSE -amount_raw END) FROM paper_cash_events WHERE wallet=a.wallet),0)
+        - COALESCE((SELECT sum(execution_fee_raw) FROM paper_fills WHERE wallet=a.wallet),0))::text AS cash_raw,
        COALESCE((SELECT sum(remaining_cost_raw) FROM paper_position_lots WHERE wallet=a.wallet AND current_amount_raw>0),0)::text AS open_cost_raw,
        COALESCE((SELECT sum(realized_pnl_raw) FROM paper_realized_performance WHERE wallet=a.wallet),0)::text AS realized_pnl_raw,
        (SELECT count(*) FROM paper_fills WHERE wallet=a.wallet)::text AS fills,

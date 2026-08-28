@@ -3,6 +3,7 @@ import { Pool, type PoolConfig } from "pg";
 export interface RuntimePoolOptions {
   readonly connectionString: string;
   readonly production: boolean;
+  readonly managedLocal?: boolean;
   readonly maximumConnections?: number;
   readonly connectionTimeoutMs?: number;
   readonly idleTimeoutMs?: number;
@@ -18,13 +19,20 @@ export function runtimePoolConfig(options: RuntimePoolOptions): Readonly<PoolCon
     throw new RangeError("Database connection timeout must be at least 100ms");
   if (!Number.isSafeInteger(idleTimeoutMillis) || idleTimeoutMillis < 1_000)
     throw new RangeError("Database idle timeout must be at least 1000ms");
+  if (options.managedLocal) {
+    const hostname = new URL(options.connectionString).hostname;
+    if (hostname !== "127.0.0.1" && hostname !== "localhost" && hostname !== "::1")
+      throw new Error("Managed local database must use a loopback host");
+  }
   return Object.freeze({
     connectionString: options.connectionString,
     max: maximum,
     connectionTimeoutMillis,
     idleTimeoutMillis,
     allowExitOnIdle: false,
-    ...(options.production ? { ssl: { rejectUnauthorized: true } } : {}),
+    ...(options.production && !options.managedLocal
+      ? { ssl: { rejectUnauthorized: true } }
+      : { ssl: false }),
   });
 }
 

@@ -8,6 +8,8 @@ import type {
 } from "../ports/signer.js";
 import { InvariantViolationError } from "../../domain/shared/errors.js";
 import { asRawAmount } from "../../domain/shared/types.js";
+import type { OperatorApprovalStore } from "./operator-approval.js";
+import { operatorApprovalPayloadHash } from "./operator-approval.js";
 
 export async function submitPreparedEntry(input: {
   readonly execution: PreparedEntryExecution;
@@ -16,6 +18,7 @@ export async function submitPreparedEntry(input: {
   readonly signer: LocalSignerPort;
   readonly submission: TransactionSubmissionPort;
   readonly authority: ExecutionAuthorityPort;
+  readonly approvals: Pick<OperatorApprovalStore, "consume">;
 }): Promise<SubmissionReceipt> {
   const deliveryId = `entry:${input.execution.orderId}`;
   const signedAt = input.authority.now();
@@ -29,6 +32,22 @@ export async function submitPreparedEntry(input: {
     currentBlockHeight: await input.authority.currentBlockHeight(),
     lastValidBlockHeight: input.execution.lastValidBlockHeight,
     prioritizationFeeLamports: asRawAmount(input.execution.prioritizationFeeLamports),
+  });
+  const approvalPayload = {
+    orderId: input.execution.orderId,
+    wallet: input.execution.wallet,
+    intendedInputAmount: input.execution.intendedInputAmount,
+    quoteFingerprint: input.execution.quoteFingerprint,
+    transactionFingerprint: input.execution.transactionFingerprint,
+    prioritizationFeeLamports: input.execution.prioritizationFeeLamports,
+  };
+  await input.approvals.consume({
+    id: input.execution.approvalId,
+    payloadHash: operatorApprovalPayloadHash(approvalPayload),
+    eligibilityHash: input.execution.approvalEligibilityHash,
+    quoteFingerprint: input.execution.quoteFingerprint,
+    actorId: "entry-executor",
+    consumedAt: signedAt,
   });
   const signed = await input.signer.sign(inspected);
   if (

@@ -51,11 +51,14 @@ export class LiveCandidateDiscoverySource {
       throw new InvariantViolationError(
         `Candidate discovery unavailable (${result.error.code}): ${result.error.reason}`,
       );
+    const completedAt = asTimestamp(this.options.now());
+    if (completedAt < requestedAt)
+      throw new InvariantViolationError("System clock moved backwards during discovery");
     const window = this.options.deduplicationWindow(requestedAt).trim();
     if (window.length === 0) throw new InvariantViolationError("Discovery window is required");
     const byMint = new Map<MintAddress, CandidateDiscoveryHint>();
     for (const observation of result.value) {
-      if (observation.observedAt > requestedAt)
+      if (observation.observedAt > completedAt)
         throw new InvariantViolationError("Discovery observation cannot be from the future");
       if (observation.trace.provider !== "dexscreener")
         throw new InvariantViolationError("Live discovery provider identity is not approved");
@@ -73,7 +76,7 @@ export class LiveCandidateDiscoverySource {
             mint: observation.mint,
             strategyVersionId: this.options.strategyVersionId,
             deduplicationWindow: window,
-            discoveredAt: requestedAt,
+            discoveredAt: completedAt,
             source: Object.freeze({
               provider: observation.trace.provider,
               sourceReference: observation.sourceReference,

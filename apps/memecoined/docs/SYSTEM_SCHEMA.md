@@ -126,6 +126,8 @@ Precedence: safety invariants and on-chain facts; this schema; strategy rules; s
 | `audit_events`           | `id`, `occurred_at`, `actor_type`, `actor_id`, `event_type`, `entity_type`, `entity_id`, `cause_id`, before/after hashes, details JSON | Append-only and tamper-evident hash chain per instance              |
 | `system_locks`           | `id`, `lock_type`, `scope`, `reason_code`, `acquired_at`, `released_at`, owner                                                         | Unique active lock per type/scope                                   |
 
+The `candidate_acquisition` singleton job leases the complete production acquisition chain across processes. Its payload records the latest bounded stage summary; failure records the exact failed stage and retry reason. Candidate, risk, entry and reconciliation work remain separate job rows with their own leases.
+
 ## 6. Relationships and invariants
 
 - Candidate → signal → order → transaction → position is traceable without gaps.

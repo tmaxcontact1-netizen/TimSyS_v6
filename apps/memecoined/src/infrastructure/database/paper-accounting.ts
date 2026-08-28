@@ -74,12 +74,20 @@ export class PostgresPaperAccountingLedger {
       );
       const cashRaw =
         BigInt(account.rows[0].initial_cash_raw) + BigInt(events.rows[0]?.net_raw ?? "0");
-      if (fill.side === "buy" && cashRaw < fill.settlementAmountRaw)
+      const priorFees = await client.query<{ fees_raw: string }>(
+        `SELECT COALESCE(sum(execution_fee_raw),0)::text AS fees_raw FROM paper_fills WHERE wallet=$1`,
+        [fill.wallet],
+      );
+      const availableRaw = cashRaw - BigInt(priorFees.rows[0]?.fees_raw ?? "0");
+      const executionFeeRaw = fill.executionFeeRaw ?? 0n;
+      if (fill.side === "buy" && availableRaw < fill.settlementAmountRaw + executionFeeRaw)
         throw new InvariantViolationError("Paper fill exceeds available cash");
+      if (fill.side === "sell" && fill.settlementAmountRaw <= executionFeeRaw)
+        throw new InvariantViolationError("Paper sale proceeds must exceed its execution fee");
       const inserted = await client.query(
         `INSERT INTO paper_fills
-          (id,wallet,side,token_mint,token_amount_raw,settlement_amount_raw,quoted_at,filled_at,quote_fingerprint,content_hash)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,
+          (id,wallet,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quoted_at,filled_at,quote_fingerprint,content_hash)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT DO NOTHING`,
         [
           fill.id,
           fill.wallet,
@@ -87,10 +95,11 @@ export class PostgresPaperAccountingLedger {
           fill.tokenMint,
           fill.tokenAmountRaw.toString(),
           fill.settlementAmountRaw.toString(),
+          executionFeeRaw.toString(),
           fill.quotedAt,
           fill.filledAt,
-          fill.quoteFingerprint,
-          paperFillHash(fill),
+            fill.quoteFingerprint,
+            paperFillHash(fill),
         ],
       );
       if (inserted.rowCount !== 1) {
@@ -115,7 +124,7 @@ export class PostgresPaperAccountingLedger {
             fill.tokenMint,
             fill.id,
             fill.tokenAmountRaw.toString(),
-            fill.settlementAmountRaw.toString(),
+            (fill.settlementAmountRaw + executionFeeRaw).toString(),
             fill.filledAt,
           ],
         );
@@ -169,7 +178,7 @@ export class PostgresPaperAccountingLedger {
             fill.id,
             fill.wallet,
             fill.tokenMint,
-            fill.settlementAmountRaw.toString(),
+            (fill.settlementAmountRaw - executionFeeRaw).toString(),
             releasedCostRaw.toString(),
             fill.filledAt,
           ],

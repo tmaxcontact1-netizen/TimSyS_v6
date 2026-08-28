@@ -26,6 +26,7 @@ const productionFactories: ProductionWorkerFactories = Object.freeze({
     createRuntimePool({
       connectionString: config.databaseUrl,
       production: config.environment === "production",
+      managedLocal: config.managedDatabase,
     }),
   compose: (input: {
     readonly config: RuntimeConfig;

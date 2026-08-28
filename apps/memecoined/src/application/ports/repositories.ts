@@ -124,6 +124,10 @@ export interface PreparedEntryExecution {
   readonly serializedTransactionBase64: string;
   readonly lastValidBlockHeight: bigint;
   readonly prioritizationFeeLamports: bigint;
+  readonly intendedInputAmount: bigint;
+  readonly quoteFingerprint: string;
+  readonly approvalId: string;
+  readonly approvalEligibilityHash: string;
 }
 
 export interface PendingPositionAction {

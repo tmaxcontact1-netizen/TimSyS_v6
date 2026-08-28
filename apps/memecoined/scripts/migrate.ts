@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { Pool, type PoolClient } from "pg";
 
 import { resolveApplicationRoot } from "../src/infrastructure/runtime/application-root.js";
+import { runtimePoolConfig } from "../src/infrastructure/database/pool.js";
 
 export interface MigrationFile {
   readonly name: string;
@@ -100,11 +102,14 @@ async function main(): Promise<void> {
     throw new Error("DATABASE_MIGRATION_URL is required for migration execution");
   if (connectionString === process.env.DATABASE_URL)
     throw new Error("Migration and runtime database credentials must be different");
-  const pool = new Pool({
-    connectionString,
-    max: 1,
-    ...(process.env.MEMECOINED_ENV === "production" ? { ssl: { rejectUnauthorized: true } } : {}),
-  });
+  const pool = new Pool(
+    runtimePoolConfig({
+      connectionString,
+      production: process.env.MEMECOINED_ENV === "production",
+      managedLocal: process.env.MEMECOINED_MANAGED_DATABASE === "1",
+      maximumConnections: 1,
+    }),
+  );
   try {
     const client: PoolClient = await pool.connect();
     try {
@@ -121,7 +126,7 @@ async function main(): Promise<void> {
   }
 }
 
-if (process.argv[1] !== undefined && import.meta.url === new URL(process.argv[1], "file:").href) {
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error: unknown) => {
     process.stderr.write(
       `${JSON.stringify({ event: "migration_failed", message: error instanceof Error ? error.message : "Unknown failure" })}\n`,

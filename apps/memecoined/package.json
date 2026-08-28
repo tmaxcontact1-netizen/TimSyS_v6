@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "verify:environment": "tsx scripts/verify-environment.ts",
+    "verify:providers": "tsx scripts/verify-environment.ts --probe-providers",
     "verify:handoff": "npm run typecheck && npm test && npm run build",
     "test:coverage": "vitest run --coverage",
     "report:paper": "tsx scripts/generate-report.ts",
