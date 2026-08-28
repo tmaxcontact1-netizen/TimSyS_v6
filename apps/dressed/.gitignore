@@ -1,0 +1,11 @@
+dist/
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.env
+storage/images/*
+!storage/images/.gitkeep
+storage/derived/*
+!storage/derived/.gitkeep
+

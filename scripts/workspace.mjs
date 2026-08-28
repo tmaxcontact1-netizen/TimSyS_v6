@@ -9,15 +9,18 @@ const commands = {
   install: [
     ["ci", "--prefix", "platform"], ["ci", "--prefix", "apps/launcher"],
     ["ci", "--prefix", "apps/principaled"], ["ci", "--prefix", "apps/memecoined"],
+    ["ci", "--prefix", "apps/dressed"],
   ],
   test: [
     ["test", "--prefix", "platform", "--", "--runInBand"],
     ["run", "test:electron", "--prefix", "apps/launcher"],
     ["test", "--prefix", "apps/memecoined"],
+    ["test", "--prefix", "apps/dressed"],
   ],
   build: [
     ["run", "build", "--prefix", "apps/principaled"],
     ["run", "build", "--prefix", "apps/memecoined"],
+    ["run", "build", "--prefix", "apps/dressed"],
     ["run", "build", "--prefix", "apps/launcher"],
   ],
 };

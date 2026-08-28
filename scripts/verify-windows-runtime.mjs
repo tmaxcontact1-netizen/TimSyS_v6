@@ -67,20 +67,26 @@ await Promise.all([
   requirePath("apps/memecoined/frontend/index.html"),
   requirePath("apps/memecoined/frontend/app.js"),
   requirePath("apps/memecoined/.env.example"),
+  requirePath("apps/dressed/modules-runtime/pg/package.json"),
+  requirePath("apps/dressed/modules-runtime/sharp/package.json"),
+  requirePath("apps/dressed/dist/frontend/index.html"),
+  requirePath("apps/dressed/.env.example"),
   requirePath("runtime/postgres/bin/postgres.exe"),
   requirePath("runtime/postgres/bin/pg_dump.exe"),
   verifyManifest("platform/timsys.app.json"),
   verifyManifest("apps/memecoined/timsys.app.json"),
+  verifyManifest("apps/dressed/timsys.app.json"),
 ]);
 
-try {
+async function verifyMigrations(application, displayName) {
+ try {
   const sourceMigrations = (
-    await readdir(join(root, "apps", "memecoined", "migrations"))
+    await readdir(join(root, "apps", application, "migrations"))
   )
     .filter((name) => /^\d{4}_.+\.sql$/.test(name))
     .sort();
   const stagedMigrations = (
-    await readdir(join(stage, "apps", "memecoined", "migrations"))
+    await readdir(join(stage, "apps", application, "migrations"))
   )
     .filter((name) => /^\d{4}_.+\.sql$/.test(name))
     .sort();
@@ -90,12 +96,18 @@ try {
     sourceMigrations.some((name, index) => name !== stagedMigrations[index])
   ) {
     failures.push(
-      `staged MemeCoined migrations differ from source (source latest ${sourceMigrations.at(-1) ?? "none"}; staged latest ${stagedMigrations.at(-1) ?? "none"})`,
+      `staged ${displayName} migrations differ from source (source latest ${sourceMigrations.at(-1) ?? "none"}; staged latest ${stagedMigrations.at(-1) ?? "none"})`,
     );
   }
 } catch (error) {
-  failures.push(`unable to enumerate MemeCoined migrations: ${error.message}`);
+  failures.push(`unable to enumerate ${displayName} migrations: ${error.message}`);
+ }
 }
+
+await Promise.all([
+  verifyMigrations("memecoined", "MemeCoined"),
+  verifyMigrations("dressed", "Dress'Ed"),
+]);
 
 if (failures.length > 0) {
   process.stderr.write(
@@ -104,5 +116,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 process.stdout.write(
-  "Windows runtime verified: launcher, platform, MemeCoined, PostgreSQL, migrations, and production dependencies are staged.\n",
+  "Windows runtime verified: launcher, platform, MemeCoined, Dress'Ed, PostgreSQL, migrations, and production dependencies are staged.\n",
 );

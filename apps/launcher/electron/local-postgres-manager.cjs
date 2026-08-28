@@ -144,17 +144,22 @@ class LocalPostgresManager {
   }
 
   async grantRuntimePrivileges() {
+    return this.grantSchemaPrivileges('public');
+  }
+
+  async grantSchemaPrivileges(schema) {
     if (!this.state) throw new Error('PostgreSQL is not running');
+    if (!/^[a-z][a-z0-9_]*$/.test(schema)) throw new Error('Invalid PostgreSQL schema name');
     const credentials = await this.credentials();
     await this.execute(this.executable('psql'), [
       '-h', '127.0.0.1', '-p', String(this.state.port), '-U', credentials.administrator,
       '-d', 'memecoined', '-v', 'ON_ERROR_STOP=1', '-c',
       `GRANT CONNECT ON DATABASE memecoined TO ${credentials.runtime}; ` +
-      `GRANT USAGE ON SCHEMA public TO ${credentials.runtime}; ` +
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${credentials.runtime}; ` +
-      `GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO ${credentials.runtime}; ` +
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${credentials.runtime}; ` +
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${credentials.runtime};`,
+      `GRANT USAGE ON SCHEMA ${schema} TO ${credentials.runtime}; ` +
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${schema} TO ${credentials.runtime}; ` +
+      `GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA ${schema} TO ${credentials.runtime}; ` +
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${credentials.runtime}; ` +
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${schema} GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO ${credentials.runtime};`,
     ], { env: { ...process.env, PGPASSWORD: credentials.administratorPassword } });
   }
 

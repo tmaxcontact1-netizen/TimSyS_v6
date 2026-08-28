@@ -33,9 +33,15 @@ for (const item of [
   "apps/memecoined/timsys.app.json",
 ]) await copy(item);
 await copy("apps/principaled/dist");
+for (const item of [
+  "apps/dressed/package.json", "apps/dressed/package-lock.json", "apps/dressed/dist",
+  "apps/dressed/migrations", "apps/dressed/.env.example", "apps/dressed/timsys.app.json",
+]) await copy(item);
 await installProduction("platform");
 await rename(join(stage, "platform", "node_modules"), join(stage, "platform", "modules-runtime"));
 await installProduction(join("apps", "memecoined"));
 await rename(join(stage, "apps", "memecoined", "node_modules"), join(stage, "apps", "memecoined", "modules-runtime"));
+await installProduction(join("apps", "dressed"));
+await rename(join(stage, "apps", "dressed", "node_modules"), join(stage, "apps", "dressed", "modules-runtime"));
 for (const item of ["bin", "lib", "share", "server_license.txt", "commandlinetools_3rd_party_licenses.txt"])
   await copy(`apps/launcher/.cache/postgres/${item}`, `runtime/postgres/${item}`);

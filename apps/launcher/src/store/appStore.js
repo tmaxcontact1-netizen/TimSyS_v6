@@ -6,6 +6,7 @@ const useAppStore = create((set, get) => ({
     { appId: 'competeed', displayName: "Compete'Ed", description: 'Competition and performance administration' },
     { appId: 'sanctifyed', displayName: "Sanctify'Ed", description: 'Safeguarding and compliance administration' },
     { appId: 'memecoined', displayName: 'MemecoinEd', description: 'Independent Solana trading application', supervised: true },
+    { appId: 'dressed', displayName: "Dress'Ed", description: 'Private deterministic wardrobe coordination', supervised: true },
     { appId: 'builder', displayName: 'Builder', description: 'Module configuration' }
   ],
   selectedApp: null,

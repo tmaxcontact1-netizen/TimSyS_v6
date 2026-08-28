@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "dressed",
+  "name": "Dress'Ed",
+  "uiStandard": { "id": "timsys.application-ui", "version": 1, "required": true },
+  "kind": "supervised-child",
+  "applicationRootEnvironment": "DRESSED_APP_ROOT",
+  "workingDirectory": ".",
+  "environmentDefaults": { "DRESSED_PORT": "8090" },
+  "processes": {
+    "api": {
+      "command": "node",
+      "arguments": ["dist/src/entrypoints/api.js"],
+      "health": {
+        "url": "http://127.0.0.1:${DRESSED_PORT}/api/health",
+        "expectedStatus": 200
+      }
+    }
+  },
+  "shutdown": { "signal": "SIGTERM", "timeoutMilliseconds": 10000 },
+  "ownership": {
+    "runtime": "dressed",
+    "databaseSchema": "dressed",
+    "images": "dressed",
+    "configuration": "dressed"
+  }
+}
+

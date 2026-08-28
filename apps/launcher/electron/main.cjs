@@ -14,6 +14,7 @@ app.disableHardwareAcceleration();
 
 let mainWindow;
 let appWindow;
+let appWindowId = null;
 let quitting = false;
 const sourceRoot = path.resolve(__dirname, '../../..');
 let layout;
@@ -160,6 +161,38 @@ async function startMemecoined() {
   }
 }
 
+async function dressedEnvironment(database) {
+  const configRoot = path.join(layout.dressedData, 'config');
+  const storageRoot = path.join(layout.dressedData, 'private-storage');
+  await fsp.mkdir(configRoot, { recursive: true });
+  await fsp.mkdir(storageRoot, { recursive: true });
+  return {
+    DRESSED_ENV: app.isPackaged ? 'production' : 'development',
+    DRESSED_INSTANCE_ID: 'local-desktop',
+    DRESSED_LOG_LEVEL: 'info',
+    DRESSED_APP_ROOT: layout.dressedRoot,
+    DRESSED_CONFIG_DIR: configRoot,
+    DRESSED_STORAGE_ROOT: storageRoot,
+    DRESSED_DATABASE_URL: database.runtimeUrl,
+    DRESSED_CV_BASE_URL: 'http://127.0.0.1:8091',
+    DRESSED_CV_TIMEOUT_MS: '10000',
+    DRESSED_PORT: String(await availablePort()),
+    NODE_PATH: path.join(layout.dressedRoot, 'modules-runtime'),
+  };
+}
+
+async function startDressed() {
+  await ensureNodeModulesLink(layout.dressedRoot);
+  const database = await postgres.start();
+  const environment = await dressedEnvironment(database);
+  await runNode(path.join(layout.dressedRoot, 'dist', 'scripts', 'migrate.js'), [], {
+    cwd: layout.dressedRoot,
+    env: { ...process.env, ...environment, DRESSED_DATABASE_URL: database.migrationUrl },
+  });
+  await postgres.grantSchemaPrivileges('dressed');
+  return supervisedApps.start(path.join(layout.dressedRoot, 'timsys.app.json'), environment);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -242,26 +275,25 @@ ipcMain.handle('platform:check', async () => {
   catch { return { id: 'timsys-platform', state: 'stopped' }; }
 });
 
-function requireMemecoined(appId) {
-  if (appId !== 'memecoined') throw new Error(`Unsupported supervised app: ${appId}`);
+function requireSupervisedChild(appId) {
+  if (!['memecoined', 'dressed'].includes(appId)) throw new Error(`Unsupported supervised app: ${appId}`);
 }
 
 ipcMain.handle('supervised-app:start', async (_event, appId) => {
-  requireMemecoined(appId);
-  return startMemecoined();
+  requireSupervisedChild(appId);
+  return appId === 'memecoined' ? startMemecoined() : startDressed();
 });
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
-  requireMemecoined(appId);
+  requireSupervisedChild(appId);
   const status = await supervisedApps.stop(appId);
-  await postgres.backup();
-  await postgres.stop();
+  if (appId === 'memecoined') await postgres.backup();
   return status;
 });
 
 ipcMain.handle('runtime:diagnostics', async () => {
   const statuses = [];
-  for (const id of ['timsys-platform', 'memecoined']) {
+  for (const id of ['timsys-platform', 'memecoined', 'dressed']) {
     try { statuses.push(supervisedApps.status(id)); }
     catch { statuses.push({ id, state: 'stopped', detail: null, processes: [] }); }
   }
@@ -281,8 +313,8 @@ ipcMain.handle('platform:session', async () => {
 });
 
 ipcMain.handle('supervised-app:status', async (_event, appId) => {
-  requireMemecoined(appId);
-  if (memecoinedConfigurationStatus) return memecoinedConfigurationStatus;
+  requireSupervisedChild(appId);
+  if (appId === 'memecoined' && memecoinedConfigurationStatus) return memecoinedConfigurationStatus;
   try {
     return supervisedApps.status(appId);
   } catch {
@@ -291,22 +323,29 @@ ipcMain.handle('supervised-app:status', async (_event, appId) => {
 });
 
 ipcMain.handle('supervised-app:open', async (_event, appId) => {
-  requireMemecoined(appId);
-  if (memecoinedConfigurationStatus) {
-    if (appWindow && !appWindow.isDestroyed()) { appWindow.focus(); return memecoinedConfigurationStatus; }
+  requireSupervisedChild(appId);
+  if (appId === 'memecoined' && memecoinedConfigurationStatus) {
+    if (appWindow && !appWindow.isDestroyed()) {
+      if (appWindowId === appId) { appWindow.focus(); return memecoinedConfigurationStatus; }
+      appWindow.close();
+    }
     appWindow = new BrowserWindow({ width: 860, height: 680, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
     const fields = memecoinedConfigurationStatus.missing.map((name) => `<li><code>${name}</code></li>`).join('');
     const configFile = memecoinedConfigurationStatus.configFile.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     const html = `<!doctype html><meta charset="utf-8"><title>MemecoinEd setup</title><style>body{font:16px system-ui;background:#101426;color:#e8ecff;padding:48px;line-height:1.55}main{max-width:720px;margin:auto}h1{color:#fff}code{color:#9ed0ff}li{margin:.45rem 0}.safe{color:#8ee6ae}</style><main><p class="safe">SAFE PAPER MODE · LIVE TRADING DISABLED</p><h1>MemecoinEd configuration required</h1><p>The application and its private PostgreSQL database are installed correctly. Add the following values before starting the paper engine:</p><ul>${fields}</ul><p>Configuration file:</p><p><code>${configFile}</code></p><p>Close this window after updating the file, then select <strong>Start and open</strong> again.</p></main>`;
     await appWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    appWindow.on('closed', () => { appWindow = null; });
+    appWindowId = appId;
+    appWindow.on('closed', () => { appWindow = null; appWindowId = null; });
     return memecoinedConfigurationStatus;
   }
   const status = supervisedApps.status(appId);
   if (status.state !== 'running') throw new Error(`${appId} is not running`);
   if (appWindow && !appWindow.isDestroyed()) {
-    appWindow.focus();
-    return status;
+    if (appWindowId === appId) {
+      appWindow.focus();
+      return status;
+    }
+    appWindow.close();
   }
   appWindow = new BrowserWindow({
     width: 1440,
@@ -315,6 +354,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     minHeight: 768,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
   });
+  appWindowId = appId;
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   appWindow.webContents.on('will-navigate', (event, url) => {
     if (new URL(url).origin !== new URL(supervisedApps.dashboardUrl(appId)).origin) event.preventDefault();
@@ -326,12 +366,12 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     appWindow = null;
     throw new Error(`Unable to open ${appId}: ${error.message}`);
   }
-  appWindow.on('closed', () => { appWindow = null; });
+  appWindow.on('closed', () => { appWindow = null; appWindowId = null; });
   return status;
 });
 
 function forwardStatus(status) {
-  if (status.id === 'memecoined' && ['failed', 'stopped'].includes(status.state) && appWindow && !appWindow.isDestroyed()) {
+  if (status.id === appWindowId && ['failed', 'stopped'].includes(status.state) && appWindow && !appWindow.isDestroyed()) {
     appWindow.close();
   }
   if (mainWindow && !mainWindow.isDestroyed()) {
