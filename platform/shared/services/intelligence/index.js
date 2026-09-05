@@ -9,11 +9,15 @@ const registryQuality = require('./providers/registry-quality');
 const operationalStrengths = require('./providers/operational-strengths');
 const crossComponent = require('./providers/cross-component');
 const coverOperations = require('./providers/cover-operations');
+const componentOperations = require('./providers/component-operations');
+const principalOperations = require('./providers/principal-operations');
 providerRunner.register(withdrawalPatterns);
 providerRunner.register(registryQuality);
 providerRunner.register(operationalStrengths);
 providerRunner.register(crossComponent);
 providerRunner.register(coverOperations);
+providerRunner.register(componentOperations);
+providerRunner.register(principalOperations);
 
 class IntelligenceServiceImpl {
   suggestMetadata(...args) { return metadataService.suggest(...args); }

@@ -14,10 +14,19 @@ let cleanupTimer = null;
  */
 class SessionStore {
   constructor() {
-    if (!cleanupTimer) {
-      cleanupTimer = setInterval(() => this.cleanupExpired(), CLEANUP_INTERVAL);
-      cleanupTimer.unref();
-    }
+    this.start();
+  }
+
+  start() {
+    if (cleanupTimer) return;
+    cleanupTimer = setInterval(() => this.cleanupExpired(), CLEANUP_INTERVAL);
+    cleanupTimer.unref();
+  }
+
+  stop() {
+    if (!cleanupTimer) return;
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
   }
 
   create(userId, payload = {}) {

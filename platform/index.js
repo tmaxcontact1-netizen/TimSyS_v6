@@ -56,6 +56,7 @@ const validation = require("./shared/services/validate");
 const auth = require('./shared/services/auth');
 const passwordChangeRequired = require('./shared/middleware/passwordChangeRequired');
 const metrics = require('./shared/services/metrics');
+const session = require('./shared/services/session');
 const db = require('./shared/services/db');
 const audit = require('./shared/services/audit');
 const decisionLog = require('./shared/services/decision_log');
@@ -83,6 +84,10 @@ var RATE_LIMIT_ADMIN = parseInt(process.env.RATE_LIMIT_ADMIN, 10) || 500;
 
 async function bootPlatform() {
   log.info('=== Platform Boot Starting ===');
+
+  metrics.start();
+  audit.start();
+  session.start();
 
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     log.error('JWT_SECRET environment variable must be set with at least 32 characters');
@@ -346,6 +351,9 @@ function shutdownPlatform(server) {
     function cleanup() {
       sse.shutdown();
       intelligenceScheduler.stop();
+      metrics.stop();
+      audit.stop();
+      session.stop();
       events.unsubscribeGlobal(persistPublishedEvent);
       events.unsubscribeGlobal(projectPublishedEvent);
       var reversed = wiredModules.slice().reverse();
@@ -577,9 +585,10 @@ function createServer() {
       });
       metrics.increment('http.errors_total', { method: method, path: pathname });
       metrics.increment('platform.module.errors_total', { module: route && route.moduleName || 'platform' });
-      respond(res, 500, {
+      var clientError = err && err.code === 'INVALID_APP_SCOPE';
+      respond(res, clientError ? 400 : 500, {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: err.message },
+        error: { code: clientError ? err.code : 'INTERNAL_ERROR', message: err.message },
       });
     }
   });

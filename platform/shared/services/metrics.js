@@ -16,10 +16,19 @@ class MetricsCollector {
     this.histograms = new Map(); // key -> { count, sum, min, max }
     this.gauges = new Map(); // key -> value
 
-    if (!flushTimer) {
-      flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL);
-      flushTimer.unref();
-    }
+    this.start();
+  }
+
+  start() {
+    if (flushTimer) return;
+    flushTimer = setInterval(() => this.flush(), FLUSH_INTERVAL);
+    flushTimer.unref();
+  }
+
+  stop() {
+    if (!flushTimer) return;
+    clearInterval(flushTimer);
+    flushTimer = null;
   }
 
   _key(name, tags = {}) {

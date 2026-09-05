@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="dark light" />
     <title>Memecoined · Paper Desk</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=4" />
   </head>
   <body>
     <button
@@ -25,20 +25,25 @@
     ></button>
     <header id="sidebar" class="masthead">
       <div>
-        <p class="eyebrow">MEMECOINED / OPERATOR CONSOLE</p>
-        <h1>Paper desk</h1>
+        <p class="eyebrow">TIMSYS</p>
+        <h1>MemeCoined</h1>
+        <p class="app-context">Personal trading laboratory</p>
       </div>
       <nav aria-label="Dashboard sections">
-        <a href="#overview" data-short="OV">Overview</a
-        ><a href="#positions" data-short="PO">Positions</a
-        ><a href="#performance" data-short="PF">Performance</a
-        ><a href="#history" data-short="HI">History</a
-        ><a href="#allocation" data-short="AL">Allocation</a
-        ><a href="#watchlist" data-short="WA">Watchlist</a
-        ><a href="#configurations" data-short="CF">Configurations</a
-        ><a href="#events" data-short="EV">Events</a><a href="#alerts" data-short="AT">Alerts</a
-        ><a href="#operator-status" data-short="OS">Operator status</a>
+        <a href="#overview" data-short="OV"><strong>Overview</strong><small>Portfolio and next actions</small></a>
+        <a href="#positions" data-short="PO"><strong>Positions</strong><small>Open paper holdings</small></a>
+        <a href="#performance" data-short="PF"><strong>Performance</strong><small>Results and allocation</small></a>
+        <a href="#history" data-short="HI"><strong>History</strong><small>Fills and decisions</small></a>
+        <a href="#watchlist" data-short="WA"><strong>Watchlists</strong><small>Tokens under observation</small></a>
+        <a href="#configurations" data-short="CF"><strong>Strategy setup</strong><small>Inert paper configurations</small></a>
+        <a href="#alerts" data-short="AT"><strong>Operations</strong><small>Health, pipeline and alerts</small></a>
       </nav>
+      <div class="operator-access">
+        <label><span>Operator access</span><input id="watchlist-token" type="password" autocomplete="off" placeholder="Session token" /></label>
+        <button id="watchlist-connect" type="button">Enable changes</button>
+        <button id="watchlist-import" type="button" hidden>Import local list</button>
+        <small>Held in memory for this session only.</small>
+      </div>
       <div class="sidebar-actions">
         <button id="app-back" type="button" data-short="←">Back</button>
         <button id="return-launcher" type="button" data-short="RL">Return to Launcher</button>
@@ -52,11 +57,20 @@
       </div>
     </header>
     <main>
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">PAPER TRADING</p>
+          <h2 id="page-title">Overview</h2>
+          <p id="page-description">Portfolio state, operational attention and the next useful actions.</p>
+        </div>
+        <span class="mode-chip">PAPER ONLY</span>
+      </header>
       <section
         id="overview"
         class="hero-grid"
         aria-label="Portfolio summary"
         data-dashboard-panel="overview"
+        data-pages="overview"
         data-panel-title="Portfolio summary"
       >
         <article class="metric metric-primary">
@@ -79,6 +93,7 @@
         id="configurations"
         class="panel configuration-panel"
         data-dashboard-panel="configurations"
+        data-pages="configurations"
         data-panel-title="Trading configurations"
       >
         <div class="panel-heading">
@@ -145,9 +160,10 @@
         class="detail-grid optional-detail"
         aria-label="Portfolio focus"
         data-dashboard-panel="portfolio"
+        data-pages="overview performance watchlist"
         data-panel-title="Allocation and watchlist"
       >
-        <article id="allocation" class="panel allocation-panel">
+        <article id="allocation" class="panel allocation-panel" data-pages="overview performance">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">OPEN COST MIX</p>
@@ -159,7 +175,7 @@
             <span class="empty">Awaiting open positions</span>
           </div>
         </article>
-        <article id="watchlist" class="panel table-panel">
+        <article id="watchlist" class="panel table-panel" data-pages="overview watchlist">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">PERSISTENT OBSERVATION</p>
@@ -180,14 +196,6 @@
             <button id="watchlist-create" type="button">New</button>
             <button id="watchlist-rename" type="button">Rename</button>
             <button id="watchlist-delete" type="button">Delete</button>
-          </div>
-          <div class="watchlist-auth">
-            <label
-              ><span>Mutation token</span
-              ><input id="watchlist-token" type="password" autocomplete="off"
-            /></label>
-            <button id="watchlist-connect" type="button">Enable changes</button>
-            <button id="watchlist-import" type="button" hidden>Import local list</button>
           </div>
           <output id="watchlist-message" class="preference-message" aria-live="polite"></output>
           <div class="table-scroll">
@@ -214,6 +222,7 @@
         class="detail-grid optional-detail"
         aria-label="Operational health detail"
         data-dashboard-panel="alerts"
+        data-pages="operations"
         data-panel-title="Alerts and connection"
       >
         <article class="panel table-panel">
@@ -282,6 +291,7 @@
         class="panel chart-panel"
         aria-labelledby="performance-title"
         data-dashboard-panel="performance"
+        data-pages="performance"
         data-panel-title="Performance chart"
       >
         <div class="panel-heading">
@@ -316,6 +326,7 @@
       <section
         class="operations optional-detail"
         data-dashboard-panel="operations"
+        data-pages="overview operations"
         data-panel-title="Runtime operations"
       >
         <article id="operator-status" class="panel operator-status-panel">
@@ -372,6 +383,14 @@
               <dt>Snapshot</dt>
               <dd id="observed">—</dd>
             </div>
+            <div>
+              <dt>Database</dt>
+              <dd id="database-health">Checking</dd>
+            </div>
+            <div>
+              <dt>Execution mode</dt>
+              <dd id="execution-mode">Paper</dd>
+            </div>
           </dl>
         </article>
       </section>
@@ -379,6 +398,7 @@
         class="toolbar optional-detail"
         aria-label="Table controls"
         data-dashboard-panel="filters"
+        data-pages="positions history"
         data-panel-title="Table filters"
       >
         <label
@@ -400,9 +420,10 @@
         class="detail-grid"
         aria-label="Trading detail"
         data-dashboard-panel="trading"
+        data-pages="positions history"
         data-panel-title="Trading detail"
       >
-        <article id="positions" class="panel table-panel wide">
+        <article id="positions" class="panel table-panel wide" data-pages="positions">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">INVENTORY</p>
@@ -470,7 +491,7 @@
             </table>
           </div>
         </article>
-        <article class="panel table-panel">
+        <article class="panel table-panel" data-pages="positions">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">SIMULATED ENTRIES</p>
@@ -498,7 +519,7 @@
             </table>
           </div>
         </article>
-        <article id="history" class="panel table-panel">
+        <article id="history" class="panel table-panel" data-pages="history">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">EXECUTION</p>
@@ -558,7 +579,7 @@
             </table>
           </div>
         </article>
-        <article class="panel table-panel">
+        <article class="panel table-panel" data-pages="history">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">REALIZED RESULTS</p>
@@ -625,7 +646,7 @@
             </table>
           </div>
         </article>
-        <article id="events" class="panel table-panel wide">
+        <article id="events" class="panel table-panel wide" data-pages="history">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">DECISION LOG</p>
@@ -838,6 +859,6 @@
       <span>Paper observation with guarded simulated controls</span
       ><span id="refresh-label">Auto-refresh · 10 seconds</span>
     </footer>
-    <script src="/app.js" defer></script>
+    <script src="/app.js?v=6" defer></script>
   </body>
 </html>

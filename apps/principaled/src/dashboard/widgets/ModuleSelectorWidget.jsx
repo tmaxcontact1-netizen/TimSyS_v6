@@ -32,7 +32,7 @@ function ModuleSelectorWidget() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       await fetchModules();
-    } catch (err) { alert('Failed: ' + err.message); }
+    } catch (err) { setError(`The module could not be updated: ${err.message}`); }
   };
 
   const toggleExpand = (moduleName) => { setExpandedModule(expandedModule === moduleName ? null : moduleName); };

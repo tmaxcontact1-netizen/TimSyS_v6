@@ -32,6 +32,14 @@ import SchedulerWidget from "./widgets/SchedulerWidget";
 import TeacherPreferencesWidget from "./widgets/TeacherPreferencesWidget";
 import CoverWidget from "./widgets/CoverWidget";
 import ProgrammeManagerWidget from "./widgets/ProgrammeManagerWidget";
+import BuilderWorkspace from "./widgets/BuilderWorkspace";
+import CommunicationHistoryConsole from "./components/CommunicationHistoryConsole";
+import {
+  AppShell,
+  ConfirmationDialog,
+  InputDialog,
+  Feedback,
+} from "../../../shared-ui/react/index.js";
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
@@ -247,9 +255,12 @@ function PrincipalEdDashboard() {
   listsRef.current = lists;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
+  const [textRequest, setTextRequest] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const confirmationResolver = useRef(null);
+  const textResolver = useRef(null);
 
   const askConfirmation = (options) =>
     new Promise((resolve) => {
@@ -263,6 +274,9 @@ function PrincipalEdDashboard() {
     setConfirmation(null);
     resolve?.(confirmed);
   };
+  const askText = (options) => new Promise((resolve) => { textResolver.current = resolve; setTextRequest(options); });
+  const closeTextRequest = (value) => { const resolve = textResolver.current; textResolver.current = null; setTextRequest(null); resolve?.(value); };
+  useEffect(() => { const report = (event) => { setError(event.detail); setNotice(null); }; document.addEventListener("timsys-ui-error", report); return () => document.removeEventListener("timsys-ui-error", report); }, []);
 
   const fetchUserData = async () => {
     try {
@@ -402,8 +416,8 @@ function PrincipalEdDashboard() {
   };
 
   const navItems = [
-    { id: "overview", label: "Overview" },
-    { id: "intelligence_workspace", label: "Insights" },
+    { id: "overview", label: "Home", icon: "⌂" },
+    { id: "intelligence_workspace", label: "Insights", icon: "◈" },
     ...Object.keys(MODULE_TO_VIEW)
       .filter((moduleName) => {
         if (!enabledModules.includes(moduleName)) return false;
@@ -414,10 +428,14 @@ function PrincipalEdDashboard() {
       .map((moduleName) => ({
         id: MODULE_TO_VIEW[moduleName].id,
         label: MODULE_TO_VIEW[moduleName].label,
+        icon: MODULE_TO_VIEW[moduleName].requiresAdmin ? "⚙" : "·",
       })),
   ];
 
   const renderWidget = () => {
+    const planning = (content) => (
+      <div className="planning-workspace legacy-planning-workspace">{content}</div>
+    );
     if (activeView === "overview") {
       return <OverviewWidget data={data} />;
     }
@@ -502,42 +520,44 @@ function PrincipalEdDashboard() {
       ) : null;
     }
     if (moduleName === "calendar") {
-      return <CalendarWidget askConfirmation={askConfirmation} />;
+      return planning(<CalendarWidget askConfirmation={askConfirmation} />);
     }
     if (moduleName === "ownership") {
-      return <OwnershipWidget askConfirmation={askConfirmation} />;
+      return planning(<OwnershipWidget askConfirmation={askConfirmation} />);
     }
     if (moduleName === "tasks") {
-      return <TasksWidget askConfirmation={askConfirmation} />;
+      return planning(<TasksWidget askConfirmation={askConfirmation} />);
     }
     if (moduleName === "approvals") {
-      return <ApprovalsWidget askConfirmation={askConfirmation} />;
+      return planning(<ApprovalsWidget askConfirmation={askConfirmation} />);
     }
     if (moduleName === "documents") {
-      return <DocumentsWidget askConfirmation={askConfirmation} />;
+      return planning(<DocumentsWidget askConfirmation={askConfirmation} />);
     }
     if (moduleName === "communications") {
-      return <CommunicationsWidget askConfirmation={askConfirmation} />;
+      return planning(<><CommunicationsWidget askConfirmation={askConfirmation} /><CommunicationHistoryConsole /></>);
     }
     if (["audiences","invitations","attendance"].includes(moduleName)) {
-      return <ParticipationWidget mode={moduleName} askConfirmation={askConfirmation} />;
+      return planning(<ParticipationWidget mode={moduleName} askConfirmation={askConfirmation} />);
     }
     if (["venue_bookings","resource_reservations"].includes(moduleName)) {
-      return <CoordinationWidget mode={moduleName} rooms={data.rooms} inventory={data.inventory} askConfirmation={askConfirmation} />;
+      return planning(<CoordinationWidget mode={moduleName} rooms={data.rooms} inventory={data.inventory} askConfirmation={askConfirmation} />);
     }
-    if (moduleName === "transportation") return <TransportationWidget askConfirmation={askConfirmation} />;
-    if (moduleName === "catering") return <CateringWidget askConfirmation={askConfirmation} />;
-    if (["risk_assessments","safeguarding_requirements"].includes(moduleName)) return <SafetyWidget mode={moduleName} askConfirmation={askConfirmation} />;
-    if (moduleName === "student_exits") return <StudentExitsWidget askConfirmation={askConfirmation} />;
-    if (moduleName === "contingency") return <ContingencyWidget askConfirmation={askConfirmation} />;
-    if (moduleName === "financial_planning") return <FinanceWidget askConfirmation={askConfirmation} />;
-    if (moduleName === "event_record") return <EventsWidget askConfirmation={askConfirmation} />;
-    if (moduleName === "event_planner") return <EventPlannerWidget />;
+    if (moduleName === "transportation") return planning(<TransportationWidget askConfirmation={askConfirmation} />);
+    if (moduleName === "catering") return planning(<CateringWidget askConfirmation={askConfirmation} />);
+    if (["risk_assessments","safeguarding_requirements"].includes(moduleName)) return planning(<SafetyWidget mode={moduleName} askConfirmation={askConfirmation} />);
+    if (moduleName === "student_exits") return <div className="people-workspace legacy-people-workspace"><StudentExitsWidget askConfirmation={askConfirmation} askText={askText} /></div>;
+    if (moduleName === "late_entries") return <div className="people-workspace legacy-people-workspace"><LateEntriesWidget askConfirmation={askConfirmation} askText={askText} /></div>;
+    if (moduleName === "contingency") return planning(<ContingencyWidget askConfirmation={askConfirmation} askText={askText} />);
+    if (moduleName === "financial_planning") return planning(<FinanceWidget askConfirmation={askConfirmation} />);
+    if (moduleName === "event_record") return planning(<EventsWidget askConfirmation={askConfirmation} askText={askText} />);
+    if (moduleName === "event_planner") return planning(<EventPlannerWidget onNavigate={navigateToView} />);
     if (moduleName === "gradebook") return <GradebookWidget askConfirmation={askConfirmation} />;
     if (moduleName === "scheduler") return <SchedulerWidget askConfirmation={askConfirmation} />;
     if (moduleName === "teacher_preferences") return <TeacherPreferencesWidget askConfirmation={askConfirmation} />;
-    if (moduleName === "cover") return <CoverWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "cover") return <CoverWidget askConfirmation={askConfirmation} askText={askText} />;
     if (moduleName === "programme_manager") return <ProgrammeManagerWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "builder") return <BuilderWorkspace askConfirmation={askConfirmation} />;
     if (moduleName === "system_health") return <SystemHealthDashboard />;
     if (moduleName === "student_profile") {
       return <StudentProfileWidget />;
@@ -569,10 +589,12 @@ function PrincipalEdDashboard() {
     try {
       await action(id);
       await fetchData();
+      setError(null);
+      setNotice("The record lifecycle was updated successfully.");
       return { success: true };
     } catch (err) {
       const message = err.response?.data?.error?.message || err.message;
-      window.alert(message);
+      setError(message);
       return { success: false, error: message };
     }
   };
@@ -605,10 +627,12 @@ function PrincipalEdDashboard() {
     try {
       await action(id, `Permanent deletion confirmed by the user for ${label}`);
       await fetchData();
+      setError(null);
+      setNotice(`The ${label} was permanently deleted.`);
       return { success: true };
     } catch (err) {
       const message = err.response?.data?.error?.message || err.message;
-      window.alert(message);
+      setError(message);
       return { success: false, error: message };
     }
   };
@@ -617,6 +641,7 @@ function PrincipalEdDashboard() {
     try {
       await api.createStudent(formData);
       await fetchData();
+      setNotice("Student created successfully.");
       return { success: true };
     } catch (err) {
       return {
@@ -630,6 +655,7 @@ function PrincipalEdDashboard() {
     try {
       await api.updateStudent(id, formData);
       await fetchData();
+      setNotice("Student changes saved.");
       return { success: true };
     } catch (err) {
       return {
@@ -660,6 +686,7 @@ function PrincipalEdDashboard() {
     try {
       await api.createStaff(formData);
       await fetchData();
+      setNotice("Staff member created successfully.");
       return { success: true };
     } catch (err) {
       return {
@@ -673,6 +700,7 @@ function PrincipalEdDashboard() {
     try {
       await api.updateStaff(id, formData);
       await fetchData();
+      setNotice("Staff member changes saved.");
       return { success: true };
     } catch (err) {
       return {
@@ -703,6 +731,7 @@ function PrincipalEdDashboard() {
     try {
       await api.createRoom(formData);
       await fetchData();
+      setNotice("Room created successfully.");
       return { success: true };
     } catch (err) {
       return {
@@ -716,6 +745,7 @@ function PrincipalEdDashboard() {
     try {
       await api.updateRoom(id, formData);
       await fetchData();
+      setNotice("Room changes saved.");
       return { success: true };
     } catch (err) {
       return {
@@ -746,6 +776,7 @@ function PrincipalEdDashboard() {
     try {
       await api.createItem(formData);
       await fetchData();
+      setNotice("Inventory item created successfully.");
       return { success: true };
     } catch (err) {
       return {
@@ -759,6 +790,7 @@ function PrincipalEdDashboard() {
     try {
       await api.updateItem(id, formData);
       await fetchData();
+      setNotice("Inventory item changes saved.");
       return { success: true };
     } catch (err) {
       return {
@@ -815,6 +847,7 @@ function PrincipalEdDashboard() {
       "",
     );
     setActiveView(view);
+    setNotice(null);
   };
 
   const returnToLauncher = async () => {
@@ -833,103 +866,68 @@ function PrincipalEdDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-24">
-        <div className="spinner"></div>
-      </div>
+      <AppShell
+        brand="Principal’Ed"
+        context="School operations"
+        navigation={[]}
+        active="overview"
+        onBack={() => window.history.back()}
+        onLauncher={() => window.location.assign("/")}
+      >
+        <div className="principaled-loading" role="status">
+          <div className="spinner" />
+          <div>
+            <strong>Opening Principal’Ed</strong>
+            <span>Loading school records and available workspaces…</span>
+          </div>
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] overflow-hidden">
-      {confirmation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="confirmation-title"
-            className="w-full max-w-md rounded-lg border border-gray-700 bg-gray-900 p-6 shadow-2xl"
-          >
-            <h2
-              id="confirmation-title"
-              className="text-xl font-semibold text-white"
-            >
-              {confirmation.title}
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-gray-300">
-              {confirmation.message}
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => closeConfirmation(false)}
-                className="rounded border border-gray-600 px-4 py-2 text-sm text-gray-200 hover:bg-gray-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                autoFocus
-                onClick={() => closeConfirmation(true)}
-                className={`rounded px-4 py-2 text-sm font-medium text-white ${
-                  confirmation.destructive
-                    ? "bg-red-600 hover:bg-red-500"
-                    : "bg-amber-600 hover:bg-amber-500"
-                }`}
-              >
-                {confirmation.confirmLabel}
-              </button>
-            </div>
-          </div>
-        </div>
+    <AppShell
+      brand="Principal’Ed"
+      context="School operations"
+      navigation={navItems}
+      active={activeView}
+      onNavigate={(view) => void navigateToView(view)}
+      onBack={() =>
+        activeView === "overview"
+          ? window.history.back()
+          : void navigateToView("overview")
+      }
+      onLauncher={() => void returnToLauncher()}
+    >
+      <ConfirmationDialog
+        open={Boolean(confirmation)}
+        title={confirmation?.title}
+        description={confirmation?.message}
+        consequence={confirmation?.consequence}
+        confirmLabel={confirmation?.confirmLabel}
+        destructive={confirmation?.destructive}
+        onCancel={() => closeConfirmation(false)}
+        onConfirm={() => closeConfirmation(true)}
+      />
+      <InputDialog open={Boolean(textRequest)} title={textRequest?.title} description={textRequest?.description} label={textRequest?.label} initialValue={textRequest?.initialValue} required={textRequest?.required !== false} confirmLabel={textRequest?.confirmLabel} onCancel={() => closeTextRequest(null)} onConfirm={closeTextRequest} />
+      {error && (
+        <Feedback
+          tone="error"
+          title="Some school records could not be loaded"
+          technical={error}
+        >
+          Your current workspace is still available. Retry the affected action or return to Home.
+        </Feedback>
       )}
-      <aside className="w-56 shrink-0 overflow-y-auto bg-gray-900/50 border-r border-gray-800 p-4">
-        <nav className="space-y-1">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => void navigateToView(item.id)}
-              className={`w-full text-left px-4 py-2 rounded text-sm transition-colors whitespace-nowrap ${
-                activeView === item.id
-                  ? "bg-timsys-primary text-white"
-                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-      </aside>
-
-      <main className="flex-1 overflow-y-auto p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() =>
-              activeView === "overview"
-                ? window.history.back()
-                : navigateToView("overview")
-            }
-            className="text-sm text-gray-400 hover:text-white"
-          >
-            ← Back
-          </button>
-          <button
-            type="button"
-            onClick={() => void returnToLauncher()}
-            className="rounded border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 hover:text-white"
-          >
-            Return to Launcher
-          </button>
-        </div>
-        {error && (
-          <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
-
+      {notice && (
+        <Feedback tone="success" title="Update complete">
+          {notice}
+        </Feedback>
+      )}
+      <div className="principaled-workspace" key={activeView}>
         {renderWidget()}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
 

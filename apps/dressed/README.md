@@ -2,7 +2,7 @@
 
 Dress'Ed is the TimSyS-hosted, domain-isolated wardrobe management and deterministic outfit-coordination application.
 
-Phase 4 is complete: the catalogue and immutable photography workflow now feed a versioned classical pixel-analysis pipeline. Dress'Ed measures palette/Lab colour, lightness, chroma, contrast, foreground shape, edge direction, texture, pattern density and visual complexity, then presents conservative category, formality and season suggestions for explicit review. Styling scores and planning remain outside this phase.
+Phase 9 is complete: Dress'Ed now provides the full local deterministic workflow from garment intake and measurable image analysis through explainable outfit generation, calendar rotation, explicit wear confirmation, garment care, cost-per-wear, wardrobe insights, and user-controlled refinement.
 
 ## Boundaries
 

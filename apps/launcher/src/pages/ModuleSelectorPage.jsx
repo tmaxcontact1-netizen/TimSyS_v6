@@ -18,6 +18,8 @@ function ModuleSelectorPage() {
   const [moduleDetails, setModuleDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [feedback, setFeedback] = useState(null);
+  const [pendingRemove, setPendingRemove] = useState(null);
   
   const presets = getPresetTemplates();
   const features = getUserComponents();
@@ -44,7 +46,7 @@ function ModuleSelectorPage() {
 
   const handleCreateApp = async (preset) => {
     if (!preset.name) {
-      alert('Please enter an app name');
+      setFeedback({ tone: 'error', message: 'Enter an app name before creating it.' });
       return;
     }
 
@@ -62,15 +64,15 @@ function ModuleSelectorPage() {
       const result = await assembleModule(spec);
       
       if (result.success) {
-        alert(`"${preset.displayName}" was created as a draft. Implement and validate its handlers before activation.`);
+        setFeedback({ tone: 'success', message: `"${preset.displayName}" was created as a draft. Implement and validate its handlers before activation.` });
         setShowCreateModal(false);
         resetForm();
         fetchModules();
       } else {
-        alert(`Failed: ${result.error?.message || 'Unknown error'}`);
+        setFeedback({ tone: 'error', message: result.error?.message || 'The app could not be created.' });
       }
     } catch (err) {
-      alert(`Error: ${err.response?.data?.error?.message || err.message}`);
+      setFeedback({ tone: 'error', message: err.response?.data?.error?.message || err.message });
     } finally {
       setCreating(false);
     }
@@ -81,18 +83,16 @@ function ModuleSelectorPage() {
       await setModuleForApp(TARGET_APP, moduleName, !enabled);
       await fetchModules();
     } catch (err) {
-      alert(`Failed: ${err.response?.data?.error?.message || err.message}`);
+      setFeedback({ tone: 'error', message: err.response?.data?.error?.message || err.message });
     }
   };
 
   const handleDeleteModule = async (moduleName) => {
-    if (!confirm(`Remove "${moduleName}" from Principal'Ed? The module and its data will remain intact.`)) return;
-    
     try {
       await setModuleForApp(TARGET_APP, moduleName, false);
       await fetchModules();
     } catch (err) {
-      alert(`Failed: ${err.response?.data?.error?.message || err.message}`);
+      setFeedback({ tone: 'error', message: err.response?.data?.error?.message || err.message });
     }
   };
 
@@ -192,6 +192,7 @@ function ModuleSelectorPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {feedback && <div role={feedback.tone === 'error' ? 'alert' : 'status'} className={`${feedback.tone === 'error' ? 'bg-red-900/50 border-red-500 text-red-200' : 'bg-emerald-900/40 border-emerald-600 text-emerald-100'} border px-4 py-3 rounded mb-6 flex justify-between gap-4`}><span>{feedback.message}</span><button aria-label="Dismiss message" onClick={() => setFeedback(null)}>×</button></div>}
         {error && (
           <div className="bg-red-900/50 border border-red-500 text-red-200 px-4 py-3 rounded mb-6">
             {error}
@@ -247,7 +248,7 @@ function ModuleSelectorPage() {
                     {app.enabled ? 'Remove' : 'Add'}
                   </button>
                   <button
-                    onClick={() => handleDeleteModule(app.name)}
+                    onClick={() => setPendingRemove(app.name)}
                     className="text-red-400 hover:text-red-300 text-sm"
                     title="Remove from dashboard"
                   >
@@ -284,6 +285,7 @@ function ModuleSelectorPage() {
       </main>
 
       {/* Create Modal */}
+      {pendingRemove && <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"><section role="alertdialog" aria-modal="true" className="bg-gray-900 border border-gray-700 rounded-lg max-w-md w-full p-6"><h2 className="text-xl font-bold text-white">Remove module?</h2><p className="text-gray-300 mt-2">Remove “{pendingRemove.replaceAll('_', ' ')}” from Principal'Ed? Its data will remain intact.</p><div className="flex justify-end gap-3 mt-6"><button onClick={() => setPendingRemove(null)} className="bg-gray-700 px-4 py-2 rounded">Keep module</button><button onClick={async () => { const name = pendingRemove; setPendingRemove(null); await handleDeleteModule(name); }} className="bg-red-700 px-4 py-2 rounded">Remove</button></div></section></div>}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -448,7 +450,7 @@ function ModuleSelectorPage() {
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
                 <button
                   onClick={() => {
-                    handleDeleteModule(moduleDetails.name);
+                    setPendingRemove(moduleDetails.name);
                     closeDetails();
                   }}
                   className="text-red-400 hover:text-red-300 text-sm"

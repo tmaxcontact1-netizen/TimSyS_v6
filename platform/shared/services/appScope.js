@@ -1,6 +1,6 @@
 'use strict';
 
-const ADMIN_APPS = new Set(['principal-ed', 'competeed', 'sanctifyed']);
+const ADMIN_APPS = new Set(['principal-ed']);
 
 function fromRequest(req) {
   const value = (req.query && req.query.app_id) || (req.body && req.body.app_id) || 'principal-ed';

@@ -96,6 +96,7 @@ async function memecoinedEnvironment(database) {
     DATABASE_URL: database.runtimeUrl,
     DATABASE_MIGRATION_URL: database.migrationUrl,
     NODE_PATH: path.join(layout.memecoinedRoot, 'modules-runtime'),
+    NODE_OPTIONS: packagedNodeOptions(process.env.NODE_OPTIONS),
   };
 }
 
@@ -115,13 +116,22 @@ async function ensureNodeModulesLink(applicationRoot) {
   await fsp.symlink(modules, nodeModules, process.platform === 'win32' ? 'junction' : 'dir');
 }
 
+function packagedNodeOptions(existing = '') {
+  const required = ['--preserve-symlinks', '--preserve-symlinks-main'];
+  const options = existing.trim().split(/\s+/).filter(Boolean);
+  for (const option of required) if (!options.includes(option)) options.push(option);
+  return options.join(' ');
+}
+
 async function startPlatform() {
+  await ensureNodeModulesLink(layout.platformRoot);
   const secretRoot = path.join(layout.platformData, 'secrets');
   const port = app.isPackaged ? await availablePort() : 3000;
   const environment = {
     PORT: String(port),
     DB_PATH: path.join(layout.platformData, 'timsys.sqlite'),
     NODE_PATH: path.join(layout.platformRoot, 'modules-runtime'),
+    NODE_OPTIONS: packagedNodeOptions(process.env.NODE_OPTIONS),
     JWT_SECRET: await persistentSecret(path.join(secretRoot, 'jwt-secret')),
     REFRESH_TOKEN_SECRET: await persistentSecret(path.join(secretRoot, 'refresh-token-secret')),
     TIMSYS_DESKTOP_TOKEN: desktopToken,
@@ -178,6 +188,7 @@ async function dressedEnvironment(database) {
     DRESSED_CV_TIMEOUT_MS: '10000',
     DRESSED_PORT: String(await availablePort()),
     NODE_PATH: path.join(layout.dressedRoot, 'modules-runtime'),
+    NODE_OPTIONS: packagedNodeOptions(process.env.NODE_OPTIONS),
   };
 }
 

@@ -30,6 +30,13 @@ module.exports = {
   list: function(scopeType, scopeId) { return db.query('SELECT * FROM insight_products WHERE scope_type = ? AND scope_id = ? ORDER BY detected_at DESC', [scopeType, String(scopeId)]).rows.map(format); },
   listVisible: function(scopeType,scopeId,viewerRole){return this.list(scopeType,scopeId).filter(function(item){return !item.audience.length||item.audience.indexOf('all')>=0||item.audience.indexOf(viewerRole)>=0;});},
   listAllVisible: function(viewerRole) { return db.query('SELECT * FROM insight_products ORDER BY detected_at DESC').rows.map(format).filter(function(item){return !item.audience.length||item.audience.indexOf('all')>=0||item.audience.indexOf(viewerRole)>=0;}); },
+  supersedeMissing: function(providerId, scope, activeIds) {
+    var ids = new Set((activeIds || []).filter(Boolean));
+    var current = db.query("SELECT id FROM insight_products WHERE provider_id=? AND scope_type=? AND scope_id=? AND status NOT IN ('resolved','superseded','expired')", [providerId, scope.type, String(scope.id)]).rows;
+    var superseded = 0;
+    current.forEach(function(row) { if (!ids.has(row.id)) { db.query("UPDATE insight_products SET status='superseded' WHERE id=?", [row.id]); superseded++; } });
+    return superseded;
+  },
   portfolio: function(scopeType, scopeId,viewerRole) { var items=viewerRole?this.listVisible(scopeType,scopeId,viewerRole):this.list(scopeType,scopeId),groups={positive:[],attention:[],neutral:[]};items.forEach(function(item){if(item.severity==='positive')groups.positive.push(item);else if(['warning','critical'].indexOf(item.severity)>=0)groups.attention.push(item);else groups.neutral.push(item);});return {counts:{positive:groups.positive.length,attention:groups.attention.length,neutral:groups.neutral.length,total:items.length},positive:groups.positive,attention:groups.attention,neutral:groups.neutral}; },
   types: TYPES.slice()
 };

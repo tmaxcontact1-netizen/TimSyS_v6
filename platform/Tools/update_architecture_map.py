@@ -14,12 +14,27 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 PLATFORM = ROOT + '/platform'
 OUTPUT = ROOT + '/ARCHITECTURE_MAP.md'
 
-EXPECTED_CONTRACTS = ['db.js', 'cache.js', 'auth.js', 'log.js', 'validate.js', 'events.js', 'intelligence.js']
-EXPECTED_SERVICES = ['db.js', 'cache.js', 'auth.js', 'log.js', 'validate.js', 'events.js', 'session.js', 'audit.js', 'metrics.js', 'email.js', 'ratelimit.js', 'refresh.js']
+EXPECTED_CONTRACTS = [
+    'auth.js', 'auto_rules.js', 'cache.js', 'cover.js', 'db.js',
+    'decision_log.js', 'event_store.js', 'events.js', 'gradebook.js',
+    'intelligence.js', 'knowledge_store.js', 'log.js', 'notification.js',
+    'programmeManager.js', 'relationship_registry.js', 'scheduler.js',
+    'snapshot.js', 'teacherPreferences.js', 'validate.js',
+]
+EXPECTED_SERVICES = [
+    'appScope.js', 'audit.js', 'auth.js', 'cache.js', 'csv_parser.js', 'db.js',
+    'email.js', 'events.js', 'gradebookAccess.js', 'log.js', 'metrics.js',
+    'ratelimit.js', 'refresh.js', 'reportingPeriods.js', 'session.js', 'sse.js',
+    'statusActions.js', 'systemHealth.js', 'validate.js',
+]
 EXPECTED_REGISTRIES = ['moduleRegistry.js', 'schemaRegistry.js', 'routeRegistry.js', 'functionRegistry.js', 'capabilityRegistry.js', 'dependencyGraph.js', 'componentRegistry.js', 'componentScanner.js']
 EXPECTED_PIPELINE = ['discover.js', 'validate.js', 'register.js', 'resolve.js', 'wire.js', 'boot.js', 'unstage.js']
 EXPECTED_DIRS = ['contracts', 'shared/services', 'shared/registry', 'shared/pipeline', 'modules', 'tests', 'Tools', 'data', 'routes', 'engine/gap-analysis', 'engine/recommendation']
 ROOT_DOCS = ['CONTEXT.md', 'ARCHITECTURE_MAP.md', 'HANDOVER.md', 'CONSTITUTION_V6.0.md', 'LEXICON_V6.0.0.md']
+TREE_EXCLUDED_DIRS = {
+    '.git', '.npm-cache', '.tmp', 'node_modules', 'dist', 'dist-electron',
+    'runtime-stage', '__pycache__', '.pytest_cache', 'coverage',
+}
 
 
 def ls_files_immediate(path, ext=None):
@@ -100,9 +115,9 @@ out.append('## Directory Tree')
 out.append('')
 out.append('```')
 for root, dirs, files in os.walk(ROOT):
-    if 'node_modules' in root or '/.git' in root:
-        dirs[:] = []
-        continue
+    # Prune generated, dependency, VCS and local-runtime trees portably. Checking
+    # path strings was incorrect on Windows because os.walk uses backslashes.
+    dirs[:] = [directory for directory in dirs if directory not in TREE_EXCLUDED_DIRS]
     rel = os.path.relpath(root, ROOT)
     if rel == '.':
         out.append('.')
@@ -347,14 +362,19 @@ out.append('## Applications')
 out.append('')
 if os.path.isdir(apps_dir):
     app_names = [d for d in ls_dir(apps_dir) if not d.startswith('.')]
-    out.append(md_table_row(['Application', 'Status']))
-    out.append(md_table_row(['------------', '------']))
+    out.append(md_table_row(['Application / package', 'Kind', 'Status']))
+    out.append(md_table_row(['---------------------', '----', '------']))
     for app in app_names:
         app_dir = apps_dir + '/' + app
         has_pkg = os.path.isfile(app_dir + '/package.json')
         has_src = os.path.isdir(app_dir + '/src')
-        status = '✅ Ready' if (has_pkg and has_src) else '⚠️ Incomplete'
-        out.append(md_table_row(['`' + app + '`', status]))
+        kind = 'shared library' if app == 'shared-ui' else 'application'
+        if kind == 'shared library':
+            has_library_entry = os.path.isfile(app_dir + '/react/index.js') or os.path.isfile(app_dir + '/vanilla/index.js')
+            status = '✅ Ready' if (has_pkg and has_library_entry) else '⚠️ Incomplete'
+        else:
+            status = '✅ Ready' if (has_pkg and has_src) else '⚠️ Incomplete'
+        out.append(md_table_row(['`' + app + '`', kind, status]))
     out.append('')
 else:
     out.append('No applications found.')

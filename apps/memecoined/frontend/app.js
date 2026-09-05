@@ -2,6 +2,8 @@ const lamportsPerSol = 1_000_000_000n;
 const ids = [
   "status",
   "status-label",
+  "page-title",
+  "page-description",
   "equity",
   "equity-change",
   "cash",
@@ -27,6 +29,8 @@ const ids = [
   "errors",
   "wallet",
   "observed",
+  "database-health",
+  "execution-mode",
   "position-count",
   "pending-entry-count",
   "fill-count",
@@ -124,6 +128,7 @@ let refreshTimer;
 const connectionEvents = [];
 const watchlistKey = "memecoined.paper.watchlist.v1";
 const preferencesKey = "memecoined.paper.preferences.v1";
+const configurationDraftKey = "memecoined.paper.configuration-draft.v1";
 const defaultPanelOrder = [
   "overview",
   "portfolio",
@@ -205,7 +210,7 @@ function normalizePreferences(value) {
   return {
     density: value.density === "compact" ? "compact" : "detailed",
     sidebar: value.sidebar === "collapsed" ? "collapsed" : "expanded",
-    theme: ["system", "dark", "light"].includes(value.theme) ? value.theme : "system",
+    theme: ["system", "dark", "light"].includes(value.theme) ? value.theme : "dark",
     contrast: value.contrast === "high" ? "high" : "standard",
     text: value.text === "large" ? "large" : "standard",
     motion: value.motion === "reduced" ? "reduced" : "full",
@@ -217,7 +222,7 @@ function defaultPreferences() {
   return {
     density: "detailed",
     sidebar: "expanded",
-    theme: "system",
+    theme: "dark",
     contrast: "standard",
     text: "standard",
     motion: "full",
@@ -399,7 +404,11 @@ function renderConfigurations() {
     elements["configuration-select"].append(option);
   }
   elements["configuration-select"].value = selected?.id ?? "";
-  const values = selected ?? {};
+  let localDraft = {};
+  if (!selected) {
+    try { localDraft = JSON.parse(localStorage.getItem(configurationDraftKey) ?? "{}"); } catch { localDraft = {}; }
+  }
+  const values = selected ?? localDraft;
   for (const [id, key] of [
     ["configuration-name", "name"],
     ["configuration-strategy", "strategyVersionId"],
@@ -433,6 +442,7 @@ async function mutateConfiguration(path, method, body) {
       activeConfigurationId = "";
       await refreshConfigurations();
       configurationDirty = false;
+      try { localStorage.removeItem(configurationDraftKey); } catch { /* optional browser draft */ }
       setConfigurationMessage("Draft deleted.");
       return;
     }
@@ -448,6 +458,7 @@ async function mutateConfiguration(path, method, body) {
     activeConfigurationId = configuration.id;
     await refreshConfigurations();
     configurationDirty = false;
+    try { localStorage.removeItem(configurationDraftKey); } catch { /* optional browser draft */ }
     setConfigurationMessage(method === "POST" ? "Draft created." : "Draft saved.");
   } catch (error) {
     setConfigurationMessage(
@@ -1049,7 +1060,14 @@ function scheduleRefresh() {
 }
 async function refresh() {
   try {
-    const response = await fetch("/api/paper/snapshot", { cache: "no-store" });
+    const [healthResponse, response] = await Promise.all([
+      fetch("/api/health", { cache: "no-store" }),
+      fetch("/api/paper/snapshot", { cache: "no-store" }),
+    ]);
+    const health = await healthResponse.json().catch(() => ({}));
+    elements["database-health"].textContent = health.database === "ready" ? "Ready" : "Unavailable";
+    elements["execution-mode"].textContent = health.mode === "paper" ? "Paper only" : "Unknown";
+    if (!healthResponse.ok) throw new Error("health unavailable");
     if (!response.ok) throw new Error("snapshot unavailable");
     const { observedAt, performance } = await response.json();
     const equity = BigInt(performance.cashRaw) + BigInt(performance.openCostRaw);
@@ -1087,6 +1105,7 @@ async function refresh() {
     await refreshOperationalStatus();
     recordConnection("healthy", "Snapshot received");
   } catch {
+    elements["database-health"].textContent = "Unavailable";
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";
     elements["integrity-copy"].textContent =
@@ -1133,6 +1152,48 @@ async function refreshOperationalStatus() {
   elements["operator-action"].dataset.state = actions.length ? "attention" : "clear";
 }
 applyPreferences();
+function updateNavigationState() {
+  const target = location.hash || "#overview";
+  const page = {
+    "#overview": "overview",
+    "#positions": "positions",
+    "#performance": "performance",
+    "#history": "history",
+    "#watchlist": "watchlist",
+    "#configurations": "configurations",
+    "#alerts": "operations",
+    "#operator-status": "operations",
+    "#allocation": "performance",
+    "#events": "history",
+  }[target] ?? "overview";
+  document.body.dataset.page = page;
+  const pageCopy = {
+    overview: ["Overview", "Portfolio state, operational attention and the next useful actions."],
+    positions: ["Positions", "Review open holdings and cancellable paper entries."],
+    performance: ["Performance", "Understand allocation, realised results and book-equity history."],
+    history: ["History", "Inspect fills, realised outcomes and the evidence behind each decision."],
+    watchlist: ["Watchlists", "Maintain tokens for observation without granting trading authority."],
+    configurations: ["Strategy setup", "Create inert paper-trading drafts for deliberate review."],
+    operations: ["Operations", "Monitor runtime authority, discovery, worker health and alerts."],
+  }[page];
+  elements["page-title"].textContent = pageCopy[0];
+  elements["page-description"].textContent = pageCopy[1];
+  document.querySelectorAll("main [data-pages]").forEach((panel) => {
+    panel.classList.toggle("page-hidden", !panel.dataset.pages.split(" ").includes(page));
+  });
+  document.querySelectorAll("#sidebar nav a").forEach((link) => {
+    const linkPage = {
+      "#overview": "overview", "#positions": "positions", "#performance": "performance",
+      "#history": "history", "#watchlist": "watchlist", "#configurations": "configurations",
+      "#alerts": "operations",
+    }[link.getAttribute("href")];
+    if (linkPage === page) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  });
+  requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" })));
+}
+updateNavigationState();
+window.addEventListener("hashchange", updateNavigationState);
 void refreshWatchlists().catch(() =>
   setWatchlistMessage("Persistent watchlists unavailable.", "error"),
 );
@@ -1151,7 +1212,15 @@ elements["menu-toggle"].addEventListener("click", () => {
 elements["sidebar-backdrop"].addEventListener("click", closeMenu);
 document
   .querySelectorAll("#sidebar nav a")
-  .forEach((link) => link.addEventListener("click", closeMenu));
+  .forEach((link) => link.addEventListener("click", (event) => {
+    event.preventDefault();
+    history.pushState(null, "", link.getAttribute("href"));
+    updateNavigationState();
+    closeMenu();
+    window.scrollTo({ top: 0, behavior: preferences.motion === "reduced" ? "auto" : "smooth" });
+    document.querySelector(".masthead")?.scrollTo({ top: 0 });
+  }));
+window.addEventListener("popstate", updateNavigationState);
 elements["sidebar-collapse"].addEventListener("click", () => {
   preferences.sidebar = preferences.sidebar === "collapsed" ? "expanded" : "collapsed";
   savePreferences();
@@ -1233,8 +1302,8 @@ elements["clear-filters"].addEventListener("click", () => {
   renderDetails();
 });
 elements["app-back"].addEventListener("click", () => {
-  if (history.length > 1) history.back();
-  else location.hash = "#overview";
+  if (location.hash && location.hash !== "#overview") location.hash = "#overview";
+  else if (history.length > 1) history.back();
 });
 elements["return-launcher"].addEventListener("click", () => window.close());
 elements["action-dialog-form"].addEventListener("submit", (event) => {
@@ -1251,6 +1320,14 @@ elements["action-dialog"].addEventListener("cancel", (event) => {
 });
 elements["configuration-form"].addEventListener("input", () => {
   configurationDirty = true;
+  if (!activeConfigurationId) {
+    try {
+      localStorage.setItem(configurationDraftKey, JSON.stringify(configurationValues()));
+      setConfigurationMessage("Draft protected in this browser until it is created.");
+    } catch {
+      setConfigurationMessage("Draft protection is unavailable; keep this page open.", "error");
+    }
+  }
 });
 window.addEventListener("beforeunload", (event) => {
   if (!configurationDirty) return;

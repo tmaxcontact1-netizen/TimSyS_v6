@@ -24,5 +24,17 @@ describe("dashboard UI standards", () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain('window.addEventListener("beforeunload"');
     expect(javascript).toContain("configurationDirty");
+    expect(javascript).toContain("configurationDraftKey");
+    expect(javascript).toContain("localStorage.setItem(configurationDraftKey");
+  });
+
+  it("uses task-level pages and displays the explicit health contract", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    expect(html).toContain('id="page-title"');
+    expect(html).toContain('data-pages="positions"');
+    expect(html).toContain('id="database-health"');
+    expect(javascript).toContain('fetch("/api/health"');
+    expect(javascript).toContain("function updateNavigationState");
   });
 });

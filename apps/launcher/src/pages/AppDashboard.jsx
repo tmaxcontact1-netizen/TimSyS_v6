@@ -4,7 +4,6 @@ import PrincipalEdPage from './PrincipalEdPage';
 import ModulePortalPage from './ModulePortalPage';
 import useAppStore from '../store/appStore';
 import { useAnyPermission } from '../utils/permissions';
-import AdminHeartbeatPage from './AdminHeartbeatPage';
 
 function AppDashboard() {
   const { appId } = useParams();
@@ -35,6 +34,7 @@ function AppDashboard() {
     const api = window.electronAPI?.supervisedApp;
     if (!api) return;
     setError(null);
+    setStatus((current) => ({ ...(current || {}), id: appId, state: 'starting', detail: null }));
     try {
       let next = await api.status(appId);
       if (next.state === 'degraded' || next.state === 'failed') next = await api.stop(appId);
@@ -48,6 +48,7 @@ function AppDashboard() {
 
   const stop = async () => {
     setError(null);
+    setStatus((current) => ({ ...(current || {}), id: appId, state: 'stopping', detail: null }));
     try {
       setStatus(await window.electronAPI.supervisedApp.stop(appId));
     } catch (cause) {
@@ -57,8 +58,6 @@ function AppDashboard() {
 
   if (appId === 'principal-ed') return <PrincipalEdPage />;
   if (appId === 'builder') return canUseBuilder ? <ModulePortalPage /> : <div className="min-h-screen bg-timsys-dark flex items-center justify-center"><button onClick={() => navigate('/')} className="text-white">Builder access is restricted. Return to launcher.</button></div>;
-  if (appId === 'competeed' || appId === 'sanctifyed') return <AdminHeartbeatPage app={app} />;
-
   if (app?.supervised) {
     const state = status?.state || 'stopped';
     const busy = state === 'starting' || state === 'stopping';
@@ -67,7 +66,7 @@ function AppDashboard() {
         <div className="text-center max-w-lg px-6">
           <h1 className="text-2xl text-white mb-2">{app.displayName}</h1>
           <p className="text-gray-400 mb-2">Runs independently under launcher supervision.</p>
-          <p className="text-sm text-gray-500 mb-6">Status: {state}</p>
+          <p className="text-sm text-gray-500 mb-6" role="status" aria-live="polite">Status: {state.replaceAll('_', ' ')}</p>
           {status?.detail && <p className="text-amber-400 text-sm mb-4">{status.detail}</p>}
           {error && <p className="text-red-400 text-sm mb-4">{error}</p>}
           <div className="flex justify-center gap-3">

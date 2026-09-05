@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import * as api from "../../api/client";
-import Pagination, { rowNumber } from "../components/Pagination";
+import { Pagination, rowNumber } from "../../../../shared-ui/react/index.js";
+import ProfileExtendedEditor from "../components/ProfileExtendedEditor";
+import ProfileEvidenceSections from "../components/ProfileEvidenceSections";
 
 function StudentProfileWidget() {
   const [students, setStudents] = useState([]);
@@ -13,6 +15,8 @@ function StudentProfileWidget() {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [editingExtended, setEditingExtended] = useState(false);
+  const [notice, setNotice] = useState("");
 
   // Fetch students
   useEffect(() => {
@@ -22,7 +26,7 @@ function StudentProfileWidget() {
 
   const fetchStudents = async () => {
     try {
-      const response = await api.listStudents({
+      const response = await api.listStudentProfiles({
         page,
         limit: 50,
         q: searchTerm,
@@ -53,15 +57,8 @@ function StudentProfileWidget() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/students/${student.id}/profile`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      setProfileData(data.profile);
+      const response = await api.getStudentProfile(student.id);
+      setProfileData(response.data.profile);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -72,23 +69,12 @@ function StudentProfileWidget() {
   // Generate deep insight
   const generateInsight = async (studentId) => {
     try {
-      const response = await fetch(
-        `/students/${studentId}/profile/insights/generate`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      alert("Deep insight generated!");
+      await api.generateStudentProfileInsight(studentId);
+      setNotice("The insight was generated from the latest available student evidence.");
       // Reload profile
       await viewProfile(selectedStudent);
     } catch (err) {
-      alert("Failed to generate insight: " + err.message);
+      setError("Failed to generate insight: " + err.message);
     }
   };
 
@@ -118,7 +104,7 @@ function StudentProfileWidget() {
     } = profileData;
 
     return (
-      <div className="space-y-6">
+      <div className="profile-workspace profile-workspace--detail">
         <div className="flex items-center justify-between">
           <button
             onClick={clearSelection}
@@ -126,13 +112,11 @@ function StudentProfileWidget() {
           >
             ← Back
           </button>
-          <button
-            onClick={() => generateInsight(student.id)}
-            className="bg-timsys-primary hover:bg-timsys-secondary text-white px-4 py-2 rounded text-sm"
-          >
-            Generate Deep Insight
-          </button>
+          <div className="profile-actions"><button onClick={() => setEditingExtended((open) => !open)}>Edit extended profile</button><button onClick={() => generateInsight(student.id)} className="bg-timsys-primary hover:bg-timsys-secondary text-white px-4 py-2 rounded text-sm">Generate insight</button></div>
         </div>
+
+        {notice && <div className="profile-notice">{notice}</div>}
+        {editingExtended && <ProfileExtendedEditor type="student" id={student.id} value={extended} onCancel={() => setEditingExtended(false)} onSaved={async () => { setEditingExtended(false); setNotice("Extended student profile saved."); await viewProfile(selectedStudent); }} />}
 
         {/* Basic Info */}
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
@@ -281,13 +265,14 @@ function StudentProfileWidget() {
             </div>
           </div>
         )}
+        <ProfileEvidenceSections profile={profileData} type="student" />
       </div>
     );
   }
 
   // List view
   return (
-    <div className="space-y-4">
+    <div className="profile-workspace profile-workspace--list">
       <h2 className="text-2xl font-bold text-white mb-4">Student Profiles</h2>
 
       {/* Filters */}

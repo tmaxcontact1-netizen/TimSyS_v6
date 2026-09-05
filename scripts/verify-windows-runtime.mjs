@@ -1,17 +1,71 @@
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { constants } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const stage = join(root, "apps", "launcher", "runtime-stage");
 const failures = [];
+const execFileAsync = promisify(execFile);
 
 async function requirePath(relative) {
   try {
     await access(join(stage, relative), constants.R_OK);
   } catch {
     failures.push(`missing staged path: ${relative}`);
+  }
+}
+
+async function digest(file) {
+  return createHash("sha256").update(await readFile(file)).digest("hex");
+}
+
+async function inventory(directory, prefix = "") {
+  const result = new Map();
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const relative = prefix ? join(prefix, entry.name) : entry.name;
+    const absolute = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      for (const [name, hash] of await inventory(absolute, relative)) result.set(name, hash);
+    } else if (entry.isFile()) result.set(relative, await digest(absolute));
+  }
+  return result;
+}
+
+async function verifyCurrent(relative, stagedRelative = relative) {
+  try {
+    const source = join(root, relative), staged = join(stage, stagedRelative);
+    const sourceStat = await stat(source), stagedStat = await stat(staged);
+    if (sourceStat.isFile() !== stagedStat.isFile() || sourceStat.isDirectory() !== stagedStat.isDirectory()) throw new Error("path kinds differ");
+    if (sourceStat.isFile()) {
+      if (await digest(source) !== await digest(staged)) failures.push(`staged file differs from source: ${stagedRelative}`);
+      return;
+    }
+    const expected = await inventory(source), actual = await inventory(staged);
+    const names = new Set([...expected.keys(), ...actual.keys()]);
+    const changed = [...names].filter((name) => expected.get(name) !== actual.get(name));
+    if (changed.length) failures.push(`staged tree differs from source: ${stagedRelative} (${changed.slice(0, 5).join(", ")}${changed.length > 5 ? ", …" : ""})`);
+  } catch (error) {
+    failures.push(`unable to verify staged source ${stagedRelative}: ${error.message}`);
+  }
+}
+
+async function verifyNodeRuntime(relative, packages) {
+  const modulesRoot = join(stage, relative);
+  for (const packageName of packages) {
+    try {
+      await execFileAsync(process.execPath, ["-e", `require(${JSON.stringify(packageName)})`], {
+        env: { ...process.env, NODE_PATH: modulesRoot },
+        windowsHide: true,
+      });
+    } catch (error) {
+      failures.push(
+        `staged runtime cannot load ${packageName} from ${relative}: ${error.stderr?.trim() || error.message}`,
+      );
+    }
   }
 }
 
@@ -73,9 +127,26 @@ await Promise.all([
   requirePath("apps/dressed/.env.example"),
   requirePath("runtime/postgres/bin/postgres.exe"),
   requirePath("runtime/postgres/bin/pg_dump.exe"),
+  requirePath("runtime/postgres/share/timezone"),
+  requirePath("runtime/postgres/share/timezonesets/Default"),
   verifyManifest("platform/timsys.app.json"),
   verifyManifest("apps/memecoined/timsys.app.json"),
   verifyManifest("apps/dressed/timsys.app.json"),
+]);
+
+await Promise.all([
+  verifyNodeRuntime("platform/modules-runtime", ["better-sqlite3", "jsonwebtoken", "zod"]),
+  verifyNodeRuntime("apps/memecoined/modules-runtime", ["pg", "zod"]),
+  verifyNodeRuntime("apps/dressed/modules-runtime", ["pg", "sharp", "zod"]),
+]);
+
+await Promise.all([
+  ...["package.json","package-lock.json","index.js","timsys.app.json","config","contracts","engine","frontend","migrations","modules","scripts","shared"].map((item) => verifyCurrent(`platform/${item}`)),
+  ...["package.json","package-lock.json","dist","frontend","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/memecoined/${item}`)),
+  verifyCurrent("apps/principaled/dist"),
+  ...["package.json","package-lock.json","dist","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/dressed/${item}`)),
+  ...["bin", "lib", "share", "server_license.txt", "commandlinetools_3rd_party_licenses.txt"]
+    .map((item) => verifyCurrent(`apps/launcher/.cache/postgres/${item}`, `runtime/postgres/${item}`)),
 ]);
 
 async function verifyMigrations(application, displayName) {

@@ -6,6 +6,7 @@
   "peerDependencies": { "react": ">=18" },
   "exports": {
     "./react": "./react/index.js",
-    "./vanilla": "./vanilla/index.js"
+    "./vanilla": "./vanilla/index.js",
+    "./styles": "./styles/timsys-dark.css"
   }
 }

@@ -1,6 +1,7 @@
 'use strict';
 var crypto = require('crypto');
 var db = require('../db');
+var products = require('./products');
 var providers = new Map();
 function register(provider) {
   if (!provider || !provider.id || !provider.version || typeof provider.analyse !== 'function') throw new Error('Provider requires id, version and analyse');
@@ -15,7 +16,9 @@ async function run(providerId, options) {
   db.query('INSERT INTO provider_runs (id,provider_id,provider_version,scope_type,scope_id,period_start,period_end,comparison_start,comparison_end,status,started_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)', [id, provider.id, provider.version, scope.type, String(scope.id), start, end, comparisonStart, comparisonEnd, 'running', now]);
   try {
     var result = await provider.analyse({ runId: id, scope: scope, period: { start: start, end: end }, comparison: { start: comparisonStart, end: comparisonEnd }, options: options });
-    db.query("UPDATE provider_runs SET status='completed', input_summary=?, output_summary=?, completed_at=? WHERE id=?", [JSON.stringify({ scope: scope, period: { start:start,end:end }, comparison:{ start:comparisonStart,end:comparisonEnd } }), JSON.stringify(result), Date.now(), id]); return Object.assign({ runId: id, providerId: provider.id, providerVersion: provider.version }, result);
+    var activeProducts = Array.isArray(result && result.products) ? result.products : [];
+    var superseded = products.supersedeMissing(provider.id, scope, activeProducts);
+    db.query("UPDATE provider_runs SET status='completed', input_summary=?, output_summary=?, completed_at=? WHERE id=?", [JSON.stringify({ scope: scope, period: { start:start,end:end }, comparison:{ start:comparisonStart,end:comparisonEnd } }), JSON.stringify(result), Date.now(), id]); return Object.assign({ runId: id, providerId: provider.id, providerVersion: provider.version, supersededProducts: superseded }, result);
   } catch (error) { db.query("UPDATE provider_runs SET status='failed', error=?, completed_at=? WHERE id=?", [error.message, Date.now(), id]); throw error; }
 }
 module.exports = { register: register, run: run, list: function() { return Array.from(providers.values()).map(function(p) { return { id:p.id, version:p.version, governance:p.governance }; }); } };

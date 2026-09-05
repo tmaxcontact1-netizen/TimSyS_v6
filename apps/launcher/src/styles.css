@@ -83,3 +83,16 @@ body {
 .fade-in {
   animation: fadeIn 0.3s ease-out forwards;
 }
+
+button {
+  transition: transform 100ms ease, border-color 160ms ease, background-color 160ms ease, opacity 160ms ease;
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}

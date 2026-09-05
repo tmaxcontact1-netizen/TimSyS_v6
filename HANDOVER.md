@@ -461,10 +461,8 @@ Critical Fixes Applied
 
 Data Cleanup Executed
 -- Removed apps
-DELETE FROM apps WHERE app_id IN ('competeed', 'sanctifyed', 'memecoined');
 
 -- Removed their module assignments  
-DELETE FROM app_modules WHERE app_id IN ('competeed', 'sanctifyed', 'memecoined');
 
 -- Assigned all 20 modules to principaled
 INSERT INTO app_modules (app_id, module_name, enabled) 

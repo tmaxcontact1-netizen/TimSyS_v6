@@ -27,12 +27,6 @@ function boot(ctx) {
   componentRegistry.getAll().forEach(function(component) {
     if (defaults.includes(component.ownerModule)) ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', ['principal-ed', component.name]);
   });
-  ['competeed', 'sanctifyed'].forEach(function(appId) {
-    ['room_registry', 'inventory'].forEach(function(name) { ctx.db.query('INSERT OR IGNORE INTO app_module_assignments (app_id, module_name) VALUES (?, ?)', [appId, name]); });
-    componentRegistry.getAll().filter(function(component) { return ['room_registry', 'inventory'].includes(component.ownerModule); }).forEach(function(component) {
-      ctx.db.query('INSERT OR IGNORE INTO app_component_assignments (app_id, component_name) VALUES (?, ?)', [appId, component.name]);
-    });
-  });
 }
 
 function required(value, name) {

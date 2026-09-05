@@ -13,10 +13,19 @@ let cleanupTimer = null;
  */
 class AuditWriter {
   constructor() {
-    if (!cleanupTimer) {
-      cleanupTimer = setInterval(() => this._purgeOld(), CLEANUP_INTERVAL);
-      cleanupTimer.unref();
-    }
+    this.start();
+  }
+
+  start() {
+    if (cleanupTimer) return;
+    cleanupTimer = setInterval(() => this._purgeOld(), CLEANUP_INTERVAL);
+    cleanupTimer.unref();
+  }
+
+  stop() {
+    if (!cleanupTimer) return;
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
   }
 
   write(action, userId, meta = {}) {

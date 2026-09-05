@@ -13,8 +13,8 @@ export function importWarnings(record) {
 
 export function reviewRowClass(record) {
   return importWarnings(record).length
-    ? "border-b border-red-800 border-l-4 border-l-red-500 bg-red-950/50 hover:bg-red-900/50"
-    : "border-b border-gray-800 hover:bg-gray-800/50";
+    ? "registry-row registry-row--review"
+    : "registry-row";
 }
 
 export function reviewRowTitle(record) {

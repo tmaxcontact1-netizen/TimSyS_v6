@@ -1,0 +1,10 @@
+import React, { useEffect, useState } from "react";
+import * as api from "../../api/client";
+import { Button, EmptyState, Feedback, Panel } from "../../../../shared-ui/react/index.js";
+
+export default function CommunicationHistoryConsole() {
+  const [messages, setMessages] = useState([]), [selected, setSelected] = useState(""), [history, setHistory] = useState([]), [error, setError] = useState(""), [busy, setBusy] = useState(false);
+  useEffect(() => { api.listCommunications({ limit: 50 }).then((response) => setMessages(response.data.communications || [])).catch((cause) => setError(cause.response?.data?.error?.message || cause.message)); }, []);
+  const load = async () => { if (!selected) return; setBusy(true); setError(""); try { const response = await api.getCommunicationHistory(selected); setHistory(response.data.history || []); } catch (cause) { setError(cause.response?.data?.error?.message || cause.message); } finally { setBusy(false); } };
+  return <Panel className="communication-history-console" title="Communication history" description="Review the immutable action and delivery history for a message.">{error && <Feedback tone="error" title="History could not be loaded">{error}</Feedback>}<div className="history-selector"><select aria-label="Communication" value={selected} onChange={(event) => { setSelected(event.target.value); setHistory([]); }}><option value="">Select a communication…</option>{messages.map((message) => <option key={message.id} value={message.id}>{message.title} · {message.status}</option>)}</select><Button onClick={load} disabled={!selected || busy}>{busy ? "Loading…" : "Open history"}</Button></div>{selected && !busy && !history.length ? <EmptyState title="No history entries" description="No recorded lifecycle or delivery actions were returned for this message." /> : <ol className="communication-history-list">{history.map((entry) => <li key={entry.id}><time>{entry.created_at ? new Date(entry.created_at).toLocaleString() : "Time unavailable"}</time><strong>{String(entry.action || entry.status || "Recorded action").replaceAll("_", " ")}</strong>{entry.reason && <p>{entry.reason}</p>}</li>)}</ol>}</Panel>;
+}

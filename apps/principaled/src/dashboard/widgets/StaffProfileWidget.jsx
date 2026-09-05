@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import * as api from "../../api/client";
-import Pagination, { rowNumber } from "../components/Pagination";
+import { Pagination, rowNumber } from "../../../../shared-ui/react/index.js";
+import ProfileExtendedEditor from "../components/ProfileExtendedEditor";
+import ProfileEvidenceSections from "../components/ProfileEvidenceSections";
 
 function StaffProfileWidget() {
   const [staff, setStaff] = useState([]);
@@ -12,6 +14,8 @@ function StaffProfileWidget() {
   const [error, setError] = useState(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [editingExtended, setEditingExtended] = useState(false);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => fetchStaff(), 300);
@@ -20,7 +24,7 @@ function StaffProfileWidget() {
 
   const fetchStaff = async () => {
     try {
-      const response = await api.listStaff({
+      const response = await api.listStaffProfiles({
         page,
         limit: 50,
         q: searchTerm,
@@ -52,15 +56,8 @@ function StaffProfileWidget() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/staff/${staffMember.id}/profile`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      setProfileData(data.profile);
+      const response = await api.getStaffProfile(staffMember.id);
+      setProfileData(response.data.profile);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -70,22 +67,11 @@ function StaffProfileWidget() {
 
   const generateInsight = async (staffId) => {
     try {
-      const response = await fetch(
-        `/staff/${staffId}/profile/insights/generate`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwt_token")}`,
-            "X-Requested-With": "XMLHttpRequest",
-            "Content-Type": "application/json",
-          },
-        },
-      );
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      alert("Deep insight generated!");
+      await api.generateStaffProfileInsight(staffId);
+      setNotice("The insight was generated from the latest available staff evidence.");
       await viewProfile(selectedStaff);
     } catch (err) {
-      alert("Failed to generate insight: " + err.message);
+      setError("Failed to generate insight: " + err.message);
     }
   };
 
@@ -114,7 +100,7 @@ function StaffProfileWidget() {
     } = profileData;
 
     return (
-      <div className="space-y-6">
+      <div className="profile-workspace profile-workspace--detail">
         <div className="flex items-center justify-between">
           <button
             onClick={clearSelection}
@@ -122,13 +108,11 @@ function StaffProfileWidget() {
           >
             ← Back
           </button>
-          <button
-            onClick={() => generateInsight(s.id)}
-            className="bg-timsys-primary hover:bg-timsys-secondary text-white px-4 py-2 rounded text-sm"
-          >
-            Generate Deep Insight
-          </button>
+          <div className="profile-actions"><button onClick={() => setEditingExtended((open) => !open)}>Edit extended profile</button><button onClick={() => generateInsight(s.id)} className="bg-timsys-primary hover:bg-timsys-secondary text-white px-4 py-2 rounded text-sm">Generate insight</button></div>
         </div>
+
+        {notice && <div className="profile-notice">{notice}</div>}
+        {editingExtended && <ProfileExtendedEditor type="staff" id={s.id} value={extended} onCancel={() => setEditingExtended(false)} onSaved={async () => { setEditingExtended(false); setNotice("Extended staff profile saved."); await viewProfile(selectedStaff); }} />}
 
         {/* Basic Info */}
         <div className="bg-gray-900 border border-gray-800 rounded-lg p-6">
@@ -347,13 +331,14 @@ function StaffProfileWidget() {
             </div>
           </div>
         )}
+        <ProfileEvidenceSections profile={profileData} type="staff" />
       </div>
     );
   }
 
   // List view
   return (
-    <div className="space-y-4">
+    <div className="profile-workspace profile-workspace--list">
       <h2 className="text-2xl font-bold text-white mb-4">Staff Profiles</h2>
 
       {/* Filters */}

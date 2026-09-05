@@ -79,7 +79,8 @@ describe("paper dashboard", () => {
     });
     const page = await get(address.port, "/");
     expect(page.status).toBe(200);
-    expect(page.body).toContain("Paper desk");
+    expect(page.body).toContain("MemeCoined");
+    expect(page.body).toContain('id="page-title"');
     expect(page.body).toContain("Portfolio allocation");
     expect(page.body).toContain("Token watchlist");
     expect(page.body).toContain('id="watchlist-select"');

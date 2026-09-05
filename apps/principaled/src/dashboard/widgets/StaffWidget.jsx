@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import CsvImportResult from "./CsvImportResult";
 import { reviewRowClass, reviewRowTitle } from "./importQuality";
-import Pagination, { rowNumber } from "../components/Pagination";
+import { Pagination, rowNumber } from "../../../../shared-ui/react/index.js";
 import useUnsavedChanges from "../components/useUnsavedChanges";
+import RegistryRelatedPanel from "../components/RegistryRelatedPanel";
 
 const SEX_OPTIONS = ["Male", "Female"];
 const EMPLOYMENT_STATUS = ["active", "terminated", "leave", "contract"];
@@ -65,6 +66,7 @@ function StaffWidget({
   const [submitError, setSubmitError] = useState(null);
   const [importFile, setImportFile] = useState(null);
   const [importResult, setImportResult] = useState(null);
+  const [relatedRecord, setRelatedRecord] = useState(null);
   const importController = useRef(null);
   useUnsavedChanges(showForm);
 
@@ -246,7 +248,8 @@ function StaffWidget({
   };
 
   return (
-    <div>
+    <div className="registry-workspace">
+      {relatedRecord && <RegistryRelatedPanel type="staff" record={relatedRecord} onClose={() => setRelatedRecord(null)} />}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-white">Staff</h2>
         <div className="flex gap-3">
@@ -794,7 +797,9 @@ function StaffWidget({
         </div>
       )}
 
+      <label className="registry-search-label" htmlFor="staff-search">Search staff</label>
       <input
+        id="staff-search"
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
@@ -852,6 +857,7 @@ function StaffWidget({
                   {r.employment_status || "—"}
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
+                  <button onClick={() => setRelatedRecord(r)}>Details</button>
                   <button
                     onClick={() => handleEditClick(r)}
                     className="text-timsys-primary hover:text-white text-sm"
