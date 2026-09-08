@@ -8,6 +8,7 @@ import type {
 } from "../application/ports/runtime.js";
 import type { PositionWorkerDependencies, PositionWorkerCycleResult } from "./position-worker.js";
 import { runPositionWorkerCycle } from "./position-worker.js";
+import { retryDelay } from "@timsys/app-sdk";
 
 export interface ReconciliationWorkerDependencies extends PositionWorkerDependencies {
   readonly jobs: ReconciliationJobStore;
@@ -35,7 +36,7 @@ function requirePositiveInteger(value: number, label: string): number {
 }
 
 function retryAt(now: Timestamp, attempt: number, baseMs: number, maximumMs: number): Timestamp {
-  const delay = Math.min(maximumMs, baseMs * 2 ** Math.max(0, attempt - 1));
+  const delay = retryDelay(attempt, { baseDelayMs: baseMs, maximumDelayMs: maximumMs });
   return asTimestamp(new Date(new Date(now).getTime() + delay));
 }
 

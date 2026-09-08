@@ -15,4 +15,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('supervised-app:status-changed', handler);
     },
   },
+  researchedAi: {
+    listProfiles: () => ipcRenderer.invoke('researched-ai:list-profiles'),
+    saveProfile: (value) => ipcRenderer.invoke('researched-ai:save-profile', value),
+    activateProfile: (id) => ipcRenderer.invoke('researched-ai:activate-profile', id),
+    removeProfile: (id) => ipcRenderer.invoke('researched-ai:remove-profile', id),
+    apply: () => ipcRenderer.invoke('researched-ai:apply'),
+  },
 });

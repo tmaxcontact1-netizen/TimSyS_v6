@@ -115,8 +115,13 @@ describe("paper dashboard", () => {
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
     const health = await get(address.port, "/api/health");
     expect(health.status).toBe(200);
-    expect(JSON.parse(health.body)).toEqual({ status: "ok", mode: "paper", database: "ready" });
+    expect(JSON.parse(health.body)).toMatchObject({ protocol: "timsys.application.v1", application: "memecoined", status: "healthy", mode: "paper", database: "ready" });
     expect((await get(address.port, "/api/health", "POST")).status).toBe(405);
+    const application = await get(address.port, "/api/application");
+    expect(application.status).toBe(200);
+    expect(JSON.parse(application.body)).toMatchObject({ id: "memecoined", mode: "paper" });
+    expect(JSON.parse(application.body).functions).toContain("risk-controls");
+    expect((await get(address.port, "/api/application", "POST")).status).toBe(405);
   });
 
   it("serves the unified operational projection and keeps it read only", async () => {
@@ -183,8 +188,10 @@ describe("paper dashboard", () => {
     if (address === null || typeof address === "string") throw new Error("Missing test address");
     const health = await get(address.port, "/api/health");
     expect(health.status).toBe(503);
-    expect(JSON.parse(health.body)).toEqual({
-      status: "degraded",
+    expect(JSON.parse(health.body)).toMatchObject({
+      protocol: "timsys.application.v1",
+      application: "memecoined",
+      status: "unavailable",
       mode: "paper",
       database: "unavailable",
     });

@@ -26,7 +26,10 @@ function endpointPattern(path) {
 }
 
 function referenced(path, frontendSource) {
-  return endpointPattern(path).test(frontendSource);
+  if (endpointPattern(path).test(frontendSource)) return true;
+  if (/^\/api\/(studies|evidence|findings|reports)\/:id$/.test(path))
+    return frontendSource.includes('`/api/${kind === "study" ? "studies" : kind}/${id}`');
+  return false;
 }
 
 function exposure(path) {
@@ -61,16 +64,28 @@ async function principalCoverage() {
   return rows;
 }
 
-async function standaloneCoverage(name, apiFile, frontendDirectory) {
+async function standaloneCoverage(name, apiFile, frontendDirectory, owner) {
   const apiSource = await readFile(join(root, apiFile), "utf8");
   const frontendFiles = await files(join(root, frontendDirectory));
   const frontendSource = (await Promise.all(frontendFiles.map((file) => readFile(file, "utf8")))).join("\n");
   const paths = new Set();
   const matcher = /pathname(?:\.startsWith)?\s*\(??\s*===?\s*["'](\/api\/[^"']+)["']|pathname\.startsWith\(\s*["'](\/api\/[^"']+)["']\s*\)/g;
   for (const match of apiSource.matchAll(matcher)) paths.add(match[1] || match[2]);
+  // Standalone apps use either `pathname`/`path` comparisons or anchored
+  // regular expressions for parameterised routes. Audit both forms so adding
+  // a new routing style cannot silently remove an application from coverage.
+  for (const match of apiSource.matchAll(/["'`](\/api\/[^"'`?]+)["'`]/g)) paths.add(match[1]);
+  for (const match of apiSource.matchAll(/\/\^((?:\\\/|[^/])+?)\$\/[a-z]*/gi)) {
+    let parameter = 0;
+    const route = match[1]
+      .replaceAll("\\/", "/")
+      .replace(/\\[.()[\]{}+*?^$|]/g, (value) => value.slice(1))
+      .replace(/\([^)]*\)/g, () => `:${parameter++ === 0 ? "id" : `parameter${parameter}`}`);
+    if (route.startsWith("/api/")) paths.add(route);
+  }
   return [...paths].sort().map((path) => ({
     app: name,
-    owner: name === "Dress'Ed" ? "dressed" : "memecoined",
+    owner,
     method: "ANY",
     path,
     exposure: exposure(path),
@@ -91,9 +106,9 @@ function section(rows, title) {
   const lines = [
     `## ${title}`,
     "",
-    `Declared capabilities: **${rows.length}**  `,
-    `Frontend-referenced: **${rows.length - missing.length}**  `,
-    `Not referenced: **${missing.length}**  `,
+    `Declared capabilities: **${rows.length}**`,
+    `Frontend-referenced: **${rows.length - missing.length}**`,
+    `Not referenced: **${missing.length}**`,
     `Operational gaps: **${operationalMissing.length}**`,
     "",
     "| Owner | Declared | Referenced | Unreferenced |",
@@ -113,9 +128,10 @@ function section(rows, title) {
 }
 
 const principal = await principalCoverage();
-const dressed = await standaloneCoverage("Dress'Ed", "apps/dressed/src/entrypoints/api.ts", "apps/dressed/frontend");
-const memecoined = await standaloneCoverage("MemeCoined", "apps/memecoined/src/entrypoints/dashboard.ts", "apps/memecoined/frontend");
-const all = [...principal, ...dressed, ...memecoined];
+const dressed = await standaloneCoverage("Dress'Ed", "apps/dressed/src/entrypoints/api.ts", "apps/dressed/frontend", "dressed");
+const memecoined = await standaloneCoverage("MemeCoined", "apps/memecoined/src/entrypoints/dashboard.ts", "apps/memecoined/frontend", "memecoined");
+const researched = await standaloneCoverage("Research'Ed", "apps/researched/src/entrypoints/api.ts", "apps/researched/frontend", "researched");
+const all = [...principal, ...dressed, ...memecoined, ...researched];
 const document = [
   "# UI Capability Coverage",
   "",
@@ -128,13 +144,14 @@ const document = [
   section(principal, "Principal'Ed"),
   section(dressed, "Dress'Ed"),
   section(memecoined, "MemeCoined"),
+  section(researched, "Research'Ed"),
   "## Machine-readable totals",
   "",
   "```json",
   JSON.stringify({
     generatedAt: new Date().toISOString(),
     totals: { declared: all.length, referenced: all.filter((row) => row.referenced).length, unreferenced: all.filter((row) => !row.referenced).length },
-    applications: Object.fromEntries([principal, dressed, memecoined].map((rows) => [rows[0]?.app, { declared: rows.length, referenced: rows.filter((row) => row.referenced).length }])),
+    applications: Object.fromEntries([principal, dressed, memecoined, researched].map((rows) => [rows[0]?.app, { declared: rows.length, referenced: rows.filter((row) => row.referenced).length }])),
   }, null, 2),
   "```",
   "",

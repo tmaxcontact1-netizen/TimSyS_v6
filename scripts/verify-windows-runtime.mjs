@@ -91,6 +91,9 @@ async function verifyManifest(relative) {
   if (manifest.schemaVersion !== 1 || manifest.kind !== "supervised-child") {
     failures.push(`unsupported staged manifest contract: ${relative}`);
   }
+  if (manifest.health?.contract === "timsys.application.v1" && manifest.platform?.protocol !== manifest.health.contract) {
+    failures.push(`platform and health contracts disagree: ${relative}`);
+  }
   const appRoot = dirname(manifestFile);
   for (const [name, process] of Object.entries(manifest.processes ?? {})) {
     if (
@@ -118,13 +121,19 @@ async function verifyManifest(relative) {
 await Promise.all([
   requirePath("platform/modules-runtime"),
   requirePath("apps/memecoined/modules-runtime/pg/package.json"),
+  requirePath("apps/memecoined/modules-runtime/@timsys/app-sdk/package.json"),
   requirePath("apps/memecoined/frontend/index.html"),
   requirePath("apps/memecoined/frontend/app.js"),
   requirePath("apps/memecoined/.env.example"),
   requirePath("apps/dressed/modules-runtime/pg/package.json"),
+  requirePath("apps/dressed/modules-runtime/@timsys/app-sdk/package.json"),
   requirePath("apps/dressed/modules-runtime/sharp/package.json"),
   requirePath("apps/dressed/dist/frontend/index.html"),
   requirePath("apps/dressed/.env.example"),
+  requirePath("apps/researched/modules-runtime/pg/package.json"),
+  requirePath("apps/researched/modules-runtime/@timsys/app-sdk/package.json"),
+  requirePath("apps/researched/dist/frontend/index.html"),
+  requirePath("apps/researched/.env.example"),
   requirePath("runtime/postgres/bin/postgres.exe"),
   requirePath("runtime/postgres/bin/pg_dump.exe"),
   requirePath("runtime/postgres/share/timezone"),
@@ -132,19 +141,22 @@ await Promise.all([
   verifyManifest("platform/timsys.app.json"),
   verifyManifest("apps/memecoined/timsys.app.json"),
   verifyManifest("apps/dressed/timsys.app.json"),
+  verifyManifest("apps/researched/timsys.app.json"),
 ]);
 
 await Promise.all([
   verifyNodeRuntime("platform/modules-runtime", ["better-sqlite3", "jsonwebtoken", "zod"]),
-  verifyNodeRuntime("apps/memecoined/modules-runtime", ["pg", "zod"]),
-  verifyNodeRuntime("apps/dressed/modules-runtime", ["pg", "sharp", "zod"]),
+  verifyNodeRuntime("apps/memecoined/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
+  verifyNodeRuntime("apps/dressed/modules-runtime", ["@timsys/app-sdk", "pg", "sharp", "zod"]),
+  verifyNodeRuntime("apps/researched/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
 ]);
 
 await Promise.all([
-  ...["package.json","package-lock.json","index.js","timsys.app.json","config","contracts","engine","frontend","migrations","modules","scripts","shared"].map((item) => verifyCurrent(`platform/${item}`)),
+  ...["package.json","package-lock.json","index.js","timsys.app.json","config","contracts","engine","frontend","migrations","modules","packages","scripts","shared"].map((item) => verifyCurrent(`platform/${item}`)),
   ...["package.json","package-lock.json","dist","frontend","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/memecoined/${item}`)),
   verifyCurrent("apps/principaled/dist"),
   ...["package.json","package-lock.json","dist","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/dressed/${item}`)),
+  ...["package.json","package-lock.json","dist","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/researched/${item}`)),
   ...["bin", "lib", "share", "server_license.txt", "commandlinetools_3rd_party_licenses.txt"]
     .map((item) => verifyCurrent(`apps/launcher/.cache/postgres/${item}`, `runtime/postgres/${item}`)),
 ]);
@@ -178,6 +190,7 @@ async function verifyMigrations(application, displayName) {
 await Promise.all([
   verifyMigrations("memecoined", "MemeCoined"),
   verifyMigrations("dressed", "Dress'Ed"),
+  verifyMigrations("researched", "Research'Ed"),
 ]);
 
 if (failures.length > 0) {
@@ -187,5 +200,5 @@ if (failures.length > 0) {
   process.exit(1);
 }
 process.stdout.write(
-  "Windows runtime verified: launcher, platform, MemeCoined, Dress'Ed, PostgreSQL, migrations, and production dependencies are staged.\n",
+  "Windows runtime verified: launcher, platform, MemeCoined, Dress'Ed, Research'Ed, PostgreSQL, migrations, and production dependencies are staged.\n",
 );

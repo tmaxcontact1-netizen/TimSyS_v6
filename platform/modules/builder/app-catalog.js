@@ -1,8 +1,10 @@
 'use strict';
 
-// MemecoinEd is deliberately absent: it is an independently supervised product.
 const ADMIN_APPS = Object.freeze([
-  { id: 'principal-ed', displayName: "Principal'Ed", description: 'School administration and leadership', implemented: true },
+  { id: 'principal-ed', displayName: "Principal'Ed", description: 'School administration and leadership', implemented: true, composition: 'platform-modules' },
+  { id: 'memecoined', displayName: "MemeCoin'Ed", description: 'Market research and supervised paper trading', implemented: true, composition: 'independent-domain' },
+  { id: 'dressed', displayName: "Dress'Ed", description: 'Wardrobe management and outfit coordination', implemented: true, composition: 'independent-domain' },
+  { id: 'researched', displayName: "Research'Ed", description: 'Auditable research design, corpus and evidence analysis', implemented: true, composition: 'independent-domain' },
 ]);
 
 const ESSENTIAL_SERVICES = Object.freeze([

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "timsys.analysis-engine.v1",
+  "title": "TimSyS evidence-grounded analysis contract",
+  "type": "object",
+  "required": ["requestId", "analysisType", "instructions", "evidence"],
+  "properties": {
+    "requestId": { "type": "string", "format": "uuid" },
+    "analysisType": {
+      "type": "string",
+      "enum": ["syntax", "readability", "terminology", "entities", "semantics", "sentiment", "themes", "claims", "comparison", "contradictions", "bias-framing", "completeness", "custom-extraction", "custom-questions"]
+    },
+    "instructions": { "type": "string", "minLength": 1 },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["segmentId", "sourceId", "content"],
+        "properties": {
+          "segmentId": { "type": "string", "format": "uuid" },
+          "sourceId": { "type": "string", "format": "uuid" },
+          "content": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    "outputSchema": { "type": "object" }
+  },
+  "additionalProperties": false
+}

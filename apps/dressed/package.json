@@ -19,6 +19,7 @@
     "node": ">=24.18.0 <25"
   },
   "dependencies": {
+    "@timsys/app-sdk": "file:../../platform/packages/app-sdk",
     "pg": "8.22.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",

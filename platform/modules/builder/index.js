@@ -238,7 +238,7 @@ async function catalogue(req, ctx) {
       modules: modules
     });
   });
-  return { success: true, data: { apps: apps, scope: 'app-specific', excludedApplications: ['memecoined'], profileAccess: ['superuser', 'principal'], recommendations: ctx.recommendation.getSuggestions() } };
+  return { success: true, data: { apps: apps, scope: 'app-specific', excludedApplications: [], profileAccess: ['superuser', 'principal'], recommendations: ctx.recommendation.getSuggestions() } };
 }
 
 async function applicationUiStandard() {

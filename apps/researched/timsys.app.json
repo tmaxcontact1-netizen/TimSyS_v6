@@ -1,0 +1,7 @@
+{
+  "schemaVersion":1, "id":"researched", "name":"Research'Ed", "uiStandard":{"id":"timsys.application-ui","version":1,"required":true}, "kind":"supervised-child",
+  "platform":{"protocol":"timsys.application.v1","composition":"independent-domain","contracts":["health","evidence","rules","jobs","audit","insights"],"domainOwner":"researched"},
+  "applicationRootEnvironment":"RESEARCHED_APP_ROOT", "workingDirectory":".", "environmentDefaults":{"RESEARCHED_PORT":"8092"},
+  "processes":{"api":{"command":"node","arguments":["dist/src/entrypoints/api.js"],"health":{"url":"http://127.0.0.1:${RESEARCHED_PORT}/api/health","expectedStatus":200,"contract":"timsys.application.v1"}}},
+  "shutdown":{"signal":"SIGTERM","timeoutMilliseconds":10000}, "ownership":{"runtime":"researched","databaseSchema":"researched","sources":"researched","configuration":"researched"}
+}

@@ -9,6 +9,8 @@ test('development resources come from the repository and data remains external',
   assert.equal(layout.memecoinedData, path.join('D:/data', 'memecoined'));
   assert.equal(layout.dressedRoot, path.join('S:/source', 'apps', 'dressed'));
   assert.equal(layout.dressedData, path.join('D:/data', 'dressed'));
+  assert.equal(layout.researchedRoot, path.join('S:/source', 'apps', 'researched'));
+  assert.equal(layout.researchedData, path.join('D:/data', 'researched'));
 });
 
 test('packaged resources come from process.resourcesPath', () => {
@@ -16,4 +18,5 @@ test('packaged resources come from process.resourcesPath', () => {
   assert.equal(layout.platformRoot, path.join('R:/resources', 'platform'));
   assert.equal(layout.postgresRoot, path.join('R:/resources', 'runtime', 'postgres'));
   assert.equal(layout.dressedRoot, path.join('R:/resources', 'apps', 'dressed'));
+  assert.equal(layout.researchedRoot, path.join('R:/resources', 'apps', 'researched'));
 });

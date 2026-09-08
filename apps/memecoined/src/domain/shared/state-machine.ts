@@ -1,3 +1,4 @@
+import { createStateMachine as createPlatformStateMachine } from "@timsys/app-sdk";
 import { InvalidTransitionError } from "./errors.js";
 
 export type TransitionTable<State extends string> = Readonly<Record<State, readonly State[]>>;
@@ -11,24 +12,18 @@ export interface StateMachine<State extends string> {
 export function createStateMachine<State extends string>(
   table: TransitionTable<State>,
 ): StateMachine<State> {
-  const normalized = Object.fromEntries(
-    Object.entries(table).map(([state, targets]) => [
-      state,
-      Object.freeze([...(targets as State[])]),
-    ]),
-  ) as Record<State, readonly State[]>;
-  Object.freeze(normalized);
+  const platform = createPlatformStateMachine(table);
 
   return Object.freeze({
     canTransition(from: State, to: State): boolean {
-      return normalized[from].includes(to);
+      return platform.canTransition(from, to);
     },
     transition(from: State, to: State): State {
-      if (!normalized[from].includes(to)) throw new InvalidTransitionError(from, to);
+      if (!platform.canTransition(from, to)) throw new InvalidTransitionError(from, to);
       return to;
     },
     allowedFrom(from: State): readonly State[] {
-      return normalized[from];
+      return platform.allowedFrom(from);
     },
   });
 }

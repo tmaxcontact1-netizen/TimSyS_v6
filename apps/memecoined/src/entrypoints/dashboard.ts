@@ -5,6 +5,7 @@ import { extname, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Pool } from "pg";
+import { createApplicationHealth } from "@timsys/app-sdk";
 
 import type { MintAddress, WalletAddress } from "../domain/shared/types.js";
 import { loadRuntimeConfig } from "../infrastructure/config/load-config.js";
@@ -160,10 +161,50 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
       }
       try {
         await dependencies.database.query("SELECT 1 AS ready");
-        sendJson(response, 200, { status: "ok", mode: "paper", database: "ready" });
+        sendJson(response, 200, createApplicationHealth({
+          application: "memecoined",
+          status: "healthy",
+          observedAt: now().toISOString(),
+          components: [
+            { id: "database", status: "healthy", message: "Database is ready" },
+            { id: "paper-runtime", status: "healthy", message: "Paper-safe runtime is available" },
+          ],
+          mode: "paper",
+          database: "ready",
+        }));
       } catch {
-        sendJson(response, 503, { status: "degraded", mode: "paper", database: "unavailable" });
+        sendJson(response, 503, createApplicationHealth({
+          application: "memecoined",
+          status: "unavailable",
+          observedAt: now().toISOString(),
+          components: [{ id: "database", status: "unavailable", message: "Database is unavailable" }],
+          mode: "paper",
+          database: "unavailable",
+        }));
       }
+      return;
+    }
+    if (pathname === "/api/application") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      sendJson(response, 200, {
+        id: "memecoined",
+        name: "MemeCoined",
+        mode: "paper",
+        functions: [
+          "market-acquisition",
+          "token-watchlists",
+          "paper-trading",
+          "portfolio-monitoring",
+          "risk-controls",
+          "performance-analysis",
+          "operator-controls",
+          "audit-history",
+          "operational-insights",
+        ],
+      });
       return;
     }
     if (pathname === "/api/paper/pipeline") {

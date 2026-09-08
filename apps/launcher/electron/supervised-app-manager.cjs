@@ -33,6 +33,21 @@ function interpolateEnvironment(value, environment) {
   });
 }
 
+async function assertHealthResponse(response, health, applicationId) {
+  if (response.status !== health.expectedStatus)
+    throw new Error(`health endpoint returned ${response.status}`);
+  if (!health.contract) return;
+  const value = await response.json();
+  if (value?.protocol !== health.contract)
+    throw new Error(`health protocol mismatch for ${applicationId}`);
+  if (value?.application !== applicationId)
+    throw new Error(`health application mismatch for ${applicationId}`);
+  if (!['healthy', 'degraded', 'blocked', 'unavailable'].includes(value?.status))
+    throw new Error(`invalid health state for ${applicationId}`);
+  if (!Number.isFinite(Date.parse(value?.observedAt)) || !Array.isArray(value?.components))
+    throw new Error(`incomplete health contract for ${applicationId}`);
+}
+
 class SupervisedAppManager extends EventEmitter {
   constructor(options = {}) {
     super();
@@ -141,8 +156,8 @@ class SupervisedAppManager extends EventEmitter {
       if (record.state === "failed") throw new Error(record.detail);
       try {
         const response = await this.fetchHealth(url);
-        if (response.status === health.expectedStatus) return;
-        lastError = `health endpoint returned ${response.status}`;
+        await assertHealthResponse(response, health, record.id);
+        return;
       } catch (error) {
         lastError = error.message;
       }
@@ -194,8 +209,7 @@ class SupervisedAppManager extends EventEmitter {
         const response = await this.fetchHealth(
           interpolateEnvironment(health.url, record.environment),
         );
-        if (response.status !== health.expectedStatus)
-          throw new Error(`health endpoint returned ${response.status}`);
+        await assertHealthResponse(response, health, record.id);
         record.healthFailures = 0;
         if (record.state === "degraded") this.transition(record, "running");
       } catch (error) {

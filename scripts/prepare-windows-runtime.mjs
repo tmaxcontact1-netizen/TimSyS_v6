@@ -62,6 +62,7 @@ for (const item of [
   "platform/package.json", "platform/package-lock.json", "platform/index.js", "platform/timsys.app.json",
   "platform/config", "platform/contracts", "platform/engine", "platform/frontend", "platform/migrations",
   "platform/modules", "platform/scripts", "platform/shared",
+  "platform/packages",
 ]) await copy(item);
 for (const item of [
   "apps/memecoined/package.json", "apps/memecoined/package-lock.json", "apps/memecoined/dist",
@@ -73,13 +74,22 @@ for (const item of [
   "apps/dressed/package.json", "apps/dressed/package-lock.json", "apps/dressed/dist",
   "apps/dressed/migrations", "apps/dressed/.env.example", "apps/dressed/timsys.app.json",
 ]) await copy(item);
+for (const item of [
+  "apps/researched/package.json", "apps/researched/package-lock.json", "apps/researched/dist",
+  "apps/researched/migrations", "apps/researched/.env.example", "apps/researched/timsys.app.json",
+]) await copy(item);
 if (!sourceOnly) {
   await installProduction("platform");
   await rename(join(stage, "platform", "node_modules"), join(stage, "platform", "modules-runtime"));
   await installProduction(join("apps", "memecoined"));
   await rename(join(stage, "apps", "memecoined", "node_modules"), join(stage, "apps", "memecoined", "modules-runtime"));
+  await copy("platform/packages/app-sdk", "apps/memecoined/modules-runtime/@timsys/app-sdk");
   await installProduction(join("apps", "dressed"));
   await rename(join(stage, "apps", "dressed", "node_modules"), join(stage, "apps", "dressed", "modules-runtime"));
+  await copy("platform/packages/app-sdk", "apps/dressed/modules-runtime/@timsys/app-sdk");
+  await installProduction(join("apps", "researched"));
+  await rename(join(stage, "apps", "researched", "node_modules"), join(stage, "apps", "researched", "modules-runtime"));
+  await copy("platform/packages/app-sdk", "apps/researched/modules-runtime/@timsys/app-sdk");
   for (const item of ["bin", "lib", "share", "server_license.txt", "commandlinetools_3rd_party_licenses.txt"])
     await copy(`apps/launcher/.cache/postgres/${item}`, `runtime/postgres/${item}`);
 }

@@ -35,7 +35,6 @@ if (IS_DESKTOP) {
 }
 
 const http = require('http');
-const url = require('url');
 const crypto = require('crypto');
 
 const { runMigrations, verifyTables } = require('./shared/migration-runner');
@@ -372,9 +371,9 @@ function shutdownPlatform(server) {
 function createServer() {
   return http.createServer(async function(req, res) {
     var start = Date.now();
-    var parsedUrl = url.parse(req.url, true);
+    var parsedUrl = new URL(req.url || '/', 'http://127.0.0.1');
     var pathname = parsedUrl.pathname;
-    var query = parsedUrl.query;
+    var query = Object.fromEntries(parsedUrl.searchParams.entries());
     var method = req.method.toUpperCase();
 
     if (!corsMiddleware(req, res)) return;

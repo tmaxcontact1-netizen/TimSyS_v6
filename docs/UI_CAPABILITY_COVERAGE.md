@@ -1,6 +1,6 @@
 # UI Capability Coverage
 
-Generated: 2026-09-05T14:59:19.084Z
+Generated: 2026-09-08T18:10:26.197Z
 
 This report is a static connection audit. A route is **referenced** when application frontend source contains a matching endpoint. Reference proves an intended UI connection, not that the resulting workflow is usable; interaction acceptance is a later gate.
 
@@ -8,9 +8,9 @@ Infrastructure-only services are intentionally excluded unless they publish a us
 
 ## Principal'Ed
 
-Declared capabilities: **528**  
-Frontend-referenced: **528**  
-Not referenced: **0**  
+Declared capabilities: **528**
+Frontend-referenced: **528**
+Not referenced: **0**
 Operational gaps: **0**
 
 | Owner | Declared | Referenced | Unreferenced |
@@ -71,43 +71,67 @@ None.
 
 ## Dress'Ed
 
-Declared capabilities: **18**  
-Frontend-referenced: **18**  
-Not referenced: **0**  
-Operational gaps: **0**
+Declared capabilities: **27**
+Frontend-referenced: **26**
+Not referenced: **1**
+Operational gaps: **1**
 
 | Owner | Declared | Referenced | Unreferenced |
 |---|---:|---:|---:|
-| dressed | 18 | 18 | 0 |
+| dressed | 27 | 26 | 1 |
 
 ### Unreferenced capabilities
 
-None.
+| Exposure | Method | Endpoint | Owner |
+|---|---|---|---|
+| operational | ANY | `/api/outfits/:id` | dressed |
 
 ## MemeCoined
 
-Declared capabilities: **10**  
-Frontend-referenced: **10**  
-Not referenced: **0**  
+Declared capabilities: **16**
+Frontend-referenced: **14**
+Not referenced: **2**
+Operational gaps: **1**
+
+| Owner | Declared | Referenced | Unreferenced |
+|---|---:|---:|---:|
+| memecoined | 16 | 14 | 2 |
+
+### Unreferenced capabilities
+
+| Exposure | Method | Endpoint | Owner |
+|---|---|---|---|
+| administration | ANY | `/api/application` | memecoined |
+| operational | ANY | `/api/watchlists/:id/tokens:parameter2)?` | memecoined |
+
+## Research'Ed
+
+Declared capabilities: **49**
+Frontend-referenced: **46**
+Not referenced: **3**
 Operational gaps: **0**
 
 | Owner | Declared | Referenced | Unreferenced |
 |---|---:|---:|---:|
-| memecoined | 10 | 10 | 0 |
+| researched | 49 | 46 | 3 |
 
 ### Unreferenced capabilities
 
-None.
+| Exposure | Method | Endpoint | Owner |
+|---|---|---|---|
+| administration | ANY | `/api/analysis-types/:id/contract` | researched |
+| administration | ANY | `/api/application` | researched |
+| administration | ANY | `/api/health` | researched |
 
 ## Machine-readable totals
 
 ```json
 {
-  "generatedAt": "2026-09-05T14:59:19.119Z",
+  "generatedAt": "2026-09-08T18:10:26.212Z",
   "totals": {
-    "declared": 556,
-    "referenced": 556,
-    "unreferenced": 0
+    "declared": 620,
+    "referenced": 614,
+    "unreferenced": 6
   },
   "applications": {
     "Principal'Ed": {
@@ -115,12 +139,16 @@ None.
       "referenced": 528
     },
     "Dress'Ed": {
-      "declared": 18,
-      "referenced": 18
+      "declared": 27,
+      "referenced": 26
     },
     "MemeCoined": {
-      "declared": 10,
-      "referenced": 10
+      "declared": 16,
+      "referenced": 14
+    },
+    "Research'Ed": {
+      "declared": 49,
+      "referenced": 46
     }
   }
 }

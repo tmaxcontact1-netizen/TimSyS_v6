@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
 const { randomBytes } = require('node:crypto');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -8,6 +8,7 @@ const { SupervisedAppManager } = require('./supervised-app-manager.cjs');
 const { LocalPostgresManager, availablePort } = require('./local-postgres-manager.cjs');
 const { createRuntimeLayout } = require('./runtime-layout.cjs');
 const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
+const { AiCredentialVault } = require('./ai-credential-vault.cjs');
 
 // The launcher UI does not require GPU acceleration; disabling it improves compatibility on headless and older Windows systems.
 app.disableHardwareAcceleration();
@@ -23,6 +24,8 @@ let postgres;
 let desktopToken;
 let memecoinedConfigurationStatus = null;
 let platformUrl = null;
+let aiCredentialVault;
+let applyingResearchedProfile = false;
 
 const paperConfigurationFields = Object.freeze([
   'SOLANA_PRIMARY_RPC_URL', 'SOLANA_FALLBACK_RPC_URL', 'HELIUS_API_KEY', 'JUPITER_API_KEY',
@@ -204,6 +207,27 @@ async function startDressed() {
   return supervisedApps.start(path.join(layout.dressedRoot, 'timsys.app.json'), environment);
 }
 
+async function startResearched() {
+  await ensureNodeModulesLink(layout.researchedRoot);
+  const database = await postgres.start();
+  const environment = {
+    RESEARCHED_ENV: app.isPackaged ? 'production' : 'development',
+    RESEARCHED_APP_ROOT: layout.researchedRoot,
+    RESEARCHED_STORAGE_ROOT: path.join(layout.researchedData, 'private-storage'),
+    RESEARCHED_DATABASE_URL: database.runtimeUrl,
+    RESEARCHED_PORT: String(await availablePort()),
+    NODE_PATH: path.join(layout.researchedRoot, 'modules-runtime'),
+    NODE_OPTIONS: packagedNodeOptions(process.env.NODE_OPTIONS),
+    ...await aiCredentialVault.activeEnvironment(),
+  };
+  await fsp.mkdir(environment.RESEARCHED_STORAGE_ROOT, { recursive: true });
+  await runNode(path.join(layout.researchedRoot, 'dist', 'scripts', 'migrate.js'), [], {
+    cwd: layout.researchedRoot, env: { ...process.env, ...environment, RESEARCHED_DATABASE_URL: database.migrationUrl },
+  });
+  await postgres.grantSchemaPrivileges('researched');
+  return supervisedApps.start(path.join(layout.researchedRoot, 'timsys.app.json'), environment);
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -243,6 +267,7 @@ app.whenReady().then(async () => {
     runtimeEnvironment: { ELECTRON_RUN_AS_NODE: '1' },
   });
   postgres = new LocalPostgresManager({ binaryRoot: layout.postgresRoot, dataRoot: layout.memecoinedData });
+  aiCredentialVault = new AiCredentialVault({ file: path.join(layout.researchedData, 'secrets', 'ai-provider-profiles.json'), safeStorage });
   desktopToken = randomBytes(48).toString('base64url');
   supervisedApps.on('status', forwardStatus);
   try {
@@ -287,12 +312,12 @@ ipcMain.handle('platform:check', async () => {
 });
 
 function requireSupervisedChild(appId) {
-  if (!['memecoined', 'dressed'].includes(appId)) throw new Error(`Unsupported supervised app: ${appId}`);
+  if (!['memecoined', 'dressed', 'researched'].includes(appId)) throw new Error(`Unsupported supervised app: ${appId}`);
 }
 
 ipcMain.handle('supervised-app:start', async (_event, appId) => {
   requireSupervisedChild(appId);
-  return appId === 'memecoined' ? startMemecoined() : startDressed();
+  return appId === 'memecoined' ? startMemecoined() : appId === 'dressed' ? startDressed() : startResearched();
 });
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
@@ -304,7 +329,7 @@ ipcMain.handle('supervised-app:stop', async (_event, appId) => {
 
 ipcMain.handle('runtime:diagnostics', async () => {
   const statuses = [];
-  for (const id of ['timsys-platform', 'memecoined', 'dressed']) {
+  for (const id of ['timsys-platform', 'memecoined', 'dressed', 'researched']) {
     try { statuses.push(supervisedApps.status(id)); }
     catch { statuses.push({ id, state: 'stopped', detail: null, processes: [] }); }
   }
@@ -363,7 +388,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     height: 900,
     minWidth: 1024,
     minHeight: 768,
-    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') },
   });
   appWindowId = appId;
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -381,8 +406,29 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
   return status;
 });
 
+function requireResearchedWindow(event) {
+  if (!appWindow || appWindow.isDestroyed() || event.sender !== appWindow.webContents || appWindowId !== 'researched') throw new Error('AI provider settings are only available from Research’Ed');
+}
+
+ipcMain.handle('researched-ai:list-profiles', async (event) => { requireResearchedWindow(event); return aiCredentialVault.list(); });
+ipcMain.handle('researched-ai:save-profile', async (event, value) => { requireResearchedWindow(event); return aiCredentialVault.save(value); });
+ipcMain.handle('researched-ai:activate-profile', async (event, id) => { requireResearchedWindow(event); return aiCredentialVault.activate(id); });
+ipcMain.handle('researched-ai:remove-profile', async (event, id) => { requireResearchedWindow(event); return aiCredentialVault.remove(id); });
+ipcMain.handle('researched-ai:apply', async (event) => {
+  requireResearchedWindow(event);
+  applyingResearchedProfile = true;
+  try {
+    await supervisedApps.stop('researched');
+    const status = await startResearched();
+    await appWindow.loadURL(supervisedApps.dashboardUrl('researched'));
+    return status;
+  } finally {
+    applyingResearchedProfile = false;
+  }
+});
+
 function forwardStatus(status) {
-  if (status.id === appWindowId && ['failed', 'stopped'].includes(status.state) && appWindow && !appWindow.isDestroyed()) {
+  if (status.id === appWindowId && ['failed', 'stopped'].includes(status.state) && appWindow && !appWindow.isDestroyed() && !(applyingResearchedProfile && status.id === 'researched')) {
     appWindow.close();
   }
   if (mainWindow && !mainWindow.isDestroyed()) {

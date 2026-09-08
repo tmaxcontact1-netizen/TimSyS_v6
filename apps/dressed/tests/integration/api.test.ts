@@ -33,12 +33,14 @@ describe("Dress'Ed Phase 1 API", () => {
     const { baseUrl, query } = await runningServer();
     const response = await fetch(`${baseUrl}/api/health`);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
+      protocol: "timsys.application.v1",
       status: "healthy",
       application: "dressed",
       version: "0.0.0",
       database: "ready",
       observedAt: "2026-08-28T12:00:00.000Z",
+      components: expect.arrayContaining([expect.objectContaining({ id: "database", status: "healthy" })]),
     });
     expect(query).toHaveBeenCalledOnce();
   });

@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "timsys.domain-events.v1",
+  "title": "TimSyS domain-neutral evidence, rules, insights, jobs and audit contracts",
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["id", "kind", "source", "observedAt", "recordedAt", "contentHash", "schemaVersion"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "sourceKey": { "type": "string" },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "recordedAt": { "type": "string", "format": "date-time" },
+        "contentHash": { "type": "string", "minLength": 1 },
+        "schemaVersion": { "type": "string", "minLength": 1 },
+        "provenance": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "ruleResult": {
+      "type": "object",
+      "required": ["ruleId", "ruleSetVersion", "outcome", "evaluatedAt", "explanation", "evidenceIds"],
+      "properties": {
+        "ruleId": { "type": "string", "minLength": 1 },
+        "ruleSetVersion": { "type": "string", "minLength": 1 },
+        "outcome": { "enum": ["pass", "fail", "unknown", "not_applicable"] },
+        "evaluatedAt": { "type": "string", "format": "date-time" },
+        "explanation": { "type": "string", "minLength": 1 },
+        "evidenceIds": { "type": "array", "items": { "type": "string" } },
+        "measurements": { "type": "array" }
+      },
+      "additionalProperties": true
+    },
+    "insight": {
+      "type": "object",
+      "required": ["id", "provider", "kind", "status", "severity", "generatedAt", "evidenceIds", "explanation"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "status": { "enum": ["open", "acknowledged", "resolved", "dismissed"] },
+        "severity": { "enum": ["information", "attention", "warning", "critical"] },
+        "generatedAt": { "type": "string", "format": "date-time" },
+        "evidenceIds": { "type": "array", "items": { "type": "string" } },
+        "explanation": { "type": "string", "minLength": 1 },
+        "action": { "type": ["object", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "job": {
+      "type": "object",
+      "required": ["id", "type", "idempotencyKey", "state", "attempts", "maximumAttempts", "availableAt"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "minLength": 1 },
+        "idempotencyKey": { "type": "string", "minLength": 1 },
+        "state": { "enum": ["available", "leased", "completed", "failed"] },
+        "attempts": { "type": "integer", "minimum": 0 },
+        "maximumAttempts": { "type": "integer", "minimum": 1 },
+        "availableAt": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": true
+    }
+  }
+}

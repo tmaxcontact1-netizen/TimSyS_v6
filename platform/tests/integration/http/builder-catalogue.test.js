@@ -15,11 +15,11 @@ describe('builder application catalogue', function() {
   test('returns app-scoped manifests, dependencies and essential services', async function() {
     const response = await context.makeRequest('GET', '/builder/catalogue', null, token);
     expect(response.status).toBe(200);
-    expect(response.data.data.excludedApplications).toEqual(['memecoined']);
+    expect(response.data.data.excludedApplications).toEqual([]);
     expect(response.data.data.profileAccess).toEqual(['superuser', 'principal']);
 
     const apps = response.data.data.apps;
-    expect(apps.map(function(app) { return app.id; })).toEqual(['principal-ed']);
+    expect(apps.map(function(app) { return app.id; })).toEqual(['principal-ed', 'memecoined', 'dressed', 'researched']);
     const principal = apps[0];
     expect(principal.essentialServices.map(function(service) { return service.name; })).toEqual(['db', 'cache', 'auth', 'log', 'validate', 'events']);
     expect(principal.modules.length).toBeGreaterThan(0);
@@ -28,6 +28,7 @@ describe('builder application catalogue', function() {
     const enabledPrincipal = principalAssignments.data.data.filter(function(mod) { return mod.enabled; }).map(function(mod) { return mod.name; });
     expect(enabledPrincipal).toEqual(expect.arrayContaining(['gradebook','scheduler','teacher_preferences','cover','programme_manager']));
     expect(principal.modules.find(function(mod) { return mod.name === 'student_profile'; }).components[0].intelligence).toBeTruthy();
+    expect(apps.slice(1).every(function(app) { return app.composition === 'independent-domain' && app.modules.length === 0; })).toBe(true);
   });
 
   test('registered modules retain their complete manifests', function() {

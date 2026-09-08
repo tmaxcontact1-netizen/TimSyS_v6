@@ -7,8 +7,9 @@ const appCatalog = require('../../modules/builder/app-catalog');
 
 describe('admin application baseline contract', function() {
   test('catalogue and scope service agree on supported admin apps', function() {
-    expect(appCatalog.all().map(function(app) { return app.id; })).toEqual(appScope.all());
-    expect(appCatalog.all().some(function(app) { return app.id === 'memecoined'; })).toBe(false);
+    expect(appCatalog.all().map(function(app) { return app.id; })).toEqual(expect.arrayContaining(appScope.all()));
+    expect(appCatalog.all().map(function(app) { return app.id; })).toEqual(expect.arrayContaining(['memecoined', 'dressed', 'researched']));
+    expect(appScope.all()).toEqual(['principal-ed']);
   });
 
   test('the current launcher has navigation and supervised-app controls', function() {
@@ -20,6 +21,7 @@ describe('admin application baseline contract', function() {
     expect(dashboard).toContain('supervisedApp.stop');
     expect(store).toContain('memecoined');
     expect(store).toContain('dressed');
+    expect(store).toContain('researched');
     expect(appCatalog.essentialServices().every(function(service) { return service.essential && !service.removable; })).toBe(true);
   });
 

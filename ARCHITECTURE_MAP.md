@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-09-05T14:59:16Z
+Generated: 2026-09-08T18:10:47Z
 Generator: platform/Tools/update_architecture_map.py (Discovery-Based)
 
 This document is auto-generated. Do not edit manually.
@@ -17,7 +17,7 @@ Platform Location: `platform/`
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
 | `CONTEXT.md` | ✅ | 12401B | 2026-08-12 21:13:27 |
-| `ARCHITECTURE_MAP.md` | ✅ | 42602B | 2026-09-05 13:15:10 |
+| `ARCHITECTURE_MAP.md` | ✅ | 44595B | 2026-09-08 16:54:00 |
 | `HANDOVER.md` | ✅ | 19037B | 2026-09-05 07:54:06 |
 | `CONSTITUTION_V6.0.md` | ✅ | 25342B | 2026-08-12 21:11:41 |
 | `LEXICON_V6.0.0.md` | ✅ | 20246B | 2026-08-12 10:37:47 |
@@ -35,7 +35,6 @@ Platform Location: `platform/`
   LEXICON_V6.0.0.md
   TEST_PROTOCOL.md
   package.json
-  pnpm-lock.yaml
 ./apps
 ./apps\dressed
     .env.example
@@ -116,6 +115,7 @@ Platform Location: `platform/`
           evidence.ts
           health.ts
           jobs.ts
+          platform.ts
 ./apps\dressed\src\application\ports
           .gitkeep
           cv.ts
@@ -196,10 +196,12 @@ Platform Location: `platform/`
         .gitkeep
 ./apps\dressed\tests\unit
         .gitkeep
+        database-pool.test.ts
         ensemble-engine.test.ts
         foundation.test.ts
         garment.test.ts
         photography.test.ts
+        platform-contract.test.ts
         rotation-engine.test.ts
         styling-engine.test.ts
         visual-fingerprint.test.ts
@@ -273,6 +275,8 @@ Platform Location: `platform/`
           sql_features.txt
 ./apps\launcher\.cache\postgres\StackBuilder
 ./apps\launcher\electron
+      ai-credential-vault.cjs
+      ai-credential-vault.test.cjs
       local-postgres-manager.cjs
       local-postgres-manager.test.cjs
       main.cjs
@@ -281,8 +285,6 @@ Platform Location: `platform/`
       runtime-layout.test.cjs
       runtime-recovery.cjs
       runtime-recovery.test.cjs
-      supervised-app-manager.cjs
-      supervised-app-manager.test.cjs
 ./apps\launcher\public
 ./apps\launcher\src
       App.jsx
@@ -379,6 +381,7 @@ Platform Location: `platform/`
           commands.ts
           events.ts
           observations.ts
+          platform.ts
           reports.ts
 ./apps\memecoined\src\application\ports
           chain.ts
@@ -577,6 +580,68 @@ Platform Location: `platform/`
           CoverWidget.jsx
           CsvImportResult.jsx
           DocumentsWidget.jsx
+./apps\researched
+    .env.example
+    .gitignore
+    README.md
+    eng.traineddata
+    package-lock.json
+    package.json
+    timsys.app.json
+    tsconfig.json
+    vite.config.ts
+    vitest.config.ts
+./apps\researched\frontend
+      index.html
+./apps\researched\frontend\src
+        main.jsx
+        styles.css
+./apps\researched\migrations
+      0001_research_core.sql
+      0002_source_acquisition.sql
+      0003_source_extraction.sql
+      0004_evidence_capture.sql
+      0005_findings.sql
+      0006_reports.sql
+      0007_lifecycle_indexes.sql
+      0008_discovery_queue.sql
+      0009_analysis_plans.sql
+      0010_evidence_locators.sql
+./apps\researched\scripts
+      migrate.ts
+./apps\researched\src
+./apps\researched\src\application
+        ai-analysis.ts
+        analysis-export.ts
+        analysis-jobs.ts
+        cross-source-analysis.ts
+        deterministic-analysis.ts
+        link-discovery.ts
+        reporting.ts
+        research-insights.ts
+        source-acquisition.ts
+        source-extraction.ts
+./apps\researched\src\domain
+        analysis-results.ts
+        analysis.ts
+        contracts.ts
+        lifecycle.ts
+./apps\researched\src\entrypoints
+        api.ts
+./apps\researched\src\infrastructure
+        config.ts
+        repository.ts
+./apps\researched\tests
+      ai-analysis.test.ts
+      analysis-export.test.ts
+      analysis-jobs.test.ts
+      analysis-plan-contract.test.ts
+      analysis-results.test.ts
+      analysis.test.ts
+      api.test.ts
+      cross-source-analysis.test.ts
+      foundation.test.ts
+      lifecycle.test.ts
 ./apps\shared-ui
     package.json
 ./apps\shared-ui\react
@@ -594,6 +659,7 @@ Platform Location: `platform/`
   npm.cmd
 ./docs
   PLATFORM_ACCEPTANCE_REPORT_2026-08-29.md
+  PLATFORM_EXTRACTION.md
   UI_CAPABILITY_COVERAGE.md
   UI_INTERACTION_STANDARD.md
 ./docs\architecture
@@ -1042,6 +1108,13 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\venue_bookings\migrations
         001_venue_bookings.sql
+./platform\packages
+./platform\packages\app-sdk
+      index.cjs
+      index.d.ts
+      index.js
+      index.test.cjs
+      package.json
 ./platform\routes
 ./platform\routes\introspect
       .gitkeep
@@ -1055,8 +1128,13 @@ Platform Location: `platform/`
     migration-runner.js
     schema-contract.js
 ./platform\shared\contracts
+      analysis-engine-result.v1.json
+      analysis-engine.v1.json
+      application-protocol.v1.json
       application-ui-standard.json
+      applicationProtocol.js
       componentContract.js
+      domain-events.v1.json
       intelligenceContribution.js
 ./platform\shared\middleware
       passwordChangeRequired.js
@@ -1166,15 +1244,15 @@ Platform Location: `platform/`
         pipeline.test.js
 ./platform\tests\unit
       admin-app-baseline.test.js
+      analysis-engine-contract.test.js
+      application-protocol.test.js
       contracts-verification.test.js
       cover-contract.test.js
       gradebook-contract.test.js
       gradebook-hardening.test.js
+      independent-app-boundaries.test.js
       intelligence-contribution.test.js
       intelligence.test.js
-      late-entries-analytics-contract.test.js
-      late-entries-equivalence.test.js
-      late-entries-foundation.test.js
 ./platform\tests\unit\registries
         registries.test.js
 ./platform\tests\unit\services
@@ -1195,6 +1273,7 @@ Platform Location: `platform/`
   preflight.mjs
   prepare-windows-runtime.mjs
   run-memecoined-paper-trial.cjs
+  smoke-windows-runtime.cjs
   verify-windows-runtime.mjs
   workspace.mjs
 ./tools
@@ -1440,7 +1519,7 @@ Location: `/platform/scripts/cli/`
 - `test_staging.sqlite-shm` (32768B)
 - `test_staging.sqlite-wal` (4124152B)
 - `timsys.db` (32768B)
-- `timsys.sqlite` (3604480B)
+- `timsys.sqlite` (3637248B)
 - `workspace-full-test.sqlite` (802816B)
 
 ## Applications
@@ -1451,6 +1530,7 @@ Location: `/platform/scripts/cli/`
 | `launcher` | application | ✅ Ready |
 | `memecoined` | application | ✅ Ready |
 | `principaled` | application | ✅ Ready |
+| `researched` | application | ✅ Ready |
 | `shared-ui` | shared library | ✅ Ready |
 
 ---

@@ -54,6 +54,22 @@ test("interpolates declared environment values and rejects missing values", () =
   );
 });
 
+test("enforces a declared TimSyS application health contract", async () => {
+  const contracted = JSON.stringify({
+    ...JSON.parse(manifest),
+    processes: { dashboard: { command: "node", arguments: ["dashboard.js"], health: { url: "http://127.0.0.1:8080/api/health", expectedStatus: 200, contract: "timsys.application.v1" } } },
+  });
+  const manager = new SupervisedAppManager({
+    readManifest: async () => contracted,
+    spawnProcess: () => childProcess(),
+    fetchHealth: async () => ({ status: 200, json: async () => ({ protocol: "timsys.application.v1", application: "memecoined", status: "healthy", observedAt: "2026-09-05T00:00:00.000Z", components: [] }) }),
+    runtimeHealthIntervalMilliseconds: 0,
+  });
+  await manager.start("/platform/apps/memecoined/timsys.app.json");
+  assert.equal(manager.status("memecoined").state, "running");
+  await manager.stopAll();
+});
+
 test("starts each child once and becomes running only after health succeeds", async () => {
   const children = [];
   const spawns = [];

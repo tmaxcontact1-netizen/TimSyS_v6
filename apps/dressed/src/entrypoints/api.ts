@@ -5,6 +5,7 @@ import { extname, isAbsolute, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Pool } from "pg";
 import { z, ZodError } from "zod";
+import { createApplicationHealth } from "@timsys/app-sdk";
 
 import { categoryInputSchema, garmentInputSchema, garmentUpdateSchema } from "../domain/garment/garment.js";
 import { calibrationProfileInputSchema, type ImageRole } from "../domain/garment/photography.js";
@@ -112,16 +113,22 @@ export function createDressedServer(input: {
              to_regclass('dressed.user_preferences') IS NOT NULL AS insights_ready`,
         );
         const row = result.rows[0];
-        if (row?.schema_ready !== true || row.catalogue_ready !== true || row.photography_ready !== true || row.fingerprint_ready !== true || row.styling_ready !== true || row.ensemble_ready !== true || row.planner_ready !== true || row.lifecycle_ready !== true || row.insights_ready !== true) return json(response, 503, { status: "degraded", application: "dressed", database: "schema_unavailable" });
-        return json(response, 200, {
+        if (row?.schema_ready !== true || row.catalogue_ready !== true || row.photography_ready !== true || row.fingerprint_ready !== true || row.styling_ready !== true || row.ensemble_ready !== true || row.planner_ready !== true || row.lifecycle_ready !== true || row.insights_ready !== true) return json(response, 503, createApplicationHealth({ status: "degraded", application: "dressed", observedAt: now().toISOString(), components: [{ id: "database-schema", status: "degraded", message: "One or more required schema components are unavailable" }], database: "schema_unavailable" }));
+        return json(response, 200, createApplicationHealth({
           status: "healthy",
           application: "dressed",
           version: "0.0.0",
           database: "ready",
           observedAt: now().toISOString(),
-        });
+          components: [
+            { id: "database", status: "healthy", message: "Database is ready" },
+            { id: "wardrobe", status: "healthy", message: "Wardrobe catalogue is ready" },
+            { id: "rules", status: "healthy", message: "Deterministic styling rules are ready" },
+            { id: "insights", status: "healthy", message: "Wardrobe insights are ready" },
+          ],
+        }));
       } catch {
-        return json(response, 503, { status: "unavailable", application: "dressed", database: "unavailable" });
+        return json(response, 503, createApplicationHealth({ status: "unavailable", application: "dressed", observedAt: now().toISOString(), components: [{ id: "database", status: "unavailable", message: "Database is unavailable" }], database: "unavailable" }));
       }
     }
     if (pathname === "/api/application") {
