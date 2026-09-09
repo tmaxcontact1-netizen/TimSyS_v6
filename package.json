@@ -15,6 +15,7 @@
     "verify": "npm run preflight && node scripts/workspace.mjs verify",
     "fetch:postgres": "node scripts/fetch-postgres.mjs",
     "stage:windows": "node scripts/prepare-windows-runtime.mjs && node scripts/verify-windows-runtime.mjs",
-    "package:windows": "npm run verify && npm run fetch:postgres && npm run stage:windows && node scripts/build-windows-artifacts.mjs"
+    "package:windows": "npm run verify && npm run fetch:postgres && npm run stage:windows && node scripts/build-windows-artifacts.mjs",
+    "update:bundle": "node scripts/create-update-release.mjs"
   }
 }

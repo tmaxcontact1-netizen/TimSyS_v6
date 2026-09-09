@@ -36,7 +36,7 @@
         <a href="#history" data-short="HI"><strong>History</strong><small>Fills and decisions</small></a>
         <a href="#watchlist" data-short="WA"><strong>Watchlists</strong><small>Tokens under observation</small></a>
         <a href="#configurations" data-short="CF"><strong>Strategy setup</strong><small>Inert paper configurations</small></a>
-        <a href="#alerts" data-short="AT"><strong>Operations</strong><small>Health, pipeline and alerts</small></a>
+        <a href="#alerts" data-short="AT"><strong>Operations</strong><small>Connections, updates and alerts</small></a>
       </nav>
       <div class="operator-access">
         <label><span>Operator access</span><input id="watchlist-token" type="password" autocomplete="off" placeholder="Session token" /></label>
@@ -75,7 +75,7 @@
       >
         <article class="metric metric-primary">
           <span>Simulated equity</span><strong id="equity">—</strong
-          ><small id="equity-change">Awaiting durable snapshot</small>
+          ><small id="equity-change">Waiting for current figures</small>
         </article>
         <article class="metric">
           <span>Available cash</span><strong id="cash">—</strong><small>Settlement liquidity</small>
@@ -104,7 +104,7 @@
           <span id="configuration-count" class="count-chip">0</span>
         </div>
         <p class="panel-note">
-          Draft storage only. These values cannot activate or alter the trading runtime.
+          Saved as a draft. These values do not start or change paper trading.
         </p>
         <div class="configuration-toolbar">
           <label
@@ -228,8 +228,8 @@
         <article class="panel table-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">DURABLE INCIDENTS</p>
-              <h2>Worker alerts</h2>
+              <p class="eyebrow">PROCESSING PROBLEMS</p>
+              <h2>App alerts</h2>
             </div>
             <span id="alert-count" class="count-chip">—</span>
           </div>
@@ -245,7 +245,7 @@
               </thead>
               <tbody id="alert-rows">
                 <tr>
-                  <td colspan="4" class="empty">Awaiting durable data</td>
+                  <td colspan="4" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -275,12 +275,12 @@
         <article class="panel connection-panel">
           <div class="panel-heading">
             <div>
-              <p class="eyebrow">ACQUISITION PIPELINE</p>
+              <p class="eyebrow">MARKET UPDATES</p>
               <h2>Discovery and evaluation</h2>
             </div>
             <span id="pipeline-state" class="count-chip">—</span>
           </div>
-          <p id="pipeline-summary" class="panel-copy">Awaiting durable pipeline status</p>
+          <p id="pipeline-summary" class="panel-copy">Waiting for market update status</p>
           <ol id="pipeline-work" class="connection-history" aria-live="polite">
             <li>No queued work reported</li>
           </ol>
@@ -315,7 +315,7 @@
           role="img"
           aria-label="Book equity and realized profit history"
         >
-          <span class="empty">Awaiting durable performance data</span>
+          <span class="empty">Waiting for performance data</span>
         </div>
         <div class="chart-legend">
           <span><i class="equity-key"></i>Book equity</span
@@ -327,7 +327,7 @@
         class="operations optional-detail"
         data-dashboard-panel="operations"
         data-pages="overview operations"
-        data-panel-title="Runtime operations"
+        data-panel-title="Trading operations"
       >
         <article id="operator-status" class="panel operator-status-panel">
           <div class="panel-heading">
@@ -337,7 +337,7 @@
             </div>
             <span id="entry-lock-state" class="count-chip">CHECKING</span>
           </div>
-          <p id="entry-lock-reason" class="panel-note">Reading durable entry authority.</p>
+          <p id="entry-lock-reason" class="panel-note">Checking whether new trades are allowed.</p>
           <div class="operational-facts">
             <div><span>Pending approvals</span><strong id="approval-pending">—</strong></div>
             <div><span>Approved, awaiting use</span><strong id="approval-approved">—</strong></div>
@@ -356,7 +356,7 @@
           <div class="panel-heading">
             <div>
               <p class="eyebrow">EXECUTION FLOW</p>
-              <h2>Runtime activity</h2>
+              <h2>Recent activity</h2>
             </div>
             <span class="mode-chip">PAPER ONLY</span>
           </div>
@@ -368,11 +368,11 @@
         </article>
         <article class="panel integrity-panel">
           <p class="eyebrow">SYSTEM INTEGRITY</p>
-          <h2 id="integrity-title">Checking durable state</h2>
+          <h2 id="integrity-title">Checking app and trading records</h2>
           <p id="integrity-copy">Waiting for the first database-backed snapshot.</p>
           <dl>
             <div>
-              <dt>Worker errors</dt>
+              <dt>Processing errors</dt>
               <dd id="errors">—</dd>
             </div>
             <div>
@@ -485,7 +485,7 @@
               </thead>
               <tbody id="position-rows">
                 <tr>
-                  <td colspan="6" class="empty">Awaiting durable data</td>
+                  <td colspan="6" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -513,7 +513,7 @@
               </thead>
               <tbody id="pending-entry-rows">
                 <tr>
-                  <td colspan="4" class="empty">Awaiting durable data</td>
+                  <td colspan="4" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -573,7 +573,7 @@
               </thead>
               <tbody id="fill-rows">
                 <tr>
-                  <td colspan="5" class="empty">Awaiting durable data</td>
+                  <td colspan="5" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -640,7 +640,7 @@
               </thead>
               <tbody id="performance-rows">
                 <tr>
-                  <td colspan="5" class="empty">Awaiting durable data</td>
+                  <td colspan="5" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -717,7 +717,7 @@
               </thead>
               <tbody id="event-rows">
                 <tr>
-                  <td colspan="7" class="empty">Awaiting durable data</td>
+                  <td colspan="7" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>

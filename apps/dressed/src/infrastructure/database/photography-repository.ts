@@ -8,7 +8,7 @@ export class PhotographyRepository {
     const result = await this.pool.query(`SELECT p.calibration_profile_id,p.name,p.card_type,p.notes,p.is_active,p.created_at,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('label',x.label,'labL',x.lab_l,'labA',x.lab_a,'labB',x.lab_b) ORDER BY x.patch_index) FROM dressed.calibration_patches x WHERE x.calibration_profile_id=p.calibration_profile_id),'[]'::jsonb) AS patches
       FROM dressed.calibration_profiles p WHERE p.is_active ORDER BY p.name`);
-    return result.rows.map((row) => ({ id: row.calibration_profile_id, name: row.name, cardType: row.card_type, notes: row.notes, isActive: row.is_active, patches: row.patches, createdAt: row.created_at }));
+    return result.rows.map((row) => { const labels=new Set((row.patches as Array<{label:string}>).map(patch=>patch.label.toLowerCase())); return { id: row.calibration_profile_id, name: row.name, cardType: row.card_type, notes: row.notes, isActive: row.is_active, readyForPhotos: ["red","green","blue"].every(label=>labels.has(label)), patches: row.patches, createdAt: row.created_at }; });
   }
 
   public async createProfile(id: string, input: CalibrationProfileInput, timestamp: string) {

@@ -440,11 +440,10 @@ function ModuleSelectorPage() {
               </div>
 
               <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                <h3 className="text-white font-semibold mb-2">Component Map (Internal)</h3>
-                <div className="font-mono text-xs text-gray-400 bg-gray-900 p-3 rounded overflow-x-auto">
-                  {JSON.stringify(moduleDetails.components, null, 2)}
-                </div>
-                <p className="text-gray-500 text-xs mt-2">This defines every capability the app has access to in the system.</p>
+                <h3 className="text-white font-semibold mb-2">What this app can use</h3>
+                <p className="text-gray-400 text-sm">
+                  The components listed above determine which TimSyS features and information are available to this app.
+                </p>
               </div>
 
               <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">

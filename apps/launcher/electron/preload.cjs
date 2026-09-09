@@ -4,6 +4,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platformCheck: () => ipcRenderer.invoke('platform:check'),
   platformSession: () => ipcRenderer.invoke('platform:session'),
   diagnostics: () => ipcRenderer.invoke('runtime:diagnostics'),
+  updates: {
+    rendererReady: () => ipcRenderer.invoke('updates:ready'),
+    check: () => ipcRenderer.invoke('updates:check'),
+    install: () => ipcRenderer.invoke('updates:install'),
+  },
   supervisedApp: {
     start: (appId) => ipcRenderer.invoke('supervised-app:start', appId),
     stop: (appId) => ipcRenderer.invoke('supervised-app:stop', appId),

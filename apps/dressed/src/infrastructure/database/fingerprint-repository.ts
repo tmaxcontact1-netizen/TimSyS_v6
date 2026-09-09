@@ -5,8 +5,8 @@ export class FingerprintRepository {
   public constructor(private readonly pool: Pool) {}
 
   public async currentImages(garmentId: string) {
-    const result = await this.pool.query<{ image_id: string; role: "whole" | "detail"; original_relative_path: string }>("SELECT image_id,role,original_relative_path FROM dressed.garment_images WHERE garment_id=$1 AND is_current AND validation_status='accepted_for_analysis' AND role IN ('whole','detail') ORDER BY role", [garmentId]);
-    return result.rows.map((row) => ({ id: row.image_id, role: row.role, relativePath: row.original_relative_path }));
+    const result = await this.pool.query<{ image_id: string; role: "whole" | "detail"; original_relative_path: string; patches: Array<{label:string;labL:number;labA:number;labB:number}> }>(`SELECT i.image_id,i.role,i.original_relative_path,COALESCE((SELECT jsonb_agg(jsonb_build_object('label',p.label,'labL',p.lab_l,'labA',p.lab_a,'labB',p.lab_b) ORDER BY p.patch_index) FROM dressed.calibration_patches p WHERE p.calibration_profile_id=i.calibration_profile_id),'[]'::jsonb) patches FROM dressed.garment_images i WHERE i.garment_id=$1 AND i.is_current AND i.validation_status='accepted_for_analysis' AND i.role IN ('whole','detail') ORDER BY i.role`, [garmentId]);
+    return result.rows.map((row) => ({ id: row.image_id, role: row.role, relativePath: row.original_relative_path, patches: row.patches }));
   }
 
   public async save(input: { fingerprintId: string; garmentId: string; fingerprint: VisualFingerprint; suggestions: readonly FieldSuggestion[]; wholeImageId: string | null; detailImageId: string | null; timestamp: string }) {

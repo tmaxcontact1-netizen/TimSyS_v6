@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import useAppStore from '../store/appStore';
+import UpdatePanel from '../components/UpdatePanel';
 
 function AppSelectorPage() {
   const navigate = useNavigate();
@@ -45,6 +46,7 @@ function AppSelectorPage() {
             </button>
           ))}
         </div>
+        <UpdatePanel />
       </main>
     </div>
   );

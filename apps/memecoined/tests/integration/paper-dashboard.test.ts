@@ -94,7 +94,7 @@ describe("paper dashboard", () => {
     expect(page.body).toContain('id="pending-entry-rows"');
     expect(page.body).toContain('id="paper-control-message"');
     expect(page.body).toContain("Only available, unleased paper entries can be cancelled.");
-    expect(page.body).toContain("Draft storage only");
+    expect(page.body).toContain("Saved as a draft");
     expect(page.body).toContain('type="password"');
     expect(page.body).toContain('data-sort="cost_raw"');
     expect(page.body).toContain('id="preferences-dialog"');

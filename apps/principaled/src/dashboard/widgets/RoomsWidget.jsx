@@ -36,6 +36,13 @@ const ROOM_TYPES = [
   "other",
 ];
 
+const listText = (value) => Array.isArray(value) ? value.join(", ") : "";
+const objectKeysText = (value) => value && typeof value === "object"
+  ? Object.entries(value).filter(([, enabled]) => Boolean(enabled)).map(([name]) => name.replaceAll("_", " ")).join(", ")
+  : "";
+const textList = (value) => value.split(",").map((item) => item.trim()).filter(Boolean);
+const featureMap = (value) => Object.fromEntries(textList(value).map((item) => [item.toLowerCase().replaceAll(" ", "_"), true]));
+
 function RoomsWidget({
   rooms,
   onImport,
@@ -403,56 +410,38 @@ function RoomsWidget({
             {/* Features & Equipment */}
             <div className="md:col-span-3">
               <label className="block text-gray-400 text-xs mb-1">
-                Features (JSON - {{ smart_board: true, projector: true }})
+                Features
               </label>
               <input
                 type="text"
-                value={JSON.stringify(formData.features)}
-                onChange={(e) => {
-                  try {
-                    setFormData({
-                      ...formData,
-                      features: JSON.parse(e.target.value) || {},
-                    });
-                  } catch {}
-                }}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-timsys-primary font-mono text-xs"
+                placeholder="For example: smart board, projector"
+                value={objectKeysText(formData.features)}
+                onChange={(e) => setFormData({ ...formData, features: featureMap(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-timsys-primary"
               />
             </div>
             <div className="md:col-span-3">
               <label className="block text-gray-400 text-xs mb-1">
-                Equipment List (JSON - {'["whiteboard","desk"]'})
+                Equipment
               </label>
               <input
                 type="text"
-                value={JSON.stringify(formData.equipment_list)}
-                onChange={(e) => {
-                  try {
-                    setFormData({
-                      ...formData,
-                      equipment_list: JSON.parse(e.target.value) || [],
-                    });
-                  } catch {}
-                }}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-timsys-primary font-mono text-xs"
+                placeholder="For example: whiteboard, desks"
+                value={listText(formData.equipment_list)}
+                onChange={(e) => setFormData({ ...formData, equipment_list: textList(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-timsys-primary"
               />
             </div>
             <div className="md:col-span-3">
               <label className="block text-gray-400 text-xs mb-1">
-                Accessibility Flags (JSON)
+                Accessibility provisions
               </label>
               <input
                 type="text"
-                value={JSON.stringify(formData.accessibility_flags)}
-                onChange={(e) => {
-                  try {
-                    setFormData({
-                      ...formData,
-                      accessibility_flags: JSON.parse(e.target.value) || {},
-                    });
-                  } catch {}
-                }}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-timsys-primary font-mono text-xs"
+                placeholder="For example: step-free access, hearing loop"
+                value={objectKeysText(formData.accessibility_flags)}
+                onChange={(e) => setFormData({ ...formData, accessibility_flags: featureMap(e.target.value) })}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-timsys-primary"
               />
             </div>
 

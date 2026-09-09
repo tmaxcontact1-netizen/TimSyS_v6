@@ -58,7 +58,7 @@ function WearConfirmation({ close }) {
             ? `Record “${pending.outfit_name}” as worn on ${String(pending.planned_date).slice(0, 10)}.`
             : ""
         }
-        consequence="This creates wear-history evidence and affects utilisation insights."
+        consequence="This updates the garment’s wear history and the wardrobe summaries based on it."
         confirmLabel="Confirm wear"
         busy={busy}
         onConfirm={worn}
@@ -152,11 +152,10 @@ function Insights({ close, onNavigate }) {
       <section className="modal insights-modal">
         <header>
           <div>
-            <p className="eyebrow">DETERMINISTIC WARDROBE INSIGHTS</p>
-            <h2>What your evidence says</h2>
+            <p className="eyebrow">WARDROBE INSIGHTS</p>
+            <h2>What your wardrobe history shows</h2>
             <p className="muted">
-              Every insight below is calculated from your catalogue, saved
-              outfits, wear events, and care records.
+              These insights use your garments, saved outfits, wear history and care records.
             </p>
           </div>
           <button className="quiet" onClick={close}>
@@ -250,8 +249,7 @@ function Insights({ close, onNavigate }) {
                       {data.care.blockers} garments currently blocked by care
                     </strong>
                     <p>
-                      Resolve completed cases to return them to ensemble
-                      generation.
+                      Mark completed care as resolved so these garments can be used in outfits again.
                     </p>
                     <button className="quiet" onClick={() => onNavigate("care")}>Review care cases</button>
                   </article>
@@ -370,6 +368,14 @@ async function api(url, options) {
         ?.map((issue) => `${issue.path}: ${issue.message}`)
         .join("; ") ||
         value.error?.message ||
+        ({
+          calibration_red_not_found: "The red block could not be found clearly. Retake the photograph with the whole card visible in even light.",
+          calibration_green_not_found: "The green block could not be found clearly. Retake the photograph with the whole card visible in even light.",
+          calibration_blue_not_found: "The blue block could not be found clearly. Retake the photograph with the whole card visible in even light.",
+          calibration_photo_too_small: "This photograph is too small to read reliably. Choose a clearer, higher-resolution image.",
+          selected_garment_not_available_for_use: "That garment is not available for the selected use.",
+          version_conflict_or_missing: "This garment changed or was already deleted. Refresh the wardrobe and try again.",
+        }[value.error]) ||
         value.error ||
         "The request could not be completed.",
     );
@@ -790,38 +796,24 @@ function CategoryForm({ categories, close, saved }) {
   );
 }
 function CalibrationForm({ close, saved }) {
-  const [name, setName] = useState(""),
-    [cardType, setCardType] = useState(""),
-    [patches, setPatches] = useState(
-      "White,96.5,0,0\nNeutral grey,50,0,0\nBlack,5,0,0",
-    ),
+  const [name, setName] = useState("My colour card"),
+    [file, setFile] = useState(null),
+    [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const submit = async (e) => {
     e.preventDefault();
+    if (!file) return;
+    setBusy(true);
+    setError("");
     try {
-      const values = patches
-        .split("\n")
-        .map((line) => line.split(",").map((value) => value.trim()))
-        .filter((row) => row.some(Boolean))
-        .map(([label, l, a, b]) => ({
-          label,
-          labL: Number(l),
-          labA: Number(a),
-          labB: Number(b),
-        }));
-      saved(
-        await api("/api/calibration-profiles", {
-          method: "POST",
-          body: JSON.stringify({
-            name,
-            cardType,
-            notes: null,
-            patches: values,
-          }),
-        }),
-      );
+      const response = await fetch(`/api/calibration-profiles/from-photo?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "content-type": file.type || "application/octet-stream" }, body: file });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error === "calibration_red_not_found" || value.error === "calibration_green_not_found" || value.error === "calibration_blue_not_found" ? "Dress’Ed could not clearly find all three colour blocks. Retake the photograph in even light with the full card visible." : value.error || "The calibration photograph could not be used.");
+      saved(value);
     } catch (cause) {
       setError(cause.message);
+    } finally {
+      setBusy(false);
     }
   };
   return (
@@ -829,8 +821,8 @@ function CalibrationForm({ close, saved }) {
       <section className="modal compact">
         <header>
           <div>
-            <p className="eyebrow">KNOWN REFERENCE VALUES</p>
-            <h2>Calibration profile</h2>
+            <p className="eyebrow">SET UP YOUR COLOUR CARD</p>
+            <h2>Add a calibration card</h2>
           </div>
           <button className="quiet" onClick={close}>
             Close
@@ -838,7 +830,7 @@ function CalibrationForm({ close, saved }) {
         </header>
         <form onSubmit={submit}>
           <label>
-            Name
+            Card name
             <input
               required
               value={name}
@@ -846,31 +838,16 @@ function CalibrationForm({ close, saved }) {
               placeholder="My colour card"
             />
           </label>
-          <label>
-            Card type
-            <input
-              required
-              value={cardType}
-              onChange={(e) => setCardType(e.target.value)}
-              placeholder="Manufacturer/model"
-            />
-          </label>
-          <label>
-            Reference patches <small>one per line: label,L*,a*,b*</small>
-            <textarea
-              required
-              rows="7"
-              value={patches}
-              onChange={(e) => setPatches(e.target.value)}
-            />
-          </label>
           <p className="muted">
-            Enter the published CIE Lab values supplied with your physical card.
-            The sample values are placeholders and should be replaced.
+            Print a white sheet with three large, separate blocks: red, green and blue. Photograph the whole sheet in the lighting you normally use. Dress’Ed will read the colours and use this card as the reference in later garment photographs.
           </p>
+          <label>
+            Photograph of your colour card
+            <input required type="file" accept="image/jpeg,image/png" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          </label>
           {error && <p className="error">{error}</p>}
           <div className="form-actions">
-            <button className="primary">Save profile</button>
+            <button className="primary" disabled={busy}>{busy ? "Reading colours…" : "Use this photograph"}</button>
           </div>
         </form>
       </section>
@@ -878,6 +855,7 @@ function CalibrationForm({ close, saved }) {
   );
 }
 function PhotoManager({ garment, profiles, categories, close, review }) {
+  const usableProfiles = profiles.filter((item) => item.readyForPhotos);
   const [images, setImages] = useState([]),
     [readiness, setReadiness] = useState({
       wholeReady: false,
@@ -886,7 +864,7 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
     }),
     [fingerprint, setFingerprint] = useState(null),
     [role, setRole] = useState("whole"),
-    [profile, setProfile] = useState(profiles[0]?.id || ""),
+    [profile, setProfile] = useState(usableProfiles[0]?.id || ""),
     [file, setFile] = useState(null),
     [cardVisible, setCardVisible] = useState(false),
     [busy, setBusy] = useState(false),
@@ -973,7 +951,7 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
       <section className="modal">
         <header>
           <div>
-            <p className="eyebrow">PHOTOGRAPHY & MEASUREMENTS</p>
+            <p className="eyebrow">GARMENT PHOTOS</p>
             <h2>{garment.name}</h2>
             <p className="muted">
               Whole: {readiness.wholeReady ? "ready" : "needed"} · Detail:{" "}
@@ -984,15 +962,15 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
             Close
           </button>
         </header>
-        {!profiles.length ? (
+        {!usableProfiles.length ? (
           <div className="empty">
-            <h3>Create a calibration profile first.</h3>
-            <p>Every photograph must be tied to known reference-card values.</p>
+            <h3>Add your colour card first.</h3>
+            <p>Go to Settings, photograph your printed red, green and blue card, then return here.</p>
           </div>
         ) : (
           <form onSubmit={upload} className="upload-form">
             <label>
-              Image role
+              Photograph type
               <select value={role} onChange={(e) => setRole(e.target.value)}>
                 <option value="whole">Whole item</option>
                 <option value="detail">Close-up/detail</option>
@@ -1000,12 +978,12 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
               </select>
             </label>
             <label>
-              Calibration profile
+              Colour card
               <select
                 value={profile}
                 onChange={(e) => setProfile(e.target.value)}
               >
-                {profiles.map((x) => (
+                {usableProfiles.map((x) => (
                   <option key={x.id} value={x.id}>
                     {x.name}
                   </option>
@@ -1013,7 +991,7 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
               </select>
             </label>
             <label>
-              JPEG or PNG
+              Choose a photograph
               <input
                 required
                 type="file"
@@ -1028,10 +1006,10 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
                 checked={cardVisible}
                 onChange={(e) => setCardVisible(e.target.checked)}
               />
-              The calibration card is fully visible
+              My colour card is fully visible in this photograph
             </label>
             <button className="primary" disabled={busy}>
-              {busy ? "Working…" : "Store and validate"}
+              {busy ? "Checking photograph…" : "Add photograph"}
             </button>
           </form>
         )}
@@ -1068,12 +1046,12 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
             <button className="primary" disabled={busy} onClick={analyse}>
               {fingerprint ? "Reanalyse photographs" : "Analyse photographs"}
             </button>
-            <span>Deterministic local measurements only</span>
+            <span>Analysed privately on this computer</span>
           </div>
         )}
         {fingerprint && (
           <section className="suggestions">
-            <h3>Measured fingerprint</h3>
+            <h3>Colours found</h3>
             <div className="palette">
               {fingerprint.measurements.combined.palette.map((x) => (
                 <span
@@ -1084,32 +1062,32 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
               ))}
             </div>
             <p>
-              Complexity{" "}
+              Visual detail{" "}
               {Math.round(
                 fingerprint.measurements.combined.visualComplexity * 100,
               )}
-              % · solid confidence{" "}
+              % · likely to be a solid colour{" "}
               {Math.round(
                 fingerprint.measurements.combined.solidConfidence * 100,
               )}
-              % · texture{" "}
+              % · visible texture{" "}
               {Math.round(
                 fingerprint.measurements.combined.textureStrength * 100,
               )}
               %
             </p>
-            <h3>Editable suggestions</h3>
+            <h3>Suggested details</h3>
             {fingerprint.suggestions.map((x) => (
               <article key={x.field}>
                 <strong>{x.field}</strong>
                 <span>
-                  {Math.round(Number(x.confidence) * 100)}% confidence
+                  {Math.round(Number(x.confidence) * 100)}% match
                 </span>
-                <code>{JSON.stringify(x.value)}</code>
+                <span>{Array.isArray(x.value) ? x.value.map((value) => value.slug || value).join(", ") : String(x.value)}</span>
               </article>
             ))}
             <button className="primary" onClick={useSuggestions}>
-              Review suggestions in garment form
+              Review and confirm these details
             </button>
           </section>
         )}
@@ -1172,8 +1150,8 @@ function StylingLab({ garments, close }) {
       <section className="modal">
         <header>
           <div>
-            <p className="eyebrow">DETERMINISTIC RULE LABORATORY</p>
-            <h2>Evaluate a combination</h2>
+            <p className="eyebrow">OUTFIT CHECK</p>
+            <h2>Check how these garments work together</h2>
             <p className="muted">
               This scores your selection; it does not generate or save an
               outfit.
@@ -1426,8 +1404,7 @@ function OutfitBuilder({ close }) {
           <div className="empty">
             <h3>No eligible garments yet.</h3>
             <p>
-              Garments need a current visual fingerprint before they can enter
-              an ensemble.
+              Add and analyse garment photographs before asking Dress’Ed to include them in an outfit.
             </p>
           </div>
         )}
@@ -2094,6 +2071,8 @@ function ModernApp() {
   const [modal, setModal] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     try {
@@ -2159,8 +2138,8 @@ function ModernApp() {
     if (!archiveTarget) return;
     setArchiveBusy(true);
     try {
-      await api(`/api/garments/${archiveTarget.id}`, {
-        method: "DELETE",
+      await api(`/api/garments/${archiveTarget.id}/archive`, {
+        method: "POST",
         body: JSON.stringify({ version: archiveTarget.version }),
       });
       setArchiveTarget(null);
@@ -2169,6 +2148,19 @@ function ModernApp() {
       setError(cause.message);
     } finally {
       setArchiveBusy(false);
+    }
+  };
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+    try {
+      await api(`/api/garments/${deleteTarget.id}`, { method: "DELETE", body: JSON.stringify({ version: deleteTarget.version }) });
+      setDeleteTarget(null);
+      await load();
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setDeleteBusy(false);
     }
   };
   const photoIntake = async () => {
@@ -2204,7 +2196,7 @@ function ModernApp() {
     home: ["Home", "Your wardrobe at a glance and the next useful actions."],
     wardrobe: [
       "Wardrobe",
-      "Find, review and maintain every garment in your catalogue.",
+      "Find, review and update every garment in your wardrobe.",
     ],
     outfits: [
       "Outfits",
@@ -2217,7 +2209,7 @@ function ModernApp() {
     care: ["Care", "Keep cleaning, repairs and garment availability accurate."],
     insights: [
       "Insights",
-      "Use catalogue and wear evidence to understand your wardrobe.",
+      "Use your wardrobe and wear history to see what is useful and what needs attention.",
     ],
     settings: [
       "Settings",
@@ -2299,6 +2291,9 @@ function ModernApp() {
                       <Button variant="danger" onClick={() => archive(item)}>
                         Archive
                       </Button>
+                      <Button variant="danger" onClick={() => setDeleteTarget(item)}>
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>
@@ -2347,12 +2342,23 @@ function ModernApp() {
             ? `“${archiveTarget.name}” will leave the active wardrobe.`
             : ""
         }
-        consequence="Its photographs, wear history and care evidence will be retained."
+        consequence="Its photographs, wear history and care records will be kept."
         confirmLabel="Archive garment"
         destructive
         busy={archiveBusy}
         onConfirm={confirmArchive}
         onCancel={() => setArchiveTarget(null)}
+      />
+      <ConfirmationDialog
+        open={Boolean(deleteTarget)}
+        title="Permanently delete this garment?"
+        description={deleteTarget ? `“${deleteTarget.name}” will be removed from Dress’Ed.` : ""}
+        consequence="Its photographs and any outfits, plans, wear records or care records that depend on it will also be permanently deleted. This cannot be undone."
+        confirmLabel="Delete permanently"
+        destructive
+        busy={deleteBusy}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
       <PageHeader
         eyebrow="Personal wardrobe"
@@ -2382,7 +2388,7 @@ function ModernApp() {
             <Metric
               label="Active garments"
               value={catalogue.total}
-              context="Available in your catalogue"
+              context="Available in your wardrobe"
             />
             <Metric
               label="Categories"
@@ -2390,7 +2396,7 @@ function ModernApp() {
               context="Used to organise garments"
             />
             <Metric
-              label="Calibration profiles"
+              label="Colour cards"
               value={profiles.length}
               context="Used for photo measurement"
             />
@@ -2429,7 +2435,7 @@ function ModernApp() {
           </Panel>
           <Panel
             title="Recently added"
-            description="The first records in the current catalogue view."
+            description="The first garments in the current wardrobe view."
           >
             {catalogue.items.length ? (
               <div className="dressed-recent">
@@ -2449,7 +2455,7 @@ function ModernApp() {
             ) : (
               <EmptyState
                 title="Your wardrobe is empty"
-                description="Add the first garment to begin creating outfits and evidence."
+                description="Add the first garment to begin creating outfits and building your wear history."
                 action={
                   <Button variant="primary" onClick={photoIntake}>
                     Add from photographs
@@ -2567,7 +2573,7 @@ function ModernApp() {
       {view === "insights" && (
         <Panel
           title="Evidence-based wardrobe insights"
-          description="Review utilisation, versatility, rotation and care evidence. Dress’Ed recommends; you decide."
+          description="See what you wear, what combines well, what is being overlooked and what needs care. Dress’Ed recommends; you decide."
         >
           <Button
             variant="primary"
@@ -2589,23 +2595,23 @@ function ModernApp() {
           </Panel>
           <Panel
             title="Photo calibration"
-            description="Calibration profiles make photographic measurements repeatable."
+            description="Photograph your printed red, green and blue card once. Include the same card in every garment photograph so colours stay consistent."
           >
             <Button onClick={() => setModal({ type: "calibration" })}>
-              Manage calibration
+              Add a colour card
             </Button>
           </Panel>
           <Panel
             title="Styling rules"
-            description="Inspect how the current rule set evaluates a combination."
+            description="See why garments work well together and where a combination may need attention."
           >
             <Button onClick={() => setModal({ type: "styling" })}>
-              Open rule laboratory
+              Check an outfit
             </Button>
           </Panel>
           <Panel
             title="Application status"
-            description="Administrative identity, version and enabled capabilities reported by the local service."
+            description="Technical information for checking that Dress’Ed is running correctly."
             actions={
               <StatusBadge tone={healthy ? "success" : "warning"}>
                 {health?.status || "Checking"}

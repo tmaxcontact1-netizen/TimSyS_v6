@@ -979,7 +979,7 @@ async function paperControlRequest(path, body) {
       const payload = await response.json().catch(() => ({}));
       throw new Error(
         response.status === 409
-          ? "Durable paper state changed. Controls reloaded."
+          ? "Paper-trading records changed. Controls reloaded."
           : (payload.error ?? "Paper control failed."),
       );
     }
@@ -1008,18 +1008,18 @@ async function refreshAlerts() {
       (r) => ({ text: time(r.retryAt) }),
       (r) => ({ text: time(r.lastMonitoredAt) }),
     ],
-    "No unresolved worker alerts",
+    "No unresolved processing alerts",
   );
 }
 async function refreshPipeline() {
   const response = await fetch("/api/paper/pipeline", { cache: "no-store" });
-  if (!response.ok) throw new Error("pipeline unavailable");
+  if (!response.ok) throw new Error("market update status unavailable");
   const { pipeline } = await response.json();
   elements["pipeline-state"].textContent = pipeline.state;
   const summary = pipeline.lastResult?.summary;
   elements["pipeline-summary"].textContent = summary
     ? `Last cycle: ${summary.discovered} discovered · ${summary.candidatesEvaluated} evaluated · ${summary.riskEvaluated} risk decisions`
-    : `Next acquisition ${time(pipeline.nextRunAt)}`;
+    : `Next market update ${time(pipeline.nextRunAt)}`;
   elements["pipeline-work"].replaceChildren();
   for (const item of pipeline.work) {
     const row = document.createElement("li"),
@@ -1032,7 +1032,7 @@ async function refreshPipeline() {
   }
   if (!pipeline.work.length) {
     const row = document.createElement("li");
-    row.textContent = "No queued downstream work";
+    row.textContent = "No follow-up work is waiting";
     elements["pipeline-work"].append(row);
   }
 }
@@ -1089,11 +1089,11 @@ async function refresh() {
     elements.wallet.textContent = `${performance.wallet.slice(0, 6)}…${performance.wallet.slice(-6)}`;
     elements.observed.textContent = new Date(observedAt).toLocaleTimeString();
     elements["integrity-title"].textContent = performance.healthy
-      ? "Runtime facts are healthy"
-      : "Worker intervention required";
+      ? "App and trading records are healthy"
+      : "A processing problem needs attention";
     elements["integrity-copy"].textContent = performance.healthy
-      ? "The durable paper ledger reports no unresolved worker errors."
-      : `${performance.workerErrors} durable worker error${performance.workerErrors === 1 ? "" : "s"} require review.`;
+      ? "The paper-trading records contain no unresolved processing errors."
+      : `${performance.workerErrors} processing error${performance.workerErrors === 1 ? "" : "s"} require review.`;
     setStatus(
       performance.healthy ? "healthy" : "unhealthy",
       performance.healthy ? "Healthy" : "Attention required",
@@ -1109,7 +1109,7 @@ async function refresh() {
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";
     elements["integrity-copy"].textContent =
-      "The last durable values remain visible. Reconnecting automatically.";
+      "The last saved values remain visible. Reconnecting automatically.";
     recordConnection("error", "Refresh failed");
   }
 }
@@ -1148,7 +1148,7 @@ async function refreshOperationalStatus() {
     actions.push(`${operations.telegramFailedUpdates} Telegram command(s) failed.`);
   elements["operator-action"].textContent = actions.length
     ? actions.join(" ")
-    : "No immediate operator action is indicated by durable runtime state.";
+    : "No immediate action is needed.";
   elements["operator-action"].dataset.state = actions.length ? "attention" : "clear";
 }
 applyPreferences();
@@ -1174,7 +1174,7 @@ function updateNavigationState() {
     history: ["History", "Inspect fills, realised outcomes and the evidence behind each decision."],
     watchlist: ["Watchlists", "Maintain tokens for observation without granting trading authority."],
     configurations: ["Strategy setup", "Create inert paper-trading drafts for deliberate review."],
-    operations: ["Operations", "Monitor runtime authority, discovery, worker health and alerts."],
+    operations: ["Operations", "Check market connections, paper trading, data updates and alerts."],
   }[page];
   elements["page-title"].textContent = pageCopy[0];
   elements["page-description"].textContent = pageCopy[1];

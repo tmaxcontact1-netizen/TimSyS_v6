@@ -44,6 +44,10 @@ function App() {
   const [wasOnline, setWasOnline] = useState(false);
 
   useEffect(() => {
+    void window.electronAPI?.updates?.rendererReady?.();
+  }, []);
+
+  useEffect(() => {
     check().then((healthy) => {
       if (healthy) {
         setWasOnline(true);

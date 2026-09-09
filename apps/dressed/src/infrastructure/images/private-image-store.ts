@@ -28,6 +28,13 @@ export class PrivateImageStore {
     await rm(dirname(absolute), { recursive: true, force: true });
   }
 
+  public async removeGarment(garmentId: string): Promise<void> {
+    if (!/^[0-9a-f-]{36}$/i.test(garmentId)) throw new Error("invalid_garment_id");
+    const absolute = resolve(this.root, garmentId);
+    if (!this.contains(absolute)) throw new Error("image_path_escape");
+    await rm(absolute, { recursive: true, force: true });
+  }
+
   private contains(absolute: string): boolean {
     const value = relative(this.root, absolute);
     return value !== ".." && !value.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(value);

@@ -136,4 +136,42 @@ export class WardrobeRepository {
       await client.query("COMMIT"); return true;
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
   }
+
+  public async delete(id: string, version: number): Promise<boolean> {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const found = await client.query("SELECT 1 FROM dressed.garments WHERE garment_id=$1 AND version=$2 FOR UPDATE", [id, version]);
+      if (found.rowCount !== 1) { await client.query("ROLLBACK"); return false; }
+      const outfits = await client.query<{outfit_id:string}>("SELECT DISTINCT outfit_id FROM dressed.saved_outfit_items WHERE garment_id=$1", [id]);
+      const outfitIds = outfits.rows.map(row => row.outfit_id);
+      const worn = await client.query<{wear_event_id:string;planned_outfit_id:string|null}>("SELECT DISTINCT e.wear_event_id,e.planned_outfit_id FROM dressed.wear_event_items i JOIN dressed.wear_events e ON e.wear_event_id=i.wear_event_id WHERE i.garment_id=$1", [id]);
+      const wearIds = worn.rows.map(row => row.wear_event_id);
+      const wornPlanIds = worn.rows.flatMap(row => row.planned_outfit_id ? [row.planned_outfit_id] : []);
+      if (outfitIds.length) {
+        await client.query("DELETE FROM dressed.wear_event_items WHERE wear_event_id IN (SELECT wear_event_id FROM dressed.wear_events WHERE saved_outfit_id=ANY($1::uuid[]))", [outfitIds]);
+        await client.query("DELETE FROM dressed.wear_events WHERE saved_outfit_id=ANY($1::uuid[])", [outfitIds]);
+        await client.query("UPDATE dressed.planned_outfits SET replaced_by_id=NULL WHERE replaced_by_id IN (SELECT planned_outfit_id FROM dressed.planned_outfits WHERE saved_outfit_id=ANY($1::uuid[]))", [outfitIds]);
+        await client.query("DELETE FROM dressed.planned_outfits WHERE saved_outfit_id=ANY($1::uuid[])", [outfitIds]);
+        await client.query("DELETE FROM dressed.saved_outfit_items WHERE outfit_id=ANY($1::uuid[])", [outfitIds]);
+        await client.query("DELETE FROM dressed.saved_outfits WHERE outfit_id=ANY($1::uuid[])", [outfitIds]);
+      }
+      if (wearIds.length) { await client.query("DELETE FROM dressed.wear_event_items WHERE wear_event_id=ANY($1::uuid[])", [wearIds]); await client.query("DELETE FROM dressed.wear_events WHERE wear_event_id=ANY($1::uuid[])", [wearIds]); }
+      if (wornPlanIds.length) { await client.query("UPDATE dressed.planned_outfits SET replaced_by_id=NULL WHERE replaced_by_id=ANY($1::uuid[])", [wornPlanIds]); await client.query("DELETE FROM dressed.planned_outfits WHERE planned_outfit_id=ANY($1::uuid[])", [wornPlanIds]); }
+      const evaluations = await client.query<{evaluation_id:string}>("SELECT DISTINCT evaluation_id FROM dressed.styling_evaluation_items WHERE garment_id=$1", [id]);
+      const evaluationIds = evaluations.rows.map(row => row.evaluation_id);
+      if (evaluationIds.length) { await client.query("DELETE FROM dressed.styling_rule_outcomes WHERE evaluation_id=ANY($1::uuid[])", [evaluationIds]); await client.query("DELETE FROM dressed.styling_evaluation_items WHERE evaluation_id=ANY($1::uuid[])", [evaluationIds]); await client.query("DELETE FROM dressed.styling_evaluations WHERE evaluation_id=ANY($1::uuid[])", [evaluationIds]); }
+      await client.query("DELETE FROM dressed.combination_overrides WHERE $1::uuid=ANY(garment_ids)", [id]);
+      await client.query("UPDATE dressed.outfit_plans SET fixed_garment_ids=array_remove(fixed_garment_ids,$1::uuid),excluded_garment_ids=array_remove(excluded_garment_ids,$1::uuid)", [id]);
+      await client.query("DELETE FROM dressed.garment_care_cases WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.garment_field_suggestions WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.visual_fingerprints WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.image_derivatives WHERE source_image_id IN (SELECT image_id FROM dressed.garment_images WHERE garment_id=$1)", [id]);
+      await client.query("DELETE FROM dressed.image_quality_findings WHERE image_id IN (SELECT image_id FROM dressed.garment_images WHERE garment_id=$1)", [id]);
+      await client.query("DELETE FROM dressed.garment_images WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.garment_status_history WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.garments WHERE garment_id=$1", [id]);
+      await client.query("COMMIT"); return true;
+    } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }
+  }
 }

@@ -94,7 +94,7 @@ function ModulePortalPage() {
         </section>
 
         <section>
-          <h3 className="text-lg font-semibold">Modules and component manifests</h3>
+          <h3 className="text-lg font-semibold">Modules and their components</h3>
           <p className="text-sm text-gray-400 mt-1 mb-4">Checkboxes apply to modules and certified components. Parts are descriptive internal building blocks and are not independently selectable.</p>
           <div className="space-y-3">{app.modules.map(module => <article key={module.name} className="rounded-xl border border-gray-800 bg-gray-900">
             <div className="p-4 flex gap-4 items-center">

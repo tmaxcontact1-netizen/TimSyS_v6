@@ -20,3 +20,15 @@ test('packaged resources come from process.resourcesPath', () => {
   assert.equal(layout.dressedRoot, path.join('R:/resources', 'apps', 'dressed'));
   assert.equal(layout.researchedRoot, path.join('R:/resources', 'apps', 'researched'));
 });
+
+test('verified writable bundles override packaged resources independently', () => {
+  const layout = createRuntimeLayout({
+    packaged: true, resourcesPath: 'R:/resources', userDataPath: 'D:/data', sourceRoot: 'S:/source',
+    bundleRoots: { platform: 'D:/updates/platform/2', dressed: 'D:/updates/dressed/3', 'launcher-ui': 'D:/updates/ui/4' },
+  });
+  assert.equal(layout.platformRoot, 'D:/updates/platform/2');
+  assert.equal(layout.dressedRoot, 'D:/updates/dressed/3');
+  assert.equal(layout.launcherUi, 'D:/updates/ui/4');
+  assert.equal(layout.researchedRoot, path.join('R:/resources', 'apps', 'researched'));
+  assert.equal(layout.postgresRoot, path.join('R:/resources', 'runtime', 'postgres'));
+});

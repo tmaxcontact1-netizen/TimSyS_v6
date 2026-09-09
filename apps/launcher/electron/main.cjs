@@ -9,6 +9,7 @@ const { LocalPostgresManager, availablePort } = require('./local-postgres-manage
 const { createRuntimeLayout } = require('./runtime-layout.cjs');
 const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
 const { AiCredentialVault } = require('./ai-credential-vault.cjs');
+const { UpdateManager } = require('./update-manager.cjs');
 
 // The launcher UI does not require GPU acceleration; disabling it improves compatibility on headless and older Windows systems.
 app.disableHardwareAcceleration();
@@ -26,6 +27,8 @@ let memecoinedConfigurationStatus = null;
 let platformUrl = null;
 let aiCredentialVault;
 let applyingResearchedProfile = false;
+let updateManager;
+let updateReadyTimer;
 
 const paperConfigurationFields = Object.freeze([
   'SOLANA_PRIMARY_RPC_URL', 'SOLANA_FALLBACK_RPC_URL', 'HELIUS_API_KEY', 'JUPITER_API_KEY',
@@ -258,9 +261,15 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  updateManager = new UpdateManager({
+    dataRoot: app.getPath('userData'),
+    currentLauncherVersion: app.getVersion(),
+    manifestUrl: process.env.TIMSYS_UPDATE_MANIFEST_URL || 'https://github.com/tmaxcontact1-netizen/TimSyS_v6/releases/latest/download/timsys-update.json',
+  });
   layout = createRuntimeLayout({
     packaged: app.isPackaged, resourcesPath: process.resourcesPath,
     userDataPath: app.getPath('userData'), sourceRoot,
+    bundleRoots: updateManager.activeRoots(),
   });
   supervisedApps = new SupervisedAppManager({
     runtimeExecutable: process.execPath,
@@ -273,7 +282,17 @@ app.whenReady().then(async () => {
   try {
     await startPlatform();
     createWindow();
+    if (updateManager.state.pendingRelease) {
+      updateReadyTimer = setTimeout(async () => {
+        if (await updateManager.rollbackPending()) { app.relaunch(); app.exit(1); }
+      }, 20000);
+    }
   } catch (error) {
+    if (await updateManager.rollbackPending()) {
+      app.relaunch();
+      app.exit(1);
+      return;
+    }
     forwardStatus({ id: 'timsys-platform', state: 'failed', detail: error.message, processes: [] });
     const escaped = String(error.message).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     mainWindow = new BrowserWindow({ width: 900, height: 620, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
@@ -317,7 +336,11 @@ function requireSupervisedChild(appId) {
 
 ipcMain.handle('supervised-app:start', async (_event, appId) => {
   requireSupervisedChild(appId);
-  return appId === 'memecoined' ? startMemecoined() : appId === 'dressed' ? startDressed() : startResearched();
+  try { return await (appId === 'memecoined' ? startMemecoined() : appId === 'dressed' ? startDressed() : startResearched()); }
+  catch (error) {
+    if (await updateManager.rollbackBundle(appId)) { app.relaunch(); app.exit(1); }
+    throw error;
+  }
 });
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
@@ -334,6 +357,37 @@ ipcMain.handle('runtime:diagnostics', async () => {
     catch { statuses.push({ id, state: 'stopped', detail: null, processes: [] }); }
   }
   return diagnostics({ layout, statuses });
+});
+
+function requireLauncherWindow(event) {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) throw new Error('Updates can only be managed from the Launcher');
+}
+
+ipcMain.handle('updates:ready', async (event) => {
+  requireLauncherWindow(event);
+  if (updateReadyTimer) clearTimeout(updateReadyTimer);
+  updateReadyTimer = null;
+  await updateManager.confirmPending();
+  return true;
+});
+
+ipcMain.handle('updates:check', async (event) => {
+  requireLauncherWindow(event);
+  if (!app.isPackaged) return { updateAvailable: false, available: [], development: true, currentLauncherVersion: app.getVersion() };
+  return { ...(await updateManager.check()), currentLauncherVersion: app.getVersion() };
+});
+
+ipcMain.handle('updates:install', async (event) => {
+  requireLauncherWindow(event);
+  if (!app.isPackaged) throw new Error('Updates can only be installed by the packaged Launcher');
+  const result = await updateManager.install();
+  if (!result.restartRequired) return result;
+  await supervisedApps.stopAll();
+  if (postgres?.state) await postgres.backup().catch(() => {});
+  await postgres?.stop().catch(() => {});
+  app.relaunch();
+  app.exit(0);
+  return result;
 });
 
 ipcMain.handle('platform:session', async () => {

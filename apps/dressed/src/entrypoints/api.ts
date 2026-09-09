@@ -21,7 +21,7 @@ import { LifecycleRepository } from "../infrastructure/database/lifecycle-reposi
 import { InsightsRepository } from "../infrastructure/database/insights-repository.js";
 import { PrivateImageStore } from "../infrastructure/images/private-image-store.js";
 import { validateOriginalImage } from "../infrastructure/images/image-validation.js";
-import { combineFingerprint, measureImage, suggestFields } from "../infrastructure/images/visual-fingerprint-engine.js";
+import { analyseCalibrationCard, combineFingerprint, measureImage, suggestFields } from "../infrastructure/images/visual-fingerprint-engine.js";
 import { evaluateStyling } from "../domain/outfit/styling-engine.js";
 import { generateEnsembles } from "../domain/outfit/ensemble-engine.js";
 import { planRotation } from "../domain/planner/rotation-engine.js";
@@ -156,6 +156,16 @@ export function createDressedServer(input: {
         if (method === "POST") return json(response, 201, await photography.createProfile(randomUUID(), calibrationProfileInputSchema.parse(await body(request)), now().toISOString()));
         return json(response, 405, { error: "method_not_allowed" });
       }
+      if (pathname === "/api/calibration-profiles/from-photo") {
+        if (method !== "POST") return json(response, 405, { error: "method_not_allowed" });
+        const url = new URL(request.url ?? pathname, "http://127.0.0.1");
+        const name = (url.searchParams.get("name") ?? "").trim();
+        if (!name || name.length > 120) return json(response, 400, { error: "calibration_name_required" });
+        const bytes = await binaryBody(request);
+        const patches = await analyseCalibrationCard(bytes);
+        const profile = await photography.createProfile(randomUUID(), calibrationProfileInputSchema.parse({ name, cardType: "Printed red, green and blue reference card", notes: "Measured automatically from the uploaded reference photograph.", patches }), now().toISOString());
+        return json(response, 201, profile);
+      }
       if (pathname === "/api/styling/catalogue") {
         if (method !== "GET") return json(response, 405, { error: "method_not_allowed" });
         return json(response, 200, await styling.catalogue());
@@ -199,9 +209,17 @@ export function createDressedServer(input: {
           const parsed = await body(request);
           if (typeof parsed !== "object" || parsed === null || !("version" in parsed)) return json(response, 400, { error: "invalid_version" });
           if (!Number.isInteger(parsed.version) || Number(parsed.version) < 1) return json(response, 400, { error: "invalid_version" });
-          return await wardrobe.archive(id, Number(parsed.version), now().toISOString()) ? json(response, 200, { archived: true }) : json(response, 409, { error: "version_conflict_or_archived" });
+          const deleted = await wardrobe.delete(id, Number(parsed.version));
+          if (deleted) await images.removeGarment(id);
+          return deleted ? json(response, 200, { deleted: true }) : json(response, 409, { error: "version_conflict_or_missing" });
         }
         return json(response, 405, { error: "method_not_allowed" });
+      }
+      const garmentArchiveMatch = /^\/api\/garments\/([0-9a-f-]{36})\/archive$/i.exec(pathname);
+      if (garmentArchiveMatch !== null) {
+        if (method !== "POST") return json(response, 405, { error: "method_not_allowed" });
+        const value = z.object({ version: z.number().int().positive() }).strict().parse(await body(request));
+        return await wardrobe.archive(garmentArchiveMatch[1]!, value.version, now().toISOString()) ? json(response, 200, { archived: true }) : json(response, 409, { error: "version_conflict_or_archived" });
       }
       const garmentImagesMatch = /^\/api\/garments\/([0-9a-f-]{36})\/images$/i.exec(pathname);
       if (garmentImagesMatch !== null) {
@@ -232,7 +250,7 @@ export function createDressedServer(input: {
         if (method === "POST") {
           const sources = await fingerprints.currentImages(garmentId);
           if (sources.length === 0) return json(response, 409, { error: "accepted_photograph_required" });
-          const measured = await Promise.all(sources.map(async (source) => ({ ...source, measurements: await measureImage(await images.read(source.relativePath)) })));
+          const measured = await Promise.all(sources.map(async (source) => ({ ...source, measurements: await measureImage(await images.read(source.relativePath),source.patches) })));
           const whole = measured.find((source) => source.role === "whole") ?? null; const detail = measured.find((source) => source.role === "detail") ?? null;
           const fingerprint = combineFingerprint(whole?.measurements ?? null, detail?.measurements ?? null); const suggestions = suggestFields(fingerprint);
           return json(response, 201, await fingerprints.save({ fingerprintId: randomUUID(), garmentId, fingerprint, suggestions, wholeImageId: whole?.id ?? null, detailImageId: detail?.id ?? null, timestamp: now().toISOString() }));
@@ -257,6 +275,8 @@ export function createDressedServer(input: {
       if (error instanceof Error && error.message === "invalid_json") return json(response, 400, { error: "invalid_json" });
       if (error instanceof Error && error.message === "request_too_large") return json(response, 413, { error: "request_too_large" });
       if (error instanceof Error && error.message === "empty_image") return json(response, 400, { error: "empty_image" });
+      if (error instanceof Error && /^calibration_(red|green|blue)_not_found$/.test(error.message)) return json(response, 422, { error: error.message });
+      if (error instanceof Error && error.message === "calibration_photo_too_small") return json(response, 422, { error: error.message });
       const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
       if (code === "23503") return json(response, 400, { error: "invalid_relationship" });
       if (code === "23505") return json(response, 409, { error: "already_exists" });
