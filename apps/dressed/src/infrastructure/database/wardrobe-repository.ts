@@ -25,6 +25,7 @@ function garment(row: GarmentRow) {
     tailoringNotes: row.tailoring_notes,
     materials: row.materials,
     seasons: row.seasons,
+    uses: row.uses,
     restrictions: row.restrictions,
     acquisition: {
       condition: row.acquisition_condition,
@@ -47,6 +48,7 @@ const garmentSelect = `
   SELECT g.*, c.name AS category_name,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('material',m.material,'percentage',m.percentage) ORDER BY m.material) FROM dressed.garment_materials m WHERE m.garment_id=g.garment_id),'[]'::jsonb) AS materials,
     COALESCE((SELECT jsonb_agg(s.season ORDER BY s.season) FROM dressed.garment_seasons s WHERE s.garment_id=g.garment_id),'[]'::jsonb) AS seasons,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.use_id,'slug',u.slug,'name',u.name) ORDER BY u.sort_order,u.name) FROM dressed.garment_uses gu JOIN dressed.garment_use_types u ON u.use_id=gu.use_id WHERE gu.garment_id=g.garment_id),'[]'::jsonb) AS uses,
     COALESCE((SELECT jsonb_agg(r.restriction ORDER BY r.restriction) FROM dressed.garment_restrictions r WHERE r.garment_id=g.garment_id),'[]'::jsonb) AS restrictions
   FROM dressed.garments g JOIN dressed.garment_categories c ON c.category_id=g.category_id`;
 
@@ -54,9 +56,11 @@ async function replaceCollections(client: PoolClient, id: string, input: Garment
   await client.query("DELETE FROM dressed.garment_materials WHERE garment_id=$1", [id]);
   await client.query("DELETE FROM dressed.garment_seasons WHERE garment_id=$1", [id]);
   await client.query("DELETE FROM dressed.garment_restrictions WHERE garment_id=$1", [id]);
+  await client.query("DELETE FROM dressed.garment_uses WHERE garment_id=$1", [id]);
   for (const item of input.materials) await client.query("INSERT INTO dressed.garment_materials(garment_id,material,percentage) VALUES($1,$2,$3)", [id, item.material, item.percentage ?? null]);
   for (const season of input.seasons) await client.query("INSERT INTO dressed.garment_seasons(garment_id,season) VALUES($1,$2)", [id, season]);
   for (const restriction of input.restrictions) await client.query("INSERT INTO dressed.garment_restrictions(garment_id,restriction) VALUES($1,$2)", [id, restriction]);
+  for (const useId of input.useIds) await client.query("INSERT INTO dressed.garment_uses(garment_id,use_id) SELECT $1,use_id FROM dressed.garment_use_types WHERE use_id=$2 AND is_active", [id, useId]);
 }
 
 export class WardrobeRepository {
@@ -67,16 +71,22 @@ export class WardrobeRepository {
     return result.rows.map(category);
   }
 
+  public async uses() {
+    const result = await this.pool.query("SELECT use_id id,slug,name,sort_order FROM dressed.garment_use_types WHERE is_active ORDER BY sort_order,name");
+    return result.rows;
+  }
+
   public async createCategory(id: string, input: CategoryInput, timestamp: string) {
     const result = await this.pool.query<CategoryRow>(`INSERT INTO dressed.garment_categories(category_id,parent_category_id,name,slug,sort_order,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$6) RETURNING category_id,parent_category_id,name,slug,sort_order,is_active`, [id, input.parentCategoryId ?? null, input.name, input.slug, input.sortOrder, timestamp]);
     return category(result.rows[0]!);
   }
 
-  public async list(input: { search?: string | undefined; categoryId?: string | undefined; status?: string | undefined; limit: number; offset: number }) {
+  public async list(input: { search?: string | undefined; categoryId?: string | undefined; useId?: string | undefined; status?: string | undefined; limit: number; offset: number }) {
     const values: unknown[] = [];
     const conditions: string[] = [];
     if (input.status !== "all") { values.push(input.status ?? "available"); conditions.push(`g.lifecycle_status=$${values.length}`); }
     if (input.categoryId) { values.push(input.categoryId); conditions.push(`g.category_id=$${values.length}`); }
+    if (input.useId) { values.push(input.useId); conditions.push(`EXISTS(SELECT 1 FROM dressed.garment_uses gu WHERE gu.garment_id=g.garment_id AND gu.use_id=$${values.length})`); }
     if (input.search) { values.push(`%${input.search}%`); conditions.push(`(g.name ILIKE $${values.length} OR g.brand ILIKE $${values.length} OR g.product_name ILIKE $${values.length} OR g.sku ILIKE $${values.length})`); }
     const where = conditions.length === 0 ? "" : ` WHERE ${conditions.join(" AND ")}`;
     const count = await this.pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM dressed.garments g${where}`, values);

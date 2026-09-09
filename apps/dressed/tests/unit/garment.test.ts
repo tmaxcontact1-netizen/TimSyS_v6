@@ -27,6 +27,13 @@ describe("garment input", () => {
   test("rejects duplicate seasons", () => {
     expect(garmentInputSchema.safeParse({ ...valid, seasons: ["winter", "winter"] }).success).toBe(false);
   });
+
+  test("accepts multiple uses and rejects duplicate assignments", () => {
+    const work = "30000000-0000-4000-8000-000000000001";
+    const social = "30000000-0000-4000-8000-000000000004";
+    expect(garmentInputSchema.parse({ ...valid, useIds: [work, social] }).useIds).toEqual([work, social]);
+    expect(garmentInputSchema.safeParse({ ...valid, useIds: [work, work] }).success).toBe(false);
+  });
 });
 
 describe("category input", () => {

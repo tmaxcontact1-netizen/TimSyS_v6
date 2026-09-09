@@ -329,6 +329,7 @@ const blank = {
   size: "",
   materials: "",
   seasons: [],
+  useIds: [],
   restrictions: "",
   condition: "",
   purchaseDate: "",
@@ -392,6 +393,7 @@ function data(form) {
       .filter(Boolean)
       .map((material) => ({ material, percentage: null })),
     seasons: form.seasons,
+    useIds: form.useIds,
     restrictions: form.restrictions
       .split("\n")
       .map((item) => item.trim())
@@ -424,6 +426,7 @@ function from(item) {
     size: item.size || "",
     materials: item.materials.map((entry) => entry.material).join(", "),
     seasons: item.seasons,
+    useIds: item.uses.map((use) => use.id),
     restrictions: item.restrictions.join("\n"),
     condition: item.acquisition.condition || "",
     purchaseDate: item.acquisition.purchaseDate?.slice(0, 10) || "",
@@ -436,7 +439,7 @@ function from(item) {
     isGift: item.acquisition.isGift,
   };
 }
-function GarmentForm({ categories, editing, suggestion, close, saved }) {
+function GarmentForm({ categories, uses, editing, suggestion, close, saved }) {
   const selectable = categories.filter(
     (entry) =>
       entry.parentCategoryId ||
@@ -599,6 +602,29 @@ function GarmentForm({ categories, editing, suggestion, close, saved }) {
                       }
                     />
                     {x}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <fieldset className="wide">
+              <legend>Uses</legend>
+              <p className="muted">Choose every setting where this garment may be used. Outfit Builder will only combine garments marked for the selected use.</p>
+              <div className="checks">
+                {uses.map((use) => (
+                  <label key={use.id}>
+                    <input
+                      type="checkbox"
+                      checked={form.useIds.includes(use.id)}
+                      onChange={() =>
+                        change(
+                          "useIds",
+                          form.useIds.includes(use.id)
+                            ? form.useIds.filter((id) => id !== use.id)
+                            : [...form.useIds, use.id],
+                        )
+                      }
+                    />
+                    {use.name}
                   </label>
                 ))}
               </div>
@@ -1242,6 +1268,7 @@ function OutfitBuilder({ close }) {
   const [catalogue, setCatalogue] = useState(null),
     [anchor, setAnchor] = useState(""),
     [contextId, setContext] = useState(""),
+    [useId, setUseId] = useState(""),
     [season, setSeason] = useState(""),
     [results, setResults] = useState(null),
     [busy, setBusy] = useState(false),
@@ -1252,6 +1279,7 @@ function OutfitBuilder({ close }) {
       setCatalogue(value);
       setAnchor((current) => current || value.garments[0]?.id || "");
       setContext((current) => current || value.contexts[0]?.id || "");
+      setUseId((current) => current || value.uses[0]?.id || "");
     } catch (cause) {
       setError(cause.message);
     }
@@ -1269,6 +1297,7 @@ function OutfitBuilder({ close }) {
           body: JSON.stringify({
             selectedGarmentId: anchor,
             contextId,
+            useId,
             season: season || null,
             limitPerGrade: 12,
           }),
@@ -1294,6 +1323,7 @@ function OutfitBuilder({ close }) {
             name,
             garmentIds: candidate.garments.map((x) => x.id),
             contextId,
+            useId,
             season: season || null,
             notes: null,
           }),
@@ -1322,6 +1352,10 @@ function OutfitBuilder({ close }) {
         ["C", results.c],
       ]
     : [];
+  const eligibleGarments = catalogue?.garments.filter((garment) => garment.useIds.includes(useId)) || [];
+  useEffect(() => {
+    if (!eligibleGarments.some((garment) => garment.id === anchor)) setAnchor(eligibleGarments[0]?.id || "");
+  }, [useId, catalogue]);
   return (
     <div className="modal-backdrop">
       <section className="modal ensemble-modal">
@@ -1342,10 +1376,18 @@ function OutfitBuilder({ close }) {
           <label>
             Anchor garment
             <select value={anchor} onChange={(e) => setAnchor(e.target.value)}>
-              {catalogue?.garments.map((x) => (
+              {eligibleGarments.map((x) => (
                 <option key={x.id} value={x.id}>
                   {x.name} · {x.slotId}
                 </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Use
+            <select value={useId} onChange={(e) => setUseId(e.target.value)}>
+              {catalogue?.uses.map((use) => (
+                <option key={use.id} value={use.id}>{use.name}</option>
               ))}
             </select>
           </label>
@@ -1373,7 +1415,7 @@ function OutfitBuilder({ close }) {
           </label>
           <button
             className="primary"
-            disabled={!anchor || !contextId || busy}
+            disabled={!anchor || !contextId || !useId || busy}
             onClick={generate}
           >
             {busy ? "Building…" : "Generate outfits"}
@@ -1387,6 +1429,12 @@ function OutfitBuilder({ close }) {
               Garments need a current visual fingerprint before they can enter
               an ensemble.
             </p>
+          </div>
+        )}
+        {catalogue && useId && !eligibleGarments.length && (
+          <div className="empty">
+            <h3>No garments marked for this use.</h3>
+            <p>Edit garments in Wardrobe and select this use before generating an outfit.</p>
           </div>
         )}
         {results && (
@@ -2032,6 +2080,7 @@ function ModernApp() {
   const [health, setHealth] = useState(null);
   const [application, setApplication] = useState(null);
   const [categories, setCategories] = useState([]);
+  const [uses, setUses] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [catalogue, setCatalogue] = useState({
     items: [],
@@ -2040,6 +2089,7 @@ function ModernApp() {
   });
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [useId, setUseId] = useState("");
   const [page, setPage] = useState(0);
   const [modal, setModal] = useState(null);
   const [archiveTarget, setArchiveTarget] = useState(null);
@@ -2053,29 +2103,33 @@ function ModernApp() {
       });
       if (search) query.set("search", search);
       if (categoryId) query.set("categoryId", categoryId);
+      if (useId) query.set("useId", useId);
       const [
         healthData,
         applicationData,
         categoryData,
+        useData,
         profileData,
         garmentData,
       ] = await Promise.all([
         api("/api/health"),
         api("/api/application"),
         api("/api/categories"),
+        api("/api/garment-uses"),
         api("/api/calibration-profiles"),
         api(`/api/garments?${query}`),
       ]);
       setHealth(healthData);
       setApplication(applicationData);
       setCategories(categoryData.items);
+      setUses(useData.items);
       setProfiles(profileData.items);
       setCatalogue(garmentData);
       setError("");
     } catch (cause) {
       setError(cause.message);
     }
-  }, [page, search, categoryId]);
+  }, [page, search, categoryId, useId]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -2202,6 +2256,7 @@ function ModernApp() {
                 <th>Category</th>
                 <th>Formality</th>
                 <th>Season</th>
+                <th>Uses</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -2221,6 +2276,7 @@ function ModernApp() {
                   <td>{item.categoryName}</td>
                   <td>{item.formality ?? "—"}</td>
                   <td>{item.seasons.join(", ") || "—"}</td>
+                  <td>{item.uses.map((use) => use.name).join(", ") || "Not assigned"}</td>
                   <td>
                     <StatusBadge
                       tone={item.status === "active" ? "success" : "neutral"}
@@ -2418,7 +2474,7 @@ function ModernApp() {
                 }}
               />
             }
-            filters={
+            filters={<>
               <select
                 aria-label="Filter by category"
                 value={categoryId}
@@ -2444,7 +2500,11 @@ function ModernApp() {
                   ),
                 )}
               </select>
-            }
+              <select aria-label="Filter by use" value={useId} onChange={(event) => { setUseId(event.target.value); setPage(0); }}>
+                <option value="">All uses</option>
+                {uses.map((use) => <option key={use.id} value={use.id}>{use.name}</option>)}
+              </select>
+            </>}
             actions={<Button onClick={photoIntake}>Add from photos</Button>}
           />
           {wardrobeTable}
@@ -2600,6 +2660,7 @@ function ModernApp() {
       {modal?.type === "garment" && (
         <GarmentForm
           categories={categories}
+          uses={uses}
           editing={modal.item}
           suggestion={modal.suggestion}
           close={() => setModal(null)}

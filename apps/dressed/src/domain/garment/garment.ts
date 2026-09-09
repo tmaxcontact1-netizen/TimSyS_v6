@@ -22,6 +22,7 @@ export const garmentInputSchema = z.object({
   tailoringNotes: optionalText(2_000),
   materials: z.array(materialSchema).max(20).default([]),
   seasons: z.array(seasonSchema).max(5).default([]),
+  useIds: z.array(z.string().uuid()).max(30).default([]),
   restrictions: z.array(z.string().trim().min(1).max(240)).max(30).default([]),
   acquisition: z.object({
     condition: z.enum(["new", "used"]).optional().nullable(),
@@ -39,6 +40,7 @@ export const garmentInputSchema = z.object({
   const known = value.materials.flatMap((item) => item.percentage == null ? [] : [item.percentage]);
   if (known.reduce((sum, percentage) => sum + percentage, 0) > 100.001) context.addIssue({ code: "custom", path: ["materials"], message: "Material percentages cannot exceed 100" });
   if (new Set(value.seasons).size !== value.seasons.length) context.addIssue({ code: "custom", path: ["seasons"], message: "Seasons must be unique" });
+  if (new Set(value.useIds).size !== value.useIds.length) context.addIssue({ code: "custom", path: ["useIds"], message: "Uses must be unique" });
 });
 
 export const garmentUpdateSchema = garmentInputSchema.and(z.object({ version: z.number().int().positive() }).strict());
