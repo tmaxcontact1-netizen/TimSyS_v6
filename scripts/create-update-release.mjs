@@ -8,6 +8,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stage = join(root, 'apps', 'launcher', 'runtime-stage');
 const output = join(root, 'dist-updates');
 const releaseVersion = process.argv[2];
+const onlyArgument = process.argv.find(value => value.startsWith('--only='));
+const selectedBundles = onlyArgument ? new Set(onlyArgument.slice('--only='.length).split(',').filter(Boolean)) : null;
 if (!/^\d{4}\.\d{2}\.\d+(?:[-.][a-z0-9]+)?$/i.test(releaseVersion || '')) {
   throw new Error('Usage: npm run update:bundle -- 2026.09.1');
 }
@@ -20,6 +22,9 @@ const sources = Object.freeze({
   researched: join(stage, 'apps', 'researched'),
   'launcher-ui': join(root, 'apps', 'launcher', 'dist'),
 });
+if (selectedBundles) {
+  for (const id of selectedBundles) if (!Object.prototype.hasOwnProperty.call(sources, id)) throw new Error(`Unknown bundle in --only: ${id}`);
+}
 
 async function powershell(script, args) {
   await new Promise((resolveRun, reject) => {
@@ -53,6 +58,7 @@ await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const bundles = [];
 for (const [id, source] of Object.entries(sources)) {
+  if (selectedBundles && !selectedBundles.has(id)) continue;
   await access(source);
   const filename = `${id}-${releaseVersion}.zip`;
   const archive = join(output, filename);
