@@ -1305,7 +1305,9 @@ elements["app-back"].addEventListener("click", () => {
   if (location.hash && location.hash !== "#overview") location.hash = "#overview";
   else if (history.length > 1) history.back();
 });
-elements["return-launcher"].addEventListener("click", () => window.close());
+elements["return-launcher"].addEventListener("click", () =>
+  window.electronAPI?.returnToLauncher?.() ?? window.close(),
+);
 elements["action-dialog-form"].addEventListener("submit", (event) => {
   event.preventDefault();
   finishAction(

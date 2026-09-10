@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   platformCheck: () => ipcRenderer.invoke('platform:check'),
   platformSession: () => ipcRenderer.invoke('platform:session'),
   diagnostics: () => ipcRenderer.invoke('runtime:diagnostics'),
+  returnToLauncher: () => ipcRenderer.invoke('launcher:return'),
   updates: {
     rendererReady: () => ipcRenderer.invoke('updates:ready'),
     check: () => ipcRenderer.invoke('updates:check'),

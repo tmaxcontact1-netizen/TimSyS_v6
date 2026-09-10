@@ -2332,7 +2332,7 @@ function ModernApp() {
       active={view}
       onNavigate={setView}
       onBack={goBack}
-      onLauncher={() => window.close()}
+      onLauncher={() => window.electronAPI?.returnToLauncher?.() ?? window.close()}
     >
       <ConfirmationDialog
         open={Boolean(archiveTarget)}

@@ -861,7 +861,8 @@ function PrincipalEdDashboard() {
       });
       if (!leave) return;
     }
-    window.location.assign("/");
+    if (window.electronAPI?.returnToLauncher) await window.electronAPI.returnToLauncher();
+    else window.location.assign("/");
   };
 
   if (loading) {
@@ -872,7 +873,7 @@ function PrincipalEdDashboard() {
         navigation={[]}
         active="overview"
         onBack={() => window.history.back()}
-        onLauncher={() => window.location.assign("/")}
+        onLauncher={() => window.electronAPI?.returnToLauncher?.() ?? window.location.assign("/")}
       >
         <div className="principaled-loading" role="status">
           <div className="spinner" />

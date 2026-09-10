@@ -536,7 +536,7 @@ function App() {
             {label}
           </button>
         ))}
-        <button type="button" className="launcher" onClick={()=>window.close()}>
+        <button type="button" className="launcher" onClick={()=>window.electronAPI?.returnToLauncher?.() ?? window.close()}>
           Return to launcher
         </button>
       </aside>

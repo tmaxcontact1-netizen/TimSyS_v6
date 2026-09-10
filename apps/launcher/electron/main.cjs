@@ -260,6 +260,26 @@ function createWindow() {
   });
 }
 
+function focusLauncher() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+async function stopChild(appId) {
+  try { await supervisedApps.stop(appId); } catch {}
+  if (appId === 'memecoined') await postgres.backup().catch(() => {});
+}
+
+function bindAppWindowLifecycle(window, appId) {
+  window.on('closed', () => {
+    if (appWindow === window) { appWindow = null; appWindowId = null; }
+    void stopChild(appId);
+    focusLauncher();
+  });
+}
+
 app.whenReady().then(async () => {
   updateManager = new UpdateManager({
     dataRoot: app.getPath('userData'),
@@ -341,6 +361,23 @@ ipcMain.handle('supervised-app:start', async (_event, appId) => {
     if (await updateManager.rollbackBundle(appId)) { app.relaunch(); app.exit(1); }
     throw error;
   }
+});
+
+ipcMain.handle('launcher:return', async (event) => {
+  if (appWindow && !appWindow.isDestroyed() && event.sender === appWindow.webContents) {
+    const returningApp = appWindowId;
+    const returningWindow = appWindow;
+    await stopChild(returningApp);
+    if (!returningWindow.isDestroyed()) returningWindow.close();
+    focusLauncher();
+    return { returned: true, appId: returningApp };
+  }
+  if (mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) {
+    await mainWindow.loadURL(new URL('/', platformUrl).href);
+    focusLauncher();
+    return { returned: true, appId: 'principal-ed' };
+  }
+  throw new Error('Return to Launcher is only available from a TimSyS application window');
 });
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
@@ -425,7 +462,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     const html = `<!doctype html><meta charset="utf-8"><title>MemecoinEd setup</title><style>body{font:16px system-ui;background:#101426;color:#e8ecff;padding:48px;line-height:1.55}main{max-width:720px;margin:auto}h1{color:#fff}code{color:#9ed0ff}li{margin:.45rem 0}.safe{color:#8ee6ae}</style><main><p class="safe">SAFE PAPER MODE · LIVE TRADING DISABLED</p><h1>MemecoinEd configuration required</h1><p>The application and its private PostgreSQL database are installed correctly. Add the following values before starting the paper engine:</p><ul>${fields}</ul><p>Configuration file:</p><p><code>${configFile}</code></p><p>Close this window after updating the file, then select <strong>Start and open</strong> again.</p></main>`;
     await appWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
     appWindowId = appId;
-    appWindow.on('closed', () => { appWindow = null; appWindowId = null; });
+    bindAppWindowLifecycle(appWindow, appId);
     return memecoinedConfigurationStatus;
   }
   const status = supervisedApps.status(appId);
@@ -456,7 +493,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     appWindow = null;
     throw new Error(`Unable to open ${appId}: ${error.message}`);
   }
-  appWindow.on('closed', () => { appWindow = null; appWindowId = null; });
+  bindAppWindowLifecycle(appWindow, appId);
   return status;
 });
 
