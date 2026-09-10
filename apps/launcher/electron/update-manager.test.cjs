@@ -4,6 +4,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { execFileSync } = require('node:child_process');
 const { UpdateManager, compareVersions } = require('./update-manager.cjs');
 
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -66,5 +67,25 @@ test('a confirmed release retains one-bundle rollback information', async () => 
     await manager.confirmPending();
     assert.equal(await manager.rollbackBundle('dressed'), true);
     assert.equal(manager.activeRoots().dressed, previous);
+  } finally { await fs.rm(root, { recursive: true, force: true }); }
+});
+
+test('the Windows archive path is extracted by the production implementation', { skip: process.platform !== 'win32' }, async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "timsys update apostrophe '-"));
+  const source = path.join(root, 'source');
+  const archivePath = path.join(root, 'launcher-ui.zip');
+  await fs.mkdir(source, { recursive: true });
+  await fs.writeFile(path.join(source, 'index.html'), 'working update');
+  execFileSync('tar.exe', ['-a', '-cf', archivePath, '-C', source, '.']);
+  const archive = await fs.readFile(archivePath);
+  const manifest = { schemaVersion: 1, releaseVersion: 'test', bundles: [
+    { id: 'launcher-ui', version: '1234567890abcdef', url: 'https://example.test/ui.zip', size: archive.length, sha256: hash(archive) },
+  ] };
+  const manager = new UpdateManager({ dataRoot: root, currentLauncherVersion: '1.0.11', manifestUrl: 'https://example.test/latest.json',
+    fetchImpl: async url => String(url).endsWith('.json') ? new Response(JSON.stringify(manifest)) : new Response(archive),
+  });
+  try {
+    await manager.install();
+    assert.equal(await fs.readFile(path.join(manager.activeRoots()['launcher-ui'], 'index.html'), 'utf8'), 'working update');
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });

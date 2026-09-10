@@ -26,9 +26,9 @@ if (selectedBundles) {
   for (const id of selectedBundles) if (!Object.prototype.hasOwnProperty.call(sources, id)) throw new Error(`Unknown bundle in --only: ${id}`);
 }
 
-async function powershell(script, args) {
+async function createArchive(source, archive) {
   await new Promise((resolveRun, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script, ...args], { windowsHide: true, stdio: 'inherit' });
+    const child = spawn('tar.exe', ['-a', '-cf', archive, '-C', source, '.'], { windowsHide: true, stdio: 'inherit' });
     child.once('error', reject);
     child.once('exit', code => code === 0 ? resolveRun() : reject(new Error(`PowerShell exited with ${code}`)));
   });
@@ -62,7 +62,7 @@ for (const [id, source] of Object.entries(sources)) {
   await access(source);
   const filename = `${id}-${releaseVersion}.zip`;
   const archive = join(output, filename);
-  await powershell('Compress-Archive -Path (Join-Path $args[0] "*") -DestinationPath $args[1] -CompressionLevel Optimal -Force', [source, archive]);
+  await createArchive(source, archive);
   const bytes = await readFile(archive);
   bundles.push({
     id, version: await contentVersion(source),
@@ -74,7 +74,7 @@ for (const [id, source] of Object.entries(sources)) {
 const manifest = {
   schemaVersion: 1,
   releaseVersion,
-  minimumLauncherVersion: '1.0.10',
+  minimumLauncherVersion: '1.0.11',
   publishedAt: new Date().toISOString(),
   notes: 'Verified TimSyS application update.',
   bundles,

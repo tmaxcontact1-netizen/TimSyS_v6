@@ -23,9 +23,9 @@ function compareVersions(left, right) {
   return 0;
 }
 
-function runPowerShell(argumentsList) {
+function extractWithTar(archive, destination) {
   return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', ...argumentsList], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('tar.exe', ['-xf', archive, '-C', destination], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     let errorText = '';
     child.stderr.on('data', value => { errorText += String(value); });
     child.once('error', reject);
@@ -40,7 +40,7 @@ class UpdateManager {
     this.currentLauncherVersion = currentLauncherVersion;
     this.manifestUrl = manifestUrl;
     this.fetch = fetchImpl;
-    this.extractArchive = extractArchive || ((archive, destination) => runPowerShell(['-Command', 'Expand-Archive -LiteralPath $args[0] -DestinationPath $args[1] -Force', archive, destination]));
+    this.extractArchive = extractArchive || extractWithTar;
     this.state = this.readState();
   }
 

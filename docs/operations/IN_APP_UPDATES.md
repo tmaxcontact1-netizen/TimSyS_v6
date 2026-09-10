@@ -1,6 +1,6 @@
 # TimSyS in-app updates
 
-Launcher 1.0.10 separates the stable Electron/PostgreSQL installation from replaceable application bundles. The packaged resources remain a recovery baseline. Verified updates are stored beneath Electron's user-data directory and never overwrite user databases, photographs, configuration, or credentials.
+Launcher 1.0.11 separates the stable Electron/PostgreSQL installation from replaceable application bundles. The packaged resources remain a recovery baseline. Verified updates are stored beneath Electron's user-data directory and never overwrite user databases, photographs, configuration, or credentials.
 
 ## Create a release
 
@@ -12,7 +12,7 @@ Launcher 1.0.10 separates the stable Electron/PostgreSQL installation from repla
 
 The manifest contains the exact byte size and SHA-256 digest of every archive. The Launcher downloads from the repository's latest release, verifies both values before extraction, validates the required runtime files, and only then changes its active-bundle record.
 
-Every latest-release manifest must remain cumulative for users who skip releases: once a bundle has changed relative to the 1.0.10 installer baseline, continue including its current version in later manifests. Content fingerprints prevent users who already have that version from downloading it again.
+Every latest-release manifest must remain cumulative for users who skip releases: once a bundle has changed relative to the 1.0.11 installer baseline, continue including its current version in later manifests. Content fingerprints prevent users who already have that version from downloading it again.
 
 ## Recovery behaviour
 
