@@ -1331,3 +1331,6 @@ body[data-page="positions"] [data-dashboard-panel="trading"],
 body[data-page="history"] [data-dashboard-panel="trading"] {
   grid-template-columns: minmax(0, 1fr);
 }
+/* Global confirmation for every data-changing request. */
+.action-feedback{position:fixed;right:24px;bottom:24px;z-index:10000;max-width:440px;padding:12px 14px;border:1px solid #3a5088;border-radius:10px;background:#17213d;color:#dce5ff;box-shadow:0 16px 42px rgb(0 0 0 / 38%);font-weight:650}
+.action-feedback[data-state="success"]{border-color:#28543d;background:#122b20;color:#a5e9c0}.action-feedback[data-state="error"]{border-color:#71303a;background:#35181d;color:#ffb5ba}.action-feedback[hidden]{display:none}

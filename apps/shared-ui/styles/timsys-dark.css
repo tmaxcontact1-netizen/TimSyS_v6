@@ -15,3 +15,4 @@
 @media(prefers-reduced-motion:no-preference){.ts-button,.ts-navigation button{transition:background-color 120ms ease,border-color 120ms ease,color 120ms ease}}
 .ts-main{max-width:none;width:100%}
 .ts-dialog{background:var(--ts-surface-raised,var(--ts-raised))}
+.ts-button:active:not(:disabled),.ts-navigation button:active:not(:disabled){transform:translateY(1px);filter:brightness(.92)}

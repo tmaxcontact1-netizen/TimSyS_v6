@@ -41,6 +41,7 @@ function ModulePortalPage() {
       if (kind === 'module') await setModuleForApp(app.id, item.name, !item.enabled);
       else await setComponentForApp(app.id, item.name, !item.enabled);
       await load();
+      setNotice(`${label(item.name)} was ${item.enabled ? 'removed' : 'added'} successfully.`);
     } catch (err) {
       const detail = err.response?.data?.error;
       setNotice(detail?.affected?.length ? `${detail.message}: ${detail.affected.map(label).join(', ')}` : detail?.message || err.message);

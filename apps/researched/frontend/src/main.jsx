@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
+import { ActionFeedbackHost, ConfirmationDialog, InputDialog } from "../../../shared-ui/react/index.js";
 const api = async (path, options = {}) => {
   const response = await fetch(path, {
     ...options,
@@ -81,7 +82,11 @@ function App() {
     [review, setReview] = useState(null),
     [capture, setCapture] = useState(null),
     [message, setMessage] = useState(""),
+    [dialog, setDialog] = useState(null),
     [tab, setTab] = useState("overview");
+  const askForText = (options) => new Promise((resolve) => setDialog({ kind: "input", ...options, resolve }));
+  const askToConfirm = (options) => new Promise((resolve) => setDialog({ kind: "confirm", ...options, resolve }));
+  const finishDialog = (value) => { const pending = dialog; setDialog(null); pending?.resolve(value); };
   const load = async () => {
     const [studyResponse, totals, available, availableAnalysis, providers, templates, usage] = await Promise.all([
       api("/api/studies"),
@@ -188,9 +193,7 @@ function App() {
   const decideSource = async (source, corpusStatus) => {
     const reason =
       corpusStatus === "excluded"
-        ? window.prompt(
-            "Why should this source be excluded from the study corpus?",
-          )
+        ? await askForText({ title: "Exclude this source?", description: "Explain why this source should not form part of the study corpus. The reason will be kept in the audit trail.", label: "Reason", confirmLabel: "Exclude source" })
         : null;
     if (corpusStatus === "excluded" && !reason?.trim()) {
       setMessage(
@@ -286,20 +289,20 @@ function App() {
   const analysisDraftIssues=()=>{const issues=[];if(!analysisDraft.name.trim())issues.push("Give the analysis a name");if(analysisDraft.sourceMode==="selected"&&!analysisDraft.sourceIds.length)issues.push("Choose at least one source");if(!analysisDraft.analysisTypes.length)issues.push("Choose at least one analysis type");if(analysisDraft.analysisTypes.includes("custom-extraction")&&!draftLines(analysisDraft.expectedFields).length)issues.push("List the fields you want extracted");if(analysisDraft.analysisTypes.includes("custom-questions")&&!draftLines(analysisDraft.customQuestions).length)issues.push("Add at least one question");if(analysisDraft.analysisTypes.some(type=>["themes","comparison","contradictions"].includes(type))&&(analysisDraft.sourceMode==="selected"?analysisDraft.sourceIds.length:sources.filter(source=>source.corpus_status==="included").length)<2)issues.push("Cross-source analysis needs at least two included sources");return issues;};
   const advanceAnalysisStep=()=>{const issues=analysisStep===1?analysisDraftIssues().filter(issue=>/name|source/i.test(issue)):analysisStep===2?analysisDraftIssues().filter(issue=>/analysis type|two included/i.test(issue)):analysisDraftIssues().filter(issue=>/fields|question/i.test(issue));if(issues.length)return setMessage(issues.join(". "));setAnalysisStep(step=>Math.min(4,step+1));setMessage("");};
   const createAnalysisPlan=async(event)=>{event.preventDefault();const issues=analysisDraftIssues();if(issues.length)return setMessage(issues.join(". "));try{const plan=await api("/api/analysis-plans",{method:"POST",body:JSON.stringify({studyId:active,name:analysisDraft.name.trim(),analysisTypes:analysisDraft.analysisTypes,sourceIds:analysisDraft.sourceMode==="all"?[]:analysisDraft.sourceIds,customQuestions:draftLines(analysisDraft.customQuestions),expectedFields:draftLines(analysisDraft.expectedFields),options:{sourceMode:analysisDraft.sourceMode}})});setAnalysisPlans((await api(`/api/analysis-plans?studyId=${active}`)).items);setAnalysisStep(1);setAnalysisDraft({name:"",sourceMode:"all",sourceIds:[],analysisTypes:[],customQuestions:"",expectedFields:""});setMessage(`Analysis plan “${plan.name}” saved`);}catch(error){setMessage(`Plan was not saved: ${error.message}`);}};
-  const saveAnalysisTemplate=async()=>{const issues=analysisDraftIssues().filter(issue=>!issue.toLowerCase().includes("source"));if(issues.length)return setMessage(issues.join(". "));const description=window.prompt("Optional: describe when this template should be used")||null;try{await api("/api/analysis-templates",{method:"POST",body:JSON.stringify({name:analysisDraft.name.trim(),description,analysisTypes:analysisDraft.analysisTypes,customQuestions:draftLines(analysisDraft.customQuestions),expectedFields:draftLines(analysisDraft.expectedFields),options:{}})});setAnalysisTemplates((await api("/api/analysis-templates")).items);setMessage("Reusable analysis template saved");}catch(error){setMessage(`Template was not saved: ${error.message}`);}};
+  const saveAnalysisTemplate=async()=>{const issues=analysisDraftIssues().filter(issue=>!issue.toLowerCase().includes("source"));if(issues.length)return setMessage(issues.join(". "));const description=await askForText({title:"Describe this template",description:"Optionally explain when this reusable analysis template should be used.",label:"Description",required:false,confirmLabel:"Save template"});try{await api("/api/analysis-templates",{method:"POST",body:JSON.stringify({name:analysisDraft.name.trim(),description:description||null,analysisTypes:analysisDraft.analysisTypes,customQuestions:draftLines(analysisDraft.customQuestions),expectedFields:draftLines(analysisDraft.expectedFields),options:{}})});setAnalysisTemplates((await api("/api/analysis-templates")).items);setMessage("Reusable analysis template saved");}catch(error){setMessage(`Template was not saved: ${error.message}`);}};
   const applyAnalysisTemplate=(template)=>{setAnalysisDraft(current=>({...current,name:template.name,analysisTypes:template.analysis_types,customQuestions:template.custom_questions.join("\n"),expectedFields:template.expected_fields.join("\n")}));setAnalysisStep(1);setMessage(`Template “${template.name}” loaded. Choose its sources.`);};
-  const deleteAnalysisTemplate=async(template)=>{if(!window.confirm(`Remove the reusable template “${template.name}”?`))return;try{await api(`/api/analysis-templates/${template.id}`,{method:"DELETE"});setAnalysisTemplates((await api("/api/analysis-templates")).items);setMessage("Template removed");}catch(error){setMessage(`Template was not removed: ${error.message}`);}};
+  const deleteAnalysisTemplate=async(template)=>{if(!await askToConfirm({title:"Remove this template?",description:`“${template.name}” will no longer be available for new analysis plans.`,consequence:"Existing plans and results will remain unchanged.",confirmLabel:"Remove template",destructive:true}))return;try{await api(`/api/analysis-templates/${template.id}`,{method:"DELETE"});setAnalysisTemplates((await api("/api/analysis-templates")).items);setMessage("Template removed");}catch(error){setMessage(`Template was not removed: ${error.message}`);}};
   const runAnalysisPlan=async(id)=>{setMessage("Queuing evidence-grounded analysis…"); try{const result=await api(`/api/analysis-plans/${id}/run`,{method:"POST",body:"{}"}); setRunResults({...result,results:[],items:[]}); setAnalysisRuns((await api(`/api/analysis-runs?studyId=${active}`)).items); setMessage("Analysis queued. You can leave this screen while it runs.");}catch(error){setMessage(`Analysis could not be queued: ${error.message}`);}};
   const openAnalysisRun=async(id)=>{try{setRunResults(await api(`/api/analysis-runs/${id}`));}catch(error){setMessage(`Could not open results: ${error.message}`);}};
   const exportAnalysisRun=(format)=>{if(!runResults?.id)return;window.location.assign(`/api/analysis-runs/${runResults.id}/export?format=${format}`);setMessage(`${labelize(format)} export requested`);};
-  const controlAnalysisRun=async(run,action)=>{if(action==="cancel"&&!window.confirm("Cancel this analysis run? Completed results will remain available."))return;try{await api(`/api/analysis-runs/${run.id}/${action}`,{method:"POST",body:"{}"});const updated=await api(`/api/analysis-runs/${run.id}`);setRunResults(updated);setAnalysisRuns((await api(`/api/analysis-runs?studyId=${active}`)).items);setMessage(`Analysis ${action==="pause"?"paused":action==="resume"?"resumed":action==="retry"?"queued for retry":"cancelled"}`);}catch(error){setMessage(`Analysis control failed: ${error.message}`);}};
-  const reviewAnalysisResult=async(result,status)=>{const reason=window.prompt(status==="accepted"?"Why do you accept this result?":"Explain why this result should be rejected"); if(!reason?.trim()) return; try{await api(`/api/analysis-results/${result.id}`,{method:"PATCH",body:JSON.stringify({status,reason:reason.trim()})}); setRunResults(await api(`/api/analysis-runs/${runResults.id}`)); setMessage(`Result ${status}`);}catch(error){setMessage(`Review failed: ${error.message}`);}};
+  const controlAnalysisRun=async(run,action)=>{if(action==="cancel"&&!await askToConfirm({title:"Cancel this analysis run?",description:"Stop the remaining analysis work.",consequence:"Results already completed will remain available.",confirmLabel:"Cancel analysis",destructive:true}))return;try{await api(`/api/analysis-runs/${run.id}/${action}`,{method:"POST",body:"{}"});const updated=await api(`/api/analysis-runs/${run.id}`);setRunResults(updated);setAnalysisRuns((await api(`/api/analysis-runs?studyId=${active}`)).items);setMessage(`Analysis ${action==="pause"?"paused":action==="resume"?"resumed":action==="retry"?"queued for retry":"cancelled"}`);}catch(error){setMessage(`Analysis control failed: ${error.message}`);}};
+  const reviewAnalysisResult=async(result,status)=>{const reason=await askForText({title:status==="accepted"?"Accept this result?":"Reject this result?",description:status==="accepted"?"Explain why the result is supported by the evidence.":"Explain why the result should not be used.",label:"Review reason",confirmLabel:status==="accepted"?"Accept result":"Reject result"}); if(!reason?.trim()) return; try{await api(`/api/analysis-results/${result.id}`,{method:"PATCH",body:JSON.stringify({status,reason:reason.trim()})}); setRunResults(await api(`/api/analysis-runs/${runResults.id}`)); setMessage(`Result ${status}`);}catch(error){setMessage(`Review failed: ${error.message}`);}};
   const providerValue=(form)=>{const value=Object.fromEntries(new FormData(form));return{protocol:value.protocol,model:value.model,baseUrl:value.baseUrl,apiKey:value.apiKey||undefined}};
   const inspectAi=async(event)=>{const form=event.currentTarget.form;setMessage("Checking provider and loading its model catalogue…");setAiDiagnostic(null);try{const result=await api("/api/ai/inspect",{method:"POST",body:JSON.stringify(providerValue(form))});setAiDiagnostic(result);setMessage(result.status==="available"?"Provider connection verified":result.detail);}catch(error){setAiDiagnostic({status:"unavailable",models:[],detail:error.message});setMessage(`Provider check failed: ${error.message}`);}};
   const connectAi=async(event)=>{event.preventDefault();const form=event.currentTarget,value=Object.fromEntries(new FormData(form));setMessage("Saving AI provider…");try{if(window.electronAPI?.researchedAi){await window.electronAPI.researchedAi.saveProfile({name:value.profileName||`${value.protocol} · ${value.model}`,...providerValue(form)});setMessage("Provider saved securely. Restarting Research’Ed to apply it…");await window.electronAPI.researchedAi.apply();return;}await api("/api/ai/connection",{method:"POST",body:JSON.stringify(providerValue(form))});await load();form.reset();setMessage("AI provider connected for this app session");}catch(error){setMessage(`Provider was not saved: ${error.message}`);}};
   const disconnectAi=async()=>{await api("/api/ai/connection",{method:"DELETE"});await load();setMessage("AI provider disconnected");};
   const activateAiProfile=async(id)=>{try{await window.electronAPI.researchedAi.activateProfile(id);setMessage("Applying provider profile…");await window.electronAPI.researchedAi.apply();}catch(error){setMessage(`Provider could not be applied: ${error.message}`);}};
-  const removeAiProfile=async(id)=>{if(!window.confirm("Remove this saved provider profile? The encrypted credential will also be removed."))return;try{setAiProfiles(await window.electronAPI.researchedAi.removeProfile(id));setMessage("Provider profile removed");}catch(error){setMessage(`Provider profile was not removed: ${error.message}`);}};
+  const removeAiProfile=async(id)=>{if(!await askToConfirm({title:"Remove this AI provider?",description:"The saved provider profile will be removed.",consequence:"Its encrypted credential will also be deleted from this computer.",confirmLabel:"Remove provider",destructive:true}))return;try{setAiProfiles(await window.electronAPI.researchedAi.removeProfile(id));setMessage("Provider profile removed");}catch(error){setMessage(`Provider profile was not removed: ${error.message}`);}};
   const useRulesOnly=async()=>{try{await window.electronAPI.researchedAi.activateProfile(null);setMessage("Restarting Research’Ed without an AI provider…");await window.electronAPI.researchedAi.apply();}catch(error){setMessage(`Rules-only mode could not be applied: ${error.message}`);}};
   const reviewSource = async (source) => {
     if (!source.latest_snapshot_id) return;
@@ -386,7 +389,7 @@ function App() {
   });
   const transition = async (kind, id, targetStatus, needsReason = false) => {
     const reason = needsReason
-      ? window.prompt(`Reason for changing this ${kind} to ${targetStatus}:`)
+      ? await askForText({title:"Change this status?",description:`Explain why this ${kind} should be changed to ${labelize(targetStatus)}.`,label:"Reason",confirmLabel:"Change status"})
       : null;
     if (needsReason && !reason?.trim()) {
       setMessage("Status change cancelled: a reason is required");
@@ -444,7 +447,7 @@ function App() {
   const decideDiscovered = async (link, action) => {
     const reason =
       action === "dismiss"
-        ? window.prompt("Why should this link be dismissed?")
+        ? await askForText({title:"Dismiss this link?",description:"Explain why this discovered link should not be added as a research source.",label:"Reason",confirmLabel:"Dismiss link"})
         : null;
     if (action === "dismiss" && !reason?.trim())
       return setMessage("Dismissal cancelled: a reason is required");
@@ -1569,7 +1572,9 @@ function App() {
           </section>
         )}
       </main>
+      <ConfirmationDialog open={dialog?.kind === "confirm"} title={dialog?.title || "Confirm action"} description={dialog?.description || ""} consequence={dialog?.consequence} confirmLabel={dialog?.confirmLabel} destructive={dialog?.destructive} onConfirm={() => finishDialog(true)} onCancel={() => finishDialog(false)} />
+      <InputDialog open={dialog?.kind === "input"} title={dialog?.title || "Add details"} description={dialog?.description} label={dialog?.label} required={dialog?.required !== false} confirmLabel={dialog?.confirmLabel} onConfirm={(value) => finishDialog(value)} onCancel={() => finishDialog(null)} />
     </div>
   );
 }
-createRoot(document.getElementById("root")).render(<App />);
+createRoot(document.getElementById("root")).render(<><ActionFeedbackHost /><App /></>);

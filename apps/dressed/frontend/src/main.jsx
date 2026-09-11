@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
   AppShell,
+  ActionFeedbackHost,
   Button,
   ConfirmationDialog,
   EmptyState,
@@ -808,7 +809,17 @@ function CalibrationForm({ close, saved }) {
     try {
       const response = await fetch(`/api/calibration-profiles/from-photo?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "content-type": file.type || "application/octet-stream" }, body: file });
       const value = await response.json();
-      if (!response.ok) throw new Error(value.error === "calibration_red_not_found" || value.error === "calibration_green_not_found" || value.error === "calibration_blue_not_found" ? "Dress’Ed could not clearly find all three colour blocks. Retake the photograph in even light with the full card visible." : value.error || "The calibration photograph could not be used.");
+      if (!response.ok) {
+        const messages = {
+          calibration_red_not_found: "The red block could not be found clearly.",
+          calibration_green_not_found: "The green block could not be found clearly.",
+          calibration_blue_not_found: "The blue block could not be found clearly.",
+          calibration_card_geometry_invalid: "The colour blocks were visible, but Dress’Ed could not confirm that they belonged to the calibration card. Keep the whole card flat and visible.",
+          calibration_card_glare: "Reflections are obscuring the colour blocks. Remove glossy covering or change the lighting and try again.",
+          calibration_photo_too_small: "The photograph is too small to read reliably.",
+        };
+        throw new Error(messages[value.error] || value.error || "The calibration photograph could not be used.");
+      }
       saved(value);
     } catch (cause) {
       setError(cause.message);
@@ -869,6 +880,7 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
     [cardVisible, setCardVisible] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const selectedProfile = usableProfiles.find((item) => item.id === profile) || usableProfiles[0];
   const load = useCallback(async () => {
     try {
       const value = await api(`/api/garments/${garment.id}/images`);
@@ -977,6 +989,12 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
                 <option value="additional">Additional</option>
               </select>
             </label>
+            {selectedProfile && (
+              <div className="calibration-active" role="status">
+                <strong>Colour calibration is on</strong>
+                <span>{selectedProfile.name} will be used for this photograph.</span>
+              </div>
+            )}
             <label>
               Colour card
               <select
@@ -2597,6 +2615,20 @@ function ModernApp() {
             title="Photo calibration"
             description="Photograph your printed red, green and blue card once. Include the same card in every garment photograph so colours stay consistent."
           >
+            {profiles.length ? (
+              <div className="calibration-summary" role="status">
+                <StatusBadge tone="success">Ready</StatusBadge>
+                <div>
+                  <strong>{profiles.length === 1 ? "1 colour card is available" : `${profiles.length} colour cards are available`}</strong>
+                  <p>{profiles.filter((profile) => profile.readyForPhotos).map((profile) => profile.name).join(", ") || "No card is ready for garment photographs yet."}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="calibration-summary calibration-summary--empty">
+                <StatusBadge tone="warning">Not set up</StatusBadge>
+                <div><strong>No colour card is available</strong><p>Add one before photographing garments.</p></div>
+              </div>
+            )}
             <Button onClick={() => setModal({ type: "calibration" })}>
               Add a colour card
             </Button>
@@ -2726,6 +2758,7 @@ function ModernApp() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    <ActionFeedbackHost />
     <ModernApp />
   </React.StrictMode>,
 );

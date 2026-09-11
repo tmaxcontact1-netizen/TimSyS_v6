@@ -16,6 +16,9 @@ describe('application UI generation standard', function() {
     expect(uiStandard.contract.forms.protectUnsavedChanges).toBe(true);
     expect(uiStandard.contract.refresh.mustNotOverwriteDirtyForms).toBe(true);
     expect(uiStandard.contract.actions.nativePromptForbidden).toBe(true);
+    expect(uiStandard.contract.actions.loadingFeedback).toBe(true);
+    expect(uiStandard.contract.actions.mutationFeedbackHost).toBe(true);
+    expect(uiStandard.contract.actions.silentCompletionForbidden).toBe(true);
     expect(fs.existsSync(path.resolve(__dirname, '../../../', uiStandard.contract.implementation.react))).toBe(true);
     expect(fs.existsSync(path.resolve(__dirname, '../../../', uiStandard.contract.implementation.vanilla))).toBe(true);
   });

@@ -406,6 +406,25 @@ td small {
 .upload-form .check {
   grid-column: 1/-1;
 }
+.calibration-active,
+.calibration-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #49765b;
+  border-radius: 8px;
+  background: #17221a;
+  color: #bce9ca;
+}
+.calibration-active {
+  grid-column: 1/-1;
+  justify-content: space-between;
+}
+.calibration-active span,
+.calibration-summary p { color: #aaa197; margin: 0; }
+.calibration-summary { margin-bottom: 14px; }
+.calibration-summary--empty { border-color: #725f32; background: #211e15; }
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

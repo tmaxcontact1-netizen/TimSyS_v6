@@ -21,6 +21,8 @@ Every screen must make location, available work, attention items, and the result
 - Delete, withdraw, publish, allocate, execute, and financial actions require an explicit confirmation that names the affected record and consequence.
 - Reversible actions offer undo or a corresponding reinstate action.
 - Disabled actions explain their unmet prerequisite.
+- Every data-changing request shows an immediate working state and an explicit success or failure result. Silent completion is forbidden, even when the resulting record also appears in a refreshed list.
+- Applications use the shared mutation-feedback host as a baseline. Context-specific confirmation remains in the workflow when it can identify the affected record more clearly.
 
 ## Forms
 

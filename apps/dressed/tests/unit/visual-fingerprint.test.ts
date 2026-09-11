@@ -16,7 +16,21 @@ describe("classical visual fingerprint", () => {
   test("finds red, green and blue reference blocks without asking the user for colour values", async () => {
     const width=360,height=300,channels=3,pixels=Buffer.alloc(width*height*channels,245);
     const blocks:[[number,number,number],[number,number,number],[number,number,number]]=[[220,35,35],[35,190,55],[35,60,220]];
-    blocks.forEach((colour,index)=>{const startX=30+index*110;for(let y=80;y<220;y++)for(let x=startX;x<startX+80;x++){const offset=(y*width+x)*channels;pixels[offset]=colour[0];pixels[offset+1]=colour[1];pixels[offset+2]=colour[2];}});
+    blocks.forEach((colour,index)=>{const startX=45+index*105;for(let y=100;y<200;y++)for(let x=startX;x<startX+60;x++){const offset=(y*width+x)*channels;pixels[offset]=colour[0];pixels[offset+1]=colour[1];pixels[offset+2]=colour[2];}});
+    const patches=await analyseCalibrationCard(await sharp(pixels,{raw:{width,height,channels}}).png().toBuffer());
+    expect(patches.map(patch=>patch.label)).toEqual(["Red","Green","Blue"]);
+  });
+
+  test("rejects unrelated colour regions that do not form a calibration card", async () => {
+    const width=360,height=300,channels=3,pixels=Buffer.alloc(width*height*channels,210);
+    const regions=[{x:15,y:20,w:70,h:70,c:[220,35,35]},{x:250,y:15,w:55,h:55,c:[35,190,55]},{x:180,y:220,w:70,h:45,c:[35,60,220]}] as const;
+    for(const region of regions)for(let y=region.y;y<region.y+region.h;y++)for(let x=region.x;x<region.x+region.w;x++){const offset=(y*width+x)*channels;pixels[offset]=region.c[0];pixels[offset+1]=region.c[1];pixels[offset+2]=region.c[2];}
+    await expect(analyseCalibrationCard(await sharp(pixels,{raw:{width,height,channels}}).png().toBuffer())).rejects.toThrow("calibration_card_geometry_invalid");
+  });
+
+  test("finds a rotated three-patch card", async () => {
+    const width=400,height=400,channels=3,pixels=Buffer.alloc(width*height*channels,235),colours=[[220,35,35],[35,190,55],[35,60,220]] as const;
+    colours.forEach((colour,index)=>{const centre=90+index*105;for(let y=centre-28;y<centre+28;y++)for(let x=170;x<230;x++){const offset=(y*width+x)*channels;pixels[offset]=colour[0];pixels[offset+1]=colour[1];pixels[offset+2]=colour[2];}});
     const patches=await analyseCalibrationCard(await sharp(pixels,{raw:{width,height,channels}}).png().toBuffer());
     expect(patches.map(patch=>patch.label)).toEqual(["Red","Green","Blue"]);
   });

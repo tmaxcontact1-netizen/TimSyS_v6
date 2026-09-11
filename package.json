@@ -12,7 +12,7 @@
     "build": "node scripts/workspace.mjs build",
     "preflight": "node scripts/preflight.mjs",
     "audit:ui": "node scripts/audit-ui-coverage.mjs",
-    "verify": "npm run preflight && node scripts/workspace.mjs verify",
+    "verify": "npm run preflight && node scripts/audit-gui-practice.mjs && node scripts/workspace.mjs verify",
     "fetch:postgres": "node scripts/fetch-postgres.mjs",
     "stage:windows": "node scripts/prepare-windows-runtime.mjs && node scripts/verify-windows-runtime.mjs",
     "package:windows": "npm run verify && npm run fetch:postgres && npm run stage:windows && node scripts/build-windows-artifacts.mjs",

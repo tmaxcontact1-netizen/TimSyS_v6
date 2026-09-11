@@ -14,8 +14,24 @@ client.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  const method = String(config.method || "get").toUpperCase();
+  if (["POST", "PUT", "PATCH", "DELETE"].includes(method)) {
+    config.__timsysAction = { id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`, method };
+    globalThis.window?.dispatchEvent(new CustomEvent("timsys:action-feedback", { detail: { ...config.__timsysAction, phase: "working" } }));
+  }
   return config;
 });
+
+client.interceptors.response.use(
+  (response) => {
+    if (response.config.__timsysAction) globalThis.window?.dispatchEvent(new CustomEvent("timsys:action-feedback", { detail: { ...response.config.__timsysAction, phase: "success" } }));
+    return response;
+  },
+  (error) => {
+    if (error.config?.__timsysAction) globalThis.window?.dispatchEvent(new CustomEvent("timsys:action-feedback", { detail: { ...error.config.__timsysAction, phase: "error" } }));
+    return Promise.reject(error);
+  },
+);
 
 export const get = (url) => client.get(url);
 export const getGradebookManifest = () => client.get("/gradebook/manifest");

@@ -4,6 +4,7 @@ import PrincipalEdPage from './PrincipalEdPage';
 import ModulePortalPage from './ModulePortalPage';
 import useAppStore from '../store/appStore';
 import { useAnyPermission } from '../utils/permissions';
+import { reportActionFeedback } from '../../../shared-ui/react/index.js';
 
 function AppDashboard() {
   const { appId } = useParams();
@@ -34,6 +35,7 @@ function AppDashboard() {
     const api = window.electronAPI?.supervisedApp;
     if (!api) return;
     setError(null);
+    reportActionFeedback({ method: 'POST', phase: 'working', message: `Starting ${app.displayName}…` });
     setStatus((current) => ({ ...(current || {}), id: appId, state: 'starting', detail: null }));
     try {
       let next = await api.status(appId);
@@ -41,18 +43,35 @@ function AppDashboard() {
       if (next.state !== 'running') next = await api.start(appId);
       setStatus(next);
       await api.open(appId);
+      reportActionFeedback({ method: 'POST', phase: 'success', message: `${app.displayName} started and opened.` });
     } catch (cause) {
       setError(cause.message);
+      reportActionFeedback({ method: 'POST', phase: 'error', message: `${app.displayName} could not be started. Review the error on this page.` });
+    }
+  };
+
+  const open = async () => {
+    setError(null);
+    reportActionFeedback({ method: 'POST', phase: 'working', message: `Opening ${app.displayName}…` });
+    try {
+      await window.electronAPI.supervisedApp.open(appId);
+      reportActionFeedback({ method: 'POST', phase: 'success', message: `${app.displayName} opened.` });
+    } catch (cause) {
+      setError(cause.message);
+      reportActionFeedback({ method: 'POST', phase: 'error', message: `${app.displayName} could not be opened. Review the error on this page.` });
     }
   };
 
   const stop = async () => {
     setError(null);
+    reportActionFeedback({ method: 'POST', phase: 'working', message: `Stopping ${app.displayName}…` });
     setStatus((current) => ({ ...(current || {}), id: appId, state: 'stopping', detail: null }));
     try {
       setStatus(await window.electronAPI.supervisedApp.stop(appId));
+      reportActionFeedback({ method: 'POST', phase: 'success', message: `${app.displayName} stopped.` });
     } catch (cause) {
       setError(cause.message);
+      reportActionFeedback({ method: 'POST', phase: 'error', message: `${app.displayName} could not be stopped. Review the error on this page.` });
     }
   };
 
@@ -73,7 +92,7 @@ function AppDashboard() {
             <button onClick={() => navigate('/')} className="bg-gray-700 text-white px-5 py-2 rounded">Back</button>
             {state === 'running' ? (
               <>
-                <button onClick={() => window.electronAPI.supervisedApp.open(appId)} className="bg-timsys-primary text-white px-5 py-2 rounded">Open</button>
+                <button onClick={open} className="bg-timsys-primary text-white px-5 py-2 rounded">Open</button>
                 <button onClick={stop} className="bg-red-700 text-white px-5 py-2 rounded">Stop</button>
               </>
             ) : (

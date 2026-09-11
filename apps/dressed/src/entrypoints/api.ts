@@ -276,7 +276,7 @@ export function createDressedServer(input: {
       if (error instanceof Error && error.message === "request_too_large") return json(response, 413, { error: "request_too_large" });
       if (error instanceof Error && error.message === "empty_image") return json(response, 400, { error: "empty_image" });
       if (error instanceof Error && /^calibration_(red|green|blue)_not_found$/.test(error.message)) return json(response, 422, { error: error.message });
-      if (error instanceof Error && error.message === "calibration_photo_too_small") return json(response, 422, { error: error.message });
+      if (error instanceof Error && ["calibration_photo_too_small","calibration_card_geometry_invalid","calibration_card_glare"].includes(error.message)) return json(response, 422, { error: error.message });
       const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
       if (code === "23503") return json(response, 400, { error: "invalid_relationship" });
       if (code === "23505") return json(response, 409, { error: "already_exists" });

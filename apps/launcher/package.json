@@ -1,6 +1,6 @@
 {
   "name": "timsys-launcher",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "TimSyS Launcher - Multi-app desktop shell",
   "main": "electron/main.cjs",
   "type": "module",

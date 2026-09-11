@@ -77,6 +77,11 @@ apiClient.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const method = String(config.method || 'get').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !config.__timsysAction) {
+      config.__timsysAction = { id: globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`, method };
+      window.dispatchEvent(new CustomEvent('timsys:action-feedback', { detail: { ...config.__timsysAction, phase: 'working' } }));
+    }
     return config;
   },
   (error) => {
@@ -86,7 +91,10 @@ apiClient.interceptors.request.use(
 
 // Response interceptor - handle 401 with refresh
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (response.config.__timsysAction) window.dispatchEvent(new CustomEvent('timsys:action-feedback', { detail: { ...response.config.__timsysAction, phase: 'success' } }));
+    return response;
+  },
   async (error) => {
     const originalRequest = error.config;
 
@@ -159,6 +167,7 @@ apiClient.interceptors.response.use(
       }
     }
 
+    if (originalRequest?.__timsysAction) window.dispatchEvent(new CustomEvent('timsys:action-feedback', { detail: { ...originalRequest.__timsysAction, phase: 'error' } }));
     // All other errors pass through normalized
     return Promise.reject(normalized);
   }

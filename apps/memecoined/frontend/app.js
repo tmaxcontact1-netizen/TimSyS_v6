@@ -1,4 +1,35 @@
 const lamportsPerSol = 1_000_000_000n;
+function installActionFeedback() {
+  const notice = document.createElement("div");
+  notice.className = "action-feedback";
+  notice.setAttribute("role", "status");
+  notice.setAttribute("aria-live", "polite");
+  notice.hidden = true;
+  document.body.append(notice);
+  const original = window.fetch.bind(window);
+  let timer;
+  const show = (message, state, persist = false) => {
+    clearTimeout(timer);
+    notice.textContent = message;
+    notice.dataset.state = state;
+    notice.hidden = false;
+    if (!persist) timer = setTimeout(() => { notice.hidden = true; }, state === "error" ? 8000 : 4500);
+  };
+  window.fetch = async (input, options = {}) => {
+    const method = String(options.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+    if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return original(input, options);
+    show(method === "DELETE" ? "Deleting…" : "Saving…", "working", true);
+    try {
+      const response = await original(input, options);
+      show(response.ok ? (method === "DELETE" ? "Deleted successfully." : "Action completed successfully.") : "The action did not complete. Review the message on this page and try again.", response.ok ? "success" : "error");
+      return response;
+    } catch (error) {
+      show("The action did not complete. Check the connection and try again.", "error");
+      throw error;
+    }
+  };
+}
+installActionFeedback();
 const ids = [
   "status",
   "status-label",

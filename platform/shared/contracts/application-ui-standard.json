@@ -31,7 +31,10 @@
     "confirmDestructiveActions": true,
     "nativePromptForbidden": true,
     "nativeConfirmForbidden": true,
-    "successAndErrorFeedback": true
+    "successAndErrorFeedback": true,
+    "loadingFeedback": true,
+    "mutationFeedbackHost": true,
+    "silentCompletionForbidden": true
   },
   "refresh": {
     "backgroundOnly": true,
