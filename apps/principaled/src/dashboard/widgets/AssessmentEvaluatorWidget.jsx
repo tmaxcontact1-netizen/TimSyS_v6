@@ -257,13 +257,40 @@ export default function AssessmentEvaluatorWidget() {
           setNotice={setNotice}
         />
       )}
-      {!selected ? (
+      {!showStandards && !selected ? (
         <>
+          <ol className="assessment-steps" aria-label="Assessment evaluation process">
+            <li className="is-current"><span>1</span><strong>Upload</strong><small>Add the question paper</small></li>
+            <li><span>2</span><strong>Check</strong><small>Review detected questions</small></li>
+            <li><span>3</span><strong>Analyse</strong><small>Identify demand and standards</small></li>
+            <li><span>4</span><strong>Report</strong><small>Use findings and recommendations</small></li>
+          </ol>
           <div className="split-workspace">
             <form className="form-card" onSubmit={create}>
-              <h3>Evaluate an assessment</h3>
-              <label className="field">
-                <span>Who is this for?</span>
+              <h3>Upload a question paper</h3>
+              <p className="form-intro">Give the assessment a recognisable name and add the file. Principal’Ed will infer the subject, age range and questions for you to check.</p>
+              <Field
+                label="Assessment name"
+                required
+                placeholder="For example: Grade 8 reading assessment"
+                value={form.title || ""}
+                onChange={(e) => setForm({ ...form, title: e.target.value })}
+              />
+              <label className="field assessment-file">
+                <span>Question paper</span>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,image/*"
+                  required={form.workflow_mode === "teacher"}
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                />
+                <small>PDF, Word document or image, up to 10 MB. Charts, diagrams and pictures are retained for review.</small>
+              </label>
+              <details className="assessment-options">
+                <summary>Optional settings</summary>
+                <p>Leave these blank for the simplest teacher workflow. Curriculum leaders can add context or compare selected frameworks.</p>
+                <label className="field">
+                  <span>Workflow</span>
                 <select
                   value={form.workflow_mode}
                   onChange={(e) =>
@@ -275,27 +302,7 @@ export default function AssessmentEvaluatorWidget() {
                     Curriculum lead — detailed comparison
                   </option>
                 </select>
-              </label>
-              <Field
-                label="Assessment name"
-                required
-                value={form.title || ""}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-              <label className="field">
-                <span>
-                  Question paper{" "}
-                  {form.workflow_mode === "teacher"
-                    ? "(required)"
-                    : "(optional for setup)"}
-                </span>
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,image/*"
-                  required={form.workflow_mode === "teacher"}
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
-              </label>
+                </label>
               <Field
                 label="Subject (optional — the evaluator will infer it)"
                 value={form.subject || ""}
@@ -335,20 +342,20 @@ export default function AssessmentEvaluatorWidget() {
                   </small>
                 )}
               </fieldset>
-              <button className="primary" disabled={busy}>
-                Create assessment
+              </details>
+              <button className="primary assessment-start" disabled={busy || !form.title || (form.workflow_mode === "teacher" && !file)}>
+                {busy ? "Preparing assessment…" : "Upload and prepare assessment"}
               </button>
             </form>
             <section className="callout">
-              <strong>What happens first?</strong>
+              <strong>What Principal’Ed will do</strong>
               <p>
-                The evaluator reads only what the student sees. It identifies
-                the demand, construct, evidence, scaffolding and independence
-                before it is allowed to compare standards or your declared
-                intent.
+                It reads what the student sees, separates likely questions and identifies the knowledge, thinking and evidence each question requires. You confirm the detected content before any final judgement is recorded.
               </p>
+              <ul><li>Your original file is retained as evidence.</li><li>Uncertain text or images are flagged, not guessed.</li><li>Standards matches remain recommendations until reviewed.</li></ul>
             </section>
           </div>
+          <section className="assessment-history-heading"><div><h2>Previous assessments</h2><p>Open an assessment to continue reviewing it or generate its report.</p></div></section>
           <div className="table-card">
             <table>
               <thead>
@@ -403,7 +410,7 @@ export default function AssessmentEvaluatorWidget() {
             onPageChange={setPage}
           />
         </>
-      ) : (
+      ) : !showStandards ? (
         <>
           <section className="workspace-heading">
             <div>
@@ -850,7 +857,7 @@ export default function AssessmentEvaluatorWidget() {
             </form>
           )}
         </>
-      )}
+      ) : null}
     </div>
   );
 }

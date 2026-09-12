@@ -35,6 +35,7 @@ import CoverWidget from "./widgets/CoverWidget";
 import ProgrammeManagerWidget from "./widgets/ProgrammeManagerWidget";
 import BuilderWorkspace from "./widgets/BuilderWorkspace";
 import CommunicationHistoryConsole from "./components/CommunicationHistoryConsole";
+import WorkspaceHub from "./components/WorkspaceHub";
 import {
   AppShell,
   ConfirmationDialog,
@@ -233,6 +234,23 @@ const MODULE_TO_VIEW = {
   },
 };
 
+const WORKSPACES = {
+  people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
+  learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
+  planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "events", "event_planner"] },
+  operations: { label: "Operations", icon: "O", description: "Rooms, resources, safety and services", modules: ["rooms", "inventory", "venue_bookings", "resource_reservations", "transportation", "catering", "risk_assessments", "safeguarding_requirements", "contingency"] },
+  administration: { label: "Administration", icon: "A", description: "Tasks, approvals, records, communications and finance", modules: ["tasks", "approvals", "documents", "communications", "audiences", "invitations", "ownership", "finance"] },
+  system: { label: "System", icon: "S", description: "Builder, health and technical services", modules: ["backend_builder", "backend_system_health", "backend_app_registry", "backend_auto_rules", "backend_decision_log", "backend_event_store", "backend_insight_management", "backend_intelligence", "backend_knowledge_store", "backend_notification", "backend_relationship_registry", "backend_snapshot_service", "backend_user_management"] },
+};
+
+const VIEW_DESCRIPTIONS = {
+  students: "Student records and enrolment", student_profiles: "Complete student information", staff: "Staff records and employment", staff_profiles: "Complete staff information", student_exits: "Live student movement", late_entries: "Late arrival and attendance changes",
+  assessment_evaluator: "Check what an assessment measures", gradebook: "Class evidence, grades and reports", attendance: "Attendance at events",
+  calendar: "School dates and commitments", scheduler: "Timetable configuration and review", programme_manager: "Activities, electives and enrichment", teacher_preferences: "Advisory staff preferences", cover: "Absence cover recommendations", events: "Event records", event_planner: "Plan complete events",
+  rooms: "Rooms and teaching spaces", inventory: "Equipment and other resources", venue_bookings: "Reserve spaces", resource_reservations: "Reserve equipment", transportation: "Transport requirements", catering: "Food and service plans", risk_assessments: "Operational risk reviews", safeguarding_requirements: "Safeguarding checks", contingency: "Alternative plans",
+  tasks: "Assigned work and follow-up", approvals: "Decisions awaiting a person", documents: "Managed school documents", communications: "Messages and communication history", audiences: "Groups of participants", invitations: "Invite and track participants", ownership: "Accountability and responsibility", finance: "Budgets and requests",
+};
+
 function PrincipalEdDashboard() {
   const [activeView, setActiveView] = useState(
     () => sessionStorage.getItem("principaled_active_view") || "overview",
@@ -417,10 +435,7 @@ function PrincipalEdDashboard() {
     );
   };
 
-  const navItems = [
-    { id: "overview", label: "Home", icon: "⌂" },
-    { id: "intelligence_workspace", label: "Insights", icon: "◈" },
-    ...Object.keys(MODULE_TO_VIEW)
+  const moduleNavItems = Object.keys(MODULE_TO_VIEW)
       .filter((moduleName) => {
         if (!enabledModules.includes(moduleName)) return false;
         if (MODULE_TO_VIEW[moduleName].requiresAdmin && !hasAdminPermission())
@@ -430,19 +445,33 @@ function PrincipalEdDashboard() {
       .map((moduleName) => ({
         id: MODULE_TO_VIEW[moduleName].id,
         label: MODULE_TO_VIEW[moduleName].label,
-        icon: MODULE_TO_VIEW[moduleName].requiresAdmin ? "⚙" : "·",
-      })),
+        icon: MODULE_TO_VIEW[moduleName].requiresAdmin ? "⚙" : "→",
+        description: VIEW_DESCRIPTIONS[MODULE_TO_VIEW[moduleName].id] || "Open this workspace",
+      }));
+  const moduleIds = new Set(moduleNavItems.map((item) => item.id));
+  const navItems = [
+    { id: "overview", label: "Home", icon: "⌂", description: "Overview and starting points" },
+    { id: "intelligence_workspace", label: "Insights", icon: "◈", description: "Alerts and recommendations" },
+    ...Object.entries(WORKSPACES)
+      .filter(([, workspace]) => workspace.modules.some((id) => moduleIds.has(id)))
+      .map(([id, workspace]) => ({ id, ...workspace })),
   ];
+
+  const activeNavigation = Object.entries(WORKSPACES).find(([, workspace]) => workspace.modules.includes(activeView))?.[0] || activeView;
 
   const renderWidget = () => {
     const planning = (content) => (
       <div className="planning-workspace legacy-planning-workspace">{content}</div>
     );
     if (activeView === "overview") {
-      return <OverviewWidget data={data} />;
+      return <OverviewWidget data={data} onNavigate={navigateToView} availableViews={navItems.map((item) => item.id)} />;
     }
     if (activeView === "intelligence_workspace")
       return <IntelligenceWorkspace />;
+    if (WORKSPACES[activeView]) {
+      const workspace = WORKSPACES[activeView];
+      return <WorkspaceHub title={workspace.label} description={workspace.description} items={moduleNavItems.filter((item) => workspace.modules.includes(item.id))} onNavigate={navigateToView} />;
+    }
 
     const moduleEntry = Object.entries(MODULE_TO_VIEW).find(
       ([_, config]) => config.id === activeView,
@@ -809,7 +838,7 @@ function PrincipalEdDashboard() {
 
   useEffect(() => {
     if (!modulesLoaded) return;
-    const availableViews = navItems.map((n) => n.id);
+    const availableViews = [...navItems.map((n) => n.id), ...moduleNavItems.map((n) => n.id)];
     if (!availableViews.includes(activeView)) {
       setActiveView(availableViews[0] || "overview");
     }
@@ -894,12 +923,12 @@ function PrincipalEdDashboard() {
       brand="Principal’Ed"
       context="School operations"
       navigation={navItems}
-      active={activeView}
+      active={activeNavigation}
       onNavigate={(view) => void navigateToView(view)}
       onBack={() =>
         activeView === "overview"
           ? window.history.back()
-          : void navigateToView("overview")
+          : void navigateToView(Object.entries(WORKSPACES).find(([, workspace]) => workspace.modules.includes(activeView))?.[0] || "overview")
       }
       onLauncher={() => void returnToLauncher()}
     >
