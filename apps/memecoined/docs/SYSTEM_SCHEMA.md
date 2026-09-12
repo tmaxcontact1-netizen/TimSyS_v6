@@ -9,6 +9,14 @@
 
 This schema implements `SERVICE_CONTRACTS.md`, `PROJECT_MAP.md`, `DEPENDENCY_MANIFEST.md`, and `STRATEGY_SPECIFICATION.md`. Source code, migrations, configuration, fixtures, reports, and tests must conform to it. A schema change requires approval, downstream-impact review, and a changelog entry before implementation.
 
+### Paper profile activation
+
+- `paper_profile_activations` stores one versioned state per paper wallet and built-in profile.
+- Modes are `observe`, `recommend`, and `automatic_paper`; none grants live authority.
+- The sum of enabled allocations must remain at or below 10,000 basis points.
+- `paper_profile_activation_audit` preserves every configuration, enable and disable action.
+- Concurrent profiles share portfolio breakers and cannot create duplicate positions for one mint.
+
 Precedence: safety invariants and on-chain facts; this schema; strategy rules; service contracts; project map; implementation.
 
 ## 2. Global data rules

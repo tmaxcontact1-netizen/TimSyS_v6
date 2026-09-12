@@ -166,6 +166,14 @@ export function createDressedServer(input: {
         const profile = await photography.createProfile(randomUUID(), calibrationProfileInputSchema.parse({ name, cardType: "Printed red, green and blue reference card", notes: "Measured automatically from the uploaded reference photograph.", patches }), now().toISOString());
         return json(response, 201, profile);
       }
+      const calibrationProfileMatch = /^\/api\/calibration-profiles\/([0-9a-f-]{36})$/i.exec(pathname);
+      if (calibrationProfileMatch !== null) {
+        if (method !== "DELETE") return json(response, 405, { error: "method_not_allowed" });
+        const result = await photography.retireProfile(calibrationProfileMatch[1]!);
+        return result === null
+          ? json(response, 404, { error: "calibration_profile_not_found" })
+          : json(response, 200, result);
+      }
       if (pathname === "/api/styling/catalogue") {
         if (method !== "GET") return json(response, 405, { error: "method_not_allowed" });
         return json(response, 200, await styling.catalogue());

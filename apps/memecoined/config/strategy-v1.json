@@ -1,0 +1,9 @@
+{
+  "version": "strategy-v1.0.0",
+  "name": "Smart-wallet-confirmed momentum",
+  "status": "legacy_shared_baseline",
+  "profileCatalogue": "profiles-v1.0.0",
+  "candidateScoreMinimum": 75,
+  "absoluteSecurityGates": true,
+  "notes": "Retained as the common safety baseline. Operator behaviour is selected through trading profiles."
+}

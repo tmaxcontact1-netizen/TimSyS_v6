@@ -16,7 +16,6 @@ if (!/^\d{4}\.\d{2}\.\d+(?:[-.][a-z0-9]+)?$/i.test(releaseVersion || '')) {
 
 const sources = Object.freeze({
   platform: join(stage, 'platform'),
-  principaled: join(stage, 'apps', 'principaled'),
   memecoined: join(stage, 'apps', 'memecoined'),
   dressed: join(stage, 'apps', 'dressed'),
   researched: join(stage, 'apps', 'researched'),
@@ -74,7 +73,7 @@ for (const [id, source] of Object.entries(sources)) {
 const manifest = {
   schemaVersion: 1,
   releaseVersion,
-  minimumLauncherVersion: '1.0.11',
+  minimumLauncherVersion: '1.0.14',
   publishedAt: new Date().toISOString(),
   notes: 'Verified TimSyS application update.',
   bundles,

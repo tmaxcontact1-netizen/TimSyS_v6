@@ -22,6 +22,28 @@ export class PhotographyRepository {
     return (await this.profiles()).find((profile) => profile.id === id)!;
   }
 
+  public async retireProfile(id: string) {
+    const client = await this.pool.connect();
+    try {
+      await client.query("BEGIN");
+      const usage = await client.query<{ count: string }>(
+        "SELECT COUNT(*)::text AS count FROM dressed.garment_images WHERE calibration_profile_id=$1",
+        [id],
+      );
+      const count = Number(usage.rows[0]?.count ?? 0);
+      const changed = count === 0
+        ? await client.query("DELETE FROM dressed.calibration_profiles WHERE calibration_profile_id=$1 RETURNING calibration_profile_id", [id])
+        : await client.query("UPDATE dressed.calibration_profiles SET is_active=false,updated_at=now() WHERE calibration_profile_id=$1 AND is_active RETURNING calibration_profile_id", [id]);
+      await client.query("COMMIT");
+      return changed.rowCount === 1 ? { removed: true, retainedForExistingPhotos: count > 0 } : null;
+    } catch (error) {
+      await client.query("ROLLBACK");
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
   public async garmentExists(id: string): Promise<boolean> {
     const result = await this.pool.query("SELECT 1 FROM dressed.garments WHERE garment_id=$1 AND lifecycle_status<>'archived'", [id]);
     return result.rowCount === 1;

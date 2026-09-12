@@ -1,0 +1,16 @@
+{
+  "version": "profiles-v1.0.0",
+  "portfolioPolicy": {
+    "currency": "SOL",
+    "maximumCombinedOpenExposureBps": 1000,
+    "minimumUncommittedEquityBps": 5000,
+    "duplicateMintPolicy": "best_qualified_profile_owns_position",
+    "profileFailurePolicy": "isolate_failed_profile",
+    "safetyGatePolicy": "shared_non_overridable"
+  },
+  "notes": [
+    "Profiles evaluate concurrently but share one portfolio-level risk ceiling.",
+    "A token can have only one open position; the strongest qualifying profile owns attribution.",
+    "AI may explain or challenge a decision but cannot satisfy a missing rule or bypass a rejection."
+  ]
+}

@@ -9,6 +9,12 @@
 
 Memecoined will be one TypeScript application with a deterministic domain core, a PostgreSQL persistence layer, provider adapters, background workers, a Telegram operator interface, offline evaluation/reporting tools, and a local read-only paper-trading dashboard.
 
+## Concurrent paper profiles
+
+The operator-facing strategy boundary is the versioned six-profile catalogue in `src/domain/strategy/profiles.ts`. Whale Watch, Fast & Furious, Slow & Steady, New Coin Detector, Capital Preservation and Signal Consensus may be enabled concurrently in observation, recommendation or automatic-paper mode. They share one wallet, one non-overridable security boundary and one combined allocation/exposure budget. Candidate ownership prevents duplicate positions in the same mint while profile-specific evaluations remain independently attributable.
+
+`paper_profile_activations` is the durable, versioned operator choice. Every mutation is authenticated, origin checked, allocation checked and append-only audited. A profile setting never grants live signing authority.
+
 The repository will not contain:
 
 - A remotely exposed, mutating, or live-execution web interface.

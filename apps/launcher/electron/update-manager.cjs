@@ -7,7 +7,6 @@ const { spawn } = require('node:child_process');
 
 const BUNDLES = Object.freeze({
   platform: ['timsys.app.json', 'index.js', 'modules-runtime'],
-  principaled: ['dist/index.html'],
   memecoined: ['timsys.app.json', 'dist', 'modules-runtime'],
   dressed: ['timsys.app.json', 'dist', 'modules-runtime'],
   researched: ['timsys.app.json', 'dist', 'modules-runtime'],
@@ -162,9 +161,9 @@ class UpdateManager {
     return true;
   }
 
-  async rollbackPending() {
+  async rollbackPending(reason = 'updated_runtime_failed_to_start') {
     if (!this.state.pendingRelease) return false;
-    const next = { ...this.state, bundles: this.state.previousBundles || {}, rolledBackRelease: this.state.pendingRelease };
+    const next = { ...this.state, bundles: this.state.previousBundles || {}, rolledBackRelease: this.state.pendingRelease, rollbackReason: reason, rolledBackAt: new Date().toISOString() };
     delete next.pendingRelease;
     delete next.previousBundles;
     await this.writeState(next);

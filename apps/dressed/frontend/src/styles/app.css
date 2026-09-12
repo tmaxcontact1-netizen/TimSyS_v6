@@ -424,6 +424,9 @@ td small {
 .calibration-active span,
 .calibration-summary p { color: #aaa197; margin: 0; }
 .calibration-summary { margin-bottom: 14px; }
+.calibration-profile-list { display: grid; gap: 10px; width: 100%; }
+.calibration-profile-list article { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0; border-top: 1px solid #34312d; }
+.calibration-profile-list article:first-of-type { border-top: 0; }
 .calibration-summary--empty { border-color: #725f32; background: #211e15; }
 .photo-grid {
   display: grid;

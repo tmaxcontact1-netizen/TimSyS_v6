@@ -18,7 +18,7 @@ export default function UpdatePanel() {
     setConfirmInstall(false);
     setState(current => ({ ...current, checking: true, error: '' }));
     reportActionFeedback({ method: 'POST', phase: 'working', message: 'Installing the verified update…' });
-    try { await window.electronAPI.updates.install(); }
+    try { const result = await window.electronAPI.updates.install(); if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.'); reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' }); }
     catch (error) { setState(current => ({ ...current, checking: false, error: error.message })); reportActionFeedback({ method: 'POST', phase: 'error', message: 'The update could not be installed. Review the error in the Updates panel.' }); }
   };
   if (state.result?.development) return null;

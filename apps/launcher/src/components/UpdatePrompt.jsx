@@ -25,7 +25,9 @@ export default function UpdatePrompt() {
     setError('');
     reportActionFeedback({ method: 'POST', phase: 'working', message: 'Installing the verified update…' });
     try {
-      await window.electronAPI.updates.install();
+      const result = await window.electronAPI.updates.install();
+      if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.');
+      reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' });
     } catch (failure) {
       setBusy(false);
       setError(failure.message || 'The update could not be installed.');

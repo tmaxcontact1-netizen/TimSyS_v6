@@ -12,6 +12,7 @@ import {
   StatusBadge,
   Toolbar,
   useDraft,
+  reportActionFeedback,
 } from "../../../shared-ui/react/index.js";
 import "./styles/app.css";
 import "../../../shared-ui/styles/timsys-dark.css";
@@ -2091,6 +2092,8 @@ function ModernApp() {
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [calibrationDeleteTarget, setCalibrationDeleteTarget] = useState(null);
+  const [calibrationDeleteBusy, setCalibrationDeleteBusy] = useState(false);
   const [error, setError] = useState("");
   const load = useCallback(async () => {
     try {
@@ -2179,6 +2182,23 @@ function ModernApp() {
       setError(cause.message);
     } finally {
       setDeleteBusy(false);
+    }
+  };
+  const confirmCalibrationDelete = async () => {
+    if (!calibrationDeleteTarget) return;
+    setCalibrationDeleteBusy(true);
+    try {
+      const result = await api(`/api/calibration-profiles/${calibrationDeleteTarget.id}`, { method: "DELETE" });
+      setCalibrationDeleteTarget(null);
+      await load();
+      setError("");
+      reportActionFeedback({ method: "DELETE", phase: "success", message: result.retainedForExistingPhotos
+        ? "Colour card removed from future use. Existing photograph measurements remain reproducible."
+        : "Colour card permanently deleted." });
+    } catch (cause) {
+      setError(cause.message);
+    } finally {
+      setCalibrationDeleteBusy(false);
     }
   };
   const photoIntake = async () => {
@@ -2618,9 +2638,15 @@ function ModernApp() {
             {profiles.length ? (
               <div className="calibration-summary" role="status">
                 <StatusBadge tone="success">Ready</StatusBadge>
-                <div>
+                <div className="calibration-profile-list">
                   <strong>{profiles.length === 1 ? "1 colour card is available" : `${profiles.length} colour cards are available`}</strong>
-                  <p>{profiles.filter((profile) => profile.readyForPhotos).map((profile) => profile.name).join(", ") || "No card is ready for garment photographs yet."}</p>
+                  {profiles.map((profile) => <article key={profile.id}>
+                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? "Ready for new garment photographs" : "Needs attention before use"}</p></div>
+                    <div className="source-actions">
+                      <Button onClick={() => setModal({ type: "calibration" })}>Add replacement</Button>
+                      <Button variant="danger" onClick={() => setCalibrationDeleteTarget(profile)}>Delete</Button>
+                    </div>
+                  </article>)}
                 </div>
               </div>
             ) : (
@@ -2727,6 +2753,16 @@ function ModernApp() {
           }}
         />
       )}{" "}
+      <ConfirmationDialog
+        open={Boolean(calibrationDeleteTarget)}
+        title="Delete this colour card?"
+        description={calibrationDeleteTarget ? `“${calibrationDeleteTarget.name}” will no longer be available for new garment photographs.` : ""}
+        consequence="If existing photographs use this card, its measurements will be retained privately so their colour results remain reproducible. Otherwise it will be permanently deleted."
+        confirmLabel="Delete colour card"
+        busy={calibrationDeleteBusy}
+        onConfirm={confirmCalibrationDelete}
+        onCancel={() => setCalibrationDeleteTarget(null)}
+      />
       {modal?.type === "photos" && (
         <PhotoManager
           garment={modal.item}

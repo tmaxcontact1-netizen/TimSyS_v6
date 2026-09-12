@@ -28,7 +28,6 @@ let platformUrl = null;
 let aiCredentialVault;
 let applyingResearchedProfile = false;
 let updateManager;
-let updateReadyTimer;
 
 const paperConfigurationFields = Object.freeze([
   'SOLANA_PRIMARY_RPC_URL', 'SOLANA_FALLBACK_RPC_URL', 'HELIUS_API_KEY', 'JUPITER_API_KEY',
@@ -303,13 +302,8 @@ app.whenReady().then(async () => {
   try {
     await startPlatform();
     createWindow();
-    if (updateManager.state.pendingRelease) {
-      updateReadyTimer = setTimeout(async () => {
-        if (await updateManager.rollbackPending()) { app.relaunch(); app.exit(1); }
-      }, 20000);
-    }
   } catch (error) {
-    if (await updateManager.rollbackPending()) {
+    if (await updateManager.rollbackPending(`platform_start_failed: ${error.message}`)) {
       app.relaunch();
       app.exit(1);
       return;
@@ -403,8 +397,6 @@ function requireLauncherWindow(event) {
 
 ipcMain.handle('updates:ready', async (event) => {
   requireLauncherWindow(event);
-  if (updateReadyTimer) clearTimeout(updateReadyTimer);
-  updateReadyTimer = null;
   await updateManager.confirmPending();
   return true;
 });
@@ -420,12 +412,14 @@ ipcMain.handle('updates:install', async (event) => {
   if (!app.isPackaged) throw new Error('Updates can only be installed by the packaged Launcher');
   const result = await updateManager.install();
   if (!result.restartRequired) return result;
-  await supervisedApps.stopAll();
-  if (postgres?.state) await postgres.backup().catch(() => {});
-  await postgres?.stop().catch(() => {});
-  app.relaunch();
-  app.exit(0);
-  return result;
+  setTimeout(async () => {
+    await supervisedApps.stopAll().catch(() => {});
+    if (postgres?.state) await postgres.backup().catch(() => {});
+    await postgres?.stop().catch(() => {});
+    app.relaunch();
+    app.exit(0);
+  }, 500);
+  return { ...result, restartScheduled: true };
 });
 
 ipcMain.handle('platform:session', async () => {

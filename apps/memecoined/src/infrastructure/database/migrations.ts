@@ -73,6 +73,10 @@ const dashboardRequiredColumns = Object.freeze([
   "dashboard_trading_configurations.version",
   "dashboard_trading_configurations.entry_slippage_bps",
   "dashboard_trading_configuration_audit.action",
+  "paper_profile_activations.profile_id",
+  "paper_profile_activations.mode",
+  "paper_profile_activations.allocation_bps",
+  "paper_profile_activation_audit.action",
 ]);
 
 /** Verifies connectivity and the exact runtime-owned schema without executing DDL. */

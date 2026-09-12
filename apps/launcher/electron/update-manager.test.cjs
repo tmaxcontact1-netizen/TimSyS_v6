@@ -34,8 +34,9 @@ test('verified update becomes the active bundle and can roll back', async () => 
     const installed = await manager.install();
     assert.deepEqual(installed.installed, [{ id: 'launcher-ui', version: 'abcdef0123456789' }]);
     assert.match(manager.activeRoots()['launcher-ui'], /abcdef0123456789$/);
-    assert.equal(await manager.rollbackPending(), true);
+    assert.equal(await manager.rollbackPending('platform_start_failed: test'), true);
     assert.equal(manager.activeRoots()['launcher-ui'], undefined);
+    assert.equal(manager.state.rollbackReason, 'platform_start_failed: test');
   } finally { await fs.rm(root, { recursive: true, force: true }); }
 });
 

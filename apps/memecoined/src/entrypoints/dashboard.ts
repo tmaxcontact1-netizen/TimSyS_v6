@@ -44,6 +44,18 @@ import {
 import { readPaperPerformanceReport } from "../workers/health-worker.js";
 import { resolveApplicationRoot } from "../infrastructure/runtime/application-root.js";
 import { readOperationalDashboardStatus } from "../infrastructure/database/operational-dashboard.js";
+import {
+  configurePaperProfile,
+  listPaperProfileActivations,
+  ProfileActivationConflictError,
+} from "../infrastructure/database/paper-profile-activations.js";
+import {
+  profileIds,
+  tradingProfile,
+  tradingProfileCatalogue,
+  type PaperProfileMode,
+  type TradingProfileId,
+} from "../domain/strategy/profiles.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
   ".css": "text/css; charset=utf-8",
@@ -52,6 +64,7 @@ const contentTypes: Readonly<Record<string, string>> = Object.freeze({
 });
 const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROFILE_MODES = new Set<PaperProfileMode>(["observe", "recommend", "automatic_paper"]);
 
 export interface PaperDashboardDependencies {
   readonly database: Pick<Pool, "query" | "end">;
@@ -96,6 +109,10 @@ function validVersion(value: unknown): value is number {
 
 function validInteger(value: unknown, minimum: number, maximum: number): value is number {
   return Number.isSafeInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
+}
+
+function validProfileId(value: string): value is TradingProfileId {
+  return profileIds.includes(value as TradingProfileId);
 }
 
 function tradingConfigurationValues(
@@ -327,6 +344,76 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { configurations });
       } catch {
         sendJson(response, 503, { error: "trading_configurations_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/trading-profiles" && method === "GET") {
+      try {
+        const activations = await listPaperProfileActivations(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, {
+          profiles: tradingProfileCatalogue.map((definition) => ({
+            ...definition,
+            ...activations.find((item) => item.profileId === definition.id),
+          })),
+          policy: {
+            maximumCombinedAllocationBps: 10_000,
+            maximumCombinedOpenExposureBps: 1_000,
+            duplicateMintPolicy: "best_qualified_profile_owns_position",
+            liveExecutionAuthorized: false,
+          },
+        });
+      } catch {
+        sendJson(response, 503, { error: "trading_profiles_unavailable" });
+      }
+      return;
+    }
+    const profileMatch = pathname.match(/^\/api\/trading-profiles\/([a-z_]+)$/);
+    if (profileMatch !== null && method === "PUT") {
+      if (!authorized(request, dependencies.mutationToken)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const profileId = profileMatch[1] ?? "";
+        if (!validProfileId(profileId) || tradingProfile(profileId) === null)
+          throw new Error("invalid_profile_id");
+        const body = await readJson(request);
+        if (
+          typeof body.enabled !== "boolean" ||
+          typeof body.mode !== "string" ||
+          !PROFILE_MODES.has(body.mode as PaperProfileMode) ||
+          !validInteger(body.allocationBps, 0, 10_000) ||
+          !Number.isSafeInteger(body.expectedVersion) ||
+          Number(body.expectedVersion) < 0
+        ) throw new Error("invalid_profile_configuration");
+        const profile = await configurePaperProfile(
+          dependencies.database,
+          dependencies.wallet,
+          profileId,
+          Number(body.expectedVersion),
+          body.enabled,
+          body.mode as PaperProfileMode,
+          body.allocationBps,
+          now(),
+        );
+        sendJson(response, 200, { profile });
+      } catch (error) {
+        if (error instanceof ProfileActivationConflictError) {
+          sendJson(response, 409, { error: "profile_version_conflict" });
+        } else if (error instanceof RangeError) {
+          sendJson(response, 409, { error: "profile_allocation_exceeded" });
+        } else if (
+          error instanceof Error &&
+          ["content_type", "body_too_large", "invalid_body", "invalid_profile_id", "invalid_profile_configuration"].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "trading_profile_mutation_unavailable" });
+        }
       }
       return;
     }

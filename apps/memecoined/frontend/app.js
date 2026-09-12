@@ -123,6 +123,9 @@ const ids = [
   "configuration-slippage",
   "configuration-save",
   "configuration-message",
+  "profile-list",
+  "profile-active-count",
+  "profile-allocation-summary",
   "menu-toggle",
   "sidebar-backdrop",
   "sidebar-collapse",
@@ -176,6 +179,7 @@ let watchlists = [];
 let activeWatchlistId = "";
 let mutationToken = "";
 let configurations = [];
+let tradingProfiles = [];
 let activeConfigurationId = "";
 let preferences = loadPreferences();
 const sortState = {
@@ -406,6 +410,110 @@ function activeConfiguration() {
 function setConfigurationMessage(message, state = "ok") {
   elements["configuration-message"].textContent = message;
   elements["configuration-message"].dataset.state = state;
+}
+function percentFromBps(value) {
+  return `${(Number(value) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
+}
+function profileModeLabel(mode) {
+  return { observe: "Observe only", recommend: "Recommend trades", automatic_paper: "Automatic paper trading" }[mode] ?? mode;
+}
+function renderTradingProfiles() {
+  const enabled = tradingProfiles.filter((profile) => profile.enabled);
+  const allocated = enabled.reduce((sum, profile) => sum + profile.allocationBps, 0);
+  elements["profile-active-count"].textContent = `${enabled.length} active`;
+  elements["profile-allocation-summary"].textContent = `${percentFromBps(allocated)} of paper funds allocated`;
+  elements["profile-list"].replaceChildren();
+  for (const profile of tradingProfiles) {
+    const card = document.createElement("article");
+    card.className = "profile-card";
+    card.dataset.enabled = String(profile.enabled);
+    const heading = document.createElement("div");
+    heading.className = "profile-card-heading";
+    const titleGroup = document.createElement("div");
+    const state = document.createElement("span");
+    state.className = "profile-state";
+    state.textContent = profile.enabled ? "ACTIVE" : "OFF";
+    const title = document.createElement("h3");
+    title.textContent = profile.name;
+    titleGroup.append(state, title);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.textContent = profile.enabled ? "Stop profile" : "Start profile";
+    toggle.disabled = !mutationToken;
+    const summary = document.createElement("p");
+    summary.textContent = profile.summary;
+    const approach = document.createElement("p");
+    approach.className = "profile-approach";
+    approach.textContent = profile.approach;
+    const controls = document.createElement("div");
+    controls.className = "profile-controls";
+    const mode = document.createElement("label");
+    mode.innerHTML = "<span>What this profile may do</span>";
+    const modeSelect = document.createElement("select");
+    for (const value of ["observe", "recommend", "automatic_paper"]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = profileModeLabel(value);
+      option.selected = profile.mode === value;
+      modeSelect.append(option);
+    }
+    modeSelect.disabled = !mutationToken;
+    mode.append(modeSelect);
+    const allocation = document.createElement("label");
+    allocation.innerHTML = "<span>Share of paper funds</span>";
+    const allocationInput = document.createElement("input");
+    allocationInput.type = "number";
+    allocationInput.min = "1";
+    allocationInput.max = "100";
+    allocationInput.step = "0.5";
+    allocationInput.value = String(profile.allocationBps / 100);
+    allocationInput.disabled = !mutationToken;
+    allocation.append(allocationInput);
+    const facts = document.createElement("dl");
+    facts.className = "profile-facts";
+    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div>`;
+    const save = async (nextEnabled = profile.enabled) => {
+      const allocationBps = Math.round(Number(allocationInput.value) * 100);
+      if (!Number.isSafeInteger(allocationBps) || allocationBps < 1 || allocationBps > 10000) {
+        setConfigurationMessage("Enter a paper-fund share between 1% and 100%.", "error");
+        return;
+      }
+      toggle.disabled = true;
+      modeSelect.disabled = true;
+      allocationInput.disabled = true;
+      try {
+        const response = await fetch(`/api/trading-profiles/${profile.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${mutationToken}` },
+          body: JSON.stringify({ enabled: nextEnabled, mode: modeSelect.value, allocationBps, expectedVersion: profile.version }),
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({}));
+          if (response.status === 409 && error.error === "profile_allocation_exceeded")
+            throw new Error("Active profiles cannot allocate more than 100% of the paper portfolio.");
+          throw new Error(response.status === 409 ? "This profile changed. Current settings were reloaded." : "The profile setting was not saved.");
+        }
+        await refreshTradingProfiles();
+        setConfigurationMessage(`${profile.name} ${nextEnabled ? "started" : "stopped"} in ${profileModeLabel(modeSelect.value).toLowerCase()} mode.`);
+      } catch (error) {
+        await refreshTradingProfiles().catch(() => undefined);
+        setConfigurationMessage(error instanceof Error ? error.message : "The profile setting was not saved.", "error");
+      }
+    };
+    toggle.addEventListener("click", () => void save(!profile.enabled));
+    modeSelect.addEventListener("change", () => { if (profile.enabled) void save(true); });
+    allocationInput.addEventListener("change", () => { if (profile.enabled) void save(true); });
+    heading.append(titleGroup, toggle);
+    controls.append(mode, allocation);
+    card.append(heading, summary, approach, controls, facts);
+    elements["profile-list"].append(card);
+  }
+}
+async function refreshTradingProfiles() {
+  const response = await fetch("/api/trading-profiles", { cache: "no-store" });
+  if (!response.ok) throw new Error("Trading profiles unavailable.");
+  tradingProfiles = (await response.json()).profiles;
+  renderTradingProfiles();
 }
 function configurationValues() {
   const number = (id) => Number(elements[id].value);
@@ -1204,7 +1312,7 @@ function updateNavigationState() {
     performance: ["Performance", "Understand allocation, realised results and book-equity history."],
     history: ["History", "Inspect fills, realised outcomes and the evidence behind each decision."],
     watchlist: ["Watchlists", "Maintain tokens for observation without granting trading authority."],
-    configurations: ["Strategy setup", "Create inert paper-trading drafts for deliberate review."],
+    configurations: ["Trading profiles", "Run several paper strategies concurrently within one shared risk boundary."],
     operations: ["Operations", "Check market connections, paper trading, data updates and alerts."],
   }[page];
   elements["page-title"].textContent = pageCopy[0];
@@ -1230,6 +1338,9 @@ void refreshWatchlists().catch(() =>
 );
 void refreshConfigurations().catch(() =>
   setConfigurationMessage("Trading configurations unavailable.", "error"),
+);
+void refreshTradingProfiles().catch(() =>
+  setConfigurationMessage("Trading profiles unavailable. Check that the latest database migration completed.", "error"),
 );
 void refresh();
 scheduleRefresh();
@@ -1390,6 +1501,7 @@ elements["watchlist-connect"].addEventListener("click", () => {
   elements["watchlist-token"].value = "";
   renderWatchlistControls();
   renderConfigurations();
+  renderTradingProfiles();
   renderDetails();
   setWatchlistMessage(
     mutationToken ? "Changes enabled for this page session." : "Enter a mutation token.",

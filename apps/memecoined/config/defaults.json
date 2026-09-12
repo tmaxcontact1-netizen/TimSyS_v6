@@ -1,0 +1,14 @@
+{
+  "profileCatalogueVersion": "profiles-v1.0.0",
+  "defaultOperatingMode": "paper",
+  "combinedPortfolio": {
+    "maximumOpenExposureBps": 1000,
+    "minimumCashReserveBps": 5000,
+    "maximumActiveProfiles": 6
+  },
+  "automation": {
+    "defaultProfileMode": "observe",
+    "allowAutomaticPaper": true,
+    "allowAutomaticLive": false
+  }
+}

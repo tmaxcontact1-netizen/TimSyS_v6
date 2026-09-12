@@ -292,3 +292,13 @@ No authorized implementation batch is currently outstanding.
 | `tests/integration/paper-dashboard.test.ts`      | Added static frontend control contracts                                                         | Prevent the guarded surface from disappearing silently           | Authorized by operator |
 | `docs/SECURITY_MODEL.md`                         | Documented session, confirmation, reload, and duplicate-prevention behavior                     | Preserve the paper-only authority boundary                       | Authorized by operator |
 | `docs/SERVICE_CONTRACTS.md`                      | Documented bounded paper-control read facts                                                     | Define the final frontend contract                               | Authorized by operator |
+# Concurrent operator trading profiles
+
+| Area | Change | Purpose |
+| --- | --- | --- |
+| Domain | Added six immutable, versioned paper profile definitions and aggregate allocation validation | Make the requested trading approaches explicit and safely concurrent |
+| Database | Added versioned profile activation and append-only audit records | Persist every operator choice without granting live authority |
+| Dashboard API | Added profile catalogue, policy and authenticated activation endpoints | Replace hidden technical setup with an operator workflow |
+| Dashboard UI | Added human-readable profile cards, modes, allocations and visible state feedback | Make paper setup understandable without trading-system terminology |
+| Configuration | Replaced empty baseline files and strategy loader with validated versioned configuration | Remove placeholder behaviour and establish an inspectable source of truth |
+| Tests | Added catalogue, concurrency and activation persistence coverage | Prove profile uniqueness, allocation boundaries and audit persistence |

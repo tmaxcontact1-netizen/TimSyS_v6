@@ -475,6 +475,52 @@ main {
   flex-wrap: wrap;
   gap: 12px;
 }
+.profile-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin: 18px 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel) 82%, var(--green) 18%);
+}
+.profile-summary strong { color: var(--text); }
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+.profile-card {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.profile-card[data-enabled="true"] { border-color: var(--green); box-shadow: inset 3px 0 var(--green); }
+.profile-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.profile-card h3 { margin: 4px 0 0; }
+.profile-card p { margin: 0; }
+.profile-state { color: var(--muted); font: 700 10px ui-monospace, monospace; letter-spacing: .09em; }
+.profile-card[data-enabled="true"] .profile-state { color: var(--green); }
+.profile-approach { color: var(--muted); font-size: 12px; }
+.profile-controls { display: grid; grid-template-columns: 1fr 150px; gap: 10px; }
+.profile-controls label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.profile-controls select, .profile-controls input { min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: inherit; background: var(--raised); }
+.profile-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.profile-facts div { padding: 9px; border-radius: 7px; background: var(--raised); }
+.profile-facts dt { color: var(--muted); font-size: 10px; }
+.profile-facts dd { margin: 4px 0 0; font-weight: 700; }
+.advanced-configurations { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.advanced-configurations summary { cursor: pointer; color: var(--muted); }
+@media (max-width: 900px) {
+  .profile-grid { grid-template-columns: 1fr; }
+  .profile-controls, .profile-facts { grid-template-columns: 1fr; }
+}
 .configuration-toolbar {
   align-items: end;
   margin: 18px 0;

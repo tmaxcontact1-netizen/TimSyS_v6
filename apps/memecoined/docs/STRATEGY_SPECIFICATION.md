@@ -6,6 +6,23 @@
 **Strategy ID:** `strategy-v1.0.0`  
 **Strategy:** Solana smart-wallet-confirmed momentum
 
+The rules below are the shared deterministic safety baseline. Versioned operator profiles adjust evidence thresholds, holding horizon, position count, profit staging and trailing protection without weakening an absolute rejection, circuit breaker or shared portfolio limit. The current profile catalogue is `profiles-v1.0.0`.
+
+### Operator profiles
+
+| Profile | Primary purpose | Default behaviour |
+| --- | --- | --- |
+| Whale Watch | Follow demonstrably successful independent wallets | Requires trusted-wallet confirmation |
+| Fast & Furious | Capture short momentum bursts | Short time limit and tighter trailing protection |
+| Slow & Steady | Prefer stronger, more mature evidence | Higher score and lower risk per trade |
+| New Coin Detector | Find emerging sustained trends | Staged profit taking; trend deterioration rather than guessed peaks |
+| Capital Preservation | Defensive participation and benchmark | Smallest risk, strongest score and one position |
+| Signal Consensus | Require independent evidence agreement | Wallet, market and token evidence must agree |
+
+All profiles may run together in paper mode. Enabled allocations may not exceed 100% of paper funds. Combined open cost remains capped at 10% of wallet equity and at least 50% remains uncommitted. A mint may have one open position; the strongest qualifying profile receives attribution.
+
+AI oversight is advisory. It may explain conflicting evidence, identify an anomalous regime and challenge a deterministic recommendation. It cannot convert unknown evidence to a pass, clear a rejection, change portfolio limits, authorize live operation, sign, submit or suppress a protective exit.
+
 ## 1. Rule semantics
 
 - All listed entry gates are conjunctive unless explicitly stated otherwise.
