@@ -1,5 +1,9 @@
 # TimSyS Architecture Map
-Generated: 2026-09-08T18:10:47Z
+
+## Assessment evaluation foundation
+
+Principal'Ed now consumes four shared TimSyS services: a versioned standards repository, a provenance-preserving standards ontology, document intelligence for PDF/DOCX/image extraction and visual-asset detection, and a provider-neutral AI gateway. The Assessment Evaluator owns the audit workflow. It locks deterministic construct analysis before standards comparison, keeps declared intent and benchmark metadata sealed until that point, and permits AI interpretation only for uncertain locked items. AI output is an auditable proposal with bounded evidence, citations, confidence and limitations; it cannot update the assessment record without professional review.
+Generated: 2026-09-12T11:12:39Z
 Generator: platform/Tools/update_architecture_map.py (Discovery-Based)
 
 This document is auto-generated. Do not edit manually.
@@ -17,7 +21,7 @@ Platform Location: `platform/`
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
 | `CONTEXT.md` | ✅ | 12401B | 2026-08-12 21:13:27 |
-| `ARCHITECTURE_MAP.md` | ✅ | 44595B | 2026-09-08 16:54:00 |
+| `ARCHITECTURE_MAP.md` | ✅ | 45587B | 2026-09-12 13:56:59 |
 | `HANDOVER.md` | ✅ | 19037B | 2026-09-05 07:54:06 |
 | `CONSTITUTION_V6.0.md` | ✅ | 25342B | 2026-08-12 21:11:41 |
 | `LEXICON_V6.0.0.md` | ✅ | 20246B | 2026-08-12 10:37:47 |
@@ -298,6 +302,7 @@ Platform Location: `platform/`
         stream.js
 ./apps\launcher\src\components
         ErrorBoundary.jsx
+        UpdatePanel.jsx
 ./apps\launcher\src\components\Dashboard
           IntelligencePanel.jsx
 ./apps\launcher\src\components\Launcher
@@ -571,6 +576,7 @@ Platform Location: `platform/`
           RegistryRelatedPanel.jsx
 ./apps\principaled\src\dashboard\widgets
           ApprovalsWidget.jsx
+          AssessmentEvaluatorWidget.jsx
           BuilderWorkspace.jsx
           CalendarWidget.jsx
           CateringWidget.jsx
@@ -579,7 +585,6 @@ Platform Location: `platform/`
           CoordinationWidget.jsx
           CoverWidget.jsx
           CsvImportResult.jsx
-          DocumentsWidget.jsx
 ./apps\researched
     .env.example
     .gitignore
@@ -645,6 +650,7 @@ Platform Location: `platform/`
 ./apps\shared-ui
     package.json
 ./apps\shared-ui\react
+      action-feedback.jsx
       index.js
       pagination.jsx
       primitives.jsx
@@ -658,6 +664,7 @@ Platform Location: `platform/`
   npm-metadata.cjs
   npm.cmd
 ./docs
+  FRONTEND_GUI_ACCEPTANCE_CHECKLIST.md
   PLATFORM_ACCEPTANCE_REPORT_2026-08-29.md
   PLATFORM_EXTRACTION.md
   UI_CAPABILITY_COVERAGE.md
@@ -667,6 +674,8 @@ Platform Location: `platform/`
     LATE_ENTRIES_DECOMPOSITION.md
     SCHEDULER_DECOMPOSITION.md
     STUDENT_EXITS_DECOMPOSITION.md
+./docs\operations
+    IN_APP_UPDATES.md
 ./packages
 ./packages\timsys-client
     package.json
@@ -675,6 +684,7 @@ Platform Location: `platform/`
   jest.config.js
   package-lock.json
   package.json
+  pnpm-workspace.yaml
   timsys.app.json
 ./platform\architecture
     event-management-components.json
@@ -752,6 +762,13 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\approvals\migrations
         001_approvals.sql
+./platform\modules\assessment_evaluator
+      CONTRACT.md
+      component.json
+      index.js
+      module.json
+./platform\modules\assessment_evaluator\migrations
+        001_assessment_evaluator.sql
 ./platform\modules\assessment_evidence
       CONTRACT.md
       component.json
@@ -847,6 +864,13 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\documents\migrations
         001_documents.sql
+./platform\modules\document_intelligence
+      CONTRACT.md
+      extractor.js
+      index.js
+      module.json
+./platform\modules\document_intelligence\migrations
+        001_document_intelligence.sql
 ./platform\modules\evaluation_policies
       CONTRACT.md
       component.json
@@ -962,6 +986,12 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\medical_referrals\migrations
         001_medical_referrals.sql
+./platform\modules\ontology_engine
+      CONTRACT.md
+      index.js
+      module.json
+./platform\modules\ontology_engine\migrations
+        001_standards_ontology.sql
 ./platform\modules\ownership
       CONTRACT.md
       component.json
@@ -1049,6 +1079,12 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\staff_registry\migrations
         001_staff.sql
+./platform\modules\standards_repository
+      CONTRACT.md
+      index.js
+      module.json
+./platform\modules\standards_repository\migrations
+        001_standards_repository.sql
 ./platform\modules\student_exits
       CONTRACT.md
       access.js
@@ -1232,14 +1268,14 @@ Platform Location: `platform/`
 ./platform\tests\integration\http
         academic-structure.test.js
         approvals.test.js
+        assessment-document-intelligence.test.js
+        assessment-evaluator-ontology.test.js
+        assessment-evaluator.test.js
         assessment-evidence.test.js
         assessment-scales.test.js
         builder-catalogue.test.js
         calendar.test.js
         catering.test.js
-        communications.test.js
-        contingency.test.js
-        coordination.test.js
 ./platform\tests\integration\staging
         pipeline.test.js
 ./platform\tests\unit
@@ -1267,15 +1303,16 @@ Platform Location: `platform/`
     update_architecture_map.py
     update_architecture_map.sh
 ./scripts
+  audit-gui-practice.mjs
   audit-ui-coverage.mjs
   build-windows-artifacts.mjs
+  create-update-release.mjs
   fetch-postgres.mjs
   preflight.mjs
   prepare-windows-runtime.mjs
   run-memecoined-paper-trial.cjs
   smoke-windows-runtime.cjs
   verify-windows-runtime.mjs
-  workspace.mjs
 ./tools
 ```
 
@@ -1396,6 +1433,7 @@ Location: `/platform/modules/`
 | `academic_commentary` | ✅ | ✅ | ✅ | 1 | academic_operations |
 | `academic_structure` | ✅ | ✅ | ✅ | 1 | academic_foundation |
 | `approvals` | ✅ | ✅ | ✅ | 1 | workflow |
+| `assessment_evaluator` | ✅ | ✅ | ✅ | 1 | academic_evaluation |
 | `assessment_evidence` | ✅ | ✅ | ✅ | 1 | academic_operations |
 | `assessment_scales` | ✅ | ✅ | ✅ | 1 | academic_configuration |
 | `attendance` | ✅ | ✅ | ✅ | 1 | participation |
@@ -1407,6 +1445,7 @@ Location: `/platform/modules/`
 | `communications` | ✅ | ✅ | ✅ | 1 | communication |
 | `contingency` | ✅ | ✅ | ✅ | 1 | resilience |
 | `cover` | ✅ | ✅ | ✅ | 5 | operational_component |
+| `document_intelligence` | ✅ | ✅ | ❌ | 1 | standard |
 | `documents` | ✅ | ✅ | ✅ | 1 | content |
 | `evaluation_policies` | ✅ | ✅ | ✅ | 2 | academic_governance |
 | `event_planner` | ✅ | ✅ | ✅ | 0 | composite_module |
@@ -1424,6 +1463,7 @@ Location: `/platform/modules/`
 | `learning_behaviours` | ✅ | ✅ | ✅ | 1 | academic_operations |
 | `learning_standards` | ✅ | ✅ | ✅ | 1 | academic_configuration |
 | `medical_referrals` | ✅ | ✅ | ✅ | 1 | health_sensitive |
+| `ontology_engine` | ✅ | ✅ | ❌ | 1 | standard |
 | `ownership` | ✅ | ✅ | ✅ | 1 | workflow |
 | `programme_manager` | ✅ | ✅ | ✅ | 10 | composite_module |
 | `resource_reservations` | ✅ | ✅ | ✅ | 1 | stuff |
@@ -1434,6 +1474,7 @@ Location: `/platform/modules/`
 | `school_analytics` | ✅ | ✅ | ❌ | 0 | standard |
 | `staff_profile` | ✅ | ✅ | ✅ | 0 | profile |
 | `staff_registry` | ✅ | ✅ | ✅ | 1 | registry |
+| `standards_repository` | ✅ | ✅ | ❌ | 1 | standard |
 | `student_exits` | ✅ | ✅ | ✅ | 5 | operational_component |
 | `student_profile` | ✅ | ✅ | ✅ | 0 | profile |
 | `student_registry` | ✅ | ✅ | ✅ | 1 | registry |
@@ -1459,7 +1500,7 @@ Location: `/platform/scripts/cli/`
 - `/tests/unit/services/` — 6 test file(s)
 - `/tests/unit/registries/` — 1 test file(s)
 - `/tests/integration/staging/` — 1 test file(s)
-- `/tests/integration/http/` — 58 test file(s)
+- `/tests/integration/http/` — 61 test file(s)
 - `/tests/e2e/` — 15 test file(s)
 
 ### Smoke Tests
@@ -1519,7 +1560,7 @@ Location: `/platform/scripts/cli/`
 - `test_staging.sqlite-shm` (32768B)
 - `test_staging.sqlite-wal` (4124152B)
 - `timsys.db` (32768B)
-- `timsys.sqlite` (3637248B)
+- `timsys.sqlite` (3952640B)
 - `workspace-full-test.sqlite` (802816B)
 
 ## Applications

@@ -1,0 +1,19 @@
+{
+ "name":"standards_repository","version":"1.0.0","author":"admin","dependencies":["db","auth","log","validate","events"],
+ "provides":["capability:standards_repository.read","capability:standards_repository.ingest","capability:standards_repository.verify"],"requires":["capability:documents.read","capability:document_intelligence.extract"],
+ "routes":[
+  {"path":"/standards-repository/frameworks","method":"GET","handler":"standards_repository_list","auth_required":true,"permissions":["admin:standards_repository:read"]},
+  {"path":"/standards-repository/frameworks","method":"POST","handler":"standards_repository_create","auth_required":true,"permissions":["admin:standards_repository:write"]},
+  {"path":"/standards-repository/frameworks/:id","method":"GET","handler":"standards_repository_read","auth_required":true,"permissions":["admin:standards_repository:read"]},
+  {"path":"/standards-repository/frameworks/:id/statements/import","method":"POST","handler":"standards_repository_importStatements","auth_required":true,"permissions":["admin:standards_repository:write"]},
+  {"path":"/standards-repository/frameworks/:id/source-document","method":"POST","handler":"standards_repository_importDocument","auth_required":true,"permissions":["admin:standards_repository:write"]},
+  {"path":"/standards-repository/frameworks/:id/verify","method":"POST","handler":"standards_repository_verify","auth_required":true,"permissions":["admin:standards_repository:verify"]},
+  {"path":"/standards-repository/statements/:id/verify","method":"POST","handler":"standards_repository_verifyStatement","auth_required":true,"permissions":["admin:standards_repository:verify"]}
+  ,{"path":"/standards-repository/statements/:id","method":"PUT","handler":"standards_repository_updateStatement","auth_required":true,"permissions":["admin:standards_repository:write"]}
+  ,{"path":"/standards-repository/frameworks/:id/statements/verify-all","method":"POST","handler":"standards_repository_verifyAllStatements","auth_required":true,"permissions":["admin:standards_repository:verify"]}
+  ,{"path":"/standards-repository/issues/:id/resolve","method":"POST","handler":"standards_repository_resolveIssue","auth_required":true,"permissions":["admin:standards_repository:verify"]}
+ ],
+ "schema":{"tables":["standards_repository_publishers","standards_repository_frameworks","standards_repository_statements","standards_repository_statement_revisions","standards_repository_ingest_issues"],"migrations":["migrations/001_standards_repository.sql"]},
+ "events":{"publishes":["standards_repository.framework_created","standards_repository.statements_imported","standards_repository.framework_verified","standards_repository.statement_verified"],"subscribes":[]},
+ "functions":[{"name":"standards_repository_list","exports":"list"},{"name":"standards_repository_create","exports":"create"},{"name":"standards_repository_read","exports":"read"},{"name":"standards_repository_importStatements","exports":"importStatements"},{"name":"standards_repository_importDocument","exports":"importDocument"},{"name":"standards_repository_updateStatement","exports":"updateStatement"},{"name":"standards_repository_verify","exports":"verify"},{"name":"standards_repository_verifyStatement","exports":"verifyStatement"},{"name":"standards_repository_verifyAllStatements","exports":"verifyAllStatements"},{"name":"standards_repository_resolveIssue","exports":"resolveIssue"}]
+}

@@ -86,6 +86,9 @@ class AiCredentialVault {
     return {
       RESEARCHED_AI_PROFILE_ID: profile.id, RESEARCHED_AI_PROTOCOL: profile.protocol,
       RESEARCHED_AI_MODEL: profile.model, RESEARCHED_AI_BASE_URL: profile.baseUrl,
+      TIMSYS_AI_PROFILE_ID: profile.id, TIMSYS_AI_PROTOCOL: profile.protocol,
+      TIMSYS_AI_MODEL: profile.model, TIMSYS_AI_BASE_URL: profile.baseUrl,
+      ...(apiKey ? { TIMSYS_AI_API_KEY: apiKey } : {}),
       ...(apiKey ? { RESEARCHED_AI_API_KEY: apiKey } : {}),
     };
   }

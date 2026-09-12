@@ -1,0 +1,14 @@
+{
+  "name":"ontology_engine","version":"1.0.0","author":"admin","dependencies":["db","auth","log","validate","events"],
+  "provides":["capability:ontology.read","capability:ontology.build","capability:ontology.query"],
+  "requires":["capability:standards_repository.read","capability:standards_repository.verify"],
+  "routes":[
+    {"path":"/ontology/builds","method":"GET","handler":"ontology_engine_listBuilds","auth_required":true,"permissions":["admin:ontology:read"]},
+    {"path":"/ontology/frameworks/:id/build","method":"POST","handler":"ontology_engine_build","auth_required":true,"permissions":["admin:ontology:build"]},
+    {"path":"/ontology/builds/:id","method":"GET","handler":"ontology_engine_read","auth_required":true,"permissions":["admin:ontology:read"]},
+    {"path":"/ontology/query","method":"POST","handler":"ontology_engine_query","auth_required":true,"permissions":["admin:ontology:read"]}
+  ],
+  "schema":{"tables":["standards_ontology_builds","standards_ontology_nodes","standards_ontology_relations"],"migrations":["migrations/001_standards_ontology.sql"]},
+  "events":{"publishes":["ontology.build_completed"],"subscribes":["standards_repository.framework_verified"]},
+  "functions":[{"name":"ontology_engine_listBuilds","exports":"listBuilds"},{"name":"ontology_engine_build","exports":"build"},{"name":"ontology_engine_read","exports":"read"},{"name":"ontology_engine_query","exports":"query"}]
+}

@@ -1,0 +1,6 @@
+{
+  "name":"assessment_evaluator","type":"academic_evaluation","dependencies":["standards_repository","ontology_engine","learning_standards","documents"],
+  "capabilities":["capability:assessment_evaluator.read","capability:assessment_evaluator.analyse","capability:assessment_evaluator.review","capability:assessment_evaluator.insights"],
+  "parts":["source_intake","item_parser","visual_content_reference","notation_reference","blind_metadata_vault","demand_classifier","construct_classifier","supporting_construct_classifier","relationship_classifier","evidence_behaviour_classifier","scaffolding_assessor","independence_depth_assessor","ontology_mapper","multi_framework_comparator","intent_comparator","confidence_calibrator","review_queue","benchmark_comparator","report_builder"],
+  "intelligence":{"version":1,"entities":[{"type":"assessment_evaluation_audit","source":{"table":"assessment_evaluation_audits","idField":"id"},"displayFields":["title","subject","grade_band","source_type"],"statusField":"status","events":[{"channel":"assessment_evaluator.audit_created","kind":"created"},{"channel":"assessment_evaluator.analysis_locked","kind":"updated"},{"channel":"assessment_evaluator.reviewed","kind":"updated"}],"dataQuality":[{"field":"title","expectation":"required"},{"field":"status","expectation":"required"}]}]}
+}

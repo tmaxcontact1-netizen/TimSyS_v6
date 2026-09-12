@@ -561,6 +561,43 @@ export const publishGradeReport = id => client.post(`/grade-reports/${id}/publis
 export const getGradeReport = id => client.get(`/grade-reports/${id}`);
 export const listGradeReports = (id,studentId) => client.get(`/gradebooks/${id}/students/${studentId}/reports`);
 
+// Assessment Evaluator audits instruments independently before standards mapping.
+export const listAssessmentAudits = (params={}) => client.get('/assessment-evaluator/audits',{params});
+export const createAssessmentAudit = data => client.post('/assessment-evaluator/audits',data);
+export const getAssessmentAudit = id => client.get(`/assessment-evaluator/audits/${id}`);
+export const addAssessmentAuditItem = (id,data) => client.post(`/assessment-evaluator/audits/${id}/items`,data);
+export const analyseAssessmentAuditItem = id => client.post(`/assessment-evaluator/items/${id}/analyse`,{});
+export const interpretAssessmentAuditItem = id => client.post(`/assessment-evaluator/items/${id}/interpret`,{});
+export const getAiGatewayStatus = () => client.get('/ai-gateway/status');
+export const analyseAssessmentAudit = id => client.post(`/assessment-evaluator/audits/${id}/analyse`,{});
+export const mapAssessmentAuditItem = id => client.post(`/assessment-evaluator/items/${id}/map`,{});
+export const reviewAssessmentAuditItem = (id,data) => client.post(`/assessment-evaluator/items/${id}/review`,data);
+export const revealAssessmentBenchmark = id => client.post(`/assessment-evaluator/items/${id}/benchmark-metadata`,{});
+export const getAssessmentEvaluatorInsights = () => client.get('/assessment-evaluator/insights');
+export const getAssessmentEvaluatorManifest = () => client.get('/assessment-evaluator/manifest');
+export const listRepositoryFrameworks = (params={}) => client.get('/standards-repository/frameworks',{params});
+export const createRepositoryFramework = data => client.post('/standards-repository/frameworks',data);
+export const getRepositoryFramework = id => client.get(`/standards-repository/frameworks/${id}`);
+export const importRepositoryStatements = (id,statements) => client.post(`/standards-repository/frameworks/${id}/statements/import`,{statements});
+export const importRepositorySourceDocument = (id,document_id) => client.post(`/standards-repository/frameworks/${id}/source-document`,{document_id});
+export const verifyRepositoryStatement = (id,accepted=true) => client.post(`/standards-repository/statements/${id}/verify`,{accepted});
+export const updateRepositoryStatement = (id,data) => client.put(`/standards-repository/statements/${id}`,data);
+export const verifyAllRepositoryStatements = (id,data) => client.post(`/standards-repository/frameworks/${id}/statements/verify-all`,data);
+export const resolveRepositoryIssue = (id,data) => client.post(`/standards-repository/issues/${id}/resolve`,data);
+export const verifyRepositoryFramework = id => client.post(`/standards-repository/frameworks/${id}/verify`,{});
+export const buildStandardsOntology = id => client.post(`/ontology/frameworks/${id}/build`,{});
+export const listOntologyBuilds = () => client.get('/ontology/builds');
+export const getOntologyBuild = id => client.get(`/ontology/builds/${id}`);
+export const queryStandardsOntology = data => client.post('/ontology/query',data);
+export const addAssessmentSource = (id,data) => client.post(`/assessment-evaluator/audits/${id}/sources`,data);
+export const extractAssessmentSource = (id,data={ocr:true}) => client.post(`/assessment-evaluator/sources/${id}/extract`,data);
+export const decideAssessmentCandidate = (id,data) => client.post(`/assessment-evaluator/candidates/${id}/decision`,data);
+export const extractDocumentContent = (id,data={ocr:true}) => client.post(`/document-intelligence/documents/${id}/extract`,data);
+export const getDocumentExtraction = id => client.get(`/document-intelligence/runs/${id}`);
+export const setAssessmentIntent = (id,data) => client.post(`/assessment-evaluator/audits/${id}/intent`,data);
+export const compareAssessmentIntent = id => client.get(`/assessment-evaluator/audits/${id}/intent-comparison`);
+export const generateAssessmentReport = id => client.post(`/assessment-evaluator/audits/${id}/report`,{});
+
 export const listInsightProducts = (
   scopeType = "organisation",
   scopeId = "current",

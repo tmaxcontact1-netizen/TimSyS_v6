@@ -10,8 +10,13 @@
     "test": "jest"
   },
   "dependencies": {
+    "@napi-rs/canvas": "1.0.8",
+    "@tesseract.js-data/eng": "1.0.0",
     "better-sqlite3": "13.0.3",
     "jsonwebtoken": "^9.0.2",
+    "mammoth": "1.12.2",
+    "pdfjs-dist": "6.3.289",
+    "tesseract.js": "7.0.0",
     "zod": "4.4.3"
   },
   "devDependencies": {

@@ -141,6 +141,7 @@ async function startPlatform() {
     JWT_SECRET: await persistentSecret(path.join(secretRoot, 'jwt-secret')),
     REFRESH_TOKEN_SECRET: await persistentSecret(path.join(secretRoot, 'refresh-token-secret')),
     TIMSYS_DESKTOP_TOKEN: desktopToken,
+    ...await aiCredentialVault.activeEnvironment(),
     ...(layout.launcherUi ? { TIMSYS_LAUNCHER_DIST: layout.launcherUi } : {}),
   };
   const status = await supervisedApps.start(path.join(layout.platformRoot, 'timsys.app.json'), environment);

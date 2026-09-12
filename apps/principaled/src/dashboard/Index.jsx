@@ -27,6 +27,7 @@ import FinanceWidget from "./widgets/FinanceWidget";
 import EventsWidget from "./widgets/EventsWidget";
 import EventPlannerWidget from "./widgets/EventPlannerWidget";
 import GradebookWidget from "./widgets/GradebookWidget";
+import AssessmentEvaluatorWidget from "./widgets/AssessmentEvaluatorWidget";
 import SystemHealthDashboard from "./widgets/SystemHealthDashboard";
 import SchedulerWidget from "./widgets/SchedulerWidget";
 import TeacherPreferencesWidget from "./widgets/TeacherPreferencesWidget";
@@ -120,6 +121,7 @@ const MODULE_TO_VIEW = {
   event_record: { id:"event_record",label:"Events",widget:EventsWidget,requiresAdmin:false },
   event_planner: { id:"event_planner",label:"Event Planner",widget:EventPlannerWidget,requiresAdmin:false },
   gradebook: { id:"gradebook",label:"Gradebook",widget:GradebookWidget,requiresAdmin:false },
+  assessment_evaluator: { id:"assessment_evaluator",label:"Assessment Evaluator",widget:AssessmentEvaluatorWidget,requiresAdmin:false },
   scheduler: { id:"scheduler",label:"Scheduler",widget:SchedulerWidget,requiresAdmin:false },
   teacher_preferences: { id:"teacher_preferences",label:"Teacher Preferences",widget:TeacherPreferencesWidget,requiresAdmin:false },
   cover: { id:"cover",label:"Cover",widget:CoverWidget,requiresAdmin:false },
@@ -553,6 +555,7 @@ function PrincipalEdDashboard() {
     if (moduleName === "event_record") return planning(<EventsWidget askConfirmation={askConfirmation} askText={askText} />);
     if (moduleName === "event_planner") return planning(<EventPlannerWidget onNavigate={navigateToView} />);
     if (moduleName === "gradebook") return <GradebookWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "assessment_evaluator") return <AssessmentEvaluatorWidget />;
     if (moduleName === "scheduler") return <SchedulerWidget askConfirmation={askConfirmation} />;
     if (moduleName === "teacher_preferences") return <TeacherPreferencesWidget askConfirmation={askConfirmation} />;
     if (moduleName === "cover") return <CoverWidget askConfirmation={askConfirmation} askText={askText} />;

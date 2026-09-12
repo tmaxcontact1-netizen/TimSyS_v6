@@ -1,0 +1,11 @@
+{
+ "name":"document_intelligence","version":"1.0.0","author":"admin","dependencies":["db","auth","log","events"],
+ "provides":["capability:document_intelligence.extract","capability:document_intelligence.read"],"requires":["capability:documents.read"],
+ "routes":[
+  {"path":"/document-intelligence/documents/:id/extract","method":"POST","handler":"document_intelligence_extract","auth_required":true,"permissions":["admin:documents:read"]},
+  {"path":"/document-intelligence/runs/:id","method":"GET","handler":"document_intelligence_read","auth_required":true,"permissions":["admin:documents:read"]}
+ ],
+ "schema":{"tables":["document_extraction_runs","document_extraction_segments","document_extraction_assets"],"migrations":["migrations/001_document_intelligence.sql"]},
+ "events":{"publishes":["document_intelligence.extraction_completed","document_intelligence.extraction_failed"],"subscribes":[]},
+ "functions":[{"name":"document_intelligence_extract","exports":"extract"},{"name":"document_intelligence_read","exports":"read"}]
+}
