@@ -77,6 +77,20 @@ describe("Solana mint-security contract", () => {
     await expect(adapter.observe(mint, new Set(), observedAt)).rejects.toThrow(/disagree/);
   });
 
+  it("identifies the unavailable independent provider without hiding the cause", async () => {
+    const unavailable: SolanaRpcTransport = {
+      post: async () => ({ status: 429, body: {}, receivedAt: observedAt }),
+    };
+    const adapter = new SolanaMintSecurityAdapter(
+      new SolanaRpcClient(transport()),
+      new SolanaRpcClient(unavailable),
+      identities,
+    );
+    await expect(adapter.observe(mint, new Set(), observedAt)).rejects.toThrow(
+      /Fallback RPC: Solana RPC is temporarily unavailable/,
+    );
+  });
+
   it("marks Token-2022 as an unapproved extension surface", async () => {
     const owner = "TokenzQdYqgP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const adapter = new SolanaMintSecurityAdapter(

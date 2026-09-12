@@ -50,7 +50,9 @@ export class PostgresCandidateEvaluationWorkQueue implements CandidateEvaluation
         `WITH claimable AS (
            SELECT job.id FROM jobs AS job
            JOIN candidates AS candidate ON candidate.id=job.id
-           WHERE job.job_type='candidate_evaluation' AND job.state='available' AND job.available_at <= $1
+           WHERE job.job_type='candidate_evaluation'
+             AND ((job.state='available' AND job.available_at <= $1)
+               OR (job.state='leased' AND job.lease_expires_at <= $1))
            ORDER BY job.available_at, job.id FOR UPDATE OF job SKIP LOCKED LIMIT $2
          ), leased AS (
            UPDATE jobs AS job SET state='leased', lease_owner=$3, lease_expires_at=$4,

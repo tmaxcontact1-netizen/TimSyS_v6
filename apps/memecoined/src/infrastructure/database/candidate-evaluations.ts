@@ -78,6 +78,7 @@ export class PostgresCandidateEvaluationRepository implements CandidateEvaluatio
       );
       const completed = await client.query(
         `UPDATE jobs SET state='completed', lease_owner=NULL, lease_expires_at=NULL,
+                         last_error_json=NULL, last_error_at=NULL,
                          updated_at=$2, version=version+1
          WHERE id=$1 AND job_type='candidate_evaluation'
            AND ($3::text IS NULL OR (state='leased' AND lease_owner=$3))`,

@@ -68,7 +68,8 @@ export async function readOperationalDashboardStatus(
          WHERE job_type='position_reconciliation' AND state IN ('available','leased'))
          AS reconciliation_backlog,
        (SELECT count(*)::int FROM jobs
-         WHERE state='failed' OR last_error_json IS NOT NULL) AS failed_work,
+         WHERE state='failed'
+            OR (state IN ('available','leased') AND last_error_json IS NOT NULL)) AS failed_work,
        (SELECT max(received_at) FROM telegram_operator_updates) AS telegram_last_update_at,
        (SELECT count(*)::int FROM telegram_operator_updates WHERE state='failed')
          AS telegram_failed_updates

@@ -52,6 +52,7 @@ describe("candidate evaluation durable work", () => {
     expect(work[0]?.evaluationRunId).toBe(`candidate-evaluation:${candidateId}:3`);
     expect(db.queries.at(0)).toBe("BEGIN");
     expect(db.queries.at(-1)).toBe("COMMIT");
+    expect(db.queries.some((query) => query.includes("lease_expires_at <= $1"))).toBe(true);
   });
 
   it("rejects invalid ownership and lease bounds before querying", async () => {

@@ -43,6 +43,7 @@ describe("operational dashboard", () => {
     expect(sql).toContain("operator_runtime_control");
     expect(sql).toContain("operator_approvals");
     expect(sql).toContain("position_reconciliation");
+    expect(sql).toContain("state IN ('available','leased') AND last_error_json IS NOT NULL");
   });
 
   it("defaults to an open entry control before the singleton has been written", async () => {

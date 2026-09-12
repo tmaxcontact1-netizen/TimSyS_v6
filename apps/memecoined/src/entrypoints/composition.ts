@@ -281,7 +281,10 @@ export function composePaperTradingRuntime(input: {
                 leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
                 retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
                 signalId: deterministicSignalId,
-                batchSize: 25,
+                // The independent public RPC is intentionally treated as a scarce
+                // verification source. Five sequential candidates keep each RPC
+                // method below the public burst limit while the durable queue drains.
+                batchSize: 5,
               }),
             publishPortfolioAndEvaluateRisk: () =>
               runLeasedRiskEvaluationCycle({

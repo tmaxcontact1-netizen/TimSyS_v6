@@ -122,8 +122,16 @@ export class SolanaMintSecurityAdapter implements MintSecurityObservationPort {
     const values = settled
       .filter((item): item is PromiseFulfilledResult<Read> => item.status === "fulfilled")
       .map(({ value }) => value);
-    if (values.length !== 2)
-      throw new InvariantViolationError("Mint security requires two independent RPC reads");
+    if (values.length !== 2) {
+      const failures = settled.flatMap((item, index) =>
+        item.status === "rejected"
+          ? [`${index === 0 ? "Primary" : "Fallback"} RPC: ${item.reason instanceof Error ? item.reason.message : "request failed"}`]
+          : [],
+      );
+      throw new InvariantViolationError(
+        `Mint security requires two independent RPC reads. ${failures.join("; ")}`,
+      );
+    }
     if (comparable(values[0]!) !== comparable(values[1]!))
       throw new InvariantViolationError("Independent mint-security reads disagree");
     const evidence = values.map((value) => {

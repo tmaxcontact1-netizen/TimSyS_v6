@@ -1168,7 +1168,15 @@ async function refreshPipeline() {
     const row = document.createElement("li"),
       label = document.createElement("span"),
       count = document.createElement("strong");
-    label.textContent = `${item.jobType.replaceAll("_", " ")} · ${item.state}`;
+    const retry = item.retrying > 0 ? ` · ${item.retrying} retrying` : "";
+    label.textContent = `${item.jobType.replaceAll("_", " ")} · ${item.state}${retry}`;
+    if (item.lastError) {
+      label.title = item.lastError;
+      const reason = document.createElement("small");
+      reason.className = "pipeline-error";
+      reason.textContent = item.lastError;
+      label.append(reason);
+    }
     count.textContent = String(item.count);
     row.append(label, count);
     elements["pipeline-work"].append(row);
@@ -1268,7 +1276,7 @@ async function refreshOperationalStatus() {
   elements["entry-lock-state"].dataset.state = operations.entryBlocked ? "blocked" : "open";
   elements["entry-lock-reason"].textContent = operations.entryBlocked
     ? `${operations.entryBlockReason ?? "Operator stop active"}${operations.entryControlChangedBy ? ` · ${operations.entryControlChangedBy}` : ""}`
-    : "New entries may proceed only after every risk gate and explicit human approval.";
+    : "Simulated entries may proceed automatically after every risk and evidence gate passes. No real transaction can be submitted in paper mode.";
   elements["approval-pending"].textContent = operations.approvals.pending;
   elements["approval-approved"].textContent = operations.approvals.approved;
   elements["approval-expiring"].textContent = operations.approvals.expiringSoon;
@@ -1295,6 +1303,11 @@ async function refreshOperationalStatus() {
     ? actions.join(" ")
     : "No immediate action is needed.";
   elements["operator-action"].dataset.state = actions.length ? "attention" : "clear";
+  if (operations.failedWork > 0) {
+    elements["integrity-title"].textContent = "Trading workflow needs attention";
+    elements["integrity-copy"].textContent = `${operations.failedWork} current work item${operations.failedWork === 1 ? " is" : "s are"} retrying or failed. Open Operations for the reported cause.`;
+    setStatus("unhealthy", "Attention required");
+  }
 }
 applyPreferences();
 function updateNavigationState() {
