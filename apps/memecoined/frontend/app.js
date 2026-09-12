@@ -91,6 +91,9 @@ const ids = [
   "chart-range-label",
   "alert-count",
   "alert-rows",
+  "pipeline-state",
+  "pipeline-summary",
+  "pipeline-work",
   "refresh-now",
   "refresh-rate",
   "refresh-label",
@@ -1243,7 +1246,8 @@ async function refresh() {
     await refreshPipeline();
     await refreshOperationalStatus();
     recordConnection("healthy", "Snapshot received");
-  } catch {
+  } catch (error) {
+    console.error("Dashboard refresh failed", error);
     elements["database-health"].textContent = "Unknown — dashboard disconnected";
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";

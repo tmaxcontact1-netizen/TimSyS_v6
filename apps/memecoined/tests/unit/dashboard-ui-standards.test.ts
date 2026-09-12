@@ -43,4 +43,16 @@ describe("dashboard UI standards", () => {
     expect(javascript).toContain('fetch("/api/health"');
     expect(javascript).toContain("function updateNavigationState");
   });
+
+  it("registers every named dashboard element used by refresh rendering", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    const registry = javascript.match(/const ids = \[([\s\S]*?)\];/)?.[1] ?? "";
+    const registered = new Set([...registry.matchAll(/"([^"]+)"/g)].map((match) => match[1]));
+    const htmlIds = new Set([...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1]));
+    const used = [...javascript.matchAll(/elements\["([^"]+)"\]/g)].map((match) => match[1]);
+
+    expect([...new Set(used)].filter((id) => !registered.has(id))).toEqual([]);
+    expect([...registered].filter((id) => !htmlIds.has(id))).toEqual([]);
+  });
 });
