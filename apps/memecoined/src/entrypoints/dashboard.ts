@@ -56,6 +56,7 @@ import {
   type PaperProfileMode,
   type TradingProfileId,
 } from "../domain/strategy/profiles.js";
+import { readProfilePaperPerformance } from "../application/services/profile-paper-simulation.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
   ".css": "text/css; charset=utf-8",
@@ -350,10 +351,12 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     if (pathname === "/api/trading-profiles" && method === "GET") {
       try {
         const activations = await listPaperProfileActivations(dependencies.database, dependencies.wallet);
+        const performance = await readProfilePaperPerformance(dependencies.database, dependencies.wallet);
         sendJson(response, 200, {
           profiles: tradingProfileCatalogue.map((definition) => ({
             ...definition,
             ...activations.find((item) => item.profileId === definition.id),
+            performance: performance.find((item: Record<string, unknown>) => item.profile_id === definition.id) ?? null,
           })),
           policy: {
             maximumCombinedAllocationBps: 10_000,

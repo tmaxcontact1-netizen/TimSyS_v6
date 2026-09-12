@@ -66,6 +66,12 @@ const paperColumns = [
   "dashboard_trading_configuration_audit.action",
   "paper_position_close_requests.state",
   "paper_operator_control_audit.action",
+  "paper_profile_activations.profile_id",
+  "paper_profile_accounts.cash_raw",
+  "paper_profile_candidate_decisions.eligible",
+  "paper_profile_positions.high_water_raw",
+  "paper_profile_positions.current_value_raw",
+  "paper_profile_fills.reason",
 ];
 
 function database(missing?: string, includePaper = false) {

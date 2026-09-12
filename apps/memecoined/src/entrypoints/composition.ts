@@ -104,6 +104,7 @@ import {
 import { PostgresPaperAccountingLedger } from "../infrastructure/database/paper-accounting.js";
 import { PostgresPaperRiskAuthoritySource } from "../infrastructure/database/paper-risk-authority.js";
 import { ensureAllProfilesPaperTrialPreset } from "../infrastructure/database/paper-profile-activations.js";
+import { runProfilePaperSimulationCycle } from "../application/services/profile-paper-simulation.js";
 import { PostgresPaperEntryWorkQueue } from "../infrastructure/database/paper-entry-work.js";
 import { PostgresPaperPositionWorkQueue } from "../infrastructure/database/paper-position-work.js";
 import { PostgresPaperExitAuthority } from "../infrastructure/database/paper-exit-authority.js";
@@ -319,6 +320,14 @@ export function composePaperTradingRuntime(input: {
           retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
           batchSize: 25,
         });
+        if (!(await operatorControl.entryBlocked()))
+          await runProfilePaperSimulationCycle({
+            database: input.database,
+            swap: providers.swap,
+            wallet,
+            now: () => clock.now(),
+            executionFeeRaw: input.config.paper!.executionFeeLamports,
+          });
       },
     }),
   });

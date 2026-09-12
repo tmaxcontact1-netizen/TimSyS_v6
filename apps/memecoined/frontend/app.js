@@ -474,7 +474,8 @@ function renderTradingProfiles() {
     allocation.append(allocationInput);
     const facts = document.createElement("dl");
     facts.className = "profile-facts";
-    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div>`;
+    const performance = profile.performance;
+    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Candidates assessed</dt><dd>${performance?.candidates_evaluated ?? 0}</dd></div><div><dt>Qualified</dt><dd>${performance?.candidates_qualified ?? 0}</dd></div><div><dt>Profile result</dt><dd>${performance ? `${BigInt(performance.net_pnl_raw) >= 0n ? "+" : ""}${sol(performance.net_pnl_raw)} · ${performance.fills} fills · ${performance.open_positions} open` : "Waiting for first cycle"}</dd></div>`;
     const save = async (nextEnabled = profile.enabled) => {
       const allocationBps = Math.round(Number(allocationInput.value) * 100);
       if (!Number.isSafeInteger(allocationBps) || allocationBps < 1 || allocationBps > 10000) {
