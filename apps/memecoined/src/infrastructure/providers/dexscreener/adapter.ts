@@ -54,7 +54,7 @@ const profileSchema = z.object({
   tokenAddress: z.string().min(1),
   url: z.string().url(),
 });
-const profilesSchema = z.array(profileSchema);
+const profilesSchema = z.array(z.unknown());
 type Pair = z.infer<typeof pairSchema>;
 
 function hash(body: unknown): string {
@@ -128,13 +128,18 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
     const contentHash = hash(response.body);
     const observations: CandidateDiscoveryObservation[] = [];
     const seen = new Set<string>();
-    for (const profile of parsed.data) {
+    for (const rawProfile of parsed.data) {
+      const candidate = profileSchema.safeParse(rawProfile);
+      if (!candidate.success) continue;
+      const profile = candidate.data;
       if (profile.chainId.toLowerCase() !== "solana" || seen.has(profile.tokenAddress)) continue;
       let mint: MintAddress;
       try {
         mint = asMintAddress(profile.tokenAddress);
       } catch {
-        return failure("malformed", response.receivedAt, "Invalid DexScreener profile mint", false);
+        // A provider catalogue is an untrusted batch. One unusable listing must
+        // not suppress every otherwise valid Solana candidate in the response.
+        continue;
       }
       seen.add(profile.tokenAddress);
       const sourceKey = `dexscreener:token-profile:${profile.tokenAddress}:${profile.url}`;

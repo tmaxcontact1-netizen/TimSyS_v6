@@ -1160,9 +1160,12 @@ async function refreshPipeline() {
   const { pipeline } = await response.json();
   elements["pipeline-state"].textContent = pipeline.state;
   const summary = pipeline.lastResult?.summary;
-  elements["pipeline-summary"].textContent = summary
-    ? `Last cycle: ${summary.discovered} discovered · ${summary.candidatesEvaluated} evaluated · ${summary.riskEvaluated} risk decisions`
-    : `Next market update ${time(pipeline.nextRunAt)}`;
+  const acquisitionError = pipeline.lastError?.message;
+  elements["pipeline-summary"].textContent = acquisitionError
+    ? `Last market update failed: ${acquisitionError}. Retrying ${time(pipeline.nextRunAt)}.`
+    : summary
+      ? `Last cycle: ${summary.discovered} discovered · ${summary.candidatesEvaluated} evaluated · ${summary.riskEvaluated} risk decisions`
+      : `Next market update ${time(pipeline.nextRunAt)}`;
   elements["pipeline-work"].replaceChildren();
   for (const item of pipeline.work) {
     const row = document.createElement("li"),

@@ -63,14 +63,16 @@ describe("DexScreener market observation contract", () => {
     expect(fixture.calls[0]).toContain("/token-profiles/latest/v1");
   });
 
-  it("rejects a malformed Solana profile mint", async () => {
+  it("quarantines a malformed profile without suppressing valid Solana candidates", async () => {
     const fixture = adapter(200, [
       { chainId: "solana", tokenAddress: "not-a-mint", url: "https://dexscreener.com/solana/bad" },
+      { chainId: "solana", tokenAddress: mint, url: `https://dexscreener.com/solana/${mint}` },
+      { unexpected: true },
     ]);
     const result = await fixture.value.discoverLatestTokens(receivedAt);
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    expect(result.error.code).toBe("malformed");
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.map((item) => item.mint)).toEqual([mint]);
   });
 
   it("selects the matching Solana pool by liquidity independent of response order", async () => {
