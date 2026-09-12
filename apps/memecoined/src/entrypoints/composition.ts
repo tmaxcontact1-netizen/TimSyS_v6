@@ -103,6 +103,7 @@ import {
 } from "../application/services/paper-execution.js";
 import { PostgresPaperAccountingLedger } from "../infrastructure/database/paper-accounting.js";
 import { PostgresPaperRiskAuthoritySource } from "../infrastructure/database/paper-risk-authority.js";
+import { ensureAllProfilesPaperTrialPreset } from "../infrastructure/database/paper-profile-activations.js";
 import { PostgresPaperEntryWorkQueue } from "../infrastructure/database/paper-entry-work.js";
 import { PostgresPaperPositionWorkQueue } from "../infrastructure/database/paper-position-work.js";
 import { PostgresPaperExitAuthority } from "../infrastructure/database/paper-exit-authority.js";
@@ -241,6 +242,8 @@ export function composePaperTradingRuntime(input: {
             initializedAt: clock.now(),
             ledger,
           });
+          if (input.config.paper!.trialPreset === "all_profiles")
+            await ensureAllProfilesPaperTrialPreset(input.database, wallet, new Date(clock.now()));
           initialized = true;
         }
         if (!(await operatorControl.entryBlocked()))

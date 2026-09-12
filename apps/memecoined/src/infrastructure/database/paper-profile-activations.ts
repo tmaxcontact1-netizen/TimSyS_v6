@@ -30,6 +30,47 @@ interface ActivationRow {
 
 export class ProfileActivationConflictError extends Error {}
 
+/**
+ * Installs the operator-requested full-workflow paper preset once. Existing profile
+ * choices are authoritative and are never overwritten on a later launch.
+ */
+export async function ensureAllProfilesPaperTrialPreset(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+  occurredAt: Date,
+): Promise<boolean> {
+  const auditIds = tradingProfileCatalogue.map(() => randomUUID());
+  const result = await database.query<{ inserted_count: string | number }>(
+    `WITH presets(profile_id,allocation_bps,audit_id) AS (
+       VALUES
+         ('whale_tracker',1500,$3::uuid),
+         ('fast_furious',1500,$4::uuid),
+         ('slow_steady',2000,$5::uuid),
+         ('trend_detector',2000,$6::uuid),
+         ('capital_preservation',1500,$7::uuid),
+         ('signal_consensus',1500,$8::uuid)
+     ), inserted AS (
+       INSERT INTO paper_profile_activations
+         (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)
+       SELECT $1,p.profile_id,true,'automatic_paper',p.allocation_bps,1,$2,$2
+       FROM presets p
+       WHERE NOT EXISTS (SELECT 1 FROM paper_profile_activations existing WHERE existing.wallet=$1)
+       ON CONFLICT (wallet,profile_id) DO NOTHING
+       RETURNING profile_id,enabled,mode,allocation_bps,version
+     ), audited AS (
+       INSERT INTO paper_profile_activation_audit
+         (id,wallet,profile_id,action,expected_version,resulting_version,payload_json,occurred_at)
+       SELECT p.audit_id,$1,i.profile_id,'profile_enabled',0,i.version,
+              jsonb_build_object('enabled',i.enabled,'mode',i.mode,'allocationBps',i.allocation_bps,
+                                 'preset','all_profiles'),$2
+       FROM inserted i JOIN presets p USING (profile_id)
+       RETURNING id
+     ) SELECT count(*)::text AS inserted_count FROM inserted`,
+    [wallet, occurredAt, ...auditIds],
+  );
+  return Number(result.rows[0]?.inserted_count ?? 0) === tradingProfileCatalogue.length;
+}
+
 const defaults = new Map(
   tradingProfileCatalogue.map((profile) => [profile.id, profile.defaultAllocationBps]),
 );

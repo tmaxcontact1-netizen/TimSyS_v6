@@ -1245,6 +1245,7 @@ async function refresh() {
     await refreshAlerts();
     await refreshPipeline();
     await refreshOperationalStatus();
+    await refreshTradingProfiles().catch(() => undefined);
     recordConnection("healthy", "Snapshot received");
   } catch (error) {
     console.error("Dashboard refresh failed", error);

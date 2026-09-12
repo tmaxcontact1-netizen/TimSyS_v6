@@ -48,6 +48,7 @@ const schema = z
     PAPER_TRADING_WALLET_ADDRESS: nonempty.optional(),
     PAPER_INITIAL_CASH_LAMPORTS: z.string().regex(/^\d+$/).optional(),
     PAPER_EXECUTION_FEE_LAMPORTS: z.string().regex(/^\d+$/).optional(),
+    MEMECOINED_PAPER_PRESET: z.enum(["all_profiles"]).optional(),
     TELEGRAM_BOT_TOKEN: nonempty.optional(),
     TELEGRAM_OPERATOR_USER_IDS: nonempty.optional(),
     TELEGRAM_CHAT_ID: z
@@ -81,6 +82,7 @@ export interface RuntimeConfig {
     walletAddress: string;
     initialCashLamports: bigint;
     executionFeeLamports: bigint;
+    trialPreset: "all_profiles" | null;
   }>;
   readonly execution: null | Readonly<{
     heliusApiKey: string;
@@ -167,6 +169,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
             required(value.PAPER_INITIAL_CASH_LAMPORTS, "PAPER_INITIAL_CASH_LAMPORTS"),
           ),
           executionFeeLamports: BigInt(value.PAPER_EXECUTION_FEE_LAMPORTS ?? "5000"),
+          trialPreset: value.MEMECOINED_PAPER_PRESET ?? null,
         })
       : null;
   if (paper !== null && liveExecutionOnlyVariables.some((name) => environment[name] !== undefined))

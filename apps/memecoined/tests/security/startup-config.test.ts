@@ -55,7 +55,24 @@ describe("runtime configuration", () => {
       walletAddress: "paper-wallet",
       initialCashLamports: 10000000000n,
       executionFeeLamports: 5000n,
+      trialPreset: null,
     });
+    expect(config.execution).toBeNull();
+  });
+  it("loads the explicit all-profile paper trial preset", () => {
+    const config = loadRuntimeConfig({
+      ...base,
+      MEMECOINED_MODE: "paper",
+      SOLANA_PRIMARY_RPC_URL: "https://primary.example/rpc",
+      SOLANA_FALLBACK_RPC_URL: "https://fallback.example/rpc",
+      SOLANA_CLUSTER: "mainnet-beta",
+      HELIUS_API_KEY: "helius-key",
+      JUPITER_API_KEY: "jupiter-key",
+      PAPER_TRADING_WALLET_ADDRESS: "paper-wallet",
+      PAPER_INITIAL_CASH_LAMPORTS: "10000000000",
+      MEMECOINED_PAPER_PRESET: "all_profiles",
+    });
+    expect(config.paper?.trialPreset).toBe("all_profiles");
     expect(config.execution).toBeNull();
   });
   it("requires explicit paper wallet and provider authority", () =>

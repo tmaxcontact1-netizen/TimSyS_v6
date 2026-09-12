@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   configurePaperProfile,
+  ensureAllProfilesPaperTrialPreset,
   listPaperProfileActivations,
 } from "../../src/infrastructure/database/paper-profile-activations.js";
 
@@ -33,5 +34,28 @@ describe("paper profile activations", () => {
     );
     expect(saved).toMatchObject({ profileId: "whale_tracker", enabled: true, version: 1 });
     expect(statements[1]).toContain("paper_profile_activation_audit");
+  });
+
+  it("installs the balanced automatic-paper trial preset without live authority", async () => {
+    let values: readonly unknown[] = [];
+    const database = {
+      query: async (sql: string, parameters: readonly unknown[]) => {
+        values = parameters;
+        expect(sql).toContain("'automatic_paper'");
+        expect(sql).toContain("'whale_tracker',1500");
+        expect(sql).toContain("'trend_detector',2000");
+        expect(sql).toContain("WHERE NOT EXISTS");
+        expect(sql).toContain("paper_profile_activation_audit");
+        return { rows: [{ inserted_count: "6" }] };
+      },
+    };
+    await expect(
+      ensureAllProfilesPaperTrialPreset(
+        database as never,
+        "wallet" as never,
+        new Date("2026-09-12T12:00:00Z"),
+      ),
+    ).resolves.toBe(true);
+    expect(values).toHaveLength(8);
   });
 });
