@@ -281,10 +281,11 @@ export function composePaperTradingRuntime(input: {
                 leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
                 retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
                 signalId: deterministicSignalId,
-                // The independent public RPC is intentionally treated as a scarce
-                // verification source. Five sequential candidates keep each RPC
-                // method below the public burst limit while the durable queue drains.
-                batchSize: 5,
+                // Paper evaluation uses the same bounded throughput as supervised
+                // production. Both configured RPC routes are independently validated
+                // private providers, so the queue can drain without weakening any
+                // mint-security or evidence requirement.
+                batchSize: 25,
               }),
             publishPortfolioAndEvaluateRisk: () =>
               runLeasedRiskEvaluationCycle({
