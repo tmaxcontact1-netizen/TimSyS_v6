@@ -10,6 +10,7 @@ import ModulePortalPage from './pages/ModulePortalPage';
 import AppDashboard from './pages/AppDashboard';
 import { useAnyPermission } from './utils/permissions';
 import ErrorBoundary from './components/ErrorBoundary';
+import UpdatePrompt from './components/UpdatePrompt';
 
 function ProtectedRoute({ children }) {
   const isInitializing = useAuthStore((s) => s.isInitializing);
@@ -80,6 +81,7 @@ function App() {
 
   return (
     <ErrorBoundary>
+      <UpdatePrompt />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/login/:appId" element={<LoginPage />} />
