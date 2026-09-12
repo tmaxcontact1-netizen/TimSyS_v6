@@ -9,6 +9,12 @@ describe("dashboard UI standards", () => {
     expect(html).toContain('id="app-back"');
     expect(html).toContain('id="return-launcher"');
     expect(html).toContain('id="action-dialog"');
+    expect(html.indexOf('id="return-launcher"')).toBeGreaterThan(
+      html.indexOf('id="sidebar-collapse"'),
+    );
+    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
+    expect(css).toContain("overflow-y: auto");
+    expect(css).toContain("margin: auto 0 12px");
   });
 
   it("uses one numbered 50-row paginator and no browser prompt dialogs", async () => {
