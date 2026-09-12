@@ -1244,7 +1244,7 @@ async function refresh() {
     await refreshOperationalStatus();
     recordConnection("healthy", "Snapshot received");
   } catch {
-    elements["database-health"].textContent = "Unavailable";
+    elements["database-health"].textContent = "Unknown — dashboard disconnected";
     setStatus("error", "Snapshot unavailable");
     elements["integrity-title"].textContent = "Dashboard disconnected";
     elements["integrity-copy"].textContent =

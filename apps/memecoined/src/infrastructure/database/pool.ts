@@ -37,5 +37,14 @@ export function runtimePoolConfig(options: RuntimePoolOptions): Readonly<PoolCon
 }
 
 export function createRuntimePool(options: RuntimePoolOptions): Pool {
-  return new Pool(runtimePoolConfig(options));
+  const pool = new Pool(runtimePoolConfig(options));
+  // pg emits idle-client failures on the Pool itself. Without a listener, a managed
+  // PostgreSQL restart terminates the entire worker/dashboard process instead of
+  // allowing the pool to reconnect on the next request.
+  pool.on("error", (error) => {
+    process.stderr.write(
+      `${JSON.stringify({ level: "error", source: "database-pool", message: error.message })}\n`,
+    );
+  });
+  return pool;
 }

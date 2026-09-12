@@ -462,8 +462,16 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
   }
   const status = supervisedApps.status(appId);
   if (status.state !== 'running') throw new Error(`${appId} is not running`);
+  const dashboardUrl = supervisedApps.dashboardUrl(appId);
   if (appWindow && !appWindow.isDestroyed()) {
     if (appWindowId === appId) {
+      const currentUrl = appWindow.webContents.getURL();
+      let currentOrigin = null;
+      try { currentOrigin = currentUrl ? new URL(currentUrl).origin : null; }
+      catch { currentOrigin = null; }
+      if (currentOrigin !== new URL(dashboardUrl).origin) {
+        await appWindow.loadURL(dashboardUrl);
+      }
       appWindow.focus();
       return status;
     }
@@ -482,7 +490,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     if (new URL(url).origin !== new URL(supervisedApps.dashboardUrl(appId)).origin) event.preventDefault();
   });
   try {
-    await appWindow.loadURL(supervisedApps.dashboardUrl(appId));
+    await appWindow.loadURL(dashboardUrl);
   } catch (error) {
     appWindow.destroy();
     appWindow = null;

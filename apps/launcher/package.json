@@ -1,9 +1,10 @@
 {
   "name": "timsys-launcher",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "description": "TimSyS Launcher - Multi-app desktop shell",
   "main": "electron/main.cjs",
   "type": "module",
+  "dependencies": {},
   "scripts": {
     "dev": "vite --configLoader runner",
     "build": "vite build --configLoader runner",
