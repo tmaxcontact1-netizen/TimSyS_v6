@@ -9,6 +9,7 @@ export default function UpdatePrompt() {
   const [busy, setBusy] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -18,11 +19,13 @@ export default function UpdatePrompt() {
       .catch(() => {}); // The manual Updates panel remains available when launch-time checking fails.
     return () => { active = false; };
   }, []);
+  useEffect(() => window.electronAPI?.updates?.onProgress?.(setProgress), []);
 
   if (!update || dismissed) return null;
   const install = async () => {
     setBusy(true);
     setError('');
+    setProgress({ percent: 0, message: 'Starting installation…', downloadedBytes: 0, totalBytes: update.available.reduce((sum, item) => sum + item.size, 0) });
     reportActionFeedback({ method: 'POST', phase: 'working', message: 'Installing the verified update…' });
     try {
       const result = await window.electronAPI.updates.install();
@@ -45,6 +48,13 @@ export default function UpdatePrompt() {
         {update.available.map(item => <li key={item.id} className="flex items-center justify-between py-3 text-sm"><span className="text-gray-200">{names[item.id] || item.id}</span><span className="text-gray-500">{size(item.size)}</span></li>)}
       </ul>
       {error && <p className="mt-4 rounded-lg border border-red-800 bg-red-950/50 p-3 text-sm text-red-200" role="alert">{error}</p>}
+      {busy && progress && <div className="mt-4" aria-live="polite">
+        <div className="mb-2 flex justify-between gap-4 text-xs text-gray-300"><span>{progress.message}</span><strong>{progress.percent}%</strong></div>
+        <div className="h-3 overflow-hidden rounded-full bg-gray-800" role="progressbar" aria-label="Update installation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress.percent}>
+          <div className="h-full rounded-full bg-blue-500 transition-[width] duration-200" style={{ width: `${progress.percent}%` }} />
+        </div>
+        {progress.totalBytes > 0 && <p className="mt-2 text-xs text-gray-500">{size(progress.downloadedBytes)} of {size(progress.totalBytes)} downloaded</p>}
+      </div>}
       <p className="mt-4 text-xs leading-5 text-gray-500">The launcher will restart after installation. Your records, photos, documents and settings will not be replaced.</p>
       <footer className="mt-6 flex justify-end gap-3">
         <button type="button" disabled={busy} onClick={() => setDismissed(true)} className="rounded-lg border border-gray-700 px-4 py-2 text-sm font-semibold text-gray-300 hover:bg-gray-800 disabled:opacity-50">Not now</button>

@@ -7,6 +7,7 @@ const size = bytes => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `$
 export default function UpdatePanel() {
   const [state, setState] = useState({ checking: true, result: null, error: '' });
   const [confirmInstall, setConfirmInstall] = useState(false);
+  const [progress, setProgress] = useState(null);
   const check = async () => {
     if (!window.electronAPI?.updates) return setState({ checking: false, result: { development: true }, error: '' });
     setState({ checking: true, result: null, error: '' });
@@ -14,9 +15,11 @@ export default function UpdatePanel() {
     catch (error) { setState({ checking: false, result: null, error: error.message }); }
   };
   useEffect(() => { void check(); }, []);
+  useEffect(() => window.electronAPI?.updates?.onProgress?.(setProgress), []);
   const install = async () => {
     setConfirmInstall(false);
     setState(current => ({ ...current, checking: true, error: '' }));
+    setProgress({ percent: 0, message: 'Starting installation…', downloadedBytes: 0, totalBytes: state.result?.available?.reduce((sum, item) => sum + item.size, 0) ?? 0 });
     reportActionFeedback({ method: 'POST', phase: 'working', message: 'Installing the verified update…' });
     try { const result = await window.electronAPI.updates.install(); if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.'); reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' }); }
     catch (error) { setState(current => ({ ...current, checking: false, error: error.message })); reportActionFeedback({ method: 'POST', phase: 'error', message: 'The update could not be installed. Review the error in the Updates panel.' }); }
@@ -28,6 +31,11 @@ export default function UpdatePanel() {
       <button type="button" disabled={state.checking} onClick={check} className="rounded bg-gray-700 px-4 py-2 text-sm text-white disabled:opacity-50">{state.checking ? 'Checking…' : 'Check again'}</button>
     </div>
     {state.error && <p className="mt-4 rounded border border-red-800 bg-red-950/40 p-3 text-sm text-red-200">{state.error}</p>}
+    {state.checking && progress && <div className="mt-4">
+      <div className="mb-2 flex justify-between gap-4 text-xs text-gray-300"><span>{progress.message}</span><strong>{progress.percent}%</strong></div>
+      <div className="h-3 overflow-hidden rounded-full bg-gray-800" role="progressbar" aria-label="Update installation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress.percent}><div className="h-full rounded-full bg-timsys-primary transition-[width] duration-200" style={{ width: `${progress.percent}%` }} /></div>
+      {progress.totalBytes > 0 && <p className="mt-2 text-xs text-gray-500">{size(progress.downloadedBytes)} of {size(progress.totalBytes)} downloaded</p>}
+    </div>}
     {state.result && !state.result.updateAvailable && <p className="mt-4 text-sm text-emerald-300">Everything is up to date.</p>}
     {state.result?.updateAvailable && <div className="mt-4">
       <p className="text-sm text-white">Release {state.result.releaseVersion} is ready.</p>

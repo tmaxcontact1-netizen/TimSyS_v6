@@ -31,8 +31,14 @@ test('verified update becomes the active bundle and can roll back', async () => 
   try {
     const check = await manager.check();
     assert.equal(check.updateAvailable, true);
-    const installed = await manager.install();
+    const progress = [];
+    const installed = await manager.install(event => progress.push(event));
     assert.deepEqual(installed.installed, [{ id: 'launcher-ui', version: 'abcdef0123456789' }]);
+    assert.equal(progress[0].phase, 'preparing');
+    assert.equal(progress.at(-1).phase, 'complete');
+    assert.equal(progress.at(-1).percent, 100);
+    assert.equal(progress.find(event => event.phase === 'downloading').downloadedBytes, 0);
+    assert.equal(progress.filter(event => event.phase === 'downloading').at(-1).downloadedBytes, archive.length);
     assert.match(manager.activeRoots()['launcher-ui'], /abcdef0123456789$/);
     assert.equal(await manager.rollbackPending('platform_start_failed: test'), true);
     assert.equal(manager.activeRoots()['launcher-ui'], undefined);

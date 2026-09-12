@@ -410,7 +410,10 @@ ipcMain.handle('updates:check', async (event) => {
 ipcMain.handle('updates:install', async (event) => {
   requireLauncherWindow(event);
   if (!app.isPackaged) throw new Error('Updates can only be installed by the packaged Launcher');
-  const result = await updateManager.install();
+  const sender = event.sender;
+  const result = await updateManager.install(progress => {
+    if (!sender.isDestroyed()) sender.send('updates:progress', progress);
+  });
   if (!result.restartRequired) return result;
   setTimeout(async () => {
     await supervisedApps.stopAll().catch(() => {});

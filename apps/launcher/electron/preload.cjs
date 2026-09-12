@@ -9,6 +9,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     rendererReady: () => ipcRenderer.invoke('updates:ready'),
     check: () => ipcRenderer.invoke('updates:check'),
     install: () => ipcRenderer.invoke('updates:install'),
+    onProgress: (callback) => {
+      const handler = (_event, progress) => callback(progress);
+      ipcRenderer.on('updates:progress', handler);
+      return () => ipcRenderer.removeListener('updates:progress', handler);
+    },
   },
   supervisedApp: {
     start: (appId) => ipcRenderer.invoke('supervised-app:start', appId),

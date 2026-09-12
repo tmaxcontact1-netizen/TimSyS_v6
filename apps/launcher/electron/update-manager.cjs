@@ -81,46 +81,74 @@ class UpdateManager {
     }
   }
 
-  async install() {
+  async install(onProgress = () => {}) {
     const response = await this.fetch(this.manifestUrl, { headers: { 'User-Agent': `TimSyS-Launcher/${this.currentLauncherVersion}`, Accept: 'application/json' } });
     if (!response.ok) throw new Error(`Update information could not be retrieved (${response.status})`);
     const manifest = await response.json();
     this.validateManifest(manifest);
     const wanted = manifest.bundles.filter(bundle => this.state.bundles?.[bundle.id]?.version !== bundle.version);
     if (!wanted.length) return { installed: [], restartRequired: false };
+    const totalBytes = wanted.reduce((sum, bundle) => sum + bundle.size, 0);
+    let downloadedBytes = 0;
+    const report = (phase, percent, message, bundleId = null) => onProgress(Object.freeze({
+      phase, percent: Math.max(0, Math.min(100, Math.round(percent))), message, bundleId,
+      downloadedBytes, totalBytes,
+    }));
+    report('preparing', 1, 'Preparing the verified update…');
     const transaction = path.join(this.root, 'staging', randomUUID());
     const nextState = JSON.parse(JSON.stringify(this.state));
     await fsp.mkdir(transaction, { recursive: true });
     try {
-      for (const bundle of wanted) {
+      for (const [index, bundle] of wanted.entries()) {
         const archive = path.join(transaction, `${bundle.id}.zip`);
         const destination = path.join(this.root, 'bundles', bundle.id, bundle.version);
-        await this.download(new URL(bundle.url, this.manifestUrl).href, archive, bundle.size, bundle.sha256);
+        report('downloading', 2 + (downloadedBytes / totalBytes) * 78, `Downloading ${bundle.id}…`, bundle.id);
+        await this.download(new URL(bundle.url, this.manifestUrl).href, archive, bundle.size, bundle.sha256, bytes => {
+          downloadedBytes += bytes;
+          report('downloading', 2 + (downloadedBytes / totalBytes) * 78, `Downloading ${bundle.id}…`, bundle.id);
+        });
+        report('verifying', 80 + ((index + 0.25) / wanted.length) * 15, `Verifying ${bundle.id}…`, bundle.id);
         const extracted = path.join(transaction, bundle.id);
         await fsp.mkdir(extracted, { recursive: true });
+        report('extracting', 80 + ((index + 0.5) / wanted.length) * 15, `Installing ${bundle.id}…`, bundle.id);
         await this.extractArchive(archive, extracted);
         await this.validateBundle(bundle.id, extracted);
         await fsp.rm(destination, { recursive: true, force: true });
         await fsp.mkdir(path.dirname(destination), { recursive: true });
         await fsp.rename(extracted, destination);
         nextState.bundles[bundle.id] = { version: bundle.version, sha256: bundle.sha256, path: destination };
+        report('installing', 80 + ((index + 1) / wanted.length) * 15, `${bundle.id} installed.`, bundle.id);
       }
+      report('activating', 97, 'Activating the update…');
       nextState.previousBundles = this.state.bundles || {};
       nextState.pendingRelease = manifest.releaseVersion;
       nextState.updatedAt = new Date().toISOString();
       await this.writeState(nextState);
       this.state = nextState;
+      report('complete', 100, 'Update installed. Restarting TimSyS…');
       return { installed: wanted.map(({ id, version }) => ({ id, version })), restartRequired: true };
     } finally { await fsp.rm(transaction, { recursive: true, force: true }).catch(() => {}); }
   }
 
-  async download(url, destination, expectedSize, expectedHash) {
+  async download(url, destination, expectedSize, expectedHash, onChunk = () => {}) {
     const response = await this.fetch(url, { headers: { 'User-Agent': `TimSyS-Launcher/${this.currentLauncherVersion}` } });
     if (!response.ok) throw new Error(`Could not download an update (${response.status})`);
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (bytes.length !== expectedSize) throw new Error('The downloaded update has an unexpected size');
-    if (createHash('sha256').update(bytes).digest('hex') !== expectedHash.toLowerCase()) throw new Error('The downloaded update failed its security check');
-    await fsp.writeFile(destination, bytes, { flag: 'wx' });
+    if (!response.body) throw new Error('The update download returned no content');
+    const file = await fsp.open(destination, 'wx');
+    const digest = createHash('sha256');
+    let received = 0;
+    try {
+      for await (const value of response.body) {
+        const bytes = Buffer.from(value);
+        received += bytes.length;
+        if (received > expectedSize) throw new Error('The downloaded update has an unexpected size');
+        digest.update(bytes);
+        await file.write(bytes);
+        onChunk(bytes.length);
+      }
+    } finally { await file.close(); }
+    if (received !== expectedSize) throw new Error('The downloaded update has an unexpected size');
+    if (digest.digest('hex') !== expectedHash.toLowerCase()) throw new Error('The downloaded update failed its security check');
   }
 
   async validateBundle(id, root) {
