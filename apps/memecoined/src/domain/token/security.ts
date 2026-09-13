@@ -104,11 +104,11 @@ export function evaluateTokenSecurity(snapshot: TokenSecuritySnapshot): TokenSec
     ),
     result(
       "SEC-003",
-      snapshot.program !== "spl_token",
+      snapshot.program === "unknown",
       snapshot,
-      snapshot.program === "spl_token"
-        ? "Legacy SPL Token program is verified"
-        : "Token-2022 or an unknown token program is rejected",
+      snapshot.program === "unknown"
+        ? "Token program is unknown"
+        : `${snapshot.program === "spl_token" ? "SPL Token" : "Token-2022"} program is verified`,
       [{ name: "token_program", value: snapshot.program }],
     ),
     result(

@@ -168,10 +168,29 @@ async function read(
   });
 }
 
-function comparable(value: Read): string {
-  return JSON.stringify(value.snapshot, (_key, item) =>
+function securityComparable(value: Read): string {
+  const { holders: _holders, ...security } = value.snapshot;
+  return JSON.stringify(security, (_key, item) =>
     typeof item === "bigint" ? item.toString() : item,
   );
+}
+
+function conservativeSnapshot(values: readonly [Read, Read]): Read["snapshot"] {
+  const first = values[0].snapshot;
+  const second = values[1].snapshot;
+  if (!first.holders || !second.holders) return first;
+  return Object.freeze({
+    ...first,
+    holders: Object.freeze({
+      topTenNormalPercentage: asPercentage(
+        Decimal.max(first.holders.topTenNormalPercentage, second.holders.topTenNormalPercentage),
+      ),
+      largestNormalPercentage: asPercentage(
+        Decimal.max(first.holders.largestNormalPercentage, second.holders.largestNormalPercentage),
+      ),
+      exclusionsVerified: first.holders.exclusionsVerified && second.holders.exclusionsVerified,
+    }),
+  });
 }
 
 export class SolanaMintSecurityAdapter implements MintSecurityObservationPort {
@@ -212,7 +231,7 @@ export class SolanaMintSecurityAdapter implements MintSecurityObservationPort {
         retryable,
       );
     }
-    if (comparable(values[0]!) !== comparable(values[1]!))
+    if (securityComparable(values[0]!) !== securityComparable(values[1]!))
       throw new InvariantViolationError("Independent mint-security reads disagree");
     const evidence = values.map((value) => {
       const contentHash = createHash("sha256").update(JSON.stringify(value.raw)).digest("hex");
@@ -230,6 +249,7 @@ export class SolanaMintSecurityAdapter implements MintSecurityObservationPort {
         .map(({ receivedAt }) => receivedAt)
         .sort()
         .at(-1) ?? asTimestamp(requestedAt);
-    return Object.freeze({ ...values[0]!.snapshot, observedAt, evidence: Object.freeze(evidence) });
+    const snapshot = conservativeSnapshot([values[0]!, values[1]!]);
+    return Object.freeze({ ...snapshot, observedAt, evidence: Object.freeze(evidence) });
   }
 }

@@ -91,7 +91,6 @@ describe("token security", () => {
     ["SEC-001", { mintAuthority: "unknown" }],
     ["SEC-002", { freezeAuthority: "active" }],
     ["SEC-002", { freezeAuthority: "unknown" }],
-    ["SEC-003", { program: "token_2022" }],
     ["SEC-003", { program: "unknown" }],
   ] as const)("fails %s for unsafe or unknown authority/program data", (ruleId, override) => {
     expect(outcome(safeSnapshot(override), ruleId)).toBe("fail");
@@ -130,6 +129,12 @@ describe("token security", () => {
       expect(outcome(snapshot, "SEC-010")).toBe(largestOutcome);
     },
   );
+
+  it("accepts a verified Token-2022 mint when its extensions are safe", () => {
+    const decision = evaluateTokenSecurity(safeSnapshot({ program: "token_2022" }));
+    expect(decision.eligible).toBe(true);
+    expect(outcome(safeSnapshot({ program: "token_2022" }), "SEC-003")).toBe("pass");
+  });
 
   it("fails holder rules and SEC-015 when exclusions are unverified", () => {
     const decision = evaluateTokenSecurity(

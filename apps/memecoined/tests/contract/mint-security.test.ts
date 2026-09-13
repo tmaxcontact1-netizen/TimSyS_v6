@@ -69,10 +69,20 @@ describe("Solana mint-security contract", () => {
     expect(result.evidence).toHaveLength(2);
   });
 
-  it("rejects disagreement between independent holder reads", async () => {
+  it("uses the more conservative concentration when independent holder reads differ", async () => {
     const adapter = new SolanaMintSecurityAdapter(
       new SolanaRpcClient(transport("200")),
       new SolanaRpcClient(transport("201")),
+      identities,
+    );
+    const result = await adapter.observe(mint, new Set(), observedAt);
+    expect(result.holders?.largestNormalPercentage.toString()).toBe("20.1");
+  });
+
+  it("rejects disagreement about the mint's security configuration", async () => {
+    const adapter = new SolanaMintSecurityAdapter(
+      new SolanaRpcClient(transport()),
+      new SolanaRpcClient(transport("200", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")),
       identities,
     );
     await expect(adapter.observe(mint, new Set(), observedAt)).rejects.toThrow(/disagree/);
