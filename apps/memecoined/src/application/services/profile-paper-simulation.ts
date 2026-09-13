@@ -211,11 +211,14 @@ async function enterPosition(input: {
       reason: `${quoted.error.provider}: ${quoted.error.reason}`,
     });
   const q = quoted.value;
+  // The provider receives the quote after the simulation cycle begins. Use that
+  // later timestamp for the audited fill so filled_at can never precede quoted_at.
+  const filledAt = q.receivedAt;
   const entered = await transaction(input.pool, async (client) => {
     const debit = await client.query(
       `UPDATE paper_profile_accounts SET cash_raw=cash_raw-$3-$4,updated_at=$5
        WHERE wallet=$1 AND profile_id=$2 AND cash_raw >= $3+$4`,
-      [input.wallet, input.profile.id, q.inputAmount.toString(), input.feeRaw.toString(), input.at],
+      [input.wallet, input.profile.id, q.inputAmount.toString(), input.feeRaw.toString(), filledAt],
     );
     if (debit.rowCount !== 1) return false;
     const inserted = await client.query(
@@ -229,7 +232,7 @@ async function enterPosition(input: {
         input.candidate.candidate_id,
         q.expectedOutputAmount.toString(),
         q.inputAmount.toString(),
-        input.at,
+        filledAt,
       ],
     );
     if (inserted.rowCount !== 1) throw new Error("Profile position changed during entry");
@@ -248,7 +251,7 @@ async function enterPosition(input: {
         input.feeRaw.toString(),
         q.fingerprint,
         q.receivedAt,
-        input.at,
+        filledAt,
       ],
     );
     return true;
@@ -354,9 +357,9 @@ async function evaluateNewCandidates(input: {
         `INSERT INTO paper_profile_candidate_decisions
          (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
           entry_state,next_entry_attempt_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::timestamptz,
                  CASE WHEN $5=true AND $4='automatic_paper' THEN 'pending' ELSE 'not_applicable' END,
-                 CASE WHEN $5=true AND $4='automatic_paper' THEN $8 ELSE NULL END)
+                 CASE WHEN $5=true AND $4='automatic_paper' THEN $8::timestamptz ELSE NULL::timestamptz END)
          ON CONFLICT DO NOTHING`,
         [
           input.wallet,
