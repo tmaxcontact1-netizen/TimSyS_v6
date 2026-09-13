@@ -32,11 +32,13 @@ const routeStep = z.object({
     outputMint: z.string().min(1),
     inAmount: integer,
     outAmount: integer,
-    feeAmount: integer,
-    feeMint: z.string().min(1),
+    // Jupiter's current quote response omits per-hop fee fields when the
+    // selected AMM does not report them. Older responses include both.
+    feeAmount: integer.optional(),
+    feeMint: z.string().min(1).optional(),
   }),
   percent: z.number().finite().positive().max(100).optional(),
-  bps: z.number().int().positive().max(10_000).optional(),
+  bps: z.number().int().positive().max(10_000).nullish(),
 });
 const quoteSchema = z.object({
   inputMint: z.string().min(1),
@@ -117,8 +119,8 @@ function routeIdentity(step: z.infer<typeof routeStep>): string {
     step.swapInfo.outputMint,
     step.swapInfo.inAmount,
     step.swapInfo.outAmount,
-    step.swapInfo.feeAmount,
-    step.swapInfo.feeMint,
+    step.swapInfo.feeAmount ?? "unreported",
+    step.swapInfo.feeMint ?? "unreported",
     String(step.bps ?? step.percent),
   ].join(":");
 }

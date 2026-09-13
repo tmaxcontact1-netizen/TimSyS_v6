@@ -171,6 +171,17 @@ describe("Jupiter executable swap contract", () => {
     );
   });
 
+  it("accepts Jupiter routes that omit unreported fee fields and return null bps", async () => {
+    const body = quoteBody();
+    const step = body.routePlan[0]!;
+    const { feeAmount: _feeAmount, feeMint: _feeMint, ...swapInfo } = step.swapInfo;
+    const result = await fixture({
+      quote: { ...body, routePlan: [{ ...step, bps: null, swapInfo }] },
+    }).adapter.quote(request);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.routePlan[0]).toContain("unreported:unreported:100");
+  });
+
   it.each([
     [quoteBody({ inputMint: outputMint }), "validation"],
     [quoteBody({ outAmount: "0" }), "malformed"],
