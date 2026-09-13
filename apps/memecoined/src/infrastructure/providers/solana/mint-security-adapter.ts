@@ -7,6 +7,7 @@ import type { ObservationIdentityFactory } from "../../../application/contracts/
 import { ObservationUnavailableError } from "../../../application/contracts/observations.js";
 import type { MintSecurityObservationPort } from "../../../application/ports/runtime-authority-inputs.js";
 import type { TokenSecuritySnapshot } from "../../../domain/token/security.js";
+import type { TokenExtension } from "../../../domain/token/security.js";
 import { InvariantViolationError } from "../../../domain/shared/errors.js";
 import {
   asPercentage,
@@ -18,7 +19,67 @@ import {
 import { SolanaRpcClient, SolanaRpcError } from "./rpc-client.js";
 
 const SPL_TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
-const TOKEN_2022 = "TokenzQdYqgP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+const TOKEN_2022 = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+const TOKEN_2022_TLV_OFFSET = 166;
+
+function token2022Extensions(data: Buffer): readonly TokenExtension[] {
+  if (data.length === 82) return Object.freeze([]);
+  if (
+    data.length < TOKEN_2022_TLV_OFFSET ||
+    data.subarray(82, 165).some((value) => value !== 0) ||
+    data[165] !== 1
+  ) {
+    return Object.freeze(["unapproved"]);
+  }
+
+  const extensions = new Set<TokenExtension>();
+  let offset = TOKEN_2022_TLV_OFFSET;
+  while (offset < data.length) {
+    if (data.length - offset < 2) {
+      if (data[offset] !== 0) extensions.add("unapproved");
+      break;
+    }
+    const type = data.readUInt16LE(offset);
+    if (type === 0) break;
+    if (data.length - offset < 4) {
+      extensions.add("unapproved");
+      break;
+    }
+    const length = data.readUInt16LE(offset + 2);
+    const valueStart = offset + 4;
+    const valueEnd = valueStart + length;
+    if (valueEnd > data.length) {
+      extensions.add("unapproved");
+      break;
+    }
+
+    switch (type) {
+      case 1:
+        extensions.add("transfer_fee");
+        break;
+      case 6:
+        if (length !== 1 || data[valueStart] === 2) extensions.add("default_account_frozen");
+        break;
+      case 12:
+        extensions.add("permanent_delegate");
+        break;
+      case 14:
+        extensions.add("transfer_hook");
+        break;
+      case 18: // MetadataPointer
+      case 19: // TokenMetadata
+        break;
+      case 26:
+        extensions.add("pausable_transfer");
+        break;
+      default:
+        // Unsupported extensions are never silently assumed safe.
+        extensions.add("unapproved");
+    }
+    offset = valueEnd;
+  }
+  return Object.freeze([...extensions]);
+}
 const accountSchema = z.object({
   context: z.object({ slot: z.number().int().safe().nonnegative() }),
   value: z.object({ data: z.tuple([z.string(), z.literal("base64")]), owner: z.string() }),
@@ -67,6 +128,12 @@ async function read(
       : account.data.value.owner === TOKEN_2022
         ? ("token_2022" as const)
         : ("unknown" as const);
+  const extensions =
+    program === "spl_token"
+      ? Object.freeze([])
+      : program === "token_2022"
+        ? token2022Extensions(data)
+        : Object.freeze(["unapproved" as const]);
   const normal = largest.data.value
     .filter(({ address }) => !excluded.has(address))
     .map(({ amount }) => BigInt(amount));
@@ -90,7 +157,7 @@ async function read(
       program,
       mintAuthority: option(0) === 0 ? "revoked" : "active",
       freezeAuthority: option(46) === 0 ? "revoked" : "active",
-      extensions: Object.freeze(program === "spl_token" ? [] : ["unapproved" as const]),
+      extensions,
       extensionsVerified: program !== "unknown",
       holders: Object.freeze({
         topTenNormalPercentage: percent(topTenRaw),

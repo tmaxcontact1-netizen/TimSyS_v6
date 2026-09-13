@@ -18,6 +18,7 @@ mintData.writeUInt32LE(0, 46);
 function transport(
   largest = "200",
   owner = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+  data = mintData,
 ): SolanaRpcTransport {
   return {
     post: async (request) => {
@@ -26,7 +27,7 @@ function transport(
         value.method === "getAccountInfo"
           ? {
               context: { slot: 10 },
-              value: { data: [mintData.toString("base64"), "base64"], owner },
+              value: { data: [data.toString("base64"), "base64"], owner },
             }
           : value.method === "getTokenLargestAccounts"
             ? {
@@ -102,11 +103,55 @@ describe("Solana mint-security contract", () => {
     });
   });
 
-  it("marks Token-2022 as an unapproved extension surface", async () => {
-    const owner = "TokenzQdYqgP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+  it("recognizes a Token-2022 mint with no extensions as verified", async () => {
+    const owner = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const adapter = new SolanaMintSecurityAdapter(
       new SolanaRpcClient(transport("200", owner)),
       new SolanaRpcClient(transport("200", owner)),
+      identities,
+    );
+    const result = await adapter.observe(mint, new Set(), observedAt);
+    expect(result).toMatchObject({
+      program: "token_2022",
+      extensions: [],
+      extensionsVerified: true,
+    });
+  });
+
+  it("allows Token-2022 metadata while exposing dangerous transfer fees", async () => {
+    const owner = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    const extended = Buffer.alloc(166 + 4 + 64 + 4 + 108 + 4 + 12);
+    mintData.copy(extended);
+    extended[165] = 1;
+    let offset = 166;
+    for (const [type, length] of [
+      [18, 64],
+      [1, 108],
+      [19, 12],
+    ] as const) {
+      extended.writeUInt16LE(type, offset);
+      extended.writeUInt16LE(length, offset + 2);
+      offset += 4 + length;
+    }
+    const adapter = new SolanaMintSecurityAdapter(
+      new SolanaRpcClient(transport("200", owner, extended)),
+      new SolanaRpcClient(transport("200", owner, extended)),
+      identities,
+    );
+    const result = await adapter.observe(mint, new Set(), observedAt);
+    expect(result).toMatchObject({ program: "token_2022", extensions: ["transfer_fee"] });
+  });
+
+  it("fails closed when a Token-2022 extension is not explicitly supported", async () => {
+    const owner = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
+    const extended = Buffer.alloc(171);
+    mintData.copy(extended);
+    extended[165] = 1;
+    extended.writeUInt16LE(25, 166);
+    extended.writeUInt16LE(1, 168);
+    const adapter = new SolanaMintSecurityAdapter(
+      new SolanaRpcClient(transport("200", owner, extended)),
+      new SolanaRpcClient(transport("200", owner, extended)),
       identities,
     );
     const result = await adapter.observe(mint, new Set(), observedAt);
