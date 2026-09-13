@@ -987,9 +987,13 @@ function renderDetails() {
       (r) => ({ text: String(r.lots) }),
       (r) => ({ text: time(r.opened_at) }),
       (r) => ({
-        text: r.close_pending ? "Close requested" : "Request full close",
-        action: "close-position",
-        disabled: !mutationToken || r.close_pending,
+        text: r.profile_managed
+          ? `${String(r.profile_id).replaceAll("_", " ")} manages exit`
+          : r.close_pending
+            ? "Close requested"
+            : "Request full close",
+        action: r.profile_managed ? undefined : "close-position",
+        disabled: r.profile_managed || !mutationToken || r.close_pending,
         data: { mint: r.token_mint, amountRaw: r.amount_raw },
       }),
     ],

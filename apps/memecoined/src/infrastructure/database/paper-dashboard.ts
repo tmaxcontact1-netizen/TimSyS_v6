@@ -291,9 +291,15 @@ export async function readPaperDashboardDetails(
                       count(*)::int AS lots,
                       EXISTS (SELECT 1 FROM paper_position_close_requests r
                         WHERE r.wallet=$1 AND r.token_mint=paper_position_lots.token_mint
-                          AND r.state='pending') AS close_pending
+                          AND r.state='pending') AS close_pending,
+                      NULL::text AS profile_id,false AS profile_managed
                FROM paper_position_lots WHERE wallet=$1 AND current_amount_raw>0
-               GROUP BY token_mint ORDER BY min(opened_at) DESC, token_mint LIMIT 50) p),'[]') AS positions,
+               GROUP BY token_mint
+               UNION ALL
+               SELECT token_mint,token_amount_raw::text,cost_raw::text,opened_at,1,false,
+                      profile_id,true
+                 FROM paper_profile_positions WHERE wallet=$1
+               ORDER BY opened_at DESC, token_mint LIMIT 50) p),'[]') AS positions,
        COALESCE((SELECT jsonb_agg(e ORDER BY e.created_at,e.signal_id)
          FROM (SELECT o.signal_id::text,c.mint_address AS token_mint,
                       o.intended_input_amount::text AS input_amount_raw,
@@ -308,8 +314,13 @@ export async function readPaperDashboardDetails(
                ORDER BY j.created_at,o.signal_id LIMIT 50) e),'[]') AS pending_entries,
        COALESCE((SELECT jsonb_agg(f ORDER BY f.filled_at DESC, f.id)
          FROM (SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
-                      execution_fee_raw::text,quoted_at,filled_at
-               FROM paper_fills WHERE wallet=$1 ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
+                      execution_fee_raw::text,quoted_at,filled_at,NULL::text AS profile_id
+                 FROM paper_fills WHERE wallet=$1
+               UNION ALL
+               SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
+                      execution_fee_raw::text,quoted_at,filled_at,profile_id
+                 FROM paper_profile_fills WHERE wallet=$1
+               ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
        COALESCE((SELECT jsonb_agg(r ORDER BY r.realized_at DESC, r.fill_id)
          FROM (SELECT fill_id,token_mint,proceeds_raw::text,released_cost_raw::text,
                       realized_pnl_raw::text,realized_at
