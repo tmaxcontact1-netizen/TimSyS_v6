@@ -32,26 +32,37 @@ export interface ProfileCandidateDecision {
   readonly reasons: readonly string[];
 }
 
-// These rules protect every profile. Momentum and historical-context rules are
-// profile signals: treating them as universal gates would make the distinct
-// strategies identical and would reject absent optional evidence as unsafe.
-const universalSafetyRuleIds = Object.freeze([
+// Authority, program, extension and direct-evidence checks are non-negotiable.
+// Market appetite belongs to each paper profile; real execution retains its
+// independent production entry gates.
+const nonNegotiablePaperRuleIds = Object.freeze([
   "SEC-001",
   "SEC-002",
   "SEC-003",
   "SEC-004",
+  "SEC-015",
+]);
+const strictPaperRuleIds = Object.freeze([
+  ...nonNegotiablePaperRuleIds,
   "SEC-005",
   "SEC-006",
   "SEC-007",
   "SEC-008",
   "SEC-010",
   "SEC-012",
-  "SEC-015",
   "UNI-001",
   "UNI-002",
   "UNI-003",
   "UNI-004",
 ]);
+
+function requiredPaperRules(profile: TradingProfileDefinition): ReadonlySet<string> {
+  if (profile.id === "fast_furious")
+    return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-012"]);
+  if (profile.id === "trend_detector")
+    return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-010", "SEC-012"]);
+  return new Set(strictPaperRuleIds);
+}
 
 /** Profile policy is deliberately deterministic and cannot override a failed safety gate. */
 export function evaluateProfileCandidate(
@@ -60,8 +71,10 @@ export function evaluateProfileCandidate(
   failedSafetyRules: readonly string[],
 ): ProfileCandidateDecision {
   const reasons: string[] = [];
-  if (failedSafetyRules.length)
-    reasons.push(`Safety gates failed: ${failedSafetyRules.join(", ")}`);
+  const requiredRules = requiredPaperRules(profile);
+  const applicableFailures = failedSafetyRules.filter((ruleId) => requiredRules.has(ruleId));
+  if (applicableFailures.length)
+    reasons.push(`Required gates failed: ${applicableFailures.join(", ")}`);
   if (score.total < profile.minimumCandidateScore)
     reasons.push(
       `Score ${score.total} is below this profile's ${profile.minimumCandidateScore}-point threshold`,
@@ -240,8 +253,8 @@ async function evaluateNewCandidates(input: {
   const candidates = await input.pool.query<CandidateRow>(
     `SELECT c.id::text AS candidate_id,c.mint_address,s.total_score,s.breakdown_json,
             COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
-                      WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'
-                        AND r.rule_id=ANY($2::text[])),'{}') AS failed_rules,
+                      WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),
+                     '{}') AS failed_rules,
             s.evaluated_at
        FROM candidates c JOIN LATERAL
             (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
@@ -251,7 +264,7 @@ async function evaluateNewCandidates(input: {
                     AND NOT EXISTS (SELECT 1 FROM paper_profile_candidate_decisions d
                                     WHERE d.wallet=$1 AND d.profile_id=a.profile_id AND d.candidate_id=c.id))
       ORDER BY s.evaluated_at,c.id LIMIT 30`,
-    [input.wallet, universalSafetyRuleIds],
+    [input.wallet],
   );
   for (const candidate of candidates.rows) {
     for (const activation of activations.rows) {
