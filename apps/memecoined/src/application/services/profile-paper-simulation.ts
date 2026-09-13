@@ -216,8 +216,10 @@ async function enterPosition(input: {
   const filledAt = q.receivedAt;
   const entered = await transaction(input.pool, async (client) => {
     const debit = await client.query(
-      `UPDATE paper_profile_accounts SET cash_raw=cash_raw-$3-$4,updated_at=$5
-       WHERE wallet=$1 AND profile_id=$2 AND cash_raw >= $3+$4`,
+      `UPDATE paper_profile_accounts
+          SET cash_raw=cash_raw-$3::numeric-$4::numeric,updated_at=$5
+        WHERE wallet=$1 AND profile_id=$2
+          AND cash_raw >= $3::numeric+$4::numeric`,
       [input.wallet, input.profile.id, q.inputAmount.toString(), input.feeRaw.toString(), filledAt],
     );
     if (debit.rowCount !== 1) return false;
@@ -434,7 +436,11 @@ async function monitorPositions(input: {
       if (removed.rowCount !== 1) return;
       const net = value > input.feeRaw ? value - input.feeRaw : 0n;
       await client.query(
-        `UPDATE paper_profile_accounts SET cash_raw=cash_raw+$3,realized_pnl_raw=realized_pnl_raw+($4-$5-$6),updated_at=$7 WHERE wallet=$1 AND profile_id=$2`,
+        `UPDATE paper_profile_accounts
+            SET cash_raw=cash_raw+$3::numeric,
+                realized_pnl_raw=realized_pnl_raw+($4::numeric-$5::numeric-$6::numeric),
+                updated_at=$7
+          WHERE wallet=$1 AND profile_id=$2`,
         [
           input.wallet,
           profile.id,
