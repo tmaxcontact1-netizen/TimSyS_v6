@@ -423,6 +423,9 @@ async function monitorPositions(input: {
         : trailing
           ? "trailing_stop"
           : "time_limit";
+    // As with entries, the quote is received after the cycle timestamp. Keep
+    // the fill audit chronologically valid when an exit condition fires.
+    const filledAt = q.receivedAt;
     await transaction(input.pool, async (client) => {
       const removed = await client.query(
         `DELETE FROM paper_profile_positions WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 RETURNING token_amount_raw`,
@@ -439,7 +442,7 @@ async function monitorPositions(input: {
           value.toString(),
           cost.toString(),
           input.feeRaw.toString(),
-          input.at,
+          filledAt,
         ],
       );
       await client.query(
@@ -458,7 +461,7 @@ async function monitorPositions(input: {
           q.fingerprint,
           reason,
           q.receivedAt,
-          input.at,
+          filledAt,
         ],
       );
     });
