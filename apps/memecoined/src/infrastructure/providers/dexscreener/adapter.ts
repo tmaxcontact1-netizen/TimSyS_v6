@@ -55,6 +55,11 @@ const profileSchema = z.object({
   url: z.string().url(),
 });
 const profilesSchema = z.array(z.unknown());
+const discoveryFeeds = Object.freeze([
+  Object.freeze({ path: "/token-profiles/latest/v1", label: "token-profile" }),
+  Object.freeze({ path: "/token-boosts/latest/v1", label: "latest-boost" }),
+  Object.freeze({ path: "/token-boosts/top/v1", label: "top-boost" }),
+]);
 type Pair = z.infer<typeof pairSchema>;
 
 function hash(body: unknown): string {
@@ -112,59 +117,84 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
   public async discoverLatestTokens(
     requestedAt: Timestamp,
   ): Promise<ObservationResult<readonly CandidateDiscoveryObservation[]>> {
-    let response: HttpResponse;
-    try {
-      response = await this.http.get(`${this.baseUrl}/token-profiles/latest/v1`);
-    } catch {
-      return failure("unavailable", requestedAt, "DexScreener discovery request failed", true);
+    const settled = await Promise.allSettled(
+      discoveryFeeds.map(async (feed) =>
+        Object.freeze({ feed, response: await this.http.get(`${this.baseUrl}${feed.path}`) }),
+      ),
+    );
+    const successful = settled.flatMap((item) => {
+      if (item.status !== "fulfilled") return [];
+      const { response } = item.value;
+      const parsed = profilesSchema.safeParse(response.body);
+      return response.status >= 200 && response.status < 300 && parsed.success
+        ? [Object.freeze({ ...item.value, profiles: parsed.data })]
+        : [];
+    });
+    if (successful.length === 0) {
+      const responses = settled.flatMap((item) =>
+        item.status === "fulfilled" ? [item.value.response] : [],
+      );
+      const lastAt =
+        responses
+          .map(({ receivedAt }) => receivedAt)
+          .sort()
+          .at(-1) ?? requestedAt;
+      if (responses.some(({ status }) => status === 429))
+        return failure(
+          "rate_limited",
+          lastAt,
+          "DexScreener discovery feeds are rate limited",
+          true,
+        );
+      if (
+        responses.some(
+          ({ status, body }) =>
+            status >= 200 && status < 300 && !profilesSchema.safeParse(body).success,
+        )
+      )
+        return failure("malformed", lastAt, "Malformed DexScreener discovery feed", false);
+      return failure("unavailable", lastAt, "DexScreener discovery feeds are unavailable", true);
     }
-    if (response.status === 429)
-      return failure("rate_limited", response.receivedAt, "DexScreener rate limit", true);
-    if (response.status < 200 || response.status >= 300)
-      return failure("unavailable", response.receivedAt, "DexScreener returned an error", true);
-    const parsed = profilesSchema.safeParse(response.body);
-    if (!parsed.success)
-      return failure("malformed", response.receivedAt, "Malformed DexScreener profiles", false);
-    const contentHash = hash(response.body);
     const observations: CandidateDiscoveryObservation[] = [];
     const seen = new Set<string>();
-    for (const rawProfile of parsed.data) {
-      const candidate = profileSchema.safeParse(rawProfile);
-      if (!candidate.success) continue;
-      const profile = candidate.data;
-      if (profile.chainId.toLowerCase() !== "solana" || seen.has(profile.tokenAddress)) continue;
-      let mint: MintAddress;
-      try {
-        mint = asMintAddress(profile.tokenAddress);
-      } catch {
-        // A provider catalogue is an untrusted batch. One unusable listing must
-        // not suppress every otherwise valid Solana candidate in the response.
-        continue;
-      }
-      seen.add(profile.tokenAddress);
-      const sourceKey = `dexscreener:token-profile:${profile.tokenAddress}:${profile.url}`;
-      observations.push(
-        Object.freeze({
-          mint,
-          sourceReference: profile.url,
-          observedAt: response.receivedAt,
-          trace: Object.freeze({
-            evidenceId: this.identities.createEvidenceId({
+    for (const { feed, response, profiles } of successful) {
+      const contentHash = hash(response.body);
+      for (const rawProfile of profiles) {
+        const candidate = profileSchema.safeParse(rawProfile);
+        if (!candidate.success) continue;
+        const profile = candidate.data;
+        if (profile.chainId.toLowerCase() !== "solana" || seen.has(profile.tokenAddress)) continue;
+        let mint: MintAddress;
+        try {
+          mint = asMintAddress(profile.tokenAddress);
+        } catch {
+          continue;
+        }
+        seen.add(profile.tokenAddress);
+        const sourceKey = `dexscreener:${feed.label}:${profile.tokenAddress}:${profile.url}`;
+        observations.push(
+          Object.freeze({
+            mint,
+            sourceReference: profile.url,
+            observedAt: response.receivedAt,
+            trace: Object.freeze({
+              evidenceId: this.identities.createEvidenceId({
+                provider: "dexscreener",
+                sourceKey,
+                contentHash,
+              }),
               provider: "dexscreener",
+              method: `GET ${feed.path}`,
+              requestedAt,
+              respondedAt: response.receivedAt,
+              sourceTimestamp: null,
+              normalizedAt: response.receivedAt,
               sourceKey,
               contentHash,
             }),
-            provider: "dexscreener",
-            method: "GET /token-profiles/latest/v1",
-            requestedAt,
-            respondedAt: response.receivedAt,
-            sourceTimestamp: null,
-            normalizedAt: response.receivedAt,
-            sourceKey,
-            contentHash,
           }),
-        }),
-      );
+        );
+      }
     }
     return Object.freeze({ ok: true, value: Object.freeze(observations) });
   }

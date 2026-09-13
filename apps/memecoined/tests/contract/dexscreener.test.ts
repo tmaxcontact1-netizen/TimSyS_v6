@@ -61,6 +61,11 @@ describe("DexScreener market observation contract", () => {
     });
     expect(result.value[0]?.trace.method).toBe("GET /token-profiles/latest/v1");
     expect(fixture.calls[0]).toContain("/token-profiles/latest/v1");
+    expect(fixture.calls).toEqual([
+      "https://api.dexscreener.com/token-profiles/latest/v1",
+      "https://api.dexscreener.com/token-boosts/latest/v1",
+      "https://api.dexscreener.com/token-boosts/top/v1",
+    ]);
   });
 
   it("quarantines a malformed profile without suppressing valid Solana candidates", async () => {
@@ -73,6 +78,36 @@ describe("DexScreener market observation contract", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.map((item) => item.mint)).toEqual([mint]);
+  });
+
+  it("keeps healthy discovery feeds when another feed is unavailable", async () => {
+    const http: JsonHttpClient = {
+      get: async (url) => ({
+        status: url.includes("token-profiles") ? 503 : 200,
+        body: url.includes("token-profiles")
+          ? {}
+          : [
+              {
+                chainId: "solana",
+                tokenAddress: mint,
+                url: `https://dexscreener.com/solana/${mint}`,
+              },
+            ],
+        receivedAt,
+      }),
+    };
+    const result = await new DexScreenerMarketAdapter(http, identities).discoverLatestTokens(
+      receivedAt,
+    );
+    expect(result.ok && result.value.map((item) => item.mint)).toEqual([mint]);
+  });
+
+  it("reports rate limiting when no discovery feed succeeds", async () => {
+    const fixture = adapter(429, {});
+    const result = await fixture.value.discoverLatestTokens(receivedAt);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("rate_limited");
   });
 
   it("selects the matching Solana pool by liquidity independent of response order", async () => {
