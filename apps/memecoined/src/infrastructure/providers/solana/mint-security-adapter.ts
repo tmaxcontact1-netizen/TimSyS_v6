@@ -4,6 +4,7 @@ import { Decimal } from "decimal.js";
 import { z } from "zod";
 
 import type { ObservationIdentityFactory } from "../../../application/contracts/observations.js";
+import { ObservationUnavailableError } from "../../../application/contracts/observations.js";
 import type { MintSecurityObservationPort } from "../../../application/ports/runtime-authority-inputs.js";
 import type { TokenSecuritySnapshot } from "../../../domain/token/security.js";
 import { InvariantViolationError } from "../../../domain/shared/errors.js";
@@ -14,7 +15,7 @@ import {
   type ProviderId,
   type Timestamp,
 } from "../../../domain/shared/types.js";
-import { SolanaRpcClient } from "./rpc-client.js";
+import { SolanaRpcClient, SolanaRpcError } from "./rpc-client.js";
 
 const SPL_TOKEN = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA";
 const TOKEN_2022 = "TokenzQdYqgP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -71,8 +72,13 @@ async function read(
     .map(({ amount }) => BigInt(amount));
   const supplyRaw = BigInt(supply.data.value.amount);
   if (supplyRaw <= 0n) throw new Error("Mint supply must be positive");
-  const percent = (amount: bigint) =>
-    asPercentage(new Decimal(amount.toString()).mul(100).div(supplyRaw.toString()));
+  const percent = (amount: bigint) => {
+    if (amount > supplyRaw) throw new SolanaRpcError("Holder balances exceed mint supply", false);
+    return asPercentage(new Decimal(amount.toString()).mul(100).div(supplyRaw.toString()));
+  };
+  const topTenRaw = normal.slice(0, 10).reduce((sum, value) => sum + value, 0n);
+  if (topTenRaw > supplyRaw)
+    throw new SolanaRpcError("Largest holder balances exceed mint supply", false);
   return Object.freeze({
     provider,
     receivedAt: [accountResponse.receivedAt, largestResponse.receivedAt, supplyResponse.receivedAt]
@@ -87,9 +93,7 @@ async function read(
       extensions: Object.freeze(program === "spl_token" ? [] : ["unapproved" as const]),
       extensionsVerified: program !== "unknown",
       holders: Object.freeze({
-        topTenNormalPercentage: percent(
-          normal.slice(0, 10).reduce((sum, value) => sum + value, 0n),
-        ),
+        topTenNormalPercentage: percent(topTenRaw),
         largestNormalPercentage: percent(normal[0] ?? 0n),
         exclusionsVerified: true,
       }),
@@ -125,11 +129,20 @@ export class SolanaMintSecurityAdapter implements MintSecurityObservationPort {
     if (values.length !== 2) {
       const failures = settled.flatMap((item, index) =>
         item.status === "rejected"
-          ? [`${index === 0 ? "Primary" : "Fallback"} RPC: ${item.reason instanceof Error ? item.reason.message : "request failed"}`]
+          ? [
+              `${index === 0 ? "Primary" : "Fallback"} RPC: ${item.reason instanceof Error ? item.reason.message : "request failed"}`,
+            ]
           : [],
       );
-      throw new InvariantViolationError(
+      const retryable = settled.some(
+        (item) =>
+          item.status === "rejected" &&
+          item.reason instanceof SolanaRpcError &&
+          item.reason.retryable,
+      );
+      throw new ObservationUnavailableError(
         `Mint security requires two independent RPC reads. ${failures.join("; ")}`,
+        retryable,
       );
     }
     if (comparable(values[0]!) !== comparable(values[1]!))

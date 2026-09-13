@@ -91,6 +91,17 @@ describe("Solana mint-security contract", () => {
     );
   });
 
+  it("rejects impossible provider holder totals as non-retryable evidence", async () => {
+    const adapter = new SolanaMintSecurityAdapter(
+      new SolanaRpcClient(transport("1200")),
+      new SolanaRpcClient(transport("1200")),
+      identities,
+    );
+    await expect(adapter.observe(mint, new Set(), observedAt)).rejects.toMatchObject({
+      retryable: false,
+    });
+  });
+
   it("marks Token-2022 as an unapproved extension surface", async () => {
     const owner = "TokenzQdYqgP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const adapter = new SolanaMintSecurityAdapter(

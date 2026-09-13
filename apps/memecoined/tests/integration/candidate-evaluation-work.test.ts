@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { CandidateEvaluationLease } from "../../src/application/ports/repositories.js";
+import { ObservationUnavailableError } from "../../src/application/contracts/observations.js";
 import { runLeasedCandidateEvaluationCycle } from "../../src/application/services/candidate-evaluation-work.js";
 import {
   asPercentage,
@@ -96,6 +97,62 @@ describe("candidate evaluation durable work", () => {
     expect(completed).toBe(0);
     expect(retried).toEqual(["wallet authority unavailable"]);
     expect(saved).toEqual([]);
+  });
+
+  it("screens out non-retryable evidence failures instead of growing the retry queue", async () => {
+    const screened: string[] = [];
+    const completed = await runLeasedCandidateEvaluationCycle({
+      queue: {
+        claim: async () => [lease],
+        retry: async () => {
+          throw new Error("must not retry");
+        },
+        screenOut: async ({ reason }) => {
+          screened.push(reason);
+        },
+      },
+      facts: {
+        load: async () => {
+          throw new ObservationUnavailableError("mint is not indexed", false);
+        },
+      },
+      repository: { saveEvaluation: async () => undefined },
+      ownerId: "worker-1",
+      now: () => now,
+      leaseExpiresAt: () => asTimestamp("2026-08-04T20:01:00Z"),
+      retryAt: () => asTimestamp("2026-08-04T20:00:10Z"),
+      signalId: () => asUuid<SignalId>("00000000-0000-4000-8000-000000000802"),
+    });
+    expect(completed).toBe(0);
+    expect(screened).toEqual(["mint is not indexed"]);
+  });
+
+  it("stops retrying a transient evidence failure after five attempts", async () => {
+    const screened: string[] = [];
+    const exhausted = Object.freeze({ ...lease, failedAttempts: 4 });
+    await runLeasedCandidateEvaluationCycle({
+      queue: {
+        claim: async () => [exhausted],
+        retry: async () => {
+          throw new Error("must not retry");
+        },
+        screenOut: async ({ reason }) => {
+          screened.push(reason);
+        },
+      },
+      facts: {
+        load: async () => {
+          throw new ObservationUnavailableError("provider unavailable", true);
+        },
+      },
+      repository: { saveEvaluation: async () => undefined },
+      ownerId: "worker-1",
+      now: () => now,
+      leaseExpiresAt: () => asTimestamp("2026-08-04T20:01:00Z"),
+      retryAt: () => asTimestamp("2026-08-04T20:00:10Z"),
+      signalId: () => asUuid<SignalId>("00000000-0000-4000-8000-000000000802"),
+    });
+    expect(screened).toEqual(["provider unavailable"]);
   });
 
   it("persists fully hydrated work under the active lease", async () => {

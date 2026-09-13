@@ -22,9 +22,9 @@ function pair(pairAddress: string, liquidity: string | null, chainId = "solana")
     baseToken: { address: mint },
     quoteToken: { address: "USDC111111111111111111111111111111111111111" },
     priceUsd: "0.025",
-    priceChange: { m5: "-4.5" },
+    priceChange: { m5: "-4.5", h1: "12.25" },
     txns: { m5: { buys: 12, sells: 3 } },
-    volume: { m5: "1234.50" },
+    volume: { m5: "1234.50", h1: "9876.50" },
     liquidity: { usd: liquidity },
     fdv: "250000",
     marketCap: null,
@@ -90,6 +90,8 @@ describe("DexScreener market observation contract", () => {
     expect(result.value.liquidityUsd?.toString()).toBe("80000");
     expect(result.value.priceUsd?.toString()).toBe("0.025");
     expect(result.value.fiveMinutePriceChangePercentage?.toString()).toBe("-4.5");
+    expect(result.value.oneHourPriceChangePercentage?.toString()).toBe("12.25");
+    expect(result.value.oneHourVolumeUsd?.toString()).toBe("9876.5");
     expect(result.value.fiveMinuteBuys).toBe(12n);
     expect(result.value.trace).toMatchObject({
       provider: "dexscreener",

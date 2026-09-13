@@ -36,13 +36,13 @@ const pairSchema = z.object({
   baseToken: z.object({ address: z.string().min(1) }),
   quoteToken: z.object({ address: z.string().min(1) }),
   priceUsd: nullableNumber,
-  priceChange: z.object({ m5: nullableNumber }).optional(),
+  priceChange: z.object({ m5: nullableNumber, h1: nullableNumber }).optional(),
   txns: z
     .object({
       m5: z.object({ buys: z.number().int().nonnegative(), sells: z.number().int().nonnegative() }),
     })
     .optional(),
-  volume: z.object({ m5: nullableNumber }).optional(),
+  volume: z.object({ m5: nullableNumber, h1: nullableNumber }).optional(),
   liquidity: z.object({ usd: nullableNumber }).optional(),
   fdv: nullableNumber,
   marketCap: nullableNumber,
@@ -239,6 +239,8 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
           fiveMinuteBuys: pair.txns === undefined ? null : BigInt(pair.txns.m5.buys),
           fiveMinuteSells: pair.txns === undefined ? null : BigInt(pair.txns.m5.sells),
           fiveMinutePriceChangePercentage: signedDecimal(pair.priceChange?.m5),
+          oneHourPriceChangePercentage: signedDecimal(pair.priceChange?.h1),
+          oneHourVolumeUsd: decimal(pair.volume?.h1),
           trace,
         }),
       });

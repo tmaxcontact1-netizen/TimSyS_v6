@@ -63,6 +63,11 @@ export interface CandidateEvaluationWorkQueue {
     readonly availableAt: Timestamp;
     readonly reason: string;
   }): Promise<void>;
+  screenOut?(input: {
+    readonly lease: CandidateEvaluationLease;
+    readonly screenedAt: Timestamp;
+    readonly reason: string;
+  }): Promise<void>;
 }
 
 /** Evaluation rows, terminal candidate state, signal/rejection, and job completion are atomic. */

@@ -6,10 +6,13 @@ import type {
   CandidateEvaluationWorkQueue,
 } from "../ports/repositories.js";
 import { evaluateAndPersistCandidate } from "./candidate-pipeline.js";
+import { ObservationUnavailableError } from "../contracts/observations.js";
 
 export interface CandidateEvaluationFactSource {
   load(lease: CandidateEvaluationLease): Promise<CandidateEvaluationInput>;
 }
+
+const MAX_FACT_ATTEMPTS = 5;
 
 /** Evaluates only fully hydrated leased work; acquisition failure returns authority to the queue. */
 export async function runLeasedCandidateEvaluationCycle(input: {
@@ -19,7 +22,7 @@ export async function runLeasedCandidateEvaluationCycle(input: {
   readonly ownerId: string;
   readonly now: () => Timestamp;
   readonly leaseExpiresAt: (now: Timestamp) => Timestamp;
-  readonly retryAt: (now: Timestamp) => Timestamp;
+  readonly retryAt: (now: Timestamp, failedAttempts: number) => Timestamp;
   readonly signalId: (lease: CandidateEvaluationLease) => SignalId;
   readonly batchSize?: number;
 }): Promise<number> {
@@ -44,11 +47,18 @@ export async function runLeasedCandidateEvaluationCycle(input: {
       });
       completed += 1;
     } catch (error) {
-      await input.queue.retry({
-        lease,
-        availableAt: input.retryAt(input.now()),
-        reason: error instanceof Error ? error.message : "Unknown candidate evaluation failure",
-      });
+      const reason =
+        error instanceof Error ? error.message : "Unknown candidate evaluation failure";
+      const retryable = error instanceof ObservationUnavailableError ? error.retryable : true;
+      const attemptsAfterFailure = lease.failedAttempts + 1;
+      if ((!retryable || attemptsAfterFailure >= MAX_FACT_ATTEMPTS) && input.queue.screenOut)
+        await input.queue.screenOut({ lease, screenedAt: input.now(), reason });
+      else
+        await input.queue.retry({
+          lease,
+          availableAt: input.retryAt(input.now(), attemptsAfterFailure),
+          reason,
+        });
     }
   }
   return completed;

@@ -125,6 +125,17 @@ import { runEntrySubmissionWorkerCycle } from "../workers/entry-worker.js";
 import { reconcileLiveEntry } from "../application/services/live-entry-reconciliation.js";
 import { PostgresLiveEntryReconciliationSource } from "../infrastructure/database/live-entry-reconciliation.js";
 
+function fiveMinuteDiscoveryWindow(at: Timestamp): string {
+  const date = new Date(at);
+  date.setUTCMinutes(Math.floor(date.getUTCMinutes() / 5) * 5, 0, 0);
+  return asTimestamp(date);
+}
+
+function candidateRetryAt(at: Timestamp, failedAttempts: number): Timestamp {
+  const delay = Math.min(300_000, 10_000 * 2 ** Math.max(0, failedAttempts - 1));
+  return asTimestamp(new Date(Date.parse(at) + delay));
+}
+
 export interface CompletedPositionServices {
   readonly steps: PositionRuntimeStepSource;
   readonly actions: PositionRuntimeActionDispatcher;
@@ -197,7 +208,7 @@ export function composePaperTradingRuntime(input: {
     provider: providers.discovery,
     strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
     now: () => clock.now(),
-    deduplicationWindow: (at) => asTimestamp(at).slice(0, 16),
+    deduplicationWindow: fiveMinuteDiscoveryWindow,
   });
   const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
   const acquisitionSchedule = new PostgresAcquisitionSchedule(input.database);
@@ -279,7 +290,7 @@ export function composePaperTradingRuntime(input: {
                 ownerId: input.config.instanceId,
                 now: () => clock.now(),
                 leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
-                retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                retryAt: candidateRetryAt,
                 signalId: deterministicSignalId,
                 // Paper evaluation uses the same bounded throughput as supervised
                 // production. Both configured RPC routes are independently validated
@@ -457,7 +468,7 @@ export function composeProductionPositionRuntime(input: {
     provider: providers.discovery,
     strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
     now: () => clock.now(),
-    deduplicationWindow: (at) => asTimestamp(at).slice(0, 16),
+    deduplicationWindow: fiveMinuteDiscoveryWindow,
   });
   const discoveryCandidates = new PostgresCandidateDiscoveryRepository(input.database);
   const acquisitionSchedule = new PostgresAcquisitionSchedule(input.database);
@@ -656,7 +667,7 @@ export function composeProductionPositionRuntime(input: {
                 ownerId: input.config.instanceId,
                 now: () => clock.now(),
                 leaseExpiresAt: (at) => asTimestamp(new Date(Date.parse(at) + 60_000)),
-                retryAt: (at) => asTimestamp(new Date(Date.parse(at) + 10_000)),
+                retryAt: candidateRetryAt,
                 signalId: deterministicSignalId,
                 batchSize: 25,
               }),

@@ -2,7 +2,11 @@ import { createHash } from "node:crypto";
 
 import { Decimal } from "decimal.js";
 
-import type { ObservationTrace, PoolMarketObservation } from "../contracts/observations.js";
+import {
+  ObservationUnavailableError,
+  type ObservationTrace,
+  type PoolMarketObservation,
+} from "../contracts/observations.js";
 import type { MarketObservationPort } from "../ports/market.js";
 import type { MintSecurityObservationPort } from "../ports/runtime-authority-inputs.js";
 import type { CandidateEvaluationLease } from "../ports/repositories.js";
@@ -57,6 +61,10 @@ function marketSnapshot(
     value.pairCreatedAt === null
       ? null
       : asDecimal(new Decimal(Date.parse(at) - Date.parse(value.pairCreatedAt)).div(60_000));
+  const precedingOneHourVolumeUsd =
+    value.oneHourVolumeUsd !== null && value.oneHourVolumeUsd !== undefined
+      ? asDecimal(Decimal.max(0, value.oneHourVolumeUsd.minus(value.fiveMinuteVolumeUsd ?? 0)))
+      : null;
   return createMarketSnapshot({
     observedAt: at,
     evidence: Object.freeze([reference(value.trace)]),
@@ -67,9 +75,9 @@ function marketSnapshot(
     liquidityUsd: value.liquidityUsd,
     liquidityUsdFifteenMinutesAgo: null,
     fiveMinutePriceChange: percentage(value.fiveMinutePriceChangePercentage),
-    oneHourPriceChange: null,
+    oneHourPriceChange: percentage(value.oneHourPriceChangePercentage ?? null),
     fiveMinuteVolumeUsd: value.fiveMinuteVolumeUsd,
-    precedingOneHourVolumeUsd: null,
+    precedingOneHourVolumeUsd,
     fiveMinuteBuyTransactions: value.fiveMinuteBuys,
     fiveMinuteSellTransactions: value.fiveMinuteSells,
     fiveMinuteUniqueBuyers: null,
@@ -99,11 +107,20 @@ export class LiveCandidateEvaluationFactSource implements CandidateEvaluationFac
       this.purchases.load(lease.candidateId),
     ]);
     if (!marketResult.ok)
-      throw new Error(`Candidate market evidence unavailable: ${marketResult.error.code}`);
+      throw new ObservationUnavailableError(
+        `Candidate market evidence unavailable: ${marketResult.error.code}`,
+        marketResult.error.retryable,
+      );
     if (marketResult.value.priceUsd === null || marketResult.value.priceUsd.lte(0))
-      throw new Error("Candidate confirmation requires a positive market price");
+      throw new ObservationUnavailableError(
+        "Candidate screened out because no positive market price is available",
+        false,
+      );
     if (marketResult.value.liquidityUsd === null || marketResult.value.liquidityUsd.lte(0))
-      throw new Error("Candidate confirmation requires positive market liquidity");
+      throw new ObservationUnavailableError(
+        "Candidate screened out because no positive market liquidity is available",
+        false,
+      );
     const walletConfirmation = await confirmAndPersistWallets({
       confirmationId: lease.evaluationRunId,
       candidateId: lease.candidateId,

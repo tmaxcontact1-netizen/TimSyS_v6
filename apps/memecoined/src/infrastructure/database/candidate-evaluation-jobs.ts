@@ -118,4 +118,49 @@ export class PostgresCandidateEvaluationWorkQueue implements CandidateEvaluation
       client.release();
     }
   }
+
+  public async screenOut(input: {
+    readonly lease: CandidateEvaluationLease;
+    readonly screenedAt: Timestamp;
+    readonly reason: string;
+  }): Promise<void> {
+    requireText(input.reason, "Candidate screening reason");
+    const client = await this.database.connect();
+    try {
+      await client.query("BEGIN");
+      const completed = await client.query(
+        `UPDATE jobs SET state='completed', attempts=attempts+1,
+           lease_owner=NULL, lease_expires_at=NULL, last_error_json=NULL, last_error_at=NULL,
+           payload_json=payload_json || $4::jsonb, updated_at=$3, version=version+1
+         WHERE id=$1 AND job_type='candidate_evaluation' AND state='leased' AND lease_owner=$2`,
+        [
+          input.lease.candidateId,
+          input.lease.leaseOwner,
+          input.screenedAt,
+          JSON.stringify({
+            screening: {
+              outcome: "unavailable",
+              reason: input.reason,
+              screenedAt: input.screenedAt,
+            },
+          }),
+        ],
+      );
+      if (completed.rowCount !== 1)
+        throw new InvariantViolationError("Candidate evaluation lease is no longer owned");
+      await client.query(
+        `UPDATE candidates SET state='rejected', last_evaluated_at=$2,
+           updated_at=$2, version=version+1 WHERE id=$1`,
+        [input.lease.candidateId, input.screenedAt],
+      );
+      await client.query("COMMIT");
+    } catch (error) {
+      try {
+        await client.query("ROLLBACK");
+      } catch {}
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
 }

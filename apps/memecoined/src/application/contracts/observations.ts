@@ -34,6 +34,17 @@ export interface ObservationFailure {
   readonly reason: string;
 }
 
+/** Carries provider-classified retry authority without relying on message parsing. */
+export class ObservationUnavailableError extends Error {
+  public constructor(
+    message: string,
+    public readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = "ObservationUnavailableError";
+  }
+}
+
 export type ObservationResult<Value> =
   Readonly<{ ok: true; value: Value }> | Readonly<{ ok: false; error: ObservationFailure }>;
 
@@ -53,6 +64,8 @@ export interface PoolMarketObservation {
   readonly fiveMinuteBuys: bigint | null;
   readonly fiveMinuteSells: bigint | null;
   readonly fiveMinutePriceChangePercentage: DecimalValue | null;
+  readonly oneHourPriceChangePercentage?: DecimalValue | null;
+  readonly oneHourVolumeUsd?: DecimalValue | null;
   readonly trace: ObservationTrace;
 }
 
