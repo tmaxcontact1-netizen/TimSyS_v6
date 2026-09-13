@@ -7,6 +7,7 @@ import { WRAPPED_SOL_MINT } from "./portfolio-inventory-valuation.js";
 import {
   asBasisPoints,
   asRawAmount,
+  asTimestamp,
   type MintAddress,
   type Timestamp,
   type WalletAddress,
@@ -119,6 +120,12 @@ interface PositionRow {
   readonly high_water_raw: string;
   readonly opened_at: Date | string;
 }
+interface PendingEntryRow extends CandidateRow {
+  readonly profile_id: TradingProfileId;
+  readonly entry_attempts: number;
+}
+type EntryAttempt =
+  Readonly<{ outcome: "entered" }> | Readonly<{ outcome: "retry" | "failed"; reason: string }>;
 
 const quoteSlippage = asBasisPoints(150n);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
@@ -166,7 +173,7 @@ async function enterPosition(input: {
   candidate: CandidateRow;
   at: Timestamp;
   feeRaw: bigint;
-}): Promise<void> {
+}): Promise<EntryAttempt> {
   const state = await input.pool.query<{
     cash_raw: string;
     initial_cash_raw: string;
@@ -180,13 +187,17 @@ async function enterPosition(input: {
     [input.wallet, input.profile.id, input.candidate.mint_address],
   );
   const row = state.rows[0];
-  if (!row || Number(row.open_positions) >= input.profile.maximumConcurrentPositions) return;
+  if (!row)
+    return Object.freeze({ outcome: "retry", reason: "Position state changed before entry" });
+  if (Number(row.open_positions) >= input.profile.maximumConcurrentPositions)
+    return Object.freeze({ outcome: "retry", reason: "Profile position limit is currently full" });
   const riskSized =
     (BigInt(row.initial_cash_raw) * BigInt(input.profile.riskPerTradeBps)) /
     BigInt(input.profile.hardStopBps);
   const available = BigInt(row.cash_raw) - input.feeRaw;
   const amount = available < riskSized ? available : riskSized;
-  if (amount <= 0n) return;
+  if (amount <= 0n)
+    return Object.freeze({ outcome: "retry", reason: "Profile cash is currently unavailable" });
   const quoted = await input.swap.quote({
     inputMint: WRAPPED_SOL_MINT,
     outputMint: input.candidate.mint_address as MintAddress,
@@ -194,15 +205,19 @@ async function enterPosition(input: {
     slippageBasisPoints: quoteSlippage,
     requestedAt: input.at,
   });
-  if (!quoted.ok) return;
+  if (!quoted.ok)
+    return Object.freeze({
+      outcome: quoted.error.retryable ? "retry" : "failed",
+      reason: `${quoted.error.provider}: ${quoted.error.reason}`,
+    });
   const q = quoted.value;
-  await transaction(input.pool, async (client) => {
+  const entered = await transaction(input.pool, async (client) => {
     const debit = await client.query(
       `UPDATE paper_profile_accounts SET cash_raw=cash_raw-$3-$4,updated_at=$5
        WHERE wallet=$1 AND profile_id=$2 AND cash_raw >= $3+$4`,
       [input.wallet, input.profile.id, q.inputAmount.toString(), input.feeRaw.toString(), input.at],
     );
-    if (debit.rowCount !== 1) return;
+    if (debit.rowCount !== 1) return false;
     const inserted = await client.query(
       `INSERT INTO paper_profile_positions
        (wallet,profile_id,token_mint,candidate_id,token_amount_raw,cost_raw,current_value_raw,high_water_raw,opened_at,updated_at)
@@ -236,7 +251,67 @@ async function enterPosition(input: {
         input.at,
       ],
     );
+    return true;
   });
+  return entered
+    ? Object.freeze({ outcome: "entered" })
+    : Object.freeze({ outcome: "retry", reason: "Profile funds changed before entry" });
+}
+
+async function processPendingEntries(input: {
+  pool: Pool;
+  swap: Pick<SwapPort, "quote">;
+  wallet: WalletAddress;
+  at: Timestamp;
+  feeRaw: bigint;
+}): Promise<void> {
+  const due = await input.pool.query<PendingEntryRow>(
+    `SELECT d.profile_id,d.entry_attempts,c.id::text AS candidate_id,c.mint_address,
+            s.total_score,s.breakdown_json,s.evaluated_at,NULL::text[] AS failed_rules
+       FROM paper_profile_candidate_decisions d
+       JOIN candidates c ON c.id=d.candidate_id
+       JOIN LATERAL (SELECT total_score,breakdown_json,evaluated_at FROM score_breakdowns
+                      WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
+      WHERE d.wallet=$1 AND d.eligible=true AND d.mode='automatic_paper'
+        AND d.entry_state IN ('pending','retrying') AND d.entry_attempts < 5
+        AND d.next_entry_attempt_at <= $2
+      ORDER BY d.next_entry_attempt_at,d.evaluated_at,d.profile_id LIMIT 20`,
+    [input.wallet, input.at],
+  );
+  for (const candidate of due.rows) {
+    const profile = tradingProfile(candidate.profile_id);
+    if (!profile) continue;
+    const attempt = await enterPosition({ ...input, profile, candidate });
+    const attempts = candidate.entry_attempts + 1;
+    if (attempt.outcome === "entered") {
+      await input.pool.query(
+        `UPDATE paper_profile_candidate_decisions
+            SET entry_state='entered',entry_attempts=$4,last_entry_error=NULL,
+                next_entry_attempt_at=NULL,entered_at=$3
+          WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$5`,
+        [input.wallet, profile.id, input.at, attempts, candidate.candidate_id],
+      );
+      continue;
+    }
+    const terminal = attempt.outcome === "failed" || attempts >= 5;
+    const delaySeconds = Math.min(15 * 2 ** Math.max(attempts - 1, 0), 300);
+    const nextAt = asTimestamp(new Date(Date.parse(input.at) + delaySeconds * 1000));
+    await input.pool.query(
+      `UPDATE paper_profile_candidate_decisions
+          SET entry_state=$4,entry_attempts=$5,last_entry_error=$6,
+              next_entry_attempt_at=$7
+        WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+      [
+        input.wallet,
+        profile.id,
+        candidate.candidate_id,
+        terminal ? "failed" : "retrying",
+        attempts,
+        attempt.reason,
+        terminal ? null : nextAt,
+      ],
+    );
+  }
 }
 
 async function evaluateNewCandidates(input: {
@@ -275,10 +350,14 @@ async function evaluateNewCandidates(input: {
         candidate.breakdown_json,
         candidate.failed_rules ?? [],
       );
-      const saved = await input.pool.query(
+      await input.pool.query(
         `INSERT INTO paper_profile_candidate_decisions
-         (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8) ON CONFLICT DO NOTHING`,
+         (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
+          entry_state,next_entry_attempt_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,
+                 CASE WHEN $5=true AND $4='automatic_paper' THEN 'pending' ELSE 'not_applicable' END,
+                 CASE WHEN $5=true AND $4='automatic_paper' THEN $8 ELSE NULL END)
+         ON CONFLICT DO NOTHING`,
         [
           input.wallet,
           profile.id,
@@ -290,8 +369,6 @@ async function evaluateNewCandidates(input: {
           input.at,
         ],
       );
-      if (saved.rowCount === 1 && decision.eligible && activation.mode === "automatic_paper")
-        await enterPosition({ ...input, profile, candidate });
     }
   }
 }
@@ -402,6 +479,13 @@ export async function runProfilePaperSimulationCycle(input: {
     at,
     feeRaw: input.executionFeeRaw,
   });
+  await processPendingEntries({
+    pool: input.database,
+    swap: input.swap,
+    wallet: input.wallet,
+    at,
+    feeRaw: input.executionFeeRaw,
+  });
   await monitorPositions({
     pool: input.database,
     swap: input.swap,
@@ -424,6 +508,8 @@ export async function readProfilePaperPerformance(
             (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id)::int AS fills,
             (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id)::int AS candidates_evaluated,
             (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.eligible)::int AS candidates_qualified
+            ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state IN ('pending','retrying'))::int AS entries_pending
+            ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
        FROM paper_profile_accounts a WHERE a.wallet=$1 ORDER BY a.profile_id`,
     [wallet],
   );

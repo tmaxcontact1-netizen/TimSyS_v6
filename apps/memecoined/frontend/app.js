@@ -13,15 +13,30 @@ function installActionFeedback() {
     notice.textContent = message;
     notice.dataset.state = state;
     notice.hidden = false;
-    if (!persist) timer = setTimeout(() => { notice.hidden = true; }, state === "error" ? 8000 : 4500);
+    if (!persist)
+      timer = setTimeout(
+        () => {
+          notice.hidden = true;
+        },
+        state === "error" ? 8000 : 4500,
+      );
   };
   window.fetch = async (input, options = {}) => {
-    const method = String(options.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
+    const method = String(
+      options.method || (input instanceof Request ? input.method : "GET"),
+    ).toUpperCase();
     if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return original(input, options);
     show(method === "DELETE" ? "Deleting…" : "Saving…", "working", true);
     try {
       const response = await original(input, options);
-      show(response.ok ? (method === "DELETE" ? "Deleted successfully." : "Action completed successfully.") : "The action did not complete. Review the message on this page and try again.", response.ok ? "success" : "error");
+      show(
+        response.ok
+          ? method === "DELETE"
+            ? "Deleted successfully."
+            : "Action completed successfully."
+          : "The action did not complete. Review the message on this page and try again.",
+        response.ok ? "success" : "error",
+      );
       return response;
     } catch (error) {
       show("The action did not complete. Check the connection and try again.", "error");
@@ -418,13 +433,20 @@ function percentFromBps(value) {
   return `${(Number(value) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
 }
 function profileModeLabel(mode) {
-  return { observe: "Observe only", recommend: "Recommend trades", automatic_paper: "Automatic paper trading" }[mode] ?? mode;
+  return (
+    {
+      observe: "Observe only",
+      recommend: "Recommend trades",
+      automatic_paper: "Automatic paper trading",
+    }[mode] ?? mode
+  );
 }
 function renderTradingProfiles() {
   const enabled = tradingProfiles.filter((profile) => profile.enabled);
   const allocated = enabled.reduce((sum, profile) => sum + profile.allocationBps, 0);
   elements["profile-active-count"].textContent = `${enabled.length} active`;
-  elements["profile-allocation-summary"].textContent = `${percentFromBps(allocated)} of paper funds allocated`;
+  elements["profile-allocation-summary"].textContent =
+    `${percentFromBps(allocated)} of paper funds allocated`;
   elements["profile-list"].replaceChildren();
   for (const profile of tradingProfiles) {
     const card = document.createElement("article");
@@ -475,7 +497,7 @@ function renderTradingProfiles() {
     const facts = document.createElement("dl");
     facts.className = "profile-facts";
     const performance = profile.performance;
-    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Candidates assessed</dt><dd>${performance?.candidates_evaluated ?? 0}</dd></div><div><dt>Qualified</dt><dd>${performance?.candidates_qualified ?? 0}</dd></div><div><dt>Profile result</dt><dd>${performance ? `${BigInt(performance.net_pnl_raw) >= 0n ? "+" : ""}${sol(performance.net_pnl_raw)} · ${performance.fills} fills · ${performance.open_positions} open` : "Waiting for first cycle"}</dd></div>`;
+    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Candidates assessed</dt><dd>${performance?.candidates_evaluated ?? 0}</dd></div><div><dt>Qualified</dt><dd>${performance?.candidates_qualified ?? 0}</dd></div><div><dt>Entry attempts waiting</dt><dd>${performance?.entries_pending ?? 0}</dd></div><div><dt>Entries that could not be quoted</dt><dd>${performance?.entries_failed ?? 0}</dd></div><div><dt>Profile result</dt><dd>${performance ? `${BigInt(performance.net_pnl_raw) >= 0n ? "+" : ""}${sol(performance.net_pnl_raw)} · ${performance.fills} fills · ${performance.open_positions} open` : "Waiting for first cycle"}</dd></div>`;
     const save = async (nextEnabled = profile.enabled) => {
       const allocationBps = Math.round(Number(allocationInput.value) * 100);
       if (!Number.isSafeInteger(allocationBps) || allocationBps < 1 || allocationBps > 10000) {
@@ -489,24 +511,44 @@ function renderTradingProfiles() {
         const response = await fetch(`/api/trading-profiles/${profile.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${mutationToken}` },
-          body: JSON.stringify({ enabled: nextEnabled, mode: modeSelect.value, allocationBps, expectedVersion: profile.version }),
+          body: JSON.stringify({
+            enabled: nextEnabled,
+            mode: modeSelect.value,
+            allocationBps,
+            expectedVersion: profile.version,
+          }),
         });
         if (!response.ok) {
           const error = await response.json().catch(() => ({}));
           if (response.status === 409 && error.error === "profile_allocation_exceeded")
-            throw new Error("Active profiles cannot allocate more than 100% of the paper portfolio.");
-          throw new Error(response.status === 409 ? "This profile changed. Current settings were reloaded." : "The profile setting was not saved.");
+            throw new Error(
+              "Active profiles cannot allocate more than 100% of the paper portfolio.",
+            );
+          throw new Error(
+            response.status === 409
+              ? "This profile changed. Current settings were reloaded."
+              : "The profile setting was not saved.",
+          );
         }
         await refreshTradingProfiles();
-        setConfigurationMessage(`${profile.name} ${nextEnabled ? "started" : "stopped"} in ${profileModeLabel(modeSelect.value).toLowerCase()} mode.`);
+        setConfigurationMessage(
+          `${profile.name} ${nextEnabled ? "started" : "stopped"} in ${profileModeLabel(modeSelect.value).toLowerCase()} mode.`,
+        );
       } catch (error) {
         await refreshTradingProfiles().catch(() => undefined);
-        setConfigurationMessage(error instanceof Error ? error.message : "The profile setting was not saved.", "error");
+        setConfigurationMessage(
+          error instanceof Error ? error.message : "The profile setting was not saved.",
+          "error",
+        );
       }
     };
     toggle.addEventListener("click", () => void save(!profile.enabled));
-    modeSelect.addEventListener("change", () => { if (profile.enabled) void save(true); });
-    allocationInput.addEventListener("change", () => { if (profile.enabled) void save(true); });
+    modeSelect.addEventListener("change", () => {
+      if (profile.enabled) void save(true);
+    });
+    allocationInput.addEventListener("change", () => {
+      if (profile.enabled) void save(true);
+    });
     heading.append(titleGroup, toggle);
     controls.append(mode, allocation);
     card.append(heading, summary, approach, controls, facts);
@@ -549,7 +591,11 @@ function renderConfigurations() {
   elements["configuration-select"].value = selected?.id ?? "";
   let localDraft = {};
   if (!selected) {
-    try { localDraft = JSON.parse(localStorage.getItem(configurationDraftKey) ?? "{}"); } catch { localDraft = {}; }
+    try {
+      localDraft = JSON.parse(localStorage.getItem(configurationDraftKey) ?? "{}");
+    } catch {
+      localDraft = {};
+    }
   }
   const values = selected ?? localDraft;
   for (const [id, key] of [
@@ -585,7 +631,11 @@ async function mutateConfiguration(path, method, body) {
       activeConfigurationId = "";
       await refreshConfigurations();
       configurationDirty = false;
-      try { localStorage.removeItem(configurationDraftKey); } catch { /* optional browser draft */ }
+      try {
+        localStorage.removeItem(configurationDraftKey);
+      } catch {
+        /* optional browser draft */
+      }
       setConfigurationMessage("Draft deleted.");
       return;
     }
@@ -601,7 +651,11 @@ async function mutateConfiguration(path, method, body) {
     activeConfigurationId = configuration.id;
     await refreshConfigurations();
     configurationDirty = false;
-    try { localStorage.removeItem(configurationDraftKey); } catch { /* optional browser draft */ }
+    try {
+      localStorage.removeItem(configurationDraftKey);
+    } catch {
+      /* optional browser draft */
+    }
     setConfigurationMessage(method === "POST" ? "Draft created." : "Draft saved.");
   } catch (error) {
     setConfigurationMessage(
@@ -1308,33 +1362,44 @@ async function refreshOperationalStatus() {
   elements["operator-action"].dataset.state = actions.length ? "attention" : "clear";
   if (operations.failedWork > 0) {
     elements["integrity-title"].textContent = "Trading workflow needs attention";
-    elements["integrity-copy"].textContent = `${operations.failedWork} current work item${operations.failedWork === 1 ? " is" : "s are"} retrying or failed. Open Operations for the reported cause.`;
+    elements["integrity-copy"].textContent =
+      `${operations.failedWork} current work item${operations.failedWork === 1 ? " is" : "s are"} retrying or failed. Open Operations for the reported cause.`;
     setStatus("unhealthy", "Attention required");
   }
 }
 applyPreferences();
 function updateNavigationState() {
   const target = location.hash || "#overview";
-  const page = {
-    "#overview": "overview",
-    "#positions": "positions",
-    "#performance": "performance",
-    "#history": "history",
-    "#watchlist": "watchlist",
-    "#configurations": "configurations",
-    "#alerts": "operations",
-    "#operator-status": "operations",
-    "#allocation": "performance",
-    "#events": "history",
-  }[target] ?? "overview";
+  const page =
+    {
+      "#overview": "overview",
+      "#positions": "positions",
+      "#performance": "performance",
+      "#history": "history",
+      "#watchlist": "watchlist",
+      "#configurations": "configurations",
+      "#alerts": "operations",
+      "#operator-status": "operations",
+      "#allocation": "performance",
+      "#events": "history",
+    }[target] ?? "overview";
   document.body.dataset.page = page;
   const pageCopy = {
     overview: ["Overview", "Portfolio state, operational attention and the next useful actions."],
     positions: ["Positions", "Review open holdings and cancellable paper entries."],
-    performance: ["Performance", "Understand allocation, realised results and book-equity history."],
+    performance: [
+      "Performance",
+      "Understand allocation, realised results and book-equity history.",
+    ],
     history: ["History", "Inspect fills, realised outcomes and the evidence behind each decision."],
-    watchlist: ["Watchlists", "Maintain tokens for observation without granting trading authority."],
-    configurations: ["Trading profiles", "Run several paper strategies concurrently within one shared risk boundary."],
+    watchlist: [
+      "Watchlists",
+      "Maintain tokens for observation without granting trading authority.",
+    ],
+    configurations: [
+      "Trading profiles",
+      "Run several paper strategies concurrently within one shared risk boundary.",
+    ],
     operations: ["Operations", "Check market connections, paper trading, data updates and alerts."],
   }[page];
   elements["page-title"].textContent = pageCopy[0];
@@ -1344,14 +1409,20 @@ function updateNavigationState() {
   });
   document.querySelectorAll("#sidebar nav a").forEach((link) => {
     const linkPage = {
-      "#overview": "overview", "#positions": "positions", "#performance": "performance",
-      "#history": "history", "#watchlist": "watchlist", "#configurations": "configurations",
+      "#overview": "overview",
+      "#positions": "positions",
+      "#performance": "performance",
+      "#history": "history",
+      "#watchlist": "watchlist",
+      "#configurations": "configurations",
       "#alerts": "operations",
     }[link.getAttribute("href")];
     if (linkPage === page) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
-  requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" })));
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" })),
+  );
 }
 updateNavigationState();
 window.addEventListener("hashchange", updateNavigationState);
@@ -1362,7 +1433,10 @@ void refreshConfigurations().catch(() =>
   setConfigurationMessage("Trading configurations unavailable.", "error"),
 );
 void refreshTradingProfiles().catch(() =>
-  setConfigurationMessage("Trading profiles unavailable. Check that the latest database migration completed.", "error"),
+  setConfigurationMessage(
+    "Trading profiles unavailable. Check that the latest database migration completed.",
+    "error",
+  ),
 );
 void refresh();
 scheduleRefresh();
@@ -1374,16 +1448,16 @@ elements["menu-toggle"].addEventListener("click", () => {
   elements["menu-toggle"].ariaExpanded = String(open);
 });
 elements["sidebar-backdrop"].addEventListener("click", closeMenu);
-document
-  .querySelectorAll("#sidebar nav a")
-  .forEach((link) => link.addEventListener("click", (event) => {
+document.querySelectorAll("#sidebar nav a").forEach((link) =>
+  link.addEventListener("click", (event) => {
     event.preventDefault();
     history.pushState(null, "", link.getAttribute("href"));
     updateNavigationState();
     closeMenu();
     window.scrollTo({ top: 0, behavior: preferences.motion === "reduced" ? "auto" : "smooth" });
     document.querySelector(".masthead")?.scrollTo({ top: 0 });
-  }));
+  }),
+);
 window.addEventListener("popstate", updateNavigationState);
 elements["sidebar-collapse"].addEventListener("click", () => {
   preferences.sidebar = preferences.sidebar === "collapsed" ? "expanded" : "collapsed";
@@ -1469,8 +1543,9 @@ elements["app-back"].addEventListener("click", () => {
   if (location.hash && location.hash !== "#overview") location.hash = "#overview";
   else if (history.length > 1) history.back();
 });
-elements["return-launcher"].addEventListener("click", () =>
-  window.electronAPI?.returnToLauncher?.() ?? window.close(),
+elements["return-launcher"].addEventListener(
+  "click",
+  () => window.electronAPI?.returnToLauncher?.() ?? window.close(),
 );
 elements["action-dialog-form"].addEventListener("submit", (event) => {
   event.preventDefault();
