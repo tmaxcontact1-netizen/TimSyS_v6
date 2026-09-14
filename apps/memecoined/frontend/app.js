@@ -494,7 +494,7 @@ function renderTradingProfiles() {
     allocation.innerHTML = "<span>Share of paper funds</span>";
     const allocationInput = document.createElement("input");
     allocationInput.type = "number";
-    allocationInput.min = "1";
+    allocationInput.min = "0";
     allocationInput.max = "100";
     allocationInput.step = "0.5";
     allocationInput.value = String(profile.allocationBps / 100);
@@ -506,8 +506,18 @@ function renderTradingProfiles() {
     facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Candidates assessed</dt><dd>${performance?.candidates_evaluated ?? 0}</dd></div><div><dt>Qualified</dt><dd>${performance?.candidates_qualified ?? 0}</dd></div><div><dt>Entry attempts waiting</dt><dd>${performance?.entries_pending ?? 0}</dd></div><div><dt>Entries that could not be quoted</dt><dd>${performance?.entries_failed ?? 0}</dd></div><div><dt>Profile result</dt><dd>${performance ? `${BigInt(performance.net_pnl_raw) >= 0n ? "+" : ""}${sol(performance.net_pnl_raw)} · ${performance.fills} fills · ${performance.open_positions} open` : "Waiting for first cycle"}</dd></div>`;
     const save = async (nextEnabled = profile.enabled) => {
       const allocationBps = Math.round(Number(allocationInput.value) * 100);
-      if (!Number.isSafeInteger(allocationBps) || allocationBps < 1 || allocationBps > 10000) {
-        setConfigurationMessage("Enter a paper-fund share between 1% and 100%.", "error");
+      if (!Number.isSafeInteger(allocationBps) || allocationBps < 0 || allocationBps > 10000) {
+        const message = "Enter a paper-fund share between 0% and 100%.";
+        setConfigurationMessage(message, "error");
+        actionMessage.textContent = message;
+        actionMessage.dataset.state = "error";
+        return;
+      }
+      if (nextEnabled && modeSelect.value === "automatic_paper" && allocationBps === 0) {
+        const message = "Choose a share of paper funds before starting automatic paper trading.";
+        setConfigurationMessage(message, "error");
+        actionMessage.textContent = message;
+        actionMessage.dataset.state = "error";
         return;
       }
       toggle.disabled = true;
@@ -534,6 +544,8 @@ function renderTradingProfiles() {
             );
           if (response.status === 409 && error.error === "profile_evidence_unavailable")
             throw new Error(error.message || "This profile is waiting for required evidence.");
+          if (response.status === 409 && error.error === "profile_allocation_invalid")
+            throw new Error(error.message || "Review this profile’s paper-fund share.");
           throw new Error(
             response.status === 409
               ? "This profile changed. Current settings were reloaded."

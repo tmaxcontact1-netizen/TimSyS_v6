@@ -47,4 +47,13 @@ describe("trading profiles", () => {
       ]),
     ).toThrow(/exceed/i);
   });
+
+  it("allows zero-allocation observation profiles but not automatic traders", () => {
+    expect(validateConcurrentProfileAllocation([
+      { profileId: "social_catalyst", enabled: true, mode: "observe", allocationBps: 0 },
+    ])).toEqual({ allocatedBps: 0, unallocatedBps: 10_000 });
+    expect(() => validateConcurrentProfileAllocation([
+      { profileId: "scalper", enabled: true, mode: "automatic_paper", allocationBps: 0 },
+    ])).toThrow(/positive allocation/i);
+  });
 });

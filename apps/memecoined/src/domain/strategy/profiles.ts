@@ -253,8 +253,8 @@ export function validateConcurrentProfileAllocation(
     seen.add(allocation.profileId);
     if (!Number.isSafeInteger(allocation.allocationBps) || allocation.allocationBps < 0 || allocation.allocationBps > 10_000)
       throw new RangeError("Profile allocation must be between 0% and 100%");
-    if (allocation.enabled && allocation.allocationBps === 0)
-      throw new RangeError("An enabled profile requires a positive allocation");
+    if (allocation.enabled && allocation.mode === "automatic_paper" && allocation.allocationBps === 0)
+      throw new RangeError("Automatic paper trading requires a positive allocation");
     if (allocation.enabled) allocatedBps += allocation.allocationBps;
   }
   if (allocatedBps > 10_000) throw new RangeError("Enabled profile allocations exceed the paper portfolio");

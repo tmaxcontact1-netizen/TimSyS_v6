@@ -415,9 +415,14 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         if (error instanceof ProfileActivationConflictError) {
           sendJson(response, 409, { error: "profile_version_conflict" });
         } else if (error instanceof RangeError) {
-          const allocationError = /allocation|portfolio/i.test(error.message);
+          const allocationExceeded = /exceed|portfolio/i.test(error.message);
+          const allocationInvalid = /allocation/i.test(error.message);
           sendJson(response, 409, {
-            error: allocationError ? "profile_allocation_exceeded" : "profile_evidence_unavailable",
+            error: allocationExceeded
+              ? "profile_allocation_exceeded"
+              : allocationInvalid
+                ? "profile_allocation_invalid"
+                : "profile_evidence_unavailable",
             message: error.message,
           });
         } else if (
