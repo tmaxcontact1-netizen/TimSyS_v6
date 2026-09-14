@@ -172,7 +172,7 @@ async function ensureAccounts(pool: Pool, wallet: WalletAddress, at: Timestamp):
             GREATEST(floor(a.initial_cash_raw*p.allocation_bps/10000),1),
             GREATEST(floor(a.initial_cash_raw*p.allocation_bps/10000),1),$2,$2
      FROM paper_accounts a JOIN paper_profile_activations p ON p.wallet=a.wallet
-     WHERE a.wallet=$1 AND p.enabled=true
+     WHERE a.wallet=$1 AND p.enabled=true AND p.mode='automatic_paper' AND p.allocation_bps>0
      ON CONFLICT (wallet,profile_id) DO NOTHING`,
     [wallet, at],
   );
