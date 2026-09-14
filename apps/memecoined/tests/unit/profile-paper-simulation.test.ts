@@ -13,6 +13,20 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("keeps evidence-dependent profiles in observation until their feeds exist", () => {
+    const result = evaluateProfileCandidate(tradingProfile("social_catalyst")!, score, []);
+    expect(result.eligible).toBe(false);
+    expect(result.reasons.join(" ")).toMatch(/Telegram, Reddit and X/i);
+  });
+
+  it("gives liquidity expansion and scalping distinct deterministic gates", () => {
+    expect(evaluateProfileCandidate(tradingProfile("liquidity_expansion")!, score, []).eligible).toBe(false);
+    expect(evaluateProfileCandidate(tradingProfile("scalper")!, score, []).eligible).toBe(false);
+    const active = { ...score, total: 90, liquidity: 20, momentum: 20, holders: 10, volumeQuality: 15 };
+    expect(evaluateProfileCandidate(tradingProfile("liquidity_expansion")!, active, []).eligible).toBe(true);
+    expect(evaluateProfileCandidate(tradingProfile("scalper")!, active, []).eligible).toBe(true);
+  });
+
   it("allows momentum profiles to qualify strong evidence without a whale signal", () => {
     expect(evaluateProfileCandidate(tradingProfile("fast_furious")!, score, []).eligible).toBe(
       true,

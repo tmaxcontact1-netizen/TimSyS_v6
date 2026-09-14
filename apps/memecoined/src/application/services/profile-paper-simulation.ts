@@ -60,8 +60,12 @@ const strictPaperRuleIds = Object.freeze([
 function requiredPaperRules(profile: TradingProfileDefinition): ReadonlySet<string> {
   if (profile.id === "fast_furious")
     return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-012"]);
+  if (profile.id === "scalper")
+    return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-012"]);
   if (profile.id === "trend_detector")
     return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-010", "SEC-012"]);
+  if (profile.id === "liquidity_expansion")
+    return new Set([...nonNegotiablePaperRuleIds, "SEC-005", "SEC-008", "SEC-010", "SEC-012"]);
   return new Set(strictPaperRuleIds);
 }
 
@@ -72,6 +76,8 @@ export function evaluateProfileCandidate(
   failedSafetyRules: readonly string[],
 ): ProfileCandidateDecision {
   const reasons: string[] = [];
+  if (profile.evidenceStatus === "awaiting_data")
+    reasons.push(profile.evidenceMessage ?? "The evidence required by this profile is not connected yet");
   const requiredRules = requiredPaperRules(profile);
   const applicableFailures = failedSafetyRules.filter((ruleId) => requiredRules.has(ruleId));
   if (applicableFailures.length)
@@ -86,6 +92,13 @@ export function evaluateProfileCandidate(
     reasons.push("Short-term momentum and transaction quality do not agree");
   if (profile.id === "trend_detector" && (score.momentum < 12 || score.liquidity < 10))
     reasons.push("Emerging trend lacks sufficient momentum or liquidity");
+  if (
+    profile.id === "liquidity_expansion" &&
+    (score.liquidity < 15 || score.volumeQuality < 8 || score.holders < 5)
+  )
+    reasons.push("Liquidity, transaction quality and holder breadth do not yet agree");
+  if (profile.id === "scalper" && (score.momentum < 16 || score.volumeQuality < 10 || score.liquidity < 8))
+    reasons.push("Immediate momentum, liquidity and transaction quality do not yet agree");
   if (profile.id === "slow_steady" && (score.liquidity < 15 || score.holders < 8))
     reasons.push("Liquidity or holder distribution is below the long-hold standard");
   if (

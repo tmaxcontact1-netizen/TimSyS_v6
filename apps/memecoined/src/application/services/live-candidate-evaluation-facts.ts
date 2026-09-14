@@ -67,7 +67,7 @@ function marketSnapshot(
       : null;
   return createMarketSnapshot({
     observedAt: at,
-    evidence: Object.freeze([reference(value.trace)]),
+    evidence: Object.freeze((value.traces ?? [value.trace]).map(reference)),
     chain: "solana",
     quoteAsset: value.quoteMint === "So11111111111111111111111111111111111111112" ? "SOL" : "other",
     poolAgeMinutes,

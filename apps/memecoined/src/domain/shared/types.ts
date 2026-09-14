@@ -27,7 +27,7 @@ export type Percentage = Brand<Decimal, "Percentage">;
 export type DecimalValue = Brand<Decimal, "DecimalValue">;
 
 export type ProviderId =
-  "solana_rpc" | "helius" | "jupiter" | "dexscreener" | "gmgn" | "birdeye" | "telegram";
+  "solana_rpc" | "helius" | "jupiter" | "dexscreener" | "geckoterminal" | "gmgn" | "birdeye" | "telegram";
 
 export type Result<Value, ErrorValue> =
   Readonly<{ ok: true; value: Value }> | Readonly<{ ok: false; error: ErrorValue }>;

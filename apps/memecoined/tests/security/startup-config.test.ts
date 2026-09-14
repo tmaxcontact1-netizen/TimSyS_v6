@@ -52,6 +52,7 @@ describe("runtime configuration", () => {
     expect(config.paper).toEqual({
       heliusApiKey: "helius-key",
       jupiterApiKey: "jupiter-key",
+      coingeckoDemoApiKey: null,
       walletAddress: "paper-wallet",
       initialCashLamports: 10000000000n,
       executionFeeLamports: 5000n,

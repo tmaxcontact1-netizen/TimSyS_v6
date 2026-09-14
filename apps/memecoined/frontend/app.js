@@ -470,6 +470,9 @@ function renderTradingProfiles() {
     const approach = document.createElement("p");
     approach.className = "profile-approach";
     approach.textContent = profile.approach;
+    const evidence = document.createElement("p");
+    evidence.className = "profile-approach";
+    evidence.textContent = `${profile.evidenceStatus === "awaiting_data" ? "Waiting for evidence: " : "Evidence ready: "}${profile.evidenceMessage || "Uses the candidate evidence currently collected."}`;
     const controls = document.createElement("div");
     controls.className = "profile-controls";
     const mode = document.createElement("label");
@@ -479,6 +482,7 @@ function renderTradingProfiles() {
       const option = document.createElement("option");
       option.value = value;
       option.textContent = profileModeLabel(value);
+      option.disabled = value === "automatic_paper" && profile.evidenceStatus === "awaiting_data";
       option.selected = profile.mode === value;
       modeSelect.append(option);
     }
@@ -524,6 +528,8 @@ function renderTradingProfiles() {
             throw new Error(
               "Active profiles cannot allocate more than 100% of the paper portfolio.",
             );
+          if (response.status === 409 && error.error === "profile_evidence_unavailable")
+            throw new Error(error.message || "This profile is waiting for required evidence.");
           throw new Error(
             response.status === 409
               ? "This profile changed. Current settings were reloaded."
@@ -551,7 +557,7 @@ function renderTradingProfiles() {
     });
     heading.append(titleGroup, toggle);
     controls.append(mode, allocation);
-    card.append(heading, summary, approach, controls, facts);
+    card.append(heading, summary, approach, evidence, controls, facts);
     elements["profile-list"].append(card);
   }
 }

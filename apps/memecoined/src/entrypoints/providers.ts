@@ -13,6 +13,8 @@ import type { RuntimeConfig } from "../infrastructure/config/load-config.js";
 import type { WalletHistoryObservationPort } from "../application/services/portfolio-transaction-history.js";
 import type { MintSecurityObservationPort } from "../application/ports/runtime-authority-inputs.js";
 import { DexScreenerMarketAdapter } from "../infrastructure/providers/dexscreener/adapter.js";
+import { GeckoTerminalMarketAdapter } from "../infrastructure/providers/geckoterminal/adapter.js";
+import { ConfirmedMarketAdapter } from "../infrastructure/providers/market-consensus/adapter.js";
 import { HeliusSenderHttpTransport } from "../infrastructure/providers/helius/client.js";
 import { HeliusSubmissionAdapter } from "../infrastructure/providers/helius/submission-adapter.js";
 import { HeliusTrackedWalletPurchaseAdapter } from "../infrastructure/providers/helius/stream-adapter.js";
@@ -69,13 +71,14 @@ export function composePaperProviders(config: RuntimeConfig): PaperProviderServi
     new SolanaRpcHttpTransport(rpcHttp, config.solana.primaryRpcUrl),
   );
   const publicHttp = new BoundedJsonHttpTransport({
-    allowedOrigins: new Set(["https://api.dexscreener.com", "https://api.jup.ag"]),
+    allowedOrigins: new Set(["https://api.dexscreener.com", "https://api.geckoterminal.com", "https://api.jup.ag"]),
   });
   const heliusDataHttp = new BoundedJsonHttpTransport({
     allowedOrigins: new Set(["https://api.helius.xyz"]),
   });
   const identities = new DeterministicEvidenceIdentityFactory();
   const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
+  const market = new ConfirmedMarketAdapter(dexScreener, new GeckoTerminalMarketAdapter(publicHttp, identities));
   const fallback = new SolanaRpcClient(
     new SolanaRpcHttpTransport(rpcHttp, config.solana.fallbackRpcUrl),
   );
@@ -87,8 +90,8 @@ export function composePaperProviders(config: RuntimeConfig): PaperProviderServi
   );
   return Object.freeze({
     swap: Object.freeze({ quote: adapter.quote.bind(adapter) }),
-    market: dexScreener,
-    discovery: dexScreener,
+    market,
+    discovery: market,
     balances: chain,
     mintSecurity: new SolanaMintSecurityAdapter(primary, fallback, identities),
     trackedWalletPurchases: new HeliusTrackedWalletPurchaseAdapter(
@@ -119,7 +122,7 @@ export function composeProductionProviders(
   );
   const identities = new DeterministicEvidenceIdentityFactory();
   const publicHttp = new BoundedJsonHttpTransport({
-    allowedOrigins: new Set(["https://api.dexscreener.com", "https://api.jup.ag"]),
+    allowedOrigins: new Set(["https://api.dexscreener.com", "https://api.geckoterminal.com", "https://api.jup.ag"]),
   });
   const senderHttp = new BoundedJsonHttpTransport({
     allowedOrigins: new Set(["https://sender.helius-rpc.com"]),
@@ -129,10 +132,11 @@ export function composeProductionProviders(
   });
   const authority = new SolanaExecutionRpc(primary);
   const dexScreener = new DexScreenerMarketAdapter(publicHttp, identities);
+  const market = new ConfirmedMarketAdapter(dexScreener, new GeckoTerminalMarketAdapter(publicHttp, identities));
   const chain = new SolanaChainObservationAdapter(primary, fallback, identities, agreements);
   return Object.freeze({
-    market: dexScreener,
-    discovery: dexScreener,
+    market,
+    discovery: market,
     balances: chain,
     inventory: chain,
     transactions: new SolanaTransactionObservationAdapter(

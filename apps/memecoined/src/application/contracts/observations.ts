@@ -67,6 +67,8 @@ export interface PoolMarketObservation {
   readonly oneHourPriceChangePercentage?: DecimalValue | null;
   readonly oneHourVolumeUsd?: DecimalValue | null;
   readonly trace: ObservationTrace;
+  /** Every independent market trace used to confirm the normalized observation. */
+  readonly traces?: readonly ObservationTrace[];
 }
 
 export interface ChainBalanceObservation {

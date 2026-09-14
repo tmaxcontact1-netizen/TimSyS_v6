@@ -14,9 +14,23 @@ describe("trading profiles", () => {
       "trend_detector",
       "capital_preservation",
       "signal_consensus",
+      "breakout_retest",
+      "liquidity_expansion",
+      "social_catalyst",
+      "recovery_reversal",
+      "launch_transition",
+      "scalper",
     ]);
-    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(6);
+    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(12);
     expect(tradingProfileCatalogue.every(({ hardStopBps }) => hardStopBps > 0)).toBe(true);
+  });
+
+  it("does not claim profiles can trade before their required evidence exists", () => {
+    const waiting = tradingProfileCatalogue.filter(({ evidenceStatus }) => evidenceStatus === "awaiting_data");
+    expect(waiting.map(({ id }) => id)).toEqual([
+      "breakout_retest", "social_catalyst", "recovery_reversal", "launch_transition",
+    ]);
+    expect(waiting.every(({ evidenceMessage }) => Boolean(evidenceMessage))).toBe(true);
   });
 
   it("allows concurrent profiles only inside the shared allocation boundary", () => {

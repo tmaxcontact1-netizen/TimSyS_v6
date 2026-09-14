@@ -45,6 +45,7 @@ const schema = z
     SOLANA_CLUSTER: z.enum(["mainnet-beta", "devnet"]).optional(),
     HELIUS_API_KEY: nonempty.optional(),
     JUPITER_API_KEY: nonempty.optional(),
+    COINGECKO_DEMO_API_KEY: nonempty.optional(),
     PAPER_TRADING_WALLET_ADDRESS: nonempty.optional(),
     PAPER_INITIAL_CASH_LAMPORTS: z.string().regex(/^\d+$/).optional(),
     PAPER_EXECUTION_FEE_LAMPORTS: z.string().regex(/^\d+$/).optional(),
@@ -79,6 +80,7 @@ export interface RuntimeConfig {
   readonly paper: null | Readonly<{
     heliusApiKey: string;
     jupiterApiKey: string;
+    coingeckoDemoApiKey: string | null;
     walletAddress: string;
     initialCashLamports: bigint;
     executionFeeLamports: bigint;
@@ -161,6 +163,7 @@ export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig
       ? Object.freeze({
           heliusApiKey: required(value.HELIUS_API_KEY, "HELIUS_API_KEY"),
           jupiterApiKey: required(value.JUPITER_API_KEY, "JUPITER_API_KEY"),
+          coingeckoDemoApiKey: value.COINGECKO_DEMO_API_KEY ?? null,
           walletAddress: required(
             value.PAPER_TRADING_WALLET_ADDRESS,
             "PAPER_TRADING_WALLET_ADDRESS",

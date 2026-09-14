@@ -408,7 +408,11 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         if (error instanceof ProfileActivationConflictError) {
           sendJson(response, 409, { error: "profile_version_conflict" });
         } else if (error instanceof RangeError) {
-          sendJson(response, 409, { error: "profile_allocation_exceeded" });
+          const allocationError = /allocation|portfolio/i.test(error.message);
+          sendJson(response, 409, {
+            error: allocationError ? "profile_allocation_exceeded" : "profile_evidence_unavailable",
+            message: error.message,
+          });
         } else if (
           error instanceof Error &&
           ["content_type", "body_too_large", "invalid_body", "invalid_profile_id", "invalid_profile_configuration"].includes(error.message)

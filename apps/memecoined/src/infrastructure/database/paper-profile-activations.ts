@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import type { WalletAddress } from "../../domain/shared/types.js";
 import {
   tradingProfileCatalogue,
+  tradingProfile,
   validateConcurrentProfileAllocation,
   type PaperProfileMode,
   type TradingProfileId,
@@ -41,18 +42,24 @@ export async function ensureAllProfilesPaperTrialPreset(
 ): Promise<boolean> {
   const auditIds = tradingProfileCatalogue.map(() => randomUUID());
   const result = await database.query<{ inserted_count: string | number }>(
-    `WITH presets(profile_id,allocation_bps,audit_id) AS (
+    `WITH presets(profile_id,enabled,mode,allocation_bps,audit_id) AS (
        VALUES
-         ('whale_tracker',1500,$3::uuid),
-         ('fast_furious',1500,$4::uuid),
-         ('slow_steady',2000,$5::uuid),
-         ('trend_detector',2000,$6::uuid),
-         ('capital_preservation',1500,$7::uuid),
-         ('signal_consensus',1500,$8::uuid)
+         ('whale_tracker',true,'automatic_paper',1500,$3::uuid),
+         ('fast_furious',true,'automatic_paper',1500,$4::uuid),
+         ('slow_steady',true,'automatic_paper',2000,$5::uuid),
+         ('trend_detector',true,'automatic_paper',2000,$6::uuid),
+         ('capital_preservation',true,'automatic_paper',1500,$7::uuid),
+         ('signal_consensus',true,'automatic_paper',1500,$8::uuid),
+         ('breakout_retest',false,'observe',0,$9::uuid),
+         ('liquidity_expansion',false,'observe',0,$10::uuid),
+         ('social_catalyst',false,'observe',0,$11::uuid),
+         ('recovery_reversal',false,'observe',0,$12::uuid),
+         ('launch_transition',false,'observe',0,$13::uuid),
+         ('scalper',false,'observe',0,$14::uuid)
      ), inserted AS (
        INSERT INTO paper_profile_activations
          (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)
-       SELECT $1,p.profile_id,true,'automatic_paper',p.allocation_bps,1,$2,$2
+       SELECT $1,p.profile_id,p.enabled,p.mode,p.allocation_bps,1,$2,$2
        FROM presets p
        WHERE NOT EXISTS (SELECT 1 FROM paper_profile_activations existing WHERE existing.wallet=$1)
        ON CONFLICT (wallet,profile_id) DO NOTHING
@@ -60,9 +67,10 @@ export async function ensureAllProfilesPaperTrialPreset(
      ), audited AS (
        INSERT INTO paper_profile_activation_audit
          (id,wallet,profile_id,action,expected_version,resulting_version,payload_json,occurred_at)
-       SELECT p.audit_id,$1,i.profile_id,'profile_enabled',0,i.version,
+       SELECT p.audit_id,$1,i.profile_id,
+              CASE WHEN i.enabled THEN 'profile_enabled' ELSE 'profile_configured' END,0,i.version,
               jsonb_build_object('enabled',i.enabled,'mode',i.mode,'allocationBps',i.allocation_bps,
-                                 'preset','all_profiles'),$2
+                                 'preset','initial_profile_catalogue'),$2
        FROM inserted i JOIN presets p USING (profile_id)
        RETURNING id
      ) SELECT count(*)::text AS inserted_count FROM inserted`,
@@ -125,6 +133,9 @@ export async function configurePaperProfile(
   allocationBps: number,
   occurredAt: Date,
 ): Promise<PaperProfileActivation> {
+  const definition = tradingProfile(profileId);
+  if (enabled && mode === "automatic_paper" && definition?.evidenceStatus === "awaiting_data")
+    throw new RangeError(definition.evidenceMessage ?? "This profile is waiting for required evidence");
   const current = await listPaperProfileActivations(database, wallet);
   const selected = current.find((item) => item.profileId === profileId);
   if (selected === undefined || selected.version !== expectedVersion)

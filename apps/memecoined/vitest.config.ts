@@ -55,6 +55,7 @@ export default defineConfig({
       "tests/unit/trading-profiles.test.ts",
       "tests/unit/paper-profile-activations.test.ts",
       "tests/unit/profile-paper-simulation.test.ts",
+      "tests/unit/market-consensus.test.ts",
       "tests/unit/dashboard-ui-standards.test.ts",
       "tests/unit/operational-dashboard.test.ts",
       "tests/unit/live-entry-planning.test.ts",
