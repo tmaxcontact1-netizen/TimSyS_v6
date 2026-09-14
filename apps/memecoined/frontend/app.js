@@ -196,6 +196,7 @@ const legacyWatchlist = loadWatchlist();
 let watchlists = [];
 let activeWatchlistId = "";
 let mutationToken = "";
+
 let configurations = [];
 let tradingProfiles = [];
 let activeConfigurationId = "";
@@ -564,7 +565,15 @@ function renderTradingProfiles() {
 async function refreshTradingProfiles() {
   const response = await fetch("/api/trading-profiles", { cache: "no-store" });
   if (!response.ok) throw new Error("Trading profiles unavailable.");
-  tradingProfiles = (await response.json()).profiles;
+  const result = await response.json();
+  tradingProfiles = result.profiles;
+  if (result.policy?.operatorAccess === "desktop_session" && !mutationToken) {
+    mutationToken = "desktop-session";
+    document.querySelector(".operator-access")?.setAttribute("hidden", "");
+    renderWatchlistControls();
+    renderConfigurations();
+    renderDetails();
+  }
   renderTradingProfiles();
 }
 function configurationValues() {

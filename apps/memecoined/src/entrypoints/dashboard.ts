@@ -73,9 +73,15 @@ export interface PaperDashboardDependencies {
   readonly publicDirectory: string;
   readonly now?: () => Date;
   readonly mutationToken?: string;
+  readonly trustedLocalMutations?: boolean;
 }
 
-function authorized(request: IncomingMessage, token: string | undefined): boolean {
+function authorized(
+  request: IncomingMessage,
+  token: string | undefined,
+  trustedLocalMutations = false,
+): boolean {
+  if (trustedLocalMutations) return true;
   if (token === undefined) return false;
   const supplied = request.headers.authorization;
   if (supplied === undefined || !supplied.startsWith("Bearer ")) return false;
@@ -269,7 +275,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 405, { error: "method_not_allowed" });
         return;
       }
-      if (!authorized(request, dependencies.mutationToken)) {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
         sendJson(response, 401, { error: "mutation_authentication_required" });
         return;
       }
@@ -359,6 +365,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
             performance: performance.find((item: Record<string, unknown>) => item.profile_id === definition.id) ?? null,
           })),
           policy: {
+            operatorAccess: dependencies.trustedLocalMutations ? "desktop_session" : "token",
             maximumCombinedAllocationBps: 10_000,
             maximumCombinedOpenExposureBps: 1_000,
             duplicateMintPolicy: "best_qualified_profile_owns_position",
@@ -372,7 +379,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     }
     const profileMatch = pathname.match(/^\/api\/trading-profiles\/([a-z_]+)$/);
     if (profileMatch !== null && method === "PUT") {
-      if (!authorized(request, dependencies.mutationToken)) {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
         sendJson(response, 401, { error: "mutation_authentication_required" });
         return;
       }
@@ -425,7 +432,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
       return;
     }
     if (pathname.startsWith("/api/trading-configurations") && method !== "GET") {
-      if (!authorized(request, dependencies.mutationToken)) {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
         sendJson(response, 401, { error: "mutation_authentication_required" });
         return;
       }
@@ -515,7 +522,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
       return;
     }
     if (pathname.startsWith("/api/watchlists") && method !== "GET") {
-      if (!authorized(request, dependencies.mutationToken)) {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
         sendJson(response, 401, { error: "mutation_authentication_required" });
         return;
       }
@@ -727,6 +734,7 @@ export async function startPaperDashboard(environment: NodeJS.ProcessEnv): Promi
     database,
     wallet: config.paper.walletAddress as WalletAddress,
     publicDirectory: join(resolveApplicationRoot(environment), "frontend"),
+    trustedLocalMutations: config.managedDatabase,
     ...(mutationToken === undefined ? {} : { mutationToken }),
   });
   const port = Number(environment.PAPER_DASHBOARD_PORT ?? "8080");

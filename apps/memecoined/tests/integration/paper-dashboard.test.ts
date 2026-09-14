@@ -496,6 +496,49 @@ describe("paper dashboard", () => {
     expect(queries).toBe(0);
   });
 
+  it("allows same-origin desktop mutations without asking the operator for a token", async () => {
+    const id = "123e4567-e89b-42d3-a456-426614174099";
+    const server = createPaperDashboardServer({
+      database: {
+        query: async () => ({
+          rows: [{
+            id,
+            name: "Desktop list",
+            version: 1,
+            created_at: "2026-09-14T12:00:00Z",
+            updated_at: "2026-09-14T12:00:00Z",
+            tokens: [],
+          }],
+        }),
+        end: async () => undefined,
+      } as never,
+      wallet: "wallet" as never,
+      publicDirectory: "frontend",
+      trustedLocalMutations: true,
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const headers = {
+      origin: `http://127.0.0.1:${address.port}`,
+      host: `127.0.0.1:${address.port}`,
+      "content-type": "application/json",
+    };
+    const response = await get(
+      address.port,
+      "/api/watchlists",
+      "POST",
+      headers,
+      JSON.stringify({ name: "Desktop list" }),
+    );
+    expect(response.status).toBe(201);
+    expect(JSON.parse(response.body)).toMatchObject({
+      watchlist: { id, name: "Desktop list", version: 1 },
+    });
+  });
+
   it("authenticates and validates trading-configuration creation", async () => {
     const id = "123e4567-e89b-42d3-a456-426614174001";
     let queries = 0;
