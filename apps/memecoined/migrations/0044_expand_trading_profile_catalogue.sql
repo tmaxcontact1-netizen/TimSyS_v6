@@ -1,3 +1,5 @@
+BEGIN;
+
 ALTER TABLE paper_profile_activations
   DROP CONSTRAINT IF EXISTS paper_profile_activations_profile_id_check;
 
@@ -27,3 +29,5 @@ CROSS JOIN (VALUES
   ('recovery_reversal'),('launch_transition'),('scalper')
 ) profiles(profile_id)
 ON CONFLICT (wallet,profile_id) DO NOTHING;
+
+COMMIT;
