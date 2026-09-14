@@ -19,7 +19,7 @@ describe("paper profile activations", () => {
     const database = {
       query: async (sql: string) => {
         statements.push(sql);
-        if (sql.includes("FROM paper_profile_activations WHERE")) return { rows: [] };
+        if (sql.trimStart().startsWith("SELECT profile_id")) return { rows: [] };
         return {
           rows: [{
             profile_id: "whale_tracker", enabled: true, mode: "automatic_paper",

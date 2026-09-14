@@ -453,6 +453,7 @@ function renderTradingProfiles() {
     const card = document.createElement("article");
     card.className = "profile-card";
     card.dataset.enabled = String(profile.enabled);
+    card.dataset.profileId = profile.id;
     const heading = document.createElement("div");
     heading.className = "profile-card-heading";
     const titleGroup = document.createElement("div");
@@ -512,6 +513,8 @@ function renderTradingProfiles() {
       toggle.disabled = true;
       modeSelect.disabled = true;
       allocationInput.disabled = true;
+      actionMessage.textContent = nextEnabled ? "Starting profile…" : "Stopping profile…";
+      actionMessage.dataset.state = "working";
       try {
         const response = await fetch(`/api/trading-profiles/${profile.id}`, {
           method: "PUT",
@@ -538,15 +541,26 @@ function renderTradingProfiles() {
           );
         }
         await refreshTradingProfiles();
-        setConfigurationMessage(
-          `${profile.name} ${nextEnabled ? "started" : "stopped"} in ${profileModeLabel(modeSelect.value).toLowerCase()} mode.`,
+        const message = `${profile.name} ${nextEnabled ? "started" : "stopped"} in ${profileModeLabel(modeSelect.value).toLowerCase()} mode.`;
+        setConfigurationMessage(message);
+        const currentMessage = document.querySelector(
+          `[data-profile-id="${profile.id}"] .profile-action-message`,
         );
+        if (currentMessage) {
+          currentMessage.textContent = message;
+          currentMessage.dataset.state = "success";
+        }
       } catch (error) {
         await refreshTradingProfiles().catch(() => undefined);
-        setConfigurationMessage(
-          error instanceof Error ? error.message : "The profile setting was not saved.",
-          "error",
+        const message = error instanceof Error ? error.message : "The profile setting was not saved.";
+        setConfigurationMessage(message, "error");
+        const currentMessage = document.querySelector(
+          `[data-profile-id="${profile.id}"] .profile-action-message`,
         );
+        if (currentMessage) {
+          currentMessage.textContent = message;
+          currentMessage.dataset.state = "error";
+        }
       }
     };
     toggle.addEventListener("click", () => void save(!profile.enabled));
@@ -558,7 +572,11 @@ function renderTradingProfiles() {
     });
     heading.append(titleGroup, toggle);
     controls.append(mode, allocation);
-    card.append(heading, summary, approach, evidence, controls, facts);
+    const actionMessage = document.createElement("p");
+    actionMessage.className = "profile-action-message";
+    actionMessage.setAttribute("role", "status");
+    actionMessage.setAttribute("aria-live", "polite");
+    card.append(heading, summary, approach, evidence, controls, facts, actionMessage);
     elements["profile-list"].append(card);
   }
 }

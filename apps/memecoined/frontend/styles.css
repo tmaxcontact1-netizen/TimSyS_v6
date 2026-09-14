@@ -510,6 +510,9 @@ main {
 }
 .profile-card[data-enabled="true"] { border-color: var(--green); box-shadow: inset 3px 0 var(--green); }
 .profile-card-heading { display: flex; align-items: start; justify-content: space-between; gap: 12px; }
+.profile-action-message { min-height: 1.4em; margin: 10px 0 0; font-size: 0.86rem; color: var(--muted); }
+.profile-action-message[data-state="success"] { color: var(--success); }
+.profile-action-message[data-state="error"] { color: var(--danger); }
 .profile-card h3 { margin: 4px 0 0; }
 .profile-card p { margin: 0; }
 .profile-state { color: var(--muted); font: 700 10px ui-monospace, monospace; letter-spacing: .09em; }

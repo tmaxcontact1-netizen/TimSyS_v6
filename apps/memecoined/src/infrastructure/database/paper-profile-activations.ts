@@ -151,15 +151,21 @@ export async function configurePaperProfile(
       ? "profile_disabled"
       : "profile_configured";
   const result = await database.query<ActivationRow>(
-    `WITH changed AS (
+    `WITH updated AS (
+       UPDATE paper_profile_activations SET
+         enabled=$3,mode=$4,allocation_bps=$5,version=version+1,updated_at=$7
+       WHERE wallet=$1 AND profile_id=$2 AND version=$6
+       RETURNING *
+     ), inserted AS (
        INSERT INTO paper_profile_activations
          (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)
-       SELECT $1,$2,$3,$4,$5,1,$7,$7 WHERE $6=0
-       ON CONFLICT (wallet,profile_id) DO UPDATE SET
-         enabled=EXCLUDED.enabled,mode=EXCLUDED.mode,allocation_bps=EXCLUDED.allocation_bps,
-         version=paper_profile_activations.version+1,updated_at=EXCLUDED.updated_at
-       WHERE paper_profile_activations.version=$6
+       SELECT $1,$2,$3,$4,$5,1,$7,$7
+       WHERE $6=0 AND NOT EXISTS (
+         SELECT 1 FROM paper_profile_activations WHERE wallet=$1 AND profile_id=$2
+       )
        RETURNING *
+     ), changed AS (
+       SELECT * FROM updated UNION ALL SELECT * FROM inserted
      ), audited AS (
        INSERT INTO paper_profile_activation_audit
          (id,wallet,profile_id,action,expected_version,resulting_version,payload_json,occurred_at)
