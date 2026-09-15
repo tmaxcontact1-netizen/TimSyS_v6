@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { Pool, PoolClient } from "pg";
 
 import type { SwapPort } from "../ports/swap.js";
+import type { MarketObservationPort } from "../ports/market.js";
 import { WRAPPED_SOL_MINT } from "./portfolio-inventory-valuation.js";
 import {
   asBasisPoints,
@@ -149,7 +150,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v2";
+const temporalEngineVersion = "temporal-v3";
 const fastProfileIds = new Set<TradingProfileId>([
   "fast_furious",
   "scalper",
@@ -198,11 +199,16 @@ interface FastObservationCandidate extends CandidateRow {}
 interface FastObservationRow {
   readonly observed_at: Date | string;
   readonly output_amount_raw: string;
+  readonly liquidity_usd: string | null;
+  readonly five_minute_volume_usd: string | null;
+  readonly five_minute_buys: string | null;
+  readonly five_minute_sells: string | null;
 }
 
 async function collectFastMarketObservations(input: {
   pool: Pool;
   swap: Pick<SwapPort, "quote">;
+  market: MarketObservationPort;
   wallet: WalletAddress;
   at: Timestamp;
 }): Promise<void> {
@@ -237,29 +243,51 @@ async function collectFastMarketObservations(input: {
     [input.wallet, input.at],
   );
   for (const candidate of candidates.rows) {
-    const quote = await input.swap.quote({
-      inputMint: WRAPPED_SOL_MINT,
-      outputMint: candidate.mint_address as MintAddress,
-      inputAmount: observationInput,
-      slippageBasisPoints: quoteSlippage,
-      requestedAt: input.at,
-    });
-    if (!quote.ok) continue;
+    const mint = candidate.mint_address as MintAddress;
+    const [quote, market] = await Promise.all([
+      input.swap.quote({
+        inputMint: WRAPPED_SOL_MINT,
+        outputMint: mint,
+        inputAmount: observationInput,
+        slippageBasisPoints: quoteSlippage,
+        requestedAt: input.at,
+      }),
+      input.market.observePrimaryPool(mint, input.at),
+    ]);
+    if (!quote.ok || !market.ok) continue;
+    const observation = market.value;
     await input.pool.query(
       `INSERT INTO paper_fast_market_observations
-         (wallet,token_mint,observed_at,input_amount_raw,output_amount_raw,quote_fingerprint)
-       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
+         (wallet,token_mint,observed_at,input_amount_raw,output_amount_raw,quote_fingerprint,
+          market_price_usd,liquidity_usd,five_minute_volume_usd,five_minute_buys,
+          five_minute_sells,five_minute_price_change,one_hour_price_change,market_evidence_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb) ON CONFLICT DO NOTHING`,
       [input.wallet, candidate.mint_address, quote.value.receivedAt,
-       quote.value.inputAmount.toString(), quote.value.expectedOutputAmount.toString(), quote.value.fingerprint],
+       quote.value.inputAmount.toString(), quote.value.expectedOutputAmount.toString(), quote.value.fingerprint,
+       observation.priceUsd?.toString() ?? null, observation.liquidityUsd?.toString() ?? null,
+       observation.fiveMinuteVolumeUsd?.toString() ?? null,
+       observation.fiveMinuteBuys?.toString() ?? null, observation.fiveMinuteSells?.toString() ?? null,
+       observation.fiveMinutePriceChangePercentage?.toString() ?? null,
+       observation.oneHourPriceChangePercentage?.toString() ?? null,
+       JSON.stringify(
+         observation.traces ?? [observation.trace],
+         (_key, value) => typeof value === "bigint" ? value.toString() : value,
+       )],
     );
     const history = await input.pool.query<FastObservationRow>(
-      `SELECT observed_at,output_amount_raw::text FROM paper_fast_market_observations
-        WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 3`,
+      `SELECT observed_at,output_amount_raw::text,liquidity_usd::text,five_minute_volume_usd::text,
+              five_minute_buys::text,five_minute_sells::text
+         FROM paper_fast_market_observations
+        WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 6`,
       [input.wallet, candidate.mint_address],
     );
     const points: ExecutableMarketPoint[] = history.rows.reverse().map((row) => ({
       observedAt: iso(row.observed_at),
       outputAmountRaw: BigInt(row.output_amount_raw),
+      liquidityUsd: row.liquidity_usd,
+      fiveMinuteVolumeUsd: row.five_minute_volume_usd,
+      fiveMinuteBuys: row.five_minute_buys === null ? null : BigInt(row.five_minute_buys),
+      fiveMinuteSells: row.five_minute_sells === null ? null : BigInt(row.five_minute_sells),
     }));
     for (const activation of enabled.rows) {
       const profile = tradingProfile(activation.profile_id);
@@ -664,6 +692,7 @@ async function monitorPositions(input: {
 export async function runProfilePaperSimulationCycle(input: {
   readonly database: Pool;
   readonly swap: Pick<SwapPort, "quote">;
+  readonly market: MarketObservationPort;
   readonly wallet: WalletAddress;
   readonly now: () => Timestamp;
   readonly executionFeeRaw: bigint;
@@ -673,6 +702,7 @@ export async function runProfilePaperSimulationCycle(input: {
   await collectFastMarketObservations({
     pool: input.database,
     swap: input.swap,
+    market: input.market,
     wallet: input.wallet,
     at,
   });
@@ -716,11 +746,13 @@ export async function readProfilePaperPerformance(
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.eligible)::int AS short_horizon_qualified
+            ,(SELECT e.signal_json FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id ORDER BY e.observed_at DESC LIMIT 1) AS latest_signal
+            ,(SELECT e.observed_at FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id ORDER BY e.observed_at DESC LIMIT 1) AS latest_signal_at
             ,(SELECT count(*) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS market_observations
             ,(SELECT count(DISTINCT o.token_mint) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS monitored_tokens
             ,(SELECT count(*) FROM (
                  SELECT o.token_mint FROM paper_fast_market_observations o
-                  WHERE o.wallet=a.wallet GROUP BY o.token_mint HAVING count(*)>=3
+                  WHERE o.wallet=a.wallet GROUP BY o.token_mint HAVING count(*)>=6
               ) ready)::int AS history_ready_tokens
        FROM paper_profile_accounts a WHERE a.wallet=$1 ORDER BY a.profile_id`,
     [wallet],

@@ -339,6 +339,7 @@ export function composePaperTradingRuntime(input: {
           await runProfilePaperSimulationCycle({
             database: input.database,
             swap: providers.swap,
+            market: providers.market,
             wallet,
             now: () => clock.now(),
             executionFeeRaw: input.config.paper!.executionFeeLamports,
