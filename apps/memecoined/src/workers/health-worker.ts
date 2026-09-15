@@ -6,6 +6,7 @@ export interface PaperPerformanceReport {
   readonly initialCashRaw: string;
   readonly cashRaw: string;
   readonly openCostRaw: string;
+  readonly openValueRaw: string;
   readonly realizedPnlRaw: string;
   readonly fills: number;
   readonly openPositions: number;
@@ -19,6 +20,7 @@ interface ReportRow {
   readonly initial_cash_raw: string;
   readonly cash_raw: string;
   readonly open_cost_raw: string;
+  readonly open_value_raw: string;
   readonly realized_pnl_raw: string;
   readonly fills: string;
   readonly open_positions: string;
@@ -39,6 +41,7 @@ export async function readPaperPerformanceReport(
         + COALESCE((SELECT sum(CASE event_type WHEN 'sell' THEN amount_raw ELSE -amount_raw END) FROM paper_cash_events WHERE wallet=a.wallet),0)
         - COALESCE((SELECT sum(execution_fee_raw) FROM paper_fills WHERE wallet=a.wallet),0)) AS cash_raw,
        COALESCE((SELECT sum(remaining_cost_raw) FROM paper_position_lots WHERE wallet=a.wallet AND current_amount_raw>0),0) AS open_cost_raw,
+       COALESCE((SELECT sum(remaining_cost_raw) FROM paper_position_lots WHERE wallet=a.wallet AND current_amount_raw>0),0) AS open_value_raw,
        COALESCE((SELECT sum(realized_pnl_raw) FROM paper_realized_performance WHERE wallet=a.wallet),0) AS realized_pnl_raw,
        (SELECT count(*) FROM paper_fills WHERE wallet=a.wallet) AS fills,
        (SELECT count(DISTINCT token_mint) FROM paper_position_lots WHERE wallet=a.wallet AND current_amount_raw>0) AS open_positions,
@@ -52,6 +55,7 @@ export async function readPaperPerformanceReport(
        SELECT COALESCE(sum(initial_cash_raw),0) AS initial_cash_raw,
               COALESCE(sum(cash_raw),0) AS cash_raw,
               COALESCE((SELECT sum(cost_raw) FROM paper_profile_positions WHERE wallet=$1),0) AS open_cost_raw,
+              COALESCE((SELECT sum(current_value_raw) FROM paper_profile_positions WHERE wallet=$1),0) AS open_value_raw,
               COALESCE(sum(realized_pnl_raw),0) AS realized_pnl_raw,
               (SELECT count(*) FROM paper_profile_fills WHERE wallet=$1) AS fills,
               (SELECT count(*) FROM paper_profile_positions WHERE wallet=$1) AS open_positions,
@@ -64,6 +68,7 @@ export async function readPaperPerformanceReport(
      SELECT (CASE WHEN p.profile_accounts>0 THEN p.initial_cash_raw ELSE l.initial_cash_raw END)::text AS initial_cash_raw,
             (CASE WHEN p.profile_accounts>0 THEN p.cash_raw ELSE l.cash_raw END)::text AS cash_raw,
             (CASE WHEN p.profile_accounts>0 THEN p.open_cost_raw ELSE l.open_cost_raw END)::text AS open_cost_raw,
+            (CASE WHEN p.profile_accounts>0 THEN p.open_value_raw ELSE l.open_value_raw END)::text AS open_value_raw,
             (CASE WHEN p.profile_accounts>0 THEN p.realized_pnl_raw ELSE l.realized_pnl_raw END)::text AS realized_pnl_raw,
             (CASE WHEN p.profile_accounts>0 THEN p.fills ELSE l.fills END)::text AS fills,
             (CASE WHEN p.profile_accounts>0 THEN p.open_positions ELSE l.open_positions END)::text AS open_positions,
@@ -80,6 +85,7 @@ export async function readPaperPerformanceReport(
     initialCashRaw: row.initial_cash_raw,
     cashRaw: row.cash_raw,
     openCostRaw: row.open_cost_raw,
+    openValueRaw: row.open_value_raw,
     realizedPnlRaw: row.realized_pnl_raw,
     fills: Number(row.fills),
     openPositions: Number(row.open_positions),

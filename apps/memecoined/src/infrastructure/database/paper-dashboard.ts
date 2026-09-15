@@ -182,21 +182,31 @@ export async function readPaperPerformanceHistory(
   const result = await database.query<PerformanceHistoryRow>(
     `WITH account AS (
        SELECT initial_cash_raw,opened_at FROM paper_accounts WHERE wallet=$1
+     ), profile_sequence AS (
+       SELECT side,filled_at,id,settlement_amount_raw,execution_fee_raw,
+              lag(side) OVER sequence AS previous_side,
+              lag(settlement_amount_raw) OVER sequence AS entry_cost_raw
+       FROM paper_profile_fills WHERE wallet=$1
+       WINDOW sequence AS (PARTITION BY profile_id,token_mint ORDER BY filled_at,id)
+     ), realized AS (
+       SELECT realized_at AS occurred_at,realized_pnl_raw AS pnl,fill_id::text AS event_id
+       FROM paper_realized_performance WHERE wallet=$1
+       UNION ALL
+       SELECT filled_at,settlement_amount_raw-entry_cost_raw-execution_fee_raw,id::text
+       FROM profile_sequence WHERE side='sell' AND previous_side='buy'
      ), boundary AS (
        SELECT CASE WHEN $2::text IS NULL THEN opened_at
                    ELSE GREATEST(opened_at,now()-$2::interval) END AS starts_at
        FROM account
      ), eligible AS (
-       SELECT p.realized_at AS occurred_at,p.realized_pnl_raw AS pnl,
-              row_number() OVER (ORDER BY p.realized_at DESC,p.fill_id DESC) AS recency
-       FROM paper_realized_performance p,boundary b
-       WHERE p.wallet=$1 AND p.realized_at>=b.starts_at
+       SELECT p.occurred_at,p.pnl,
+              row_number() OVER (ORDER BY p.occurred_at DESC,p.event_id DESC) AS recency
+       FROM realized p,boundary b WHERE p.occurred_at>=b.starts_at
      ), events AS (
        SELECT occurred_at,pnl FROM eligible WHERE recency<=499
      ), baseline AS (
        SELECT COALESCE(min(e.occurred_at),b.starts_at) AS occurred_at,
-              COALESCE((SELECT sum(p.realized_pnl_raw) FROM paper_realized_performance p
-                        WHERE p.wallet=$1 AND p.realized_at<b.starts_at),0)
+              COALESCE((SELECT sum(p.pnl) FROM realized p WHERE p.occurred_at<b.starts_at),0)
                 + COALESCE(sum(e.pnl) FILTER (WHERE e.recency>499),0) AS pnl
        FROM boundary b LEFT JOIN eligible e ON true GROUP BY b.starts_at
      ), points AS (
@@ -292,12 +302,12 @@ export async function readPaperDashboardDetails(
                       EXISTS (SELECT 1 FROM paper_position_close_requests r
                         WHERE r.wallet=$1 AND r.token_mint=paper_position_lots.token_mint
                           AND r.state='pending') AS close_pending,
-                      NULL::text AS profile_id,false AS profile_managed
+                      NULL::text AS profile_id,false AS profile_managed,NULL::text AS current_value_raw
                FROM paper_position_lots WHERE wallet=$1 AND current_amount_raw>0
                GROUP BY token_mint
                UNION ALL
                SELECT token_mint,token_amount_raw::text,cost_raw::text,opened_at,1,false,
-                      profile_id,true
+                      profile_id,true,current_value_raw::text
                  FROM paper_profile_positions WHERE wallet=$1
                ORDER BY opened_at DESC, token_mint LIMIT 50) p),'[]') AS positions,
        COALESCE((SELECT jsonb_agg(e ORDER BY e.created_at,e.signal_id)
@@ -321,7 +331,7 @@ export async function readPaperDashboardDetails(
                SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
                       execution_fee_raw::text,quoted_at,filled_at,profile_id,reason
                  FROM paper_profile_fills WHERE wallet=$1
-               ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
+               ORDER BY filled_at DESC,id LIMIT 500) f),'[]') AS fills,
        COALESCE((SELECT jsonb_agg(r ORDER BY r.realized_at DESC, r.fill_id)
          FROM (SELECT fill_id,token_mint,proceeds_raw::text,released_cost_raw::text,
                       realized_pnl_raw::text,realized_at

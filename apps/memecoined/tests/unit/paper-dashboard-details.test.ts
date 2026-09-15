@@ -59,6 +59,8 @@ describe("paper dashboard details", () => {
     ]);
     expect(queries[0]?.values).toEqual(["wallet", "7 days"]);
     expect(queries[0]?.text).toContain("recency<=499");
+    expect(queries[0]?.text).toContain("FROM paper_profile_fills");
+    expect(queries[0]?.text).toContain("settlement_amount_raw-entry_cost_raw-execution_fee_raw");
   });
   it("reads bounded detail panels in one snapshot statement", async () => {
     const queries: { text: string; values: readonly unknown[] }[] = [];
@@ -87,7 +89,8 @@ describe("paper dashboard details", () => {
     expect(queries[0]?.text).toContain("paper_position_close_requests");
     expect(queries[0]?.text).toContain("j.state='available'");
     expect(queries[0]?.text).toContain("profile_id,reason");
-    expect(queries[0]?.text.match(/LIMIT 100/g)).toHaveLength(3);
+    expect(queries[0]?.text).toContain("LIMIT 500");
+    expect(queries[0]?.text.match(/LIMIT 100/g)).toHaveLength(2);
   });
 
   it("rejects malformed database payloads", async () => {

@@ -37,6 +37,29 @@ describe("dashboard UI standards", () => {
     expect(javascript).toContain("raw token quantity");
   });
 
+  it("shows measurable evidence across every operator page", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    for (const id of [
+      "overview-assessed",
+      "overview-completed",
+      "overview-best-strategy",
+      "performance-win-rate",
+      "strategy-performance-rows",
+      "closed-trade-rows",
+      "pipeline-qualification-rate",
+      "pipeline-buys",
+      "pipeline-quote-failures",
+    ]) {
+      expect(html).toContain(`id="${id}"`);
+    }
+    expect(html).toContain("Current value");
+    expect(html).toContain("Last trade");
+    expect(javascript).toContain("function renderOperationalEvidence");
+    expect(javascript).toContain("function renderPerformanceInsights");
+    expect(javascript).toContain("qualification");
+  });
+
   it("guards configuration edits from accidental refresh loss", async () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain('window.addEventListener("beforeunload"');

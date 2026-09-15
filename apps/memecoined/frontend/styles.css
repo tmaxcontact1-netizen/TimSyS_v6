@@ -413,6 +413,48 @@ main {
   border-radius: 15px;
   background: var(--line);
 }
+.performance-kpis {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+.performance-kpis .metric {
+  min-height: 145px;
+  padding: 20px;
+}
+.performance-kpis .metric strong {
+  margin: 18px 0 8px;
+}
+.performance-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+.performance-detail-grid .wide {
+  grid-column: 1 / -1;
+}
+.overview-evidence-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+.evidence-panel { min-width: 0; }
+.evidence-facts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.result-interpretation {
+  display: grid;
+  gap: 0;
+  margin: 10px 0 0;
+}
+.result-interpretation div {
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+.result-interpretation div:last-child { border-bottom: 0; }
+.result-interpretation dt { color: var(--muted); font-size: 11px; }
+.result-interpretation dd { margin: 6px 0 0; line-height: 1.45; }
 .metric {
   min-height: 175px;
   padding: 26px;
@@ -530,6 +572,8 @@ main {
 @media (max-width: 900px) {
   .profile-grid { grid-template-columns: 1fr; }
   .profile-controls, .profile-facts { grid-template-columns: 1fr; }
+  .performance-kpis, .performance-detail-grid, .overview-evidence-grid { grid-template-columns: 1fr; }
+  .performance-detail-grid .wide { grid-column: auto; }
 }
 .configuration-toolbar {
   align-items: end;

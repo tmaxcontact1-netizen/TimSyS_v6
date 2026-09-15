@@ -87,8 +87,29 @@
           ><small id="open-positions">— positions</small>
         </article>
         <article class="metric">
-          <span>Realized P&amp;L</span><strong id="pnl">—</strong
+          <span>Realized profit or loss</span><strong id="pnl">—</strong
           ><small>FIFO realized performance</small>
+        </article>
+      </section>
+      <section class="overview-evidence-grid" data-pages="overview" aria-label="Trading evidence">
+        <article class="panel evidence-panel">
+          <div class="panel-heading"><div><p class="eyebrow">WHAT THE SYSTEM HAS DONE</p><h2>Trading evidence</h2></div></div>
+          <div class="operational-facts evidence-facts">
+            <div><span>Active strategies</span><strong id="overview-active-profiles">—</strong></div>
+            <div><span>Candidates assessed</span><strong id="overview-assessed">—</strong></div>
+            <div><span>Candidates qualified</span><strong id="overview-qualified">—</strong></div>
+            <div><span>Completed positions</span><strong id="overview-completed">—</strong></div>
+            <div><span>Profitable positions</span><strong id="overview-winners">—</strong></div>
+            <div><span>Positions open now</span><strong id="overview-open">—</strong></div>
+          </div>
+        </article>
+        <article class="panel evidence-panel">
+          <div class="panel-heading"><div><p class="eyebrow">CURRENT INTERPRETATION</p><h2>What the results say</h2></div></div>
+          <dl class="result-interpretation">
+            <div><dt>Best result so far</dt><dd id="overview-best-strategy">—</dd></div>
+            <div><dt>Most recent trade</dt><dd id="overview-last-trade">—</dd></div>
+            <div><dt>Current position</dt><dd id="overview-current-position">—</dd></div>
+          </dl>
         </article>
       </section>
       <section
@@ -183,14 +204,16 @@
               <thead>
                 <tr>
                   <th>Token</th>
-                  <th>Open cost</th>
+                  <th>Invested</th>
+                  <th>Current value</th>
+                  <th>Last trade</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody id="watchlist-rows">
                 <tr>
-                  <td colspan="4" class="empty">No watched tokens</td>
+                  <td colspan="6" class="empty">No watched tokens</td>
                 </tr>
               </tbody>
             </table>
@@ -265,6 +288,48 @@
             <li>No queued work reported</li>
           </ol>
         </article>
+        <article class="panel evidence-panel wide">
+          <div class="panel-heading"><div><p class="eyebrow">PIPELINE CONVERSION</p><h2>From assessment to trade</h2></div></div>
+          <div class="operational-facts evidence-facts pipeline-facts">
+            <div><span>Assessed</span><strong id="pipeline-assessed">—</strong></div>
+            <div><span>Qualified</span><strong id="pipeline-qualified">—</strong></div>
+            <div><span>Qualification rate</span><strong id="pipeline-qualification-rate">—</strong></div>
+            <div><span>Buy fills</span><strong id="pipeline-buys">—</strong></div>
+            <div><span>Completed positions</span><strong id="pipeline-completed">—</strong></div>
+            <div><span>Quote failures</span><strong id="pipeline-quote-failures">—</strong></div>
+          </div>
+          <p id="pipeline-interpretation" class="operator-action">Waiting for strategy evidence.</p>
+        </article>
+      </section>
+      <section
+        class="hero-grid performance-kpis"
+        aria-label="Performance summary"
+        data-pages="performance"
+      >
+        <article class="metric metric-primary">
+          <span>Net portfolio result</span><strong id="performance-net">—</strong>
+          <small id="performance-net-context">Cash plus latest quoted positions, versus starting funds</small>
+        </article>
+        <article class="metric">
+          <span>Portfolio return</span><strong id="performance-return">—</strong>
+          <small>Current marked value versus starting funds</small>
+        </article>
+        <article class="metric">
+          <span>Completed trades</span><strong id="performance-closed">—</strong>
+          <small id="performance-trade-context">In the selected period</small>
+        </article>
+        <article class="metric">
+          <span>Win rate</span><strong id="performance-win-rate">—</strong>
+          <small id="performance-win-context">Profitable completed trades</small>
+        </article>
+        <article class="metric">
+          <span>Average result</span><strong id="performance-average">—</strong>
+          <small>Per completed trade in this period</small>
+        </article>
+        <article class="metric">
+          <span>Largest drawdown</span><strong id="performance-drawdown">—</strong>
+          <small>Largest fall from a previous equity high</small>
+        </article>
       </section>
       <section
         id="performance"
@@ -287,7 +352,7 @@
           </div>
         </div>
         <p class="chart-note">
-          Initial capital plus cumulative realized P&amp;L; not mark-to-market valuation.
+          Starting capital plus the result of each completed trade. Open-position value is reported above.
         </p>
         <div
           id="performance-chart"
@@ -299,9 +364,29 @@
         </div>
         <div class="chart-legend">
           <span><i class="equity-key"></i>Book equity</span
-          ><span><i class="pnl-key"></i>Realized P&amp;L</span
+          ><span><i class="pnl-key"></i>Realized profit or loss</span
           ><strong id="chart-range-label">Last 7 days</strong>
         </div>
+      </section>
+      <section class="performance-detail-grid" data-pages="performance" aria-label="Performance evidence">
+        <article class="panel table-panel">
+          <div class="panel-heading"><div><p class="eyebrow">STRATEGY ATTRIBUTION</p><h2>Results by strategy</h2></div></div>
+          <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Net result</th><th>Return</th><th>Fills</th><th>Open</th></tr></thead>
+            <tbody id="strategy-performance-rows"><tr><td colspan="5" class="empty">Waiting for strategy results</td></tr></tbody>
+          </table></div>
+        </article>
+        <article class="panel table-panel">
+          <div class="panel-heading"><div><p class="eyebrow">EXIT OUTCOMES</p><h2>Why positions closed</h2></div></div>
+          <div class="table-scroll"><table><thead><tr><th>Reason</th><th>Trades</th><th>Profitable</th><th>Net result</th></tr></thead>
+            <tbody id="exit-reason-rows"><tr><td colspan="4" class="empty">Waiting for completed trades</td></tr></tbody>
+          </table></div>
+        </article>
+        <article class="panel table-panel wide">
+          <div class="panel-heading"><div><p class="eyebrow">COMPLETED POSITIONS</p><h2>Trade outcomes</h2></div></div>
+          <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Token</th><th>Spent</th><th>Received</th><th>Result</th><th>Return</th><th>Held</th><th>Exit</th></tr></thead>
+            <tbody id="closed-trade-rows"><tr><td colspan="8" class="empty">Waiting for completed trades</td></tr></tbody>
+          </table></div>
+        </article>
       </section>
       <section
         class="operations optional-detail"
@@ -415,6 +500,7 @@
             <table>
               <thead>
                 <tr>
+                  <th>Strategy</th>
                   <th>
                     <button class="sort-button" data-table="positions" data-sort="token_mint">
                       Token
@@ -424,30 +510,30 @@
                     <button
                       class="sort-button"
                       data-table="positions"
-                      data-sort="amount_raw"
-                      data-kind="bigint"
-                    >
-                      Amount
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="positions"
                       data-sort="cost_raw"
                       data-kind="bigint"
                     >
-                      Cost
+                      Invested
                     </button>
                   </th>
                   <th>
                     <button
                       class="sort-button"
                       data-table="positions"
-                      data-sort="lots"
+                      data-sort="current_value_raw"
                       data-kind="bigint"
                     >
-                      Lots
+                      Current value
+                    </button>
+                  </th>
+                  <th>
+                    <button
+                      class="sort-button"
+                      data-table="positions"
+                      data-sort="unrealized_raw"
+                      data-kind="bigint"
+                    >
+                      Unrealized result
                     </button>
                   </th>
                   <th>
@@ -465,7 +551,7 @@
               </thead>
               <tbody id="position-rows">
                 <tr>
-                  <td colspan="6" class="empty">Waiting for current data</td>
+                  <td colspan="7" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -599,7 +685,7 @@
                       data-sort="realized_pnl_raw"
                       data-kind="bigint"
                     >
-                      P&amp;L
+                      Profit or loss
                     </button>
                   </th>
                   <th>
@@ -793,7 +879,7 @@
       <div class="token-metrics">
         <div><span>Open amount</span><strong id="token-amount">—</strong></div>
         <div><span>Open cost</span><strong id="token-cost">—</strong></div>
-        <div><span>Realized P&amp;L</span><strong id="token-pnl">—</strong></div>
+        <div><span>Realized profit or loss</span><strong id="token-pnl">—</strong></div>
         <div><span>Lots</span><strong id="token-lots">—</strong></div>
       </div>
       <div class="dialog-grid">
