@@ -33,6 +33,34 @@ async function createArchive(source, archive) {
   });
 }
 
+async function runNodeScript(script, arguments_ = []) {
+  await new Promise((resolveRun, reject) => {
+    const child = spawn(process.execPath, [join(root, 'scripts', script), ...arguments_], {
+      cwd: root,
+      windowsHide: true,
+      stdio: 'inherit',
+    });
+    child.once('error', reject);
+    child.once('exit', code => code === 0
+      ? resolveRun()
+      : reject(new Error(`${script} exited with ${code}`)));
+  });
+}
+
+async function stageHasProductionDependencies() {
+  try {
+    await Promise.all([
+      access(join(stage, 'platform', 'modules-runtime')),
+      access(join(stage, 'apps', 'memecoined', 'modules-runtime')),
+      access(join(stage, 'apps', 'dressed', 'modules-runtime')),
+      access(join(stage, 'apps', 'researched', 'modules-runtime')),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function contentVersion(directory) {
   const digest = createHash('sha256');
   async function visit(current, prefix = '') {
@@ -52,6 +80,16 @@ async function contentVersion(directory) {
   await visit(directory);
   return digest.digest('hex').slice(0, 24);
 }
+
+// A release must never trust a previous packaging run. Build current sources,
+// refresh the runtime stage, and prove that the staged application trees match
+// before calculating bundle versions.
+await runNodeScript('workspace.mjs', ['build']);
+await runNodeScript(
+  'prepare-windows-runtime.mjs',
+  await stageHasProductionDependencies() ? ['--refresh-source-only'] : [],
+);
+await runNodeScript('verify-windows-runtime.mjs');
 
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
