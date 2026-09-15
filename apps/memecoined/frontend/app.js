@@ -174,6 +174,9 @@ const ids = [
   "profile-list",
   "profile-active-count",
   "profile-allocation-summary",
+  "benchmark-list",
+  "benchmark-active-count",
+  "benchmark-message",
   "menu-toggle",
   "sidebar-backdrop",
   "sidebar-collapse",
@@ -465,6 +468,10 @@ function setConfigurationMessage(message, state = "ok") {
   elements["configuration-message"].textContent = message;
   elements["configuration-message"].dataset.state = state;
 }
+function setBenchmarkMessage(message, state = "ok") {
+  elements["benchmark-message"].textContent = message;
+  elements["benchmark-message"].dataset.state = state;
+}
 function percentFromBps(value) {
   return `${(Number(value) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;
 }
@@ -478,12 +485,16 @@ function profileModeLabel(mode) {
   );
 }
 function renderTradingProfiles() {
-  const enabled = tradingProfiles.filter((profile) => profile.enabled);
+  const timsysProfiles = tradingProfiles.filter((profile) => profile.group !== "benchmark");
+  const benchmarkProfiles = tradingProfiles.filter((profile) => profile.group === "benchmark");
+  const enabled = timsysProfiles.filter((profile) => profile.enabled);
   const allocated = enabled.reduce((sum, profile) => sum + profile.allocationBps, 0);
   elements["profile-active-count"].textContent = `${enabled.length} active`;
   elements["profile-allocation-summary"].textContent =
     `${percentFromBps(allocated)} of paper funds allocated`;
   elements["profile-list"].replaceChildren();
+  elements["benchmark-list"].replaceChildren();
+  elements["benchmark-active-count"].textContent = `${benchmarkProfiles.filter((profile) => profile.enabled).length} active`;
   for (const profile of tradingProfiles) {
     const card = document.createElement("article");
     card.className = "profile-card";
@@ -510,6 +521,9 @@ function renderTradingProfiles() {
     const evidence = document.createElement("p");
     evidence.className = "profile-approach";
     evidence.textContent = `${profile.evidenceStatus === "awaiting_data" ? "Waiting for evidence: " : "Evidence ready: "}${profile.evidenceMessage || "Uses the candidate evidence currently collected."}`;
+    const decisionModel = document.createElement("p");
+    decisionModel.className = "profile-approach";
+    decisionModel.textContent = `Entry rule: ${profile.decisionModel || "Candidate score, safety gates and the profile’s stated evidence rules."}`;
     const controls = document.createElement("div");
     controls.className = "profile-controls";
     const mode = document.createElement("label");
@@ -535,6 +549,11 @@ function renderTradingProfiles() {
     allocationInput.value = String(profile.allocationBps / 100);
     allocationInput.disabled = !mutationToken;
     allocation.append(allocationInput);
+    if (profile.group === "benchmark") {
+      allocation.querySelector("span").textContent = "Comparison capital";
+      allocationInput.value = "100";
+      allocationInput.disabled = true;
+    }
     const facts = document.createElement("dl");
     facts.className = "profile-facts";
     const performance = profile.performance;
@@ -547,17 +566,17 @@ function renderTradingProfiles() {
       : "";
     facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Candidates assessed</dt><dd>${assessed.toLocaleString()}</dd></div><div><dt>Currently qualified</dt><dd>${qualified.toLocaleString()}</dd></div>${temporalFacts}<div><dt>Buy and sell fills</dt><dd>${performance?.fills ?? 0}</dd></div><div><dt>Entry attempts waiting</dt><dd>${performance?.entries_pending ?? 0}</dd></div><div><dt>Entries rejected by quote cost</dt><dd>${performance?.entries_failed ?? 0}</dd></div><div><dt>Net result</dt><dd class="${result >= 0n ? "positive" : "negative"}">${performance ? signedSol(result) : "Waiting for first cycle"}</dd></div><div><dt>Return on assigned funds</dt><dd class="${result >= 0n ? "positive" : "negative"}">${performance ? percentage(result, initial, 2) : "—"}</dd></div><div><dt>Positions open now</dt><dd>${performance?.open_positions ?? 0}</dd></div>`;
     const save = async (nextEnabled = profile.enabled) => {
-      const allocationBps = Math.round(Number(allocationInput.value) * 100);
+      const allocationBps = profile.group === "benchmark" ? 10_000 : Math.round(Number(allocationInput.value) * 100);
       if (!Number.isSafeInteger(allocationBps) || allocationBps < 0 || allocationBps > 10000) {
         const message = "Enter a paper-fund share between 0% and 100%.";
-        setConfigurationMessage(message, "error");
+        (profile.group === "benchmark" ? setBenchmarkMessage : setConfigurationMessage)(message, "error");
         actionMessage.textContent = message;
         actionMessage.dataset.state = "error";
         return;
       }
       if (nextEnabled && modeSelect.value === "automatic_paper" && allocationBps === 0) {
         const message = "Choose a share of paper funds before starting automatic paper trading.";
-        setConfigurationMessage(message, "error");
+        (profile.group === "benchmark" ? setBenchmarkMessage : setConfigurationMessage)(message, "error");
         actionMessage.textContent = message;
         actionMessage.dataset.state = "error";
         return;
@@ -596,7 +615,7 @@ function renderTradingProfiles() {
         }
         await refreshTradingProfiles();
         const message = `${profile.name} ${nextEnabled ? "started" : "stopped"} in ${profileModeLabel(modeSelect.value).toLowerCase()} mode.`;
-        setConfigurationMessage(message);
+        (profile.group === "benchmark" ? setBenchmarkMessage : setConfigurationMessage)(message);
         const currentMessage = document.querySelector(
           `[data-profile-id="${profile.id}"] .profile-action-message`,
         );
@@ -607,7 +626,7 @@ function renderTradingProfiles() {
       } catch (error) {
         await refreshTradingProfiles().catch(() => undefined);
         const message = error instanceof Error ? error.message : "The profile setting was not saved.";
-        setConfigurationMessage(message, "error");
+        (profile.group === "benchmark" ? setBenchmarkMessage : setConfigurationMessage)(message, "error");
         const currentMessage = document.querySelector(
           `[data-profile-id="${profile.id}"] .profile-action-message`,
         );
@@ -630,8 +649,8 @@ function renderTradingProfiles() {
     actionMessage.className = "profile-action-message";
     actionMessage.setAttribute("role", "status");
     actionMessage.setAttribute("aria-live", "polite");
-    card.append(heading, summary, approach, evidence, controls, facts, actionMessage);
-    elements["profile-list"].append(card);
+    card.append(heading, summary, approach, decisionModel, evidence, controls, facts, actionMessage);
+    elements[profile.group === "benchmark" ? "benchmark-list" : "profile-list"].append(card);
   }
 }
 async function refreshTradingProfiles() {
@@ -957,6 +976,11 @@ function percentage(numerator, denominator, digits = 1) {
   if (denominator === 0n) return "—";
   return `${(Number(numerator * 10_000n / denominator) / 100).toFixed(digits)}%`;
 }
+function tradeReturn(trade, digits = 2) {
+  if (!trade || trade.spent <= 0n) return "—";
+  const value = percentage(trade.pnl, trade.spent, digits);
+  return trade.pnl > 0n ? `+${value}` : value;
+}
 function selectedRangeStart() {
   const milliseconds = { "24h": 86_400_000, "7d": 604_800_000, "30d": 2_592_000_000 }[selectedRange];
   return milliseconds ? Date.now() - milliseconds : Number.NEGATIVE_INFINITY;
@@ -1264,15 +1288,29 @@ function renderDetails() {
     "positions",
   );
   const pendingEntries = filterToken(detailSnapshot.pendingEntries);
-  const profilePerformance = completedTrades().map((trade) => ({
+  const completed = completedTrades();
+  const completedByExit = new Map(completedTrades(false).map((trade) => [trade.exit, trade]));
+  const profilePerformance = completed.map((trade) => ({
     token_mint: trade.exit.token_mint,
     proceeds_raw: trade.received.toString(),
     released_cost_raw: trade.spent.toString(),
     realized_pnl_raw: trade.pnl.toString(),
+    return_percent: tradeReturn(trade),
     realized_at: trade.exit.filled_at,
   }));
   const performance = sorted(
-    filterToken([...detailSnapshot.performance, ...profilePerformance]),
+    filterToken([...detailSnapshot.performance, ...profilePerformance]).map((record) => ({
+      ...record,
+      return_percent:
+        record.return_percent ??
+        (BigInt(record.released_cost_raw ?? "0") > 0n
+          ? `${BigInt(record.realized_pnl_raw ?? "0") > 0n ? "+" : ""}${percentage(
+              BigInt(record.realized_pnl_raw ?? "0"),
+              BigInt(record.released_cost_raw),
+              2,
+            )}`
+          : "—"),
+    })),
     "performance",
   );
   const events = sorted(filterToken(detailSnapshot.events), "events");
@@ -1280,7 +1318,10 @@ function renderDetails() {
     filterToken(detailSnapshot.fills).filter(
       (record) =>
         elements["side-filter"].value === "all" || record.side === elements["side-filter"].value,
-    ),
+    ).map((record) => ({
+      ...record,
+      completed_trade: record.side === "sell" ? completedByExit.get(record) : undefined,
+    })),
     "fills",
   );
   const currentPage = document.body.dataset.page;
@@ -1352,6 +1393,16 @@ function renderDetails() {
         text: sol(r.settlement_amount_raw),
         title: `${r.side === "buy" ? "Spent" : "Received"}; raw token quantity ${r.token_amount_raw}`,
       }),
+      (r) => ({
+        text: r.side === "sell" ? tradeReturn(r.completed_trade) : "—",
+        className:
+          r.side !== "sell" || !r.completed_trade
+            ? ""
+            : r.completed_trade.pnl >= 0n
+              ? "positive"
+              : "negative",
+        title: r.side === "sell" ? "Percentage gain or loss against the position's purchase cost" : "Shown when this position is sold",
+      }),
       (r) => ({ text: tradeReason(r.reason) }),
       (r) => ({ text: time(r.filled_at) }),
     ],
@@ -1366,6 +1417,10 @@ function renderDetails() {
       (r) => ({ text: sol(r.released_cost_raw) }),
       (r) => ({
         text: sol(r.realized_pnl_raw),
+        className: BigInt(r.realized_pnl_raw) >= 0n ? "positive" : "negative",
+      }),
+      (r) => ({
+        text: r.return_percent,
         className: BigInt(r.realized_pnl_raw) >= 0n ? "positive" : "negative",
       }),
       (r) => ({ text: time(r.realized_at) }),
@@ -1748,6 +1803,10 @@ function updateNavigationState() {
       "Trading profiles",
       "Run several paper strategies concurrently within one shared risk boundary.",
     ],
+    benchmarks: [
+      "Strategy benchmarks",
+      "Compare TimSyS profiles with established, deterministic trading rules under the same conditions.",
+    ],
     operations: ["Operations", "Check market connections, paper trading, data updates and alerts."],
   }[page];
   elements["page-title"].textContent = pageCopy[0];
@@ -1763,6 +1822,7 @@ function updateNavigationState() {
       "#history": "history",
       "#watchlist": "watchlist",
       "#configurations": "configurations",
+      "#benchmarks": "benchmarks",
       "#alerts": "operations",
     }[link.getAttribute("href")];
     if (linkPage === page) link.setAttribute("aria-current", "page");

@@ -20,8 +20,17 @@ describe("trading profiles", () => {
       "recovery_reversal",
       "launch_transition",
       "scalper",
+      "benchmark_buy_hold",
+      "benchmark_momentum",
+      "benchmark_ema_cross",
+      "benchmark_rsi_reversal",
+      "benchmark_macd_trend",
+      "benchmark_bollinger_reversion",
+      "benchmark_donchian_breakout",
+      "benchmark_volume_breakout",
+      "benchmark_atr_trend",
     ]);
-    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(12);
+    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(21);
     expect(tradingProfileCatalogue.every(({ hardStopBps }) => hardStopBps > 0)).toBe(true);
   });
 
@@ -55,5 +64,13 @@ describe("trading profiles", () => {
     expect(() => validateConcurrentProfileAllocation([
       { profileId: "scalper", enabled: true, mode: "automatic_paper", allocationBps: 0 },
     ])).toThrow(/positive allocation/i);
+  });
+
+  it("keeps independent benchmark capital outside the operational allocation", () => {
+    expect(validateConcurrentProfileAllocation([
+      { profileId: "fast_furious", enabled: true, mode: "automatic_paper", allocationBps: 10_000 },
+      { profileId: "benchmark_ema_cross", enabled: true, mode: "automatic_paper", allocationBps: 10_000 },
+      { profileId: "benchmark_rsi_reversal", enabled: true, mode: "automatic_paper", allocationBps: 10_000 },
+    ])).toEqual({ allocatedBps: 10_000, unallocatedBps: 0 });
   });
 });

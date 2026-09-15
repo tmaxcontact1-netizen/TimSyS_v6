@@ -61,4 +61,18 @@ describe("short-horizon strategy evidence", () => {
     expect(result.marketConfirmed).toBe(false);
     expect(result.eligible).toBe(false);
   });
+
+  it("runs the passive benchmark from the same confirmed executable evidence", () => {
+    const result = evaluateShortHorizonSignal(
+      "benchmark_buy_hold",
+      points(10_000n, 9_995n, 10_005n, 10_000n, 9_998n, 9_996n),
+    );
+    expect(result).toMatchObject({ eligible: true, pattern: "buy_hold", marketConfirmed: true });
+  });
+
+  it("calculates a classic EMA benchmark from a longer history", () => {
+    const sequence = points(...Array.from({ length: 24 }, (_, index) => BigInt(12_000 - index * 25)));
+    const result = evaluateShortHorizonSignal("benchmark_ema_cross", sequence);
+    expect(result).toMatchObject({ eligible: true, pattern: "ema_cross", indicator: "fast minus slow EMA" });
+  });
 });

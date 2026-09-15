@@ -36,6 +36,7 @@
         <a href="#history" data-short="HI"><strong>History</strong><small>Fills and decisions</small></a>
         <a href="#watchlist" data-short="WA"><strong>Watchlists</strong><small>Tokens under observation</small></a>
         <a href="#configurations" data-short="PF"><strong>Trading profiles</strong><small>Choose how paper trading behaves</small></a>
+        <a href="#benchmarks" data-short="BM"><strong>Strategy benchmarks</strong><small>Compare with established rules</small></a>
         <a href="#alerts" data-short="AT"><strong>Operations</strong><small>Connections, updates and alerts</small></a>
       </nav>
       <div class="operator-access">
@@ -111,6 +112,13 @@
             <div id="overview-current-position-row"><dt>Current position</dt><dd id="overview-current-position">—</dd></div>
           </dl>
         </article>
+      </section>
+      <section id="benchmarks" class="panel configuration-panel" data-dashboard-panel="benchmarks" data-pages="benchmarks" data-panel-title="Strategy benchmarks">
+        <div class="panel-heading"><div><p class="eyebrow">FAIR COMPARISON</p><h2>Established strategy benchmarks</h2></div></div>
+        <p class="panel-note">Each benchmark receives its own simulated 10 SOL account and sees the same candidates, executable quotes, costs and non-negotiable safety gates. It cannot consume the TimSyS profiles’ funds. This makes the comparison meaningful: a positive result shows what the published rule achieved under the same conditions, not what it might have achieved in theory.</p>
+        <div class="profile-summary" aria-live="polite"><strong id="benchmark-active-count">0 active</strong><span>Independent 10 SOL accounts</span><span>Paper trading only</span></div>
+        <div id="benchmark-list" class="profile-grid" aria-label="Strategy benchmark profiles"><p class="empty">Loading strategy benchmarks…</p></div>
+        <output id="benchmark-message" class="preference-message" aria-live="polite"></output>
       </section>
       <section
         id="configurations"
@@ -619,6 +627,7 @@
                       SOL value
                     </button>
                   </th>
+                  <th>Gain / loss</th>
                   <th>
                     <button class="sort-button" data-table="fills" data-sort="reason">Reason</button>
                   </th>
@@ -636,7 +645,7 @@
               </thead>
               <tbody id="fill-rows">
                 <tr>
-                  <td colspan="6" class="empty">Waiting for current data</td>
+                  <td colspan="7" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>
@@ -689,6 +698,7 @@
                       Result
                     </button>
                   </th>
+                  <th>Gain / loss</th>
                   <th>
                     <button
                       class="sort-button"
@@ -703,7 +713,7 @@
               </thead>
               <tbody id="performance-rows">
                 <tr>
-                  <td colspan="5" class="empty">Waiting for current data</td>
+                  <td colspan="6" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>

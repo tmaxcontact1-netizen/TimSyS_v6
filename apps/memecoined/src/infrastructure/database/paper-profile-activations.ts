@@ -55,7 +55,16 @@ export async function ensureAllProfilesPaperTrialPreset(
          ('social_catalyst',false,'observe',0,$11::uuid),
          ('recovery_reversal',false,'observe',0,$12::uuid),
          ('launch_transition',false,'observe',0,$13::uuid),
-         ('scalper',false,'observe',0,$14::uuid)
+         ('scalper',false,'observe',0,$14::uuid),
+         ('benchmark_buy_hold',false,'observe',10000,$15::uuid),
+         ('benchmark_momentum',false,'observe',10000,$16::uuid),
+         ('benchmark_ema_cross',false,'observe',10000,$17::uuid),
+         ('benchmark_rsi_reversal',false,'observe',10000,$18::uuid),
+         ('benchmark_macd_trend',false,'observe',10000,$19::uuid),
+         ('benchmark_bollinger_reversion',false,'observe',10000,$20::uuid),
+         ('benchmark_donchian_breakout',false,'observe',10000,$21::uuid),
+         ('benchmark_volume_breakout',false,'observe',10000,$22::uuid),
+         ('benchmark_atr_trend',false,'observe',10000,$23::uuid)
      ), inserted AS (
        INSERT INTO paper_profile_activations
          (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)

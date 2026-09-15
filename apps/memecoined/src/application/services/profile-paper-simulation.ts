@@ -97,6 +97,10 @@ export function evaluateProfileCandidate(
     reasons.push("Short-term momentum and transaction quality do not agree");
   if (profile.id === "trend_detector" && (score.momentum < 12 || score.liquidity < 10))
     reasons.push("Emerging trend lacks sufficient momentum or liquidity");
+  if (profile.id === "whale_tracker" && (score.liquidity < 10 || score.volumeQuality < 5))
+    reasons.push("Tracked-wallet activity lacks supporting liquidity or transaction quality");
+  if (profile.id === "capital_preservation" && (score.liquidity < 18 || score.holders < 10 || score.volumeQuality < 8))
+    reasons.push("Liquidity, holder breadth or transaction quality is below the defensive standard");
   if (
     profile.id === "liquidity_expansion" &&
     (score.liquidity < 15 || score.volumeQuality < 8 || score.holders < 5)
@@ -106,6 +110,8 @@ export function evaluateProfileCandidate(
     reasons.push("Immediate momentum, liquidity and transaction quality do not yet agree");
   if (profile.id === "slow_steady" && (score.liquidity < 15 || score.holders < 8))
     reasons.push("Liquidity or holder distribution is below the long-hold standard");
+  if (profile.id.startsWith("benchmark_") && (score.liquidity < 8 || score.volumeQuality < 4))
+    reasons.push("The shared benchmark market-quality floor is not met");
   if (
     profile.id === "signal_consensus" &&
     [score.wallet, score.liquidity, score.momentum, score.holders, score.volumeQuality].some(
@@ -151,12 +157,26 @@ type EntryAttempt =
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
 const temporalEngineVersion = "temporal-v3";
-const fastProfileIds = new Set<TradingProfileId>([
+const temporalProfileIds = new Set<TradingProfileId>([
+  "whale_tracker",
   "fast_furious",
+  "slow_steady",
   "scalper",
   "trend_detector",
+  "capital_preservation",
+  "signal_consensus",
   "breakout_retest",
+  "liquidity_expansion",
   "recovery_reversal",
+  "benchmark_buy_hold",
+  "benchmark_momentum",
+  "benchmark_ema_cross",
+  "benchmark_rsi_reversal",
+  "benchmark_macd_trend",
+  "benchmark_bollinger_reversion",
+  "benchmark_donchian_breakout",
+  "benchmark_volume_breakout",
+  "benchmark_atr_trend",
 ]);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
 const uuid = (parts: readonly string[]) => {
@@ -186,8 +206,10 @@ async function ensureAccounts(pool: Pool, wallet: WalletAddress, at: Timestamp):
     `INSERT INTO paper_profile_accounts
        (wallet,profile_id,allocation_bps,initial_cash_raw,cash_raw,created_at,updated_at)
      SELECT a.wallet,p.profile_id,p.allocation_bps,
-            GREATEST(floor(a.initial_cash_raw*p.allocation_bps/10000),1),
-            GREATEST(floor(a.initial_cash_raw*p.allocation_bps/10000),1),$2,$2
+            CASE WHEN p.profile_id LIKE 'benchmark_%' THEN a.initial_cash_raw
+                 ELSE GREATEST(floor(a.initial_cash_raw*p.allocation_bps/10000),1) END,
+            CASE WHEN p.profile_id LIKE 'benchmark_%' THEN a.initial_cash_raw
+                 ELSE GREATEST(floor(a.initial_cash_raw*p.allocation_bps/10000),1) END,$2,$2
      FROM paper_accounts a JOIN paper_profile_activations p ON p.wallet=a.wallet
      WHERE a.wallet=$1 AND p.enabled=true AND p.mode='automatic_paper' AND p.allocation_bps>0
      ON CONFLICT (wallet,profile_id) DO NOTHING`,
@@ -215,7 +237,7 @@ async function collectFastMarketObservations(input: {
   const enabled = await input.pool.query<{ profile_id: TradingProfileId }>(
     `SELECT profile_id FROM paper_profile_activations
       WHERE wallet=$1 AND enabled=true AND mode='automatic_paper' AND profile_id=ANY($2::text[])`,
-    [input.wallet, [...fastProfileIds]],
+    [input.wallet, [...temporalProfileIds]],
   );
   if (enabled.rows.length === 0) return;
   const candidates = await input.pool.query<FastObservationCandidate>(
@@ -278,7 +300,7 @@ async function collectFastMarketObservations(input: {
       `SELECT observed_at,output_amount_raw::text,liquidity_usd::text,five_minute_volume_usd::text,
               five_minute_buys::text,five_minute_sells::text
          FROM paper_fast_market_observations
-        WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 6`,
+        WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 40`,
       [input.wallet, candidate.mint_address],
     );
     const points: ExecutableMarketPoint[] = history.rows.reverse().map((row) => ({
@@ -293,17 +315,12 @@ async function collectFastMarketObservations(input: {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
       const signal = evaluateShortHorizonSignal(profile.id, points);
-      const requiredRules = requiredPaperRules(profile);
-      const safetyFailed = (candidate.failed_rules ?? []).some((rule) => requiredRules.has(rule));
       const score = candidate.breakdown_json;
-      const appetite = profile.id === "scalper"
-        ? score.total >= 40 && score.liquidity >= 10 && score.volumeQuality >= 5
-        : score.total >= 35 && score.liquidity >= 10;
-      const eligible = signal.eligible && appetite && !safetyFailed;
+      const profileDecision = evaluateProfileCandidate(profile, score, candidate.failed_rules ?? []);
+      const eligible = signal.eligible && profileDecision.eligible;
       const reasons = [
         signal.reason,
-        ...(appetite ? [] : ["Market quality is below this fast profile's minimum"]),
-        ...(safetyFailed ? ["A required safety gate failed"] : []),
+        ...profileDecision.reasons,
       ];
       await input.pool.query(
         `INSERT INTO paper_fast_signal_events
@@ -546,7 +563,7 @@ async function evaluateNewCandidates(input: {
     for (const activation of activations.rows) {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
-      if (fastProfileIds.has(profile.id)) continue;
+      if (temporalProfileIds.has(profile.id)) continue;
       const decision = evaluateProfileCandidate(
         profile,
         candidate.breakdown_json,
