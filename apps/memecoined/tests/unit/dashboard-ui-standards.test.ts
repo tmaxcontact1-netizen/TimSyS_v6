@@ -60,6 +60,19 @@ describe("dashboard UI standards", () => {
     expect(javascript).toContain("qualification");
   });
 
+  it("keeps the overview concise and suppresses empty operational furniture", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
+    expect(html).toContain('data-pages="operations"');
+    expect(html).not.toContain('data-pages="overview operations"');
+    expect(html).toContain('data-pages="watchlist"');
+    expect(javascript).toContain('document.getElementById("alerts-panel").hidden = alerts.length === 0');
+    expect(javascript).toContain('document.getElementById("pending-entry-panel").hidden = pendingEntries.length === 0');
+    expect(javascript).toContain('currentPage === "positions"');
+    expect(css).toContain("[hidden]");
+  });
+
   it("guards configuration edits from accidental refresh loss", async () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain('window.addEventListener("beforeunload"');

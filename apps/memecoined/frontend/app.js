@@ -125,6 +125,7 @@ const ids = [
   "overview-best-strategy",
   "overview-last-trade",
   "overview-current-position",
+  "overview-current-position-row",
   "pipeline-assessed",
   "pipeline-qualified",
   "pipeline-qualification-rate",
@@ -132,6 +133,7 @@ const ids = [
   "pipeline-completed",
   "pipeline-quote-failures",
   "pipeline-interpretation",
+  "positions-history-toolbar",
   "alert-count",
   "alert-rows",
   "pipeline-state",
@@ -1014,9 +1016,11 @@ function renderOperationalEvidence() {
   elements["overview-qualified"].textContent = qualified.toLocaleString();
   elements["overview-completed"].textContent = allTrades.length.toLocaleString();
   elements["overview-winners"].textContent = winners.toLocaleString();
-  elements["overview-open"].textContent = String(detailSnapshot.positions.length);
+  elements["overview-open"].textContent = allTrades.length
+    ? `${((winners / allTrades.length) * 100).toFixed(1)}%`
+    : "—";
   elements["overview-best-strategy"].textContent = best
-    ? `${best.name}: ${signedSol(best.performance.net_pnl_raw)}`
+    ? `${BigInt(best.performance.net_pnl_raw) > 0n ? "Best gain" : "Smallest loss"}: ${best.name} · ${signedSol(best.performance.net_pnl_raw)}`
     : "No strategy has completed a trade";
   elements["overview-last-trade"].textContent = lastFill
     ? `${profileName(lastFill.profile_id)} ${lastFill.side.toUpperCase()} ${short(lastFill.token_mint)} for ${sol(lastFill.settlement_amount_raw)} · ${time(lastFill.filled_at)}`
@@ -1024,6 +1028,7 @@ function renderOperationalEvidence() {
   elements["overview-current-position"].textContent = current
     ? `${profileName(current.profile_id)} holds ${short(current.token_mint)} · ${sol(current.cost_raw)} invested${current.current_value_raw ? ` · ${sol(current.current_value_raw)} now` : ""}`
     : "No position is open";
+  elements["overview-current-position-row"].hidden = !current;
 
   elements["pipeline-assessed"].textContent = assessed.toLocaleString();
   elements["pipeline-qualified"].textContent = qualified.toLocaleString();
@@ -1275,10 +1280,18 @@ function renderDetails() {
     ),
     "fills",
   );
-  elements["filter-status"].textContent =
-    `Showing ${positions.length + fills.length + performance.length + events.length} records`;
+  const currentPage = document.body.dataset.page;
+  const visibleRecords = currentPage === "positions"
+    ? positions.length + pendingEntries.length
+    : fills.length + performance.length + events.length;
+  elements["filter-status"].textContent = visibleRecords
+    ? `Showing ${visibleRecords.toLocaleString()} matching record${visibleRecords === 1 ? "" : "s"}`
+    : "No matching records";
+  elements["positions-history-toolbar"].hidden =
+    currentPage === "positions" && positions.length + pendingEntries.length === 0;
   elements["position-count"].textContent = positions.length;
   elements["pending-entry-count"].textContent = pendingEntries.length;
+  document.getElementById("pending-entry-panel").hidden = pendingEntries.length === 0;
   elements["fill-count"].textContent = fills.length;
   elements["performance-count"].textContent = performance.length;
   elements["event-count"].textContent = events.length;
@@ -1307,7 +1320,7 @@ function renderDetails() {
         data: { mint: r.token_mint, amountRaw: r.amount_raw },
       }),
     ],
-    "No matching positions",
+    "No positions are open. Automatic profiles will place the next eligible paper trade here.",
   );
   renderRows(
     elements["pending-entry-rows"],
@@ -1516,6 +1529,7 @@ async function refreshAlerts() {
   const response = await fetch("/api/paper/alerts", { cache: "no-store" });
   if (!response.ok) throw new Error("alerts unavailable");
   const { alerts } = await response.json();
+  document.getElementById("alerts-panel").hidden = alerts.length === 0;
   elements["alert-count"].textContent = alerts.length;
   renderRows(
     elements["alert-rows"],
@@ -1568,6 +1582,7 @@ async function refreshPipeline() {
 function recordConnection(state, label) {
   connectionEvents.unshift({ state, label, at: new Date() });
   connectionEvents.splice(8);
+  document.getElementById("connection-panel").hidden = state === "healthy";
   elements["connection-history"].replaceChildren();
   for (const item of connectionEvents) {
     const row = document.createElement("li");
@@ -1682,6 +1697,9 @@ async function refreshOperationalStatus() {
     ? actions.join(" ")
     : "No immediate action is needed.";
   elements["operator-action"].dataset.state = actions.length ? "attention" : "clear";
+  document.getElementById("operator-status").hidden = actions.length === 0;
+  document.getElementById("activity-panel").hidden = true;
+  document.getElementById("integrity-panel").hidden = true;
   if (operations.failedWork > 0) {
     elements["integrity-title"].textContent = "Trading workflow needs attention";
     elements["integrity-copy"].textContent =
@@ -1747,6 +1765,7 @@ function updateNavigationState() {
     if (linkPage === page) link.setAttribute("aria-current", "page");
     else link.removeAttribute("aria-current");
   });
+  renderDetails();
   requestAnimationFrame(() =>
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" })),
   );

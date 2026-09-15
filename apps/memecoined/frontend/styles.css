@@ -1188,6 +1188,7 @@ footer {
     gap: 8px;
   }
 }
+[hidden],
 [data-dashboard-panel][hidden] {
   display: none !important;
 }

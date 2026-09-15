@@ -87,8 +87,8 @@
           ><small id="open-positions">— positions</small>
         </article>
         <article class="metric">
-          <span>Realized profit or loss</span><strong id="pnl">—</strong
-          ><small>FIFO realized performance</small>
+          <span>Realised result</span><strong id="pnl">—</strong
+          ><small>From completed paper trades</small>
         </article>
       </section>
       <section class="overview-evidence-grid" data-pages="overview" aria-label="Trading evidence">
@@ -96,11 +96,11 @@
           <div class="panel-heading"><div><p class="eyebrow">WHAT THE SYSTEM HAS DONE</p><h2>Trading evidence</h2></div></div>
           <div class="operational-facts evidence-facts">
             <div><span>Active strategies</span><strong id="overview-active-profiles">—</strong></div>
-            <div><span>Candidates assessed</span><strong id="overview-assessed">—</strong></div>
-            <div><span>Candidates qualified</span><strong id="overview-qualified">—</strong></div>
+            <div><span>Strategy assessments</span><strong id="overview-assessed">—</strong></div>
+            <div><span>Passed strategy rules</span><strong id="overview-qualified">—</strong></div>
             <div><span>Completed positions</span><strong id="overview-completed">—</strong></div>
             <div><span>Profitable positions</span><strong id="overview-winners">—</strong></div>
-            <div><span>Positions open now</span><strong id="overview-open">—</strong></div>
+            <div><span>Win rate</span><strong id="overview-open">—</strong></div>
           </div>
         </article>
         <article class="panel evidence-panel">
@@ -108,7 +108,7 @@
           <dl class="result-interpretation">
             <div><dt>Best result so far</dt><dd id="overview-best-strategy">—</dd></div>
             <div><dt>Most recent trade</dt><dd id="overview-last-trade">—</dd></div>
-            <div><dt>Current position</dt><dd id="overview-current-position">—</dd></div>
+            <div id="overview-current-position-row"><dt>Current position</dt><dd id="overview-current-position">—</dd></div>
           </dl>
         </article>
       </section>
@@ -161,10 +161,10 @@
         class="detail-grid optional-detail"
         aria-label="Portfolio focus"
         data-dashboard-panel="portfolio"
-        data-pages="overview performance watchlist"
+        data-pages="performance watchlist"
         data-panel-title="Allocation and watchlist"
       >
-        <article id="allocation" class="panel allocation-panel" data-pages="overview performance">
+        <article id="allocation" class="panel allocation-panel" data-pages="performance">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">OPEN COST MIX</p>
@@ -176,7 +176,7 @@
             <span class="empty">Awaiting open positions</span>
           </div>
         </article>
-        <article id="watchlist" class="panel table-panel" data-pages="overview watchlist">
+        <article id="watchlist" class="panel table-panel" data-pages="watchlist">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">PERSISTENT OBSERVATION</p>
@@ -185,7 +185,7 @@
             <span id="watchlist-count" class="count-chip">0</span>
           </div>
           <p class="panel-note">
-            Wallet-scoped operator preference; never used as trading authority.
+            Create a list and add token addresses you want to check again later. Watching a token does not permit a trade.
           </p>
           <div class="watchlist-controls">
             <label
@@ -228,7 +228,7 @@
         data-pages="operations"
         data-panel-title="Alerts and connection"
       >
-        <article class="panel table-panel">
+        <article id="alerts-panel" class="panel table-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">PROCESSING PROBLEMS</p>
@@ -254,7 +254,7 @@
             </table>
           </div>
         </article>
-        <article class="panel connection-panel">
+        <article id="connection-panel" class="panel connection-panel technical-detail">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">DASHBOARD CONNECTION</p>
@@ -364,7 +364,7 @@
         </div>
         <div class="chart-legend">
           <span><i class="equity-key"></i>Book equity</span
-          ><span><i class="pnl-key"></i>Realized profit or loss</span
+          ><span><i class="pnl-key"></i>Realised result</span
           ><strong id="chart-range-label">Last 7 days</strong>
         </div>
       </section>
@@ -391,7 +391,7 @@
       <section
         class="operations optional-detail"
         data-dashboard-panel="operations"
-        data-pages="overview operations"
+        data-pages="operations"
         data-panel-title="Trading operations"
       >
         <article id="operator-status" class="panel operator-status-panel">
@@ -417,7 +417,7 @@
           </div>
           <p id="operator-action" class="operator-action" aria-live="polite"></p>
         </article>
-        <article class="panel activity-panel">
+        <article id="activity-panel" class="panel activity-panel">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">EXECUTION FLOW</p>
@@ -431,7 +431,7 @@
             <div><span>Positions due</span><strong id="positions-due">—</strong></div>
           </div>
         </article>
-        <article class="panel integrity-panel">
+        <article id="integrity-panel" class="panel integrity-panel">
           <p class="eyebrow">SYSTEM INTEGRITY</p>
           <h2 id="integrity-title">Checking app and trading records</h2>
           <p id="integrity-copy">Waiting for the first database-backed snapshot.</p>
@@ -460,6 +460,7 @@
         </article>
       </section>
       <section
+        id="positions-history-toolbar"
         class="toolbar optional-detail"
         aria-label="Table controls"
         data-dashboard-panel="filters"
@@ -557,7 +558,7 @@
             </table>
           </div>
         </article>
-        <article class="panel table-panel" data-pages="positions">
+        <article id="pending-entry-panel" class="panel table-panel" data-pages="positions">
           <div class="panel-heading">
             <div>
               <p class="eyebrow">SIMULATED ENTRIES</p>
@@ -685,7 +686,7 @@
                       data-sort="realized_pnl_raw"
                       data-kind="bigint"
                     >
-                      Profit or loss
+                      Result
                     </button>
                   </th>
                   <th>
@@ -879,7 +880,7 @@
       <div class="token-metrics">
         <div><span>Open amount</span><strong id="token-amount">—</strong></div>
         <div><span>Open cost</span><strong id="token-cost">—</strong></div>
-        <div><span>Realized profit or loss</span><strong id="token-pnl">—</strong></div>
+        <div><span>Realised result</span><strong id="token-pnl">—</strong></div>
         <div><span>Lots</span><strong id="token-lots">—</strong></div>
       </div>
       <div class="dialog-grid">
