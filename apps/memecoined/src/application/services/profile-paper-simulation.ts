@@ -226,7 +226,10 @@ async function collectFastMarketObservations(input: {
         WHERE s.total_score>=30 AND s.evaluated_at >= $2::timestamptz-interval '6 hours'
         ORDER BY c.mint_address,s.evaluated_at DESC
      ), universe AS (
-       SELECT * FROM latest ORDER BY total_score DESC,evaluated_at DESC LIMIT 60
+       -- Keep the monitored set deliberately small enough to build a useful
+       -- time series in minutes. A broad scan belongs to discovery; temporal
+       -- strategies need repeated measurements of the same liquid candidates.
+       SELECT * FROM latest ORDER BY total_score DESC,evaluated_at DESC LIMIT 12
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM universe
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '20 seconds'
@@ -713,6 +716,12 @@ export async function readProfilePaperPerformance(
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.eligible)::int AS short_horizon_qualified
+            ,(SELECT count(*) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS market_observations
+            ,(SELECT count(DISTINCT o.token_mint) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS monitored_tokens
+            ,(SELECT count(*) FROM (
+                 SELECT o.token_mint FROM paper_fast_market_observations o
+                  WHERE o.wallet=a.wallet GROUP BY o.token_mint HAVING count(*)>=3
+              ) ready)::int AS history_ready_tokens
        FROM paper_profile_accounts a WHERE a.wallet=$1 ORDER BY a.profile_id`,
     [wallet],
   );
