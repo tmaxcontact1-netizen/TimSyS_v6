@@ -40,6 +40,8 @@ export interface LiveDiscoverySourceOptions {
   readonly deduplicationWindow: (at: Timestamp) => string;
 }
 
+const approvedDiscoveryProviders = new Set(["dexscreener", "geckoterminal"]);
+
 /** Converts untrusted provider discovery into deterministic, retry-safe candidate hints. */
 export class LiveCandidateDiscoverySource {
   public constructor(private readonly options: LiveDiscoverySourceOptions) {}
@@ -60,7 +62,7 @@ export class LiveCandidateDiscoverySource {
     for (const observation of result.value) {
       if (observation.observedAt > completedAt)
         throw new InvariantViolationError("Discovery observation cannot be from the future");
-      if (observation.trace.provider !== "dexscreener")
+      if (!approvedDiscoveryProviders.has(observation.trace.provider))
         throw new InvariantViolationError("Live discovery provider identity is not approved");
       if (!byMint.has(observation.mint))
         byMint.set(

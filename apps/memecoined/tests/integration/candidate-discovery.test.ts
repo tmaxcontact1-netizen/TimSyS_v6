@@ -122,6 +122,38 @@ describe("candidate discovery", () => {
     });
   });
 
+  it("accepts the approved independent GeckoTerminal discovery source", async () => {
+    const source = new LiveCandidateDiscoverySource({
+      provider: {
+        discoverLatestTokens: async () => ({
+          ok: true,
+          value: [{
+            mint,
+            sourceReference: "geckoterminal:new-pool",
+            observedAt,
+            trace: {
+              evidenceId,
+              provider: "geckoterminal" as const,
+              method: "GET /networks/solana/new_pools",
+              requestedAt: observedAt,
+              respondedAt: observedAt,
+              sourceTimestamp: null,
+              normalizedAt: observedAt,
+              sourceKey: "new-pool",
+              contentHash: "b".repeat(64),
+            },
+          }],
+        }),
+      },
+      strategyVersionId: asStrategyVersionId("strategy-v1.0.0"),
+      now: () => observedAt,
+      deduplicationWindow: () => "2026-08-04T18:00Z",
+    });
+    await expect(source.nextBatch()).resolves.toEqual([
+      expect.objectContaining({ source: expect.objectContaining({ provider: "geckoterminal" }) }),
+    ]);
+  });
+
   it("derives a stable mint, strategy, and window identity", () => {
     expect(
       candidateDeduplicationKey({
