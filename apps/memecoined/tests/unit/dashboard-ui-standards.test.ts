@@ -26,6 +26,17 @@ describe("dashboard UI standards", () => {
     expect(javascript).not.toMatch(/\bconfirm\s*\(/);
   });
 
+  it("presents fills as understandable trades instead of unlabeled token base units", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    expect(html).toContain(">Strategy</button>");
+    expect(html).toContain("SOL value");
+    expect(html).toContain('data-sort="reason"');
+    expect(html).not.toContain("Token amount");
+    expect(javascript).toContain('hard_stop: "Loss limit reached"');
+    expect(javascript).toContain("raw token quantity");
+  });
+
   it("guards configuration edits from accidental refresh loss", async () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain('window.addEventListener("beforeunload"');

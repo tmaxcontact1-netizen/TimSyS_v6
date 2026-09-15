@@ -905,6 +905,21 @@ function amount(raw) {
   const value = String(raw ?? "0");
   return { text: BigInt(value).toLocaleString(), title: value };
 }
+function profileName(profileId) {
+  if (!profileId) return "Core workflow";
+  return tradingProfiles.find((profile) => profile.id === profileId)?.name ?? String(profileId);
+}
+function tradeReason(reason) {
+  return {
+    profile_entry: "Strategy entry",
+    approved_entry: "Approved entry",
+    hard_stop: "Loss limit reached",
+    profit_target: "Profit target reached",
+    trailing_stop: "Trailing protection triggered",
+    time_limit: "Maximum holding time reached",
+    position_exit: "Position exit",
+  }[reason] ?? String(reason ?? "Not recorded").replaceAll("_", " ");
+}
 function token(record) {
   return {
     text: short(record.token_mint),
@@ -1067,10 +1082,14 @@ function renderDetails() {
     elements["fill-rows"],
     fills,
     [
+      (r) => ({ text: profileName(r.profile_id) }),
       (r) => ({ text: String(r.side).toUpperCase(), className: `side-${r.side}` }),
       token,
-      (r) => amount(r.token_amount_raw),
-      (r) => ({ text: sol(r.settlement_amount_raw) }),
+      (r) => ({
+        text: sol(r.settlement_amount_raw),
+        title: `${r.side === "buy" ? "Spent" : "Received"}; raw token quantity ${r.token_amount_raw}`,
+      }),
+      (r) => ({ text: tradeReason(r.reason) }),
       (r) => ({ text: time(r.filled_at) }),
     ],
     "No matching fills",

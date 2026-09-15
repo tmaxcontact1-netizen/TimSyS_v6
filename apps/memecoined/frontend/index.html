@@ -512,7 +512,10 @@
               <thead>
                 <tr>
                   <th>
-                    <button class="sort-button" data-table="fills" data-sort="side">Side</button>
+                    <button class="sort-button" data-table="fills" data-sort="profile_id">Strategy</button>
+                  </th>
+                  <th>
+                    <button class="sort-button" data-table="fills" data-sort="side">Trade</button>
                   </th>
                   <th>
                     <button class="sort-button" data-table="fills" data-sort="token_mint">
@@ -523,21 +526,14 @@
                     <button
                       class="sort-button"
                       data-table="fills"
-                      data-sort="token_amount_raw"
-                      data-kind="bigint"
-                    >
-                      Token amount
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="fills"
                       data-sort="settlement_amount_raw"
                       data-kind="bigint"
                     >
-                      Settlement
+                      SOL value
                     </button>
+                  </th>
+                  <th>
+                    <button class="sort-button" data-table="fills" data-sort="reason">Reason</button>
                   </th>
                   <th>
                     <button
@@ -553,7 +549,7 @@
               </thead>
               <tbody id="fill-rows">
                 <tr>
-                  <td colspan="5" class="empty">Waiting for current data</td>
+                  <td colspan="6" class="empty">Waiting for current data</td>
                 </tr>
               </tbody>
             </table>

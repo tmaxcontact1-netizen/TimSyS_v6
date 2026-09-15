@@ -86,6 +86,7 @@ describe("paper dashboard details", () => {
     expect(queries[0]?.text).toContain("LIMIT 50");
     expect(queries[0]?.text).toContain("paper_position_close_requests");
     expect(queries[0]?.text).toContain("j.state='available'");
+    expect(queries[0]?.text).toContain("profile_id,reason");
     expect(queries[0]?.text.match(/LIMIT 100/g)).toHaveLength(3);
   });
 

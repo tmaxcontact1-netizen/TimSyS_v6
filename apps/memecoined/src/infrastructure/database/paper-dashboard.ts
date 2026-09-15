@@ -314,11 +314,12 @@ export async function readPaperDashboardDetails(
                ORDER BY j.created_at,o.signal_id LIMIT 50) e),'[]') AS pending_entries,
        COALESCE((SELECT jsonb_agg(f ORDER BY f.filled_at DESC, f.id)
          FROM (SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
-                      execution_fee_raw::text,quoted_at,filled_at,NULL::text AS profile_id
+                      execution_fee_raw::text,quoted_at,filled_at,NULL::text AS profile_id,
+                      CASE side WHEN 'buy' THEN 'approved_entry' ELSE 'position_exit' END AS reason
                  FROM paper_fills WHERE wallet=$1
                UNION ALL
                SELECT id,side,token_mint,token_amount_raw::text,settlement_amount_raw::text,
-                      execution_fee_raw::text,quoted_at,filled_at,profile_id
+                      execution_fee_raw::text,quoted_at,filled_at,profile_id,reason
                  FROM paper_profile_fills WHERE wallet=$1
                ORDER BY filled_at DESC,id LIMIT 100) f),'[]') AS fills,
        COALESCE((SELECT jsonb_agg(r ORDER BY r.realized_at DESC, r.fill_id)
