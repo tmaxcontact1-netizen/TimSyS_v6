@@ -1776,6 +1776,7 @@ function updateNavigationState() {
       "#history": "history",
       "#watchlist": "watchlist",
       "#configurations": "configurations",
+      "#benchmarks": "benchmarks",
       "#alerts": "operations",
       "#operator-status": "operations",
       "#allocation": "performance",

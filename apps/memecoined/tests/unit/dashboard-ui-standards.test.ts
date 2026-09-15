@@ -89,6 +89,7 @@ describe("dashboard UI standards", () => {
     expect(html).toContain('id="database-health"');
     expect(javascript).toContain('fetch("/api/health"');
     expect(javascript).toContain("function updateNavigationState");
+    expect(javascript).toContain('"#benchmarks": "benchmarks"');
   });
 
   it("keeps dedicated pages visible regardless of Overview display preferences", async () => {
