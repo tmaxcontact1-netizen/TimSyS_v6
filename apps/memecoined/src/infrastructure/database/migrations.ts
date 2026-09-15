@@ -70,8 +70,17 @@ const paperRequiredColumns = Object.freeze([
   "paper_profile_candidate_decisions.entry_state",
   "paper_profile_candidate_decisions.entry_attempts",
   "paper_profile_candidate_decisions.next_entry_attempt_at",
+  "paper_profile_candidate_decisions.signal_json",
+  "paper_profile_candidate_decisions.signal_observed_at",
+  "paper_fast_market_observations.output_amount_raw",
+  "paper_fast_market_observations.quote_fingerprint",
+  "paper_fast_signal_events.signal_json",
+  "paper_fast_signal_events.eligible",
   "paper_profile_positions.high_water_raw",
   "paper_profile_positions.current_value_raw",
+      "paper_profile_positions.entry_signal_json",
+      "paper_profile_positions.engine_version",
+      "paper_profile_fills.engine_version",
   "paper_profile_fills.reason",
 ]);
 

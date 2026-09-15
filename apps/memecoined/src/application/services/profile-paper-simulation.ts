@@ -18,6 +18,10 @@ import {
   type TradingProfileDefinition,
   type TradingProfileId,
 } from "../../domain/strategy/profiles.js";
+import {
+  evaluateShortHorizonSignal,
+  type ExecutableMarketPoint,
+} from "../../domain/strategy/short-horizon.js";
 
 export interface ProfileScoreBreakdown {
   readonly wallet: number;
@@ -118,6 +122,7 @@ interface CandidateRow {
   readonly breakdown_json: ProfileScoreBreakdown;
   readonly failed_rules: string[] | null;
   readonly evaluated_at: Date | string;
+  readonly signal_json?: { readonly observedVolatilityBps?: number } | null;
 }
 interface ActivationRow {
   readonly profile_id: TradingProfileId;
@@ -132,6 +137,8 @@ interface PositionRow {
   readonly cost_raw: string;
   readonly high_water_raw: string;
   readonly opened_at: Date | string;
+  readonly entry_signal_json: { readonly observedVolatilityBps?: number } | null;
+  readonly engine_version: string;
 }
 interface PendingEntryRow extends CandidateRow {
   readonly profile_id: TradingProfileId;
@@ -141,6 +148,15 @@ type EntryAttempt =
   Readonly<{ outcome: "entered" }> | Readonly<{ outcome: "retry" | "failed"; reason: string }>;
 
 const quoteSlippage = asBasisPoints(150n);
+const observationInput = asRawAmount(10_000_000n);
+const temporalEngineVersion = "temporal-v2";
+const fastProfileIds = new Set<TradingProfileId>([
+  "fast_furious",
+  "scalper",
+  "trend_detector",
+  "breakout_retest",
+  "recovery_reversal",
+]);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
 const uuid = (parts: readonly string[]) => {
   const hex = createHash("sha256").update(parts.join("\0")).digest("hex");
@@ -176,6 +192,117 @@ async function ensureAccounts(pool: Pool, wallet: WalletAddress, at: Timestamp):
      ON CONFLICT (wallet,profile_id) DO NOTHING`,
     [wallet, at],
   );
+}
+
+interface FastObservationCandidate extends CandidateRow {}
+interface FastObservationRow {
+  readonly observed_at: Date | string;
+  readonly output_amount_raw: string;
+}
+
+async function collectFastMarketObservations(input: {
+  pool: Pool;
+  swap: Pick<SwapPort, "quote">;
+  wallet: WalletAddress;
+  at: Timestamp;
+}): Promise<void> {
+  const enabled = await input.pool.query<{ profile_id: TradingProfileId }>(
+    `SELECT profile_id FROM paper_profile_activations
+      WHERE wallet=$1 AND enabled=true AND mode='automatic_paper' AND profile_id=ANY($2::text[])`,
+    [input.wallet, [...fastProfileIds]],
+  );
+  if (enabled.rows.length === 0) return;
+  const candidates = await input.pool.query<FastObservationCandidate>(
+    `WITH latest AS (
+       SELECT DISTINCT ON (c.mint_address) c.id::text AS candidate_id,c.mint_address,
+              s.total_score,s.breakdown_json,s.evaluated_at,
+              COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
+                         WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules,
+              (SELECT max(o.observed_at) FROM paper_fast_market_observations o
+                WHERE o.wallet=$1 AND o.token_mint=c.mint_address) AS last_observed
+         FROM candidates c JOIN LATERAL
+              (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
+                WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
+        WHERE s.total_score>=30 AND s.evaluated_at >= $2::timestamptz-interval '6 hours'
+        ORDER BY c.mint_address,s.evaluated_at DESC
+     ), universe AS (
+       SELECT * FROM latest ORDER BY total_score DESC,evaluated_at DESC LIMIT 60
+     ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
+         FROM universe
+        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '20 seconds'
+        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),evaluated_at DESC LIMIT 6`,
+    [input.wallet, input.at],
+  );
+  for (const candidate of candidates.rows) {
+    const quote = await input.swap.quote({
+      inputMint: WRAPPED_SOL_MINT,
+      outputMint: candidate.mint_address as MintAddress,
+      inputAmount: observationInput,
+      slippageBasisPoints: quoteSlippage,
+      requestedAt: input.at,
+    });
+    if (!quote.ok) continue;
+    await input.pool.query(
+      `INSERT INTO paper_fast_market_observations
+         (wallet,token_mint,observed_at,input_amount_raw,output_amount_raw,quote_fingerprint)
+       VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT DO NOTHING`,
+      [input.wallet, candidate.mint_address, quote.value.receivedAt,
+       quote.value.inputAmount.toString(), quote.value.expectedOutputAmount.toString(), quote.value.fingerprint],
+    );
+    const history = await input.pool.query<FastObservationRow>(
+      `SELECT observed_at,output_amount_raw::text FROM paper_fast_market_observations
+        WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 3`,
+      [input.wallet, candidate.mint_address],
+    );
+    const points: ExecutableMarketPoint[] = history.rows.reverse().map((row) => ({
+      observedAt: iso(row.observed_at),
+      outputAmountRaw: BigInt(row.output_amount_raw),
+    }));
+    for (const activation of enabled.rows) {
+      const profile = tradingProfile(activation.profile_id);
+      if (!profile) continue;
+      const signal = evaluateShortHorizonSignal(profile.id, points);
+      const requiredRules = requiredPaperRules(profile);
+      const safetyFailed = (candidate.failed_rules ?? []).some((rule) => requiredRules.has(rule));
+      const score = candidate.breakdown_json;
+      const appetite = profile.id === "scalper"
+        ? score.total >= 40 && score.liquidity >= 10 && score.volumeQuality >= 5
+        : score.total >= 35 && score.liquidity >= 10;
+      const eligible = signal.eligible && appetite && !safetyFailed;
+      const reasons = [
+        signal.reason,
+        ...(appetite ? [] : ["Market quality is below this fast profile's minimum"]),
+        ...(safetyFailed ? ["A required safety gate failed"] : []),
+      ];
+      await input.pool.query(
+        `INSERT INTO paper_fast_signal_events
+           (wallet,profile_id,candidate_id,token_mint,observed_at,eligible,signal_json,reasons_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb) ON CONFLICT DO NOTHING`,
+        [input.wallet, profile.id, candidate.candidate_id, candidate.mint_address, input.at,
+         eligible, JSON.stringify(signal), JSON.stringify(reasons)],
+      );
+      await input.pool.query(
+        `INSERT INTO paper_profile_candidate_decisions
+           (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
+            entry_state,next_entry_attempt_at,signal_json,signal_observed_at)
+         VALUES ($1,$2,$3,'automatic_paper',$4,$5,$6::jsonb,$7,
+                 CASE WHEN $4 THEN 'pending' ELSE 'not_applicable' END,
+                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7)
+         ON CONFLICT (wallet,profile_id,candidate_id) DO UPDATE SET
+           eligible=EXCLUDED.eligible,score=EXCLUDED.score,reasons_json=EXCLUDED.reasons_json,
+           evaluated_at=EXCLUDED.evaluated_at,signal_json=EXCLUDED.signal_json,
+           signal_observed_at=EXCLUDED.signal_observed_at,
+           entry_state=CASE
+             WHEN paper_profile_candidate_decisions.entry_state IN ('pending','retrying') THEN paper_profile_candidate_decisions.entry_state
+             WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_state<>'entered'
+               AND (paper_profile_candidate_decisions.entered_at IS NULL OR paper_profile_candidate_decisions.entered_at <= $7::timestamptz-interval '5 minutes')
+             THEN 'pending' ELSE 'not_applicable' END,
+           next_entry_attempt_at=CASE WHEN EXCLUDED.eligible THEN $7::timestamptz ELSE NULL END`,
+        [input.wallet, profile.id, candidate.candidate_id, eligible, candidate.total_score,
+         JSON.stringify(reasons), input.at, JSON.stringify(signal)],
+      );
+    }
+  }
 }
 
 async function enterPosition(input: {
@@ -224,6 +351,28 @@ async function enterPosition(input: {
       reason: `${quoted.error.provider}: ${quoted.error.reason}`,
     });
   const q = quoted.value;
+  const reverse = await input.swap.quote({
+    inputMint: input.candidate.mint_address as MintAddress,
+    outputMint: WRAPPED_SOL_MINT,
+    inputAmount: q.expectedOutputAmount,
+    slippageBasisPoints: quoteSlippage,
+    requestedAt: q.receivedAt,
+  });
+  if (!reverse.ok)
+    return Object.freeze({
+      outcome: reverse.error.retryable ? "retry" : "failed",
+      reason: `Round-trip cost check failed: ${reverse.error.reason}`,
+    });
+  const immediateReturn = BigInt(reverse.value.expectedOutputAmount);
+  const roundTripLossBps = immediateReturn >= BigInt(q.inputAmount)
+    ? 0n
+    : ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
+  const maximumFrictionBps = input.profile.id === "scalper" ? 100n : 200n;
+  if (roundTripLossBps > maximumFrictionBps)
+    return Object.freeze({
+      outcome: "failed",
+      reason: `Executable round-trip cost ${roundTripLossBps} bps exceeds this profile's ${maximumFrictionBps} bps limit`,
+    });
   // The provider receives the quote after the simulation cycle begins. Use that
   // later timestamp for the audited fill so filled_at can never precede quoted_at.
   const filledAt = q.receivedAt;
@@ -238,8 +387,8 @@ async function enterPosition(input: {
     if (debit.rowCount !== 1) return false;
     const inserted = await client.query(
       `INSERT INTO paper_profile_positions
-       (wallet,profile_id,token_mint,candidate_id,token_amount_raw,cost_raw,current_value_raw,high_water_raw,opened_at,updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$6,$6,$7,$7) ON CONFLICT DO NOTHING`,
+       (wallet,profile_id,token_mint,candidate_id,token_amount_raw,cost_raw,current_value_raw,high_water_raw,entry_signal_json,engine_version,opened_at,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$6,$6,$7::jsonb,$8,$9,$9) ON CONFLICT DO NOTHING`,
       [
         input.wallet,
         input.profile.id,
@@ -247,14 +396,16 @@ async function enterPosition(input: {
         input.candidate.candidate_id,
         q.expectedOutputAmount.toString(),
         q.inputAmount.toString(),
+        JSON.stringify(input.candidate.signal_json ?? null),
+        temporalEngineVersion,
         filledAt,
       ],
     );
     if (inserted.rowCount !== 1) throw new Error("Profile position changed during entry");
     await client.query(
       `INSERT INTO paper_profile_fills
-       (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,quoted_at,filled_at)
-       VALUES ($1,$2,$3,$4,'buy',$5,$6,$7,$8,$9,'profile_entry',$10,$11)`,
+       (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,engine_version,quoted_at,filled_at)
+       VALUES ($1,$2,$3,$4,'buy',$5,$6,$7,$8,$9,'profile_entry',$10,$11,$12)`,
       [
         uuid([input.wallet, input.profile.id, "buy", q.fingerprint]),
         input.wallet,
@@ -265,6 +416,7 @@ async function enterPosition(input: {
         q.inputAmount.toString(),
         input.feeRaw.toString(),
         q.fingerprint,
+        temporalEngineVersion,
         q.receivedAt,
         filledAt,
       ],
@@ -284,7 +436,7 @@ async function processPendingEntries(input: {
   feeRaw: bigint;
 }): Promise<void> {
   const due = await input.pool.query<PendingEntryRow>(
-    `SELECT d.profile_id,d.entry_attempts,c.id::text AS candidate_id,c.mint_address,
+    `SELECT d.profile_id,d.entry_attempts,d.signal_json,c.id::text AS candidate_id,c.mint_address,
             s.total_score,s.breakdown_json,s.evaluated_at,NULL::text[] AS failed_rules
        FROM paper_profile_candidate_decisions d
        JOIN candidates c ON c.id=d.candidate_id
@@ -363,6 +515,7 @@ async function evaluateNewCandidates(input: {
     for (const activation of activations.rows) {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
+      if (fastProfileIds.has(profile.id)) continue;
       const decision = evaluateProfileCandidate(
         profile,
         candidate.breakdown_json,
@@ -399,7 +552,7 @@ async function monitorPositions(input: {
   feeRaw: bigint;
 }): Promise<void> {
   const result = await input.pool.query<PositionRow>(
-    `SELECT profile_id,token_mint,candidate_id,token_amount_raw::text,cost_raw::text,high_water_raw::text,opened_at
+    `SELECT profile_id,token_mint,candidate_id,token_amount_raw::text,cost_raw::text,high_water_raw::text,entry_signal_json,engine_version,opened_at
        FROM paper_profile_positions WHERE wallet=$1 ORDER BY profile_id,opened_at LIMIT 50`,
     [input.wallet],
   );
@@ -419,10 +572,20 @@ async function monitorPositions(input: {
       cost = BigInt(position.cost_raw),
       high = BigInt(position.high_water_raw);
     const ageMinutes = (Date.parse(input.at) - Date.parse(iso(position.opened_at))) / 60000;
-    const stop = value * 10000n <= cost * BigInt(10000 - profile.hardStopBps);
-    const target = value * 10000n >= cost * BigInt(10000 + profile.firstProfitTargetBps);
+    const observedVolatility = Math.max(0, Number(position.entry_signal_json?.observedVolatilityBps ?? 0));
+    const adaptiveStopBps = observedVolatility
+      ? Math.min(profile.hardStopBps, Math.max(Math.round(observedVolatility * 1.25), Math.round(profile.hardStopBps / 2)))
+      : profile.hardStopBps;
+    const adaptiveTargetBps = observedVolatility
+      ? Math.min(profile.firstProfitTargetBps, Math.max(Math.round(observedVolatility * 1.75), Math.round(profile.firstProfitTargetBps / 2)))
+      : profile.firstProfitTargetBps;
+    const adaptiveTrailingBps = observedVolatility
+      ? Math.min(profile.trailingStopBps, Math.max(Math.round(observedVolatility), Math.round(profile.trailingStopBps / 2)))
+      : profile.trailingStopBps;
+    const stop = value * 10000n <= cost * BigInt(10000 - adaptiveStopBps);
+    const target = value * 10000n >= cost * BigInt(10000 + adaptiveTargetBps);
     const trailing =
-      value * 10000n <= high * BigInt(10000 - profile.trailingStopBps) && high > cost;
+      value * 10000n <= high * BigInt(10000 - adaptiveTrailingBps) && high > cost;
     const timeout = ageMinutes >= profile.maximumHoldingMinutes;
     if (!stop && !target && !trailing && !timeout) {
       await input.pool.query(
@@ -466,8 +629,8 @@ async function monitorPositions(input: {
       );
       await client.query(
         `INSERT INTO paper_profile_fills
-         (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,quoted_at,filled_at)
-         VALUES ($1,$2,$3,$4,'sell',$5,$6,$7,$8,$9,$10,$11,$12)`,
+         (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,engine_version,quoted_at,filled_at)
+         VALUES ($1,$2,$3,$4,'sell',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
           uuid([input.wallet, profile.id, "sell", q.fingerprint]),
           input.wallet,
@@ -479,9 +642,16 @@ async function monitorPositions(input: {
           input.feeRaw.toString(),
           q.fingerprint,
           reason,
+          position.engine_version,
           q.receivedAt,
           filledAt,
         ],
+      );
+      await client.query(
+        `UPDATE paper_profile_candidate_decisions
+            SET entry_state='not_applicable',next_entry_attempt_at=NULL
+          WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+        [input.wallet, profile.id, position.candidate_id],
       );
     });
   }
@@ -497,6 +667,12 @@ export async function runProfilePaperSimulationCycle(input: {
 }): Promise<void> {
   const at = input.now();
   await ensureAccounts(input.database, input.wallet, at);
+  await collectFastMarketObservations({
+    pool: input.database,
+    swap: input.swap,
+    wallet: input.wallet,
+    at,
+  });
   await evaluateNewCandidates({
     pool: input.database,
     swap: input.swap,
@@ -535,6 +711,8 @@ export async function readProfilePaperPerformance(
             (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.eligible)::int AS candidates_qualified
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state IN ('pending','retrying'))::int AS entries_pending
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
+            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
+            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.eligible)::int AS short_horizon_qualified
        FROM paper_profile_accounts a WHERE a.wallet=$1 ORDER BY a.profile_id`,
     [wallet],
   );
