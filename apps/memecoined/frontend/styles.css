@@ -307,7 +307,7 @@ body[data-density="compact"] th,
 body[data-density="compact"] td {
   padding: 9px 13px;
 }
-body[data-density="compact"] .optional-detail {
+body[data-density="compact"][data-page="overview"] .optional-detail {
   display: none;
 }
 .masthead nav a,

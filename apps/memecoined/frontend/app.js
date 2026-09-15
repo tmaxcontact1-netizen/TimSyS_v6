@@ -318,10 +318,13 @@ function renderPanelPreferences() {
 function applyPanelPreferences() {
   const main = document.querySelector("main");
   if (!(main instanceof HTMLElement)) return;
+  const currentPage = document.body.dataset.page ?? "overview";
   for (const id of preferences.panelOrder) {
     const panel = main.querySelector(`[data-dashboard-panel="${id}"]`);
     if (!(panel instanceof HTMLElement)) continue;
-    panel.hidden = preferences.hiddenPanels.includes(id);
+    // Panel visibility is an Overview preference. A saved dashboard choice must
+    // never make the corresponding task-level page blank.
+    panel.hidden = currentPage === "overview" && preferences.hiddenPanels.includes(id);
     main.append(panel);
   }
   renderPanelPreferences();
@@ -1433,6 +1436,11 @@ function updateNavigationState() {
       "#events": "history",
     }[target] ?? "overview";
   document.body.dataset.page = page;
+  document.querySelectorAll("main [data-dashboard-panel]").forEach((panel) => {
+    if (!(panel instanceof HTMLElement)) return;
+    const id = panel.dataset.dashboardPanel;
+    panel.hidden = page === "overview" && Boolean(id && preferences.hiddenPanels.includes(id));
+  });
   const pageCopy = {
     overview: ["Overview", "Portfolio state, operational attention and the next useful actions."],
     positions: ["Positions", "Review open holdings and cancellable paper entries."],

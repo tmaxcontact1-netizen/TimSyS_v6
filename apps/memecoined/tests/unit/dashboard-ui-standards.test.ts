@@ -44,6 +44,19 @@ describe("dashboard UI standards", () => {
     expect(javascript).toContain("function updateNavigationState");
   });
 
+  it("keeps dedicated pages visible regardless of Overview display preferences", async () => {
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
+    expect(javascript).toContain(
+      'panel.hidden = page === "overview" && Boolean(id && preferences.hiddenPanels.includes(id))',
+    );
+    expect(javascript).toContain(
+      'panel.hidden = currentPage === "overview" && preferences.hiddenPanels.includes(id)',
+    );
+    expect(css).toContain('body[data-density="compact"][data-page="overview"] .optional-detail');
+    expect(css).not.toContain('body[data-density="compact"] .optional-detail');
+  });
+
   it("registers every named dashboard element used by refresh rendering", async () => {
     const html = await readFile(new URL("frontend/index.html", root), "utf8");
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
