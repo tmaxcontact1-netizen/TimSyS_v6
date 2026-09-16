@@ -38,6 +38,16 @@ export interface ProfileCandidateDecision {
   readonly reasons: readonly string[];
 }
 
+export interface ExecutableEntryEvidence {
+  readonly observedAt: Timestamp;
+  readonly inputAmountRaw: bigint;
+  readonly outputAmountRaw: bigint;
+  readonly liquidityUsd: number | null;
+  readonly fiveMinuteVolumeUsd: number | null;
+  readonly fiveMinuteBuys: bigint | null;
+  readonly fiveMinuteSells: bigint | null;
+}
+
 // Authority, program, extension and direct-evidence checks are non-negotiable.
 // Market appetite belongs to each paper profile; real execution retains its
 // independent production entry gates.
@@ -64,11 +74,32 @@ const strictPaperRuleIds = Object.freeze([
 
 function requiredPaperRules(profile: TradingProfileDefinition): ReadonlySet<string> {
   if (profile.id === "fast_furious")
-    return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-012"]);
+    return new Set([
+      ...nonNegotiablePaperRuleIds,
+      "SEC-005",
+      "SEC-006",
+      "SEC-008",
+      "SEC-010",
+      "SEC-012",
+    ]);
   if (profile.id === "scalper")
-    return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-012"]);
+    return new Set([
+      ...nonNegotiablePaperRuleIds,
+      "SEC-005",
+      "SEC-006",
+      "SEC-008",
+      "SEC-010",
+      "SEC-012",
+    ]);
   if (profile.id === "trend_detector")
-    return new Set([...nonNegotiablePaperRuleIds, "SEC-008", "SEC-010", "SEC-012"]);
+    return new Set([
+      ...nonNegotiablePaperRuleIds,
+      "SEC-005",
+      "SEC-006",
+      "SEC-008",
+      "SEC-010",
+      "SEC-012",
+    ]);
   if (profile.id === "liquidity_expansion")
     return new Set([...nonNegotiablePaperRuleIds, "SEC-005", "SEC-008", "SEC-010", "SEC-012"]);
   return new Set(strictPaperRuleIds);
@@ -82,7 +113,9 @@ export function evaluateProfileCandidate(
 ): ProfileCandidateDecision {
   const reasons: string[] = [];
   if (profile.evidenceStatus === "awaiting_data")
-    reasons.push(profile.evidenceMessage ?? "The evidence required by this profile is not connected yet");
+    reasons.push(
+      profile.evidenceMessage ?? "The evidence required by this profile is not connected yet",
+    );
   const requiredRules = requiredPaperRules(profile);
   const applicableFailures = failedSafetyRules.filter((ruleId) => requiredRules.has(ruleId));
   if (applicableFailures.length)
@@ -99,14 +132,22 @@ export function evaluateProfileCandidate(
     reasons.push("Emerging trend lacks sufficient momentum or liquidity");
   if (profile.id === "whale_tracker" && (score.liquidity < 10 || score.volumeQuality < 5))
     reasons.push("Tracked-wallet activity lacks supporting liquidity or transaction quality");
-  if (profile.id === "capital_preservation" && (score.liquidity < 18 || score.holders < 10 || score.volumeQuality < 8))
-    reasons.push("Liquidity, holder breadth or transaction quality is below the defensive standard");
+  if (
+    profile.id === "capital_preservation" &&
+    (score.liquidity < 18 || score.holders < 10 || score.volumeQuality < 8)
+  )
+    reasons.push(
+      "Liquidity, holder breadth or transaction quality is below the defensive standard",
+    );
   if (
     profile.id === "liquidity_expansion" &&
     (score.liquidity < 15 || score.volumeQuality < 8 || score.holders < 5)
   )
     reasons.push("Liquidity, transaction quality and holder breadth do not yet agree");
-  if (profile.id === "scalper" && (score.momentum < 16 || score.volumeQuality < 10 || score.liquidity < 8))
+  if (
+    profile.id === "scalper" &&
+    (score.momentum < 16 || score.volumeQuality < 10 || score.liquidity < 8)
+  )
     reasons.push("Immediate momentum, liquidity and transaction quality do not yet agree");
   if (profile.id === "slow_steady" && (score.liquidity < 15 || score.holders < 8))
     reasons.push("Liquidity or holder distribution is below the long-hold standard");
@@ -156,7 +197,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v3";
+const temporalEngineVersion = "temporal-v4";
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",
@@ -179,6 +220,111 @@ const temporalProfileIds = new Set<TradingProfileId>([
   "benchmark_atr_trend",
 ]);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
+
+const shortHorizonProfiles = new Set<TradingProfileId>([
+  "fast_furious",
+  "scalper",
+  "trend_detector",
+  "breakout_retest",
+  "liquidity_expansion",
+  "recovery_reversal",
+]);
+
+/**
+ * Stop-loss sizing is unsafe for assets that can gap through the stop. This
+ * absolute account cap bounds the damage even when executable liquidity
+ * disappears between monitoring cycles.
+ */
+export function maximumPositionBps(profileId: TradingProfileId): bigint {
+  if (profileId === "scalper" || profileId === "recovery_reversal") return 100n;
+  if (shortHorizonProfiles.has(profileId)) return 150n;
+  if (profileId.startsWith("benchmark_")) return 200n;
+  return 250n;
+}
+
+/** Deterministic pre-entry checks against the executable quote and fresh market evidence. */
+export function evaluateExecutableEntryEvidence(input: {
+  readonly profile: TradingProfileDefinition;
+  readonly proposedInputRaw: bigint;
+  readonly proposedOutputRaw: bigint;
+  readonly evidence: ExecutableEntryEvidence | null;
+  readonly at: Timestamp;
+}): ProfileCandidateDecision {
+  if (!temporalProfileIds.has(input.profile.id))
+    return Object.freeze({ eligible: true, reasons: Object.freeze([]) });
+  const reasons: string[] = [];
+  const evidence = input.evidence;
+  if (!evidence) {
+    reasons.push("No recent executable-market evidence is available");
+    return Object.freeze({ eligible: false, reasons: Object.freeze(reasons) });
+  }
+  const ageMilliseconds = Date.parse(input.at) - Date.parse(evidence.observedAt);
+  if (!Number.isFinite(ageMilliseconds) || ageMilliseconds < 0 || ageMilliseconds > 120_000)
+    reasons.push("Executable-market evidence is more than two minutes old");
+
+  const minimumLiquidityUsd =
+    input.profile.id === "fast_furious" || input.profile.id === "scalper"
+      ? 75_000
+      : shortHorizonProfiles.has(input.profile.id)
+        ? 50_000
+        : 35_000;
+  const minimumVolumeUsd =
+    input.profile.id === "scalper"
+      ? 10_000
+      : shortHorizonProfiles.has(input.profile.id)
+        ? 5_000
+        : 2_500;
+  if (evidence.liquidityUsd === null || evidence.liquidityUsd < minimumLiquidityUsd)
+    reasons.push(`Pool liquidity is below $${minimumLiquidityUsd.toLocaleString()}`);
+  if (evidence.fiveMinuteVolumeUsd === null || evidence.fiveMinuteVolumeUsd < minimumVolumeUsd)
+    reasons.push(`Five-minute volume is below $${minimumVolumeUsd.toLocaleString()}`);
+
+  if (
+    evidence.fiveMinuteBuys !== null &&
+    evidence.fiveMinuteSells !== null &&
+    evidence.fiveMinuteBuys * 10n < evidence.fiveMinuteSells * 9n
+  )
+    reasons.push("Recent sells materially exceed buys");
+
+  if (
+    evidence.inputAmountRaw <= 0n ||
+    evidence.outputAmountRaw <= 0n ||
+    input.proposedInputRaw <= 0n ||
+    input.proposedOutputRaw <= 0n
+  ) {
+    reasons.push("Executable quote evidence is incomplete");
+  } else {
+    const baseline = evidence.outputAmountRaw * input.proposedInputRaw;
+    const proposed = input.proposedOutputRaw * evidence.inputAmountRaw;
+    const impactBps = proposed >= baseline ? 0n : ((baseline - proposed) * 10_000n) / baseline;
+    const maximumImpactBps =
+      input.profile.id === "scalper"
+        ? 75n
+        : shortHorizonProfiles.has(input.profile.id)
+          ? 125n
+          : 175n;
+    if (impactBps > maximumImpactBps)
+      reasons.push(
+        `Position-size price impact ${impactBps} bps exceeds the ${maximumImpactBps} bps limit`,
+      );
+  }
+  return Object.freeze({ eligible: reasons.length === 0, reasons: Object.freeze(reasons) });
+}
+
+/** A trailing stop is profit protection, so it cannot activate before the trail is funded by a gain. */
+export function trailingStopActivated(input: {
+  readonly value: bigint;
+  readonly cost: bigint;
+  readonly high: bigint;
+  readonly trailingBps: number;
+}): boolean {
+  const threshold = BigInt(10_000 + input.trailingBps);
+  return (
+    input.high * 10_000n >= input.cost * threshold &&
+    input.value * 10_000n <= input.high * BigInt(10_000 - input.trailingBps)
+  );
+}
+
 const uuid = (parts: readonly string[]) => {
   const hex = createHash("sha256").update(parts.join("\0")).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
@@ -220,6 +366,16 @@ async function ensureAccounts(pool: Pool, wallet: WalletAddress, at: Timestamp):
 interface FastObservationCandidate extends CandidateRow {}
 interface FastObservationRow {
   readonly observed_at: Date | string;
+  readonly output_amount_raw: string;
+  readonly liquidity_usd: string | null;
+  readonly five_minute_volume_usd: string | null;
+  readonly five_minute_buys: string | null;
+  readonly five_minute_sells: string | null;
+}
+
+interface EntryEvidenceRow {
+  readonly observed_at: Date | string;
+  readonly input_amount_raw: string;
   readonly output_amount_raw: string;
   readonly liquidity_usd: string | null;
   readonly five_minute_volume_usd: string | null;
@@ -284,17 +440,24 @@ async function collectFastMarketObservations(input: {
           market_price_usd,liquidity_usd,five_minute_volume_usd,five_minute_buys,
           five_minute_sells,five_minute_price_change,one_hour_price_change,market_evidence_json)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb) ON CONFLICT DO NOTHING`,
-      [input.wallet, candidate.mint_address, quote.value.receivedAt,
-       quote.value.inputAmount.toString(), quote.value.expectedOutputAmount.toString(), quote.value.fingerprint,
-       observation.priceUsd?.toString() ?? null, observation.liquidityUsd?.toString() ?? null,
-       observation.fiveMinuteVolumeUsd?.toString() ?? null,
-       observation.fiveMinuteBuys?.toString() ?? null, observation.fiveMinuteSells?.toString() ?? null,
-       observation.fiveMinutePriceChangePercentage?.toString() ?? null,
-       observation.oneHourPriceChangePercentage?.toString() ?? null,
-       JSON.stringify(
-         observation.traces ?? [observation.trace],
-         (_key, value) => typeof value === "bigint" ? value.toString() : value,
-       )],
+      [
+        input.wallet,
+        candidate.mint_address,
+        quote.value.receivedAt,
+        quote.value.inputAmount.toString(),
+        quote.value.expectedOutputAmount.toString(),
+        quote.value.fingerprint,
+        observation.priceUsd?.toString() ?? null,
+        observation.liquidityUsd?.toString() ?? null,
+        observation.fiveMinuteVolumeUsd?.toString() ?? null,
+        observation.fiveMinuteBuys?.toString() ?? null,
+        observation.fiveMinuteSells?.toString() ?? null,
+        observation.fiveMinutePriceChangePercentage?.toString() ?? null,
+        observation.oneHourPriceChangePercentage?.toString() ?? null,
+        JSON.stringify(observation.traces ?? [observation.trace], (_key, value) =>
+          typeof value === "bigint" ? value.toString() : value,
+        ),
+      ],
     );
     const history = await input.pool.query<FastObservationRow>(
       `SELECT observed_at,output_amount_raw::text,liquidity_usd::text,five_minute_volume_usd::text,
@@ -316,18 +479,27 @@ async function collectFastMarketObservations(input: {
       if (!profile) continue;
       const signal = evaluateShortHorizonSignal(profile.id, points);
       const score = candidate.breakdown_json;
-      const profileDecision = evaluateProfileCandidate(profile, score, candidate.failed_rules ?? []);
+      const profileDecision = evaluateProfileCandidate(
+        profile,
+        score,
+        candidate.failed_rules ?? [],
+      );
       const eligible = signal.eligible && profileDecision.eligible;
-      const reasons = [
-        signal.reason,
-        ...profileDecision.reasons,
-      ];
+      const reasons = [signal.reason, ...profileDecision.reasons];
       await input.pool.query(
         `INSERT INTO paper_fast_signal_events
            (wallet,profile_id,candidate_id,token_mint,observed_at,eligible,signal_json,reasons_json)
          VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb) ON CONFLICT DO NOTHING`,
-        [input.wallet, profile.id, candidate.candidate_id, candidate.mint_address, input.at,
-         eligible, JSON.stringify(signal), JSON.stringify(reasons)],
+        [
+          input.wallet,
+          profile.id,
+          candidate.candidate_id,
+          candidate.mint_address,
+          input.at,
+          eligible,
+          JSON.stringify(signal),
+          JSON.stringify(reasons),
+        ],
       );
       await input.pool.query(
         `INSERT INTO paper_profile_candidate_decisions
@@ -346,8 +518,16 @@ async function collectFastMarketObservations(input: {
                AND (paper_profile_candidate_decisions.entered_at IS NULL OR paper_profile_candidate_decisions.entered_at <= $7::timestamptz-interval '5 minutes')
              THEN 'pending' ELSE 'not_applicable' END,
            next_entry_attempt_at=CASE WHEN EXCLUDED.eligible THEN $7::timestamptz ELSE NULL END`,
-        [input.wallet, profile.id, candidate.candidate_id, eligible, candidate.total_score,
-         JSON.stringify(reasons), input.at, JSON.stringify(signal)],
+        [
+          input.wallet,
+          profile.id,
+          candidate.candidate_id,
+          eligible,
+          candidate.total_score,
+          JSON.stringify(reasons),
+          input.at,
+          JSON.stringify(signal),
+        ],
       );
     }
   }
@@ -366,24 +546,37 @@ async function enterPosition(input: {
     cash_raw: string;
     initial_cash_raw: string;
     open_positions: string;
+    recent_hard_stop: boolean;
   }>(
     `SELECT a.cash_raw::text,a.initial_cash_raw::text,
-            (SELECT count(*) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id)::text AS open_positions
+            (SELECT count(*) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id)::text AS open_positions,
+            EXISTS (SELECT 1 FROM paper_profile_fills f
+                     WHERE f.wallet=a.wallet AND f.token_mint=$3 AND f.side='sell'
+                       AND f.reason='hard_stop' AND f.filled_at >= $4::timestamptz-interval '24 hours') AS recent_hard_stop
        FROM paper_profile_accounts a
       WHERE a.wallet=$1 AND a.profile_id=$2
         AND NOT EXISTS (SELECT 1 FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id AND p.token_mint=$3)`,
-    [input.wallet, input.profile.id, input.candidate.mint_address],
+    [input.wallet, input.profile.id, input.candidate.mint_address, input.at],
   );
   const row = state.rows[0];
   if (!row)
     return Object.freeze({ outcome: "retry", reason: "Position state changed before entry" });
+  if (row.recent_hard_stop)
+    return Object.freeze({
+      outcome: "failed",
+      reason: "Token is in a 24-hour loss cooldown after a hard-stop exit",
+    });
   if (Number(row.open_positions) >= input.profile.maximumConcurrentPositions)
     return Object.freeze({ outcome: "retry", reason: "Profile position limit is currently full" });
   const riskSized =
     (BigInt(row.initial_cash_raw) * BigInt(input.profile.riskPerTradeBps)) /
     BigInt(input.profile.hardStopBps);
+  const absoluteCap =
+    (BigInt(row.initial_cash_raw) * maximumPositionBps(input.profile.id)) / 10_000n;
   const available = BigInt(row.cash_raw) - input.feeRaw;
-  const amount = available < riskSized ? available : riskSized;
+  const amount = [available, riskSized, absoluteCap].reduce((smallest, value) =>
+    value < smallest ? value : smallest,
+  );
   if (amount <= 0n)
     return Object.freeze({ outcome: "retry", reason: "Profile cash is currently unavailable" });
   const quoted = await input.swap.quote({
@@ -399,6 +592,39 @@ async function enterPosition(input: {
       reason: `${quoted.error.provider}: ${quoted.error.reason}`,
     });
   const q = quoted.value;
+  const evidenceResult = await input.pool.query<EntryEvidenceRow>(
+    `SELECT observed_at,input_amount_raw::text,output_amount_raw::text,liquidity_usd::text,
+            five_minute_volume_usd::text,five_minute_buys::text,five_minute_sells::text
+       FROM paper_fast_market_observations
+      WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 1`,
+    [input.wallet, input.candidate.mint_address],
+  );
+  const evidenceRow = evidenceResult.rows[0];
+  const evidence = evidenceRow
+    ? ({
+        observedAt: iso(evidenceRow.observed_at),
+        inputAmountRaw: BigInt(evidenceRow.input_amount_raw),
+        outputAmountRaw: BigInt(evidenceRow.output_amount_raw),
+        liquidityUsd: evidenceRow.liquidity_usd === null ? null : Number(evidenceRow.liquidity_usd),
+        fiveMinuteVolumeUsd:
+          evidenceRow.five_minute_volume_usd === null
+            ? null
+            : Number(evidenceRow.five_minute_volume_usd),
+        fiveMinuteBuys:
+          evidenceRow.five_minute_buys === null ? null : BigInt(evidenceRow.five_minute_buys),
+        fiveMinuteSells:
+          evidenceRow.five_minute_sells === null ? null : BigInt(evidenceRow.five_minute_sells),
+      } satisfies ExecutableEntryEvidence)
+    : null;
+  const evidenceDecision = evaluateExecutableEntryEvidence({
+    profile: input.profile,
+    proposedInputRaw: BigInt(q.inputAmount),
+    proposedOutputRaw: BigInt(q.expectedOutputAmount),
+    evidence,
+    at: q.receivedAt,
+  });
+  if (!evidenceDecision.eligible)
+    return Object.freeze({ outcome: "failed", reason: evidenceDecision.reasons.join("; ") });
   const reverse = await input.swap.quote({
     inputMint: input.candidate.mint_address as MintAddress,
     outputMint: WRAPPED_SOL_MINT,
@@ -412,9 +638,10 @@ async function enterPosition(input: {
       reason: `Round-trip cost check failed: ${reverse.error.reason}`,
     });
   const immediateReturn = BigInt(reverse.value.expectedOutputAmount);
-  const roundTripLossBps = immediateReturn >= BigInt(q.inputAmount)
-    ? 0n
-    : ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
+  const roundTripLossBps =
+    immediateReturn >= BigInt(q.inputAmount)
+      ? 0n
+      : ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
   const maximumFrictionBps = input.profile.id === "scalper" ? 100n : 200n;
   if (roundTripLossBps > maximumFrictionBps)
     return Object.freeze({
@@ -485,10 +712,12 @@ async function processPendingEntries(input: {
 }): Promise<void> {
   const due = await input.pool.query<PendingEntryRow>(
     `SELECT d.profile_id,d.entry_attempts,d.signal_json,c.id::text AS candidate_id,c.mint_address,
-            s.total_score,s.breakdown_json,s.evaluated_at,NULL::text[] AS failed_rules
+            s.total_score,s.breakdown_json,s.evaluated_at,
+            COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
+                       WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules
        FROM paper_profile_candidate_decisions d
        JOIN candidates c ON c.id=d.candidate_id
-       JOIN LATERAL (SELECT total_score,breakdown_json,evaluated_at FROM score_breakdowns
+       JOIN LATERAL (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                       WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
       WHERE d.wallet=$1 AND d.eligible=true AND d.mode='automatic_paper'
         AND d.entry_state IN ('pending','retrying') AND d.entry_attempts < 5
@@ -499,6 +728,20 @@ async function processPendingEntries(input: {
   for (const candidate of due.rows) {
     const profile = tradingProfile(candidate.profile_id);
     if (!profile) continue;
+    const currentDecision = evaluateProfileCandidate(
+      profile,
+      candidate.breakdown_json,
+      candidate.failed_rules ?? [],
+    );
+    if (!currentDecision.eligible) {
+      await input.pool.query(
+        `UPDATE paper_profile_candidate_decisions
+            SET eligible=false,entry_state='failed',last_entry_error=$4,next_entry_attempt_at=NULL
+          WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+        [input.wallet, profile.id, candidate.candidate_id, currentDecision.reasons.join("; ")],
+      );
+      continue;
+    }
     const attempt = await enterPosition({ ...input, profile, candidate });
     const attempts = candidate.entry_attempts + 1;
     if (attempt.outcome === "entered") {
@@ -620,20 +863,34 @@ async function monitorPositions(input: {
       cost = BigInt(position.cost_raw),
       high = BigInt(position.high_water_raw);
     const ageMinutes = (Date.parse(input.at) - Date.parse(iso(position.opened_at))) / 60000;
-    const observedVolatility = Math.max(0, Number(position.entry_signal_json?.observedVolatilityBps ?? 0));
+    const observedVolatility = Math.max(
+      0,
+      Number(position.entry_signal_json?.observedVolatilityBps ?? 0),
+    );
     const adaptiveStopBps = observedVolatility
-      ? Math.min(profile.hardStopBps, Math.max(Math.round(observedVolatility * 1.25), Math.round(profile.hardStopBps / 2)))
+      ? Math.min(
+          profile.hardStopBps,
+          Math.max(Math.round(observedVolatility * 1.25), Math.round(profile.hardStopBps / 2)),
+        )
       : profile.hardStopBps;
     const adaptiveTargetBps = observedVolatility
-      ? Math.min(profile.firstProfitTargetBps, Math.max(Math.round(observedVolatility * 1.75), Math.round(profile.firstProfitTargetBps / 2)))
+      ? Math.min(
+          profile.firstProfitTargetBps,
+          Math.max(
+            Math.round(observedVolatility * 1.75),
+            Math.round(profile.firstProfitTargetBps / 2),
+          ),
+        )
       : profile.firstProfitTargetBps;
     const adaptiveTrailingBps = observedVolatility
-      ? Math.min(profile.trailingStopBps, Math.max(Math.round(observedVolatility), Math.round(profile.trailingStopBps / 2)))
+      ? Math.min(
+          profile.trailingStopBps,
+          Math.max(Math.round(observedVolatility), Math.round(profile.trailingStopBps / 2)),
+        )
       : profile.trailingStopBps;
     const stop = value * 10000n <= cost * BigInt(10000 - adaptiveStopBps);
     const target = value * 10000n >= cost * BigInt(10000 + adaptiveTargetBps);
-    const trailing =
-      value * 10000n <= high * BigInt(10000 - adaptiveTrailingBps) && high > cost;
+    const trailing = trailingStopActivated({ value, cost, high, trailingBps: adaptiveTrailingBps });
     const timeout = ageMinutes >= profile.maximumHoldingMinutes;
     if (!stop && !target && !trailing && !timeout) {
       await input.pool.query(

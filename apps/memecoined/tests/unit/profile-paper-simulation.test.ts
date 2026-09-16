@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateProfileCandidate } from "../../src/application/services/profile-paper-simulation.js";
+import {
+  evaluateExecutableEntryEvidence,
+  evaluateProfileCandidate,
+  maximumPositionBps,
+  trailingStopActivated,
+} from "../../src/application/services/profile-paper-simulation.js";
+import { asTimestamp } from "../../src/domain/shared/types.js";
 import { tradingProfile } from "../../src/domain/strategy/profiles.js";
 
 const score = {
@@ -20,10 +26,21 @@ describe("profile paper simulation policy", () => {
   });
 
   it("gives liquidity expansion and scalping distinct deterministic gates", () => {
-    expect(evaluateProfileCandidate(tradingProfile("liquidity_expansion")!, score, []).eligible).toBe(false);
+    expect(
+      evaluateProfileCandidate(tradingProfile("liquidity_expansion")!, score, []).eligible,
+    ).toBe(false);
     expect(evaluateProfileCandidate(tradingProfile("scalper")!, score, []).eligible).toBe(false);
-    const active = { ...score, total: 90, liquidity: 20, momentum: 20, holders: 10, volumeQuality: 15 };
-    expect(evaluateProfileCandidate(tradingProfile("liquidity_expansion")!, active, []).eligible).toBe(true);
+    const active = {
+      ...score,
+      total: 90,
+      liquidity: 20,
+      momentum: 20,
+      holders: 10,
+      volumeQuality: 15,
+    };
+    expect(
+      evaluateProfileCandidate(tradingProfile("liquidity_expansion")!, active, []).eligible,
+    ).toBe(true);
     expect(evaluateProfileCandidate(tradingProfile("scalper")!, active, []).eligible).toBe(true);
   });
 
@@ -51,7 +68,7 @@ describe("profile paper simulation policy", () => {
     expect(decision.reasons[0]).toContain("SEC-001");
   });
 
-  it("lets the aggressive paper profile treat market range as profile evidence, not universal safety", () => {
+  it("lets the aggressive profile relax market-cap range without relaxing liquidity or ownership safety", () => {
     const aggressive = {
       wallet: 0,
       liquidity: 0,
@@ -62,13 +79,17 @@ describe("profile paper simulation policy", () => {
     };
     expect(
       evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, [
-        "SEC-005",
         "SEC-007",
-        "SEC-010",
         "UNI-003",
         "UNI-004",
       ]).eligible,
     ).toBe(true);
+    expect(
+      evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-005"]).eligible,
+    ).toBe(false);
+    expect(
+      evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-010"]).eligible,
+    ).toBe(false);
   });
 
   it("does not let an aggressive profile ignore concentration or adverse transaction flow", () => {
@@ -100,5 +121,59 @@ describe("profile paper simulation policy", () => {
     expect(
       evaluateProfileCandidate(tradingProfile("signal_consensus")!, almostComplete, []).eligible,
     ).toBe(false);
+  });
+
+  it("caps short-horizon exposure independently of an assumed stop fill", () => {
+    expect(maximumPositionBps("fast_furious")).toBe(150n);
+    expect(maximumPositionBps("scalper")).toBe(100n);
+    expect(maximumPositionBps("whale_tracker")).toBe(250n);
+  });
+
+  it("rejects stale, shallow and sell-dominated executable entry evidence", () => {
+    const decision = evaluateExecutableEntryEvidence({
+      profile: tradingProfile("fast_furious")!,
+      proposedInputRaw: 20_000_000n,
+      proposedOutputRaw: 1_700_000n,
+      evidence: {
+        observedAt: asTimestamp(new Date("2026-09-16T00:00:00Z")),
+        inputAmountRaw: 10_000_000n,
+        outputAmountRaw: 1_000_000n,
+        liquidityUsd: 20_000,
+        fiveMinuteVolumeUsd: 1_000,
+        fiveMinuteBuys: 4n,
+        fiveMinuteSells: 10n,
+      },
+      at: asTimestamp(new Date("2026-09-16T00:03:00Z")),
+    });
+    expect(decision.eligible).toBe(false);
+    expect(decision.reasons.join(" ")).toMatch(/two minutes|liquidity|volume|sells|price impact/i);
+  });
+
+  it("accepts fresh, liquid evidence whose larger quote remains executable", () => {
+    const decision = evaluateExecutableEntryEvidence({
+      profile: tradingProfile("fast_furious")!,
+      proposedInputRaw: 20_000_000n,
+      proposedOutputRaw: 1_990_000n,
+      evidence: {
+        observedAt: asTimestamp(new Date("2026-09-16T00:00:00Z")),
+        inputAmountRaw: 10_000_000n,
+        outputAmountRaw: 1_000_000n,
+        liquidityUsd: 100_000,
+        fiveMinuteVolumeUsd: 25_000,
+        fiveMinuteBuys: 12n,
+        fiveMinuteSells: 10n,
+      },
+      at: asTimestamp(new Date("2026-09-16T00:01:00Z")),
+    });
+    expect(decision).toEqual({ eligible: true, reasons: [] });
+  });
+
+  it("does not call an ordinary loss a trailing-stop exit", () => {
+    expect(
+      trailingStopActivated({ value: 970n, cost: 1_000n, high: 1_010n, trailingBps: 250 }),
+    ).toBe(false);
+    expect(
+      trailingStopActivated({ value: 1_020n, cost: 1_000n, high: 1_050n, trailingBps: 250 }),
+    ).toBe(true);
   });
 });
