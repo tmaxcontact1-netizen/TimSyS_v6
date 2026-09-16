@@ -59,7 +59,7 @@ export async function readPaperPerformanceReport(
               COALESCE(sum(realized_pnl_raw),0) AS realized_pnl_raw,
               (SELECT count(*) FROM paper_profile_fills WHERE wallet=$1) AS fills,
               (SELECT count(*) FROM paper_profile_positions WHERE wallet=$1) AS open_positions,
-              (SELECT count(*) FROM paper_profile_candidate_decisions WHERE wallet=$1 AND entry_state IN ('pending','retrying')) AS pending_entries,
+              (SELECT count(*) FROM paper_profile_candidate_decisions WHERE wallet=$1 AND entry_state IN ('pending','retrying') AND entry_attempts<5 AND next_entry_attempt_at IS NOT NULL) AS pending_entries,
               (SELECT count(*) FROM paper_profile_positions WHERE wallet=$1) AS pending_positions,
               0::bigint AS worker_errors,
               count(*) AS profile_accounts

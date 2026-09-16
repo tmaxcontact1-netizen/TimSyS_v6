@@ -239,6 +239,33 @@ describe("paper dashboard", () => {
     expect((await get(address.port, "/api/paper/pipeline", "POST")).status).toBe(405);
   });
 
+  it("reports the bounded strategy funnel and rejects mutations", async () => {
+    const database = {
+      query: async () => ({
+        rows: [{ profile_id: "fast_furious", mode: "automatic_paper", signals: 12,
+          patterns: 4, market_confirmed: 2, qualified: 1, quote_failures: 0,
+          buys: 1, main_rejection: "Price pattern not confirmed" }],
+      }),
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const response = await get(address.port, "/api/paper/strategy-funnel");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper", period: "24h", rows: [{ profile_id: "fast_furious", buys: 1 }],
+    });
+    expect((await get(address.port, "/api/paper/strategy-funnel", "POST")).status).toBe(405);
+  });
+
   it("fails closed when the durable snapshot is unavailable", async () => {
     const database = {
       query: async () => {

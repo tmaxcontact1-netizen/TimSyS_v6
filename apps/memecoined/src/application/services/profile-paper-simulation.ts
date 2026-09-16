@@ -191,6 +191,7 @@ interface PositionRow {
 interface PendingEntryRow extends CandidateRow {
   readonly profile_id: TradingProfileId;
   readonly entry_attempts: number;
+  readonly signal_observed_at: Date | string | null;
 }
 type EntryAttempt =
   Readonly<{ outcome: "entered" }> | Readonly<{ outcome: "retry" | "failed"; reason: string }>;
@@ -407,17 +408,15 @@ async function collectFastMarketObservations(input: {
          FROM candidates c JOIN LATERAL
               (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                 WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
-        WHERE s.total_score>=30 AND s.evaluated_at >= $2::timestamptz-interval '6 hours'
+        WHERE s.total_score>=25 AND s.evaluated_at >= $2::timestamptz-interval '12 hours'
         ORDER BY c.mint_address,s.evaluated_at DESC
      ), universe AS (
-       -- Keep the monitored set deliberately small enough to build a useful
-       -- time series in minutes. A broad scan belongs to discovery; temporal
-       -- strategies need repeated measurements of the same liquid candidates.
-       SELECT * FROM latest ORDER BY total_score DESC,evaluated_at DESC LIMIT 12
+       -- Broaden observation without changing any entry or security gate.
+       SELECT * FROM latest ORDER BY total_score DESC,evaluated_at DESC LIMIT 24
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM universe
-        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '20 seconds'
-        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),evaluated_at DESC LIMIT 6`,
+        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '45 seconds'
+        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),evaluated_at DESC LIMIT 8`,
     [input.wallet, input.at],
   );
   for (const candidate of candidates.rows) {
@@ -513,11 +512,16 @@ async function collectFastMarketObservations(input: {
            evaluated_at=EXCLUDED.evaluated_at,signal_json=EXCLUDED.signal_json,
            signal_observed_at=EXCLUDED.signal_observed_at,
            entry_state=CASE
+             WHEN NOT EXCLUDED.eligible THEN 'not_applicable'
+             WHEN paper_profile_candidate_decisions.entry_attempts>=5 THEN 'failed'
              WHEN paper_profile_candidate_decisions.entry_state IN ('pending','retrying') THEN paper_profile_candidate_decisions.entry_state
              WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_state<>'entered'
                AND (paper_profile_candidate_decisions.entered_at IS NULL OR paper_profile_candidate_decisions.entered_at <= $7::timestamptz-interval '5 minutes')
              THEN 'pending' ELSE 'not_applicable' END,
-           next_entry_attempt_at=CASE WHEN EXCLUDED.eligible THEN $7::timestamptz ELSE NULL END`,
+           next_entry_attempt_at=CASE
+             WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_attempts<5
+               AND paper_profile_candidate_decisions.entry_state<>'entered'
+             THEN $7::timestamptz ELSE NULL END`,
         [
           input.wallet,
           profile.id,
@@ -711,7 +715,7 @@ async function processPendingEntries(input: {
   feeRaw: bigint;
 }): Promise<void> {
   const due = await input.pool.query<PendingEntryRow>(
-    `SELECT d.profile_id,d.entry_attempts,d.signal_json,c.id::text AS candidate_id,c.mint_address,
+    `SELECT d.profile_id,d.entry_attempts,d.signal_json,d.signal_observed_at,c.id::text AS candidate_id,c.mint_address,
             s.total_score,s.breakdown_json,s.evaluated_at,
             COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
                        WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules
@@ -728,6 +732,20 @@ async function processPendingEntries(input: {
   for (const candidate of due.rows) {
     const profile = tradingProfile(candidate.profile_id);
     if (!profile) continue;
+    const scoreAgeMs = Date.parse(input.at) - new Date(candidate.evaluated_at).getTime();
+    const signalAgeMs = candidate.signal_observed_at === null
+      ? Infinity : Date.parse(input.at) - new Date(candidate.signal_observed_at).getTime();
+    if (!Number.isFinite(scoreAgeMs) || scoreAgeMs < 0 || scoreAgeMs > 15 * 60_000 ||
+        (temporalProfileIds.has(profile.id) &&
+         (!Number.isFinite(signalAgeMs) || signalAgeMs < 0 || signalAgeMs > 2 * 60_000))) {
+      await input.pool.query(
+        `UPDATE paper_profile_candidate_decisions
+            SET eligible=false,entry_state='failed',last_entry_error='Entry evidence expired before execution',next_entry_attempt_at=NULL
+          WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+        [input.wallet, profile.id, candidate.candidate_id],
+      );
+      continue;
+    }
     const currentDecision = evaluateProfileCandidate(
       profile,
       candidate.breakdown_json,
@@ -1016,7 +1034,7 @@ export async function readProfilePaperPerformance(
             (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id)::int AS fills,
             (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id)::int AS candidates_evaluated,
             (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.eligible)::int AS candidates_qualified
-            ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state IN ('pending','retrying'))::int AS entries_pending
+            ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state IN ('pending','retrying') AND d.entry_attempts<5 AND d.next_entry_attempt_at IS NOT NULL)::int AS entries_pending
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.eligible)::int AS short_horizon_qualified

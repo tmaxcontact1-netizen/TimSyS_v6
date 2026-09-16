@@ -133,6 +133,7 @@ const ids = [
   "pipeline-completed",
   "pipeline-quote-failures",
   "pipeline-interpretation",
+  "strategy-funnel-rows",
   "positions-history-toolbar",
   "alert-count",
   "alert-rows",
@@ -1637,6 +1638,26 @@ async function refreshPipeline() {
     elements["pipeline-work"].append(row);
   }
 }
+async function refreshStrategyFunnel() {
+  const response = await fetch("/api/paper/strategy-funnel", { cache: "no-store" });
+  if (!response.ok) throw new Error("strategy funnel unavailable");
+  const { rows } = await response.json();
+  renderRows(
+    elements["strategy-funnel-rows"],
+    rows,
+    [
+      (row) => ({ text: profileName(row.profile_id) }),
+      (row) => ({ text: Number(row.signals).toLocaleString() }),
+      (row) => ({ text: Number(row.patterns).toLocaleString() }),
+      (row) => ({ text: Number(row.market_confirmed).toLocaleString() }),
+      (row) => ({ text: Number(row.qualified).toLocaleString() }),
+      (row) => ({ text: Number(row.quote_failures).toLocaleString() }),
+      (row) => ({ text: Number(row.buys).toLocaleString() }),
+      (row) => ({ text: row.main_rejection || "No rejection recorded" }),
+    ],
+    "No strategies are currently active",
+  );
+}
 function recordConnection(state, label) {
   connectionEvents.unshift({ state, label, at: new Date() });
   connectionEvents.splice(8);
@@ -1705,6 +1726,10 @@ async function refresh() {
     await refreshPerformance();
     await refreshAlerts();
     await refreshPipeline();
+    await refreshStrategyFunnel().catch((error) => {
+      console.error("Strategy funnel refresh failed", error);
+      renderRows(elements["strategy-funnel-rows"], [], [], "Strategy activity is temporarily unavailable");
+    });
     await refreshOperationalStatus();
     await refreshTradingProfiles().catch(() => undefined);
     recordConnection("healthy", "Snapshot received");

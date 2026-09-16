@@ -18,6 +18,7 @@ import {
   readPaperTokenDetails,
   readPaperWorkerAlerts,
   readAcquisitionPipelineStatus,
+  readStrategyFunnel,
 } from "../infrastructure/database/paper-dashboard.js";
 import {
   addDashboardWatchlistToken,
@@ -241,6 +242,19 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), pipeline });
       } catch {
         sendJson(response, 503, { error: "pipeline_status_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/strategy-funnel") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const rows = await readStrategyFunnel(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", period: "24h", rows });
+      } catch {
+        sendJson(response, 503, { error: "strategy_funnel_unavailable" });
       }
       return;
     }

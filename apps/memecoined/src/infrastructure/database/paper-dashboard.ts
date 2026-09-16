@@ -43,6 +43,54 @@ export interface AcquisitionPipelineStatus {
   }>[];
 }
 
+/** A bounded, per-strategy account of the last day's paper-trading decisions. */
+export async function readStrategyFunnel(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+): Promise<readonly Record<string, unknown>[]> {
+  const result = await database.query(
+    `SELECT a.profile_id,a.mode,
+            COALESCE(s.signals,0)::int AS signals,
+            COALESCE(s.patterns,0)::int AS patterns,
+            COALESCE(s.market_confirmed,0)::int AS market_confirmed,
+            COALESCE(d.qualified,0)::int AS qualified,
+            COALESCE(d.quote_failures,0)::int AS quote_failures,
+            COALESCE(f.buys,0)::int AS buys,
+            (SELECT x.reason FROM (
+               SELECT COALESCE(NULLIF(q.reasons_json->>0,''),q.last_entry_error) AS reason,
+                      count(*) AS uses
+                 FROM paper_profile_candidate_decisions q
+                WHERE q.wallet=a.wallet AND q.profile_id=a.profile_id
+                  AND q.evaluated_at>=now()-interval '24 hours' AND NOT q.eligible
+                GROUP BY 1 ORDER BY uses DESC LIMIT 1
+             ) x) AS main_rejection
+       FROM paper_profile_activations a
+       LEFT JOIN LATERAL (
+         SELECT count(*) AS signals,
+                count(*) FILTER (WHERE signal_json->>'pattern' NOT IN ('none','insufficient_history')) AS patterns,
+                count(*) FILTER (WHERE signal_json->>'marketConfirmed'='true') AS market_confirmed
+           FROM paper_fast_signal_events e
+          WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id
+            AND e.observed_at>=now()-interval '24 hours'
+       ) s ON true
+       LEFT JOIN LATERAL (
+         SELECT count(*) FILTER (WHERE eligible) AS qualified,
+                count(*) FILTER (WHERE entry_state='failed' AND last_entry_error ILIKE '%quote%') AS quote_failures
+           FROM paper_profile_candidate_decisions d
+          WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id
+            AND d.evaluated_at>=now()-interval '24 hours'
+       ) d ON true
+       LEFT JOIN LATERAL (
+         SELECT count(*) AS buys FROM paper_profile_fills f
+          WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id AND f.side='buy'
+            AND f.filled_at>=now()-interval '24 hours'
+       ) f ON true
+      WHERE a.wallet=$1 AND a.enabled=true ORDER BY a.profile_id`,
+    [wallet],
+  );
+  return result.rows;
+}
+
 interface PipelineRow {
   readonly state: string;
   readonly available_at: Date | string;
