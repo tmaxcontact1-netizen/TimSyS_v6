@@ -113,6 +113,28 @@ describe("Solana mint-security contract", () => {
     });
   });
 
+  it("rechecks an impossible confirmed holder total at finality without weakening the limit", async () => {
+    const commitments: string[] = [];
+    const skewed: SolanaRpcTransport = {
+      post: async (request) => {
+        const call = request as { id: number; method: string; params: readonly [string, { commitment: string }] };
+        commitments.push(call.params[1].commitment);
+        const result = call.method === "getAccountInfo"
+          ? { context: { slot: 10 }, value: { data: [mintData.toString("base64"), "base64"], owner: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" } }
+          : call.method === "getTokenLargestAccounts"
+            ? { context: { slot: 10 }, value: [{ address: "holder-a", amount: call.params[1].commitment === "finalized" ? "200" : "1200" }] }
+            : { context: { slot: 10 }, value: { amount: "1000" } };
+        return { status: 200, body: { jsonrpc: "2.0", id: call.id, result }, receivedAt: observedAt };
+      },
+    };
+    const adapter = new SolanaMintSecurityAdapter(
+      new SolanaRpcClient(skewed), new SolanaRpcClient(skewed), identities,
+    );
+    const result = await adapter.observe(mint, new Set(), observedAt);
+    expect(result.holders?.largestNormalPercentage.toString()).toBe("20");
+    expect(commitments).toContain("finalized");
+  });
+
   it("recognizes a Token-2022 mint with no extensions as verified", async () => {
     const owner = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
     const adapter = new SolanaMintSecurityAdapter(

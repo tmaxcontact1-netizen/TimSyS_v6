@@ -56,6 +56,12 @@ export class GeckoTerminalMarketAdapter implements MarketObservationPort, Candid
     const observations: CandidateDiscoveryObservation[] = [];
     const seen = new Set<string>();
     for (const pool of parsed.data.data) {
+      const liquidity = reserve(pool);
+      const createdAt = pool.attributes.pool_created_at;
+      const ageMs = createdAt ? Date.parse(response.receivedAt) - Date.parse(createdAt) : NaN;
+      if (!Number.isFinite(liquidity) || liquidity < 75_000 ||
+          !Number.isFinite(ageMs) || ageMs < 30 * 60_000 || ageMs > 30 * 24 * 60 * 60_000)
+        continue;
       const address = token(pool.relationships.base_token.data.id);
       if (seen.has(address)) continue;
       try {

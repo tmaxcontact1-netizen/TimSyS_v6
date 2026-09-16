@@ -105,11 +105,12 @@ async function read(
   provider: ProviderId,
   mint: MintAddress,
   excluded: ReadonlySet<string>,
+  commitment: "confirmed" | "finalized" = "confirmed",
 ): Promise<Read> {
   const [accountResponse, largestResponse, supplyResponse] = await Promise.all([
-    client.request("getAccountInfo", [mint, { encoding: "base64", commitment: "confirmed" }]),
-    client.request("getTokenLargestAccounts", [mint, { commitment: "confirmed" }]),
-    client.request("getTokenSupply", [mint, { commitment: "confirmed" }]),
+    client.request("getAccountInfo", [mint, { encoding: "base64", commitment }]),
+    client.request("getTokenLargestAccounts", [mint, { commitment }]),
+    client.request("getTokenSupply", [mint, { commitment }]),
   ]);
   const account = accountSchema.safeParse(accountResponse.result);
   const largest = largestSchema.safeParse(largestResponse.result);
@@ -139,13 +140,16 @@ async function read(
     .map(({ amount }) => BigInt(amount));
   const supplyRaw = BigInt(supply.data.value.amount);
   if (supplyRaw <= 0n) throw new Error("Mint supply must be positive");
+  const topTenRaw = normal.slice(0, 10).reduce((sum, value) => sum + value, 0n);
+  if (normal.some((amount) => amount > supplyRaw) || topTenRaw > supplyRaw) {
+    // These RPC methods can be served from different slots. Re-read once at
+    // finalized commitment; never normalize impossible totals into a pass.
+    if (commitment === "confirmed") return read(client, provider, mint, excluded, "finalized");
+    throw new SolanaRpcError("Largest holder balances exceed mint supply", false);
+  }
   const percent = (amount: bigint) => {
-    if (amount > supplyRaw) throw new SolanaRpcError("Holder balances exceed mint supply", false);
     return asPercentage(new Decimal(amount.toString()).mul(100).div(supplyRaw.toString()));
   };
-  const topTenRaw = normal.slice(0, 10).reduce((sum, value) => sum + value, 0n);
-  if (topTenRaw > supplyRaw)
-    throw new SolanaRpcError("Largest holder balances exceed mint supply", false);
   return Object.freeze({
     provider,
     receivedAt: [accountResponse.receivedAt, largestResponse.receivedAt, supplyResponse.receivedAt]

@@ -196,7 +196,58 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
         );
       }
     }
-    return Object.freeze({ ok: true, value: Object.freeze(observations) });
+    if (observations.length === 0)
+      return Object.freeze({ ok: true, value: Object.freeze([]) });
+    const admitted: CandidateDiscoveryObservation[] = [];
+    // The profile/boost feeds are promotional hints, not market-quality evidence.
+    // One documented bulk request screens up to 30 mints before expensive RPC work.
+    for (let offset = 0; offset < observations.length; offset += 30) {
+      const batch = observations.slice(offset, offset + 30);
+      let response: HttpResponse;
+      try {
+        response = await this.http.get(
+          `${this.baseUrl}/tokens/v1/solana/${batch.map(({ mint }) => encodeURIComponent(mint)).join(",")}`,
+        );
+      } catch {
+        return failure("unavailable", requestedAt, "DexScreener bulk pool screening failed", true);
+      }
+      if (response.status === 429)
+        return failure("rate_limited", response.receivedAt, "DexScreener bulk pool screening is rate limited", true);
+      if (response.status < 200 || response.status >= 300)
+        return failure("unavailable", response.receivedAt, "DexScreener bulk pool screening is unavailable", true);
+      const parsed = z.array(z.unknown()).safeParse(response.body);
+      if (!parsed.success)
+        return failure("malformed", response.receivedAt, "Malformed DexScreener bulk pool response", false);
+      const pools = parsed.data.flatMap((value) => {
+        const pair = pairSchema.safeParse(value);
+        return pair.success ? [pair.data] : [];
+      });
+      for (const hint of batch) {
+        const eligible = pools.some((pair) => {
+          if (pair.chainId.toLowerCase() !== "solana" ||
+              (pair.baseToken.address !== hint.mint && pair.quoteToken.address !== hint.mint)) return false;
+          const usd = Number(pair.liquidity?.usd);
+          const age = pair.pairCreatedAt === null || pair.pairCreatedAt === undefined
+            ? NaN : Date.parse(response.receivedAt) - pair.pairCreatedAt;
+          return Number.isFinite(usd) && usd >= 75_000 &&
+            Number.isFinite(age) && age >= 30 * 60_000 && age <= 30 * 24 * 60 * 60_000;
+        });
+        if (!eligible) continue;
+        const contentHash = hash([hint.trace.contentHash, response.body]);
+        admitted.push(Object.freeze({ ...hint, observedAt: response.receivedAt,
+          trace: Object.freeze({ ...hint.trace,
+            evidenceId: this.identities.createEvidenceId({
+              provider: "dexscreener", sourceKey: hint.trace.sourceKey, contentHash,
+            }),
+            method: `${hint.trace.method} + GET /tokens/v1/solana/{mints}`,
+            respondedAt: response.receivedAt,
+            normalizedAt: response.receivedAt,
+            contentHash,
+          }),
+        }));
+      }
+    }
+    return Object.freeze({ ok: true, value: Object.freeze(admitted) });
   }
 
   public async observePrimaryPool(

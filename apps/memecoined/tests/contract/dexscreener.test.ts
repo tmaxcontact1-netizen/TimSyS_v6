@@ -28,16 +28,16 @@ function pair(pairAddress: string, liquidity: string | null, chainId = "solana")
     liquidity: { usd: liquidity },
     fdv: "250000",
     marketCap: null,
-    pairCreatedAt: 1_754_308_800_000,
+    pairCreatedAt: Date.parse("2026-08-01T00:00:00Z"),
   };
 }
 
-function adapter(status: number, body: unknown) {
+function adapter(status: number, body: unknown, bulkPairs: unknown = [pair("screened", "80000")]) {
   const calls: string[] = [];
   const http: JsonHttpClient = {
     get: async (url) => {
       calls.push(url);
-      return { status, body, receivedAt };
+      return { status, body: url.includes("/tokens/v1/") ? bulkPairs : body, receivedAt };
     },
   };
   return { value: new DexScreenerMarketAdapter(http, identities), calls };
@@ -59,13 +59,22 @@ describe("DexScreener market observation contract", () => {
       sourceReference: `https://dexscreener.com/solana/${mint}`,
       observedAt: receivedAt,
     });
-    expect(result.value[0]?.trace.method).toBe("GET /token-profiles/latest/v1");
+    expect(result.value[0]?.trace.method).toBe("GET /token-profiles/latest/v1 + GET /tokens/v1/solana/{mints}");
     expect(fixture.calls[0]).toContain("/token-profiles/latest/v1");
     expect(fixture.calls).toEqual([
       "https://api.dexscreener.com/token-profiles/latest/v1",
       "https://api.dexscreener.com/token-boosts/latest/v1",
       "https://api.dexscreener.com/token-boosts/top/v1",
+      `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
     ]);
+  });
+
+  it("does not queue promoted tokens that fail the existing liquidity floor", async () => {
+    const fixture = adapter(200, [
+      { chainId: "solana", tokenAddress: mint, url: `https://dexscreener.com/solana/${mint}` },
+    ], [pair("thin", "50000")]);
+    const result = await fixture.value.discoverLatestTokens(receivedAt);
+    expect(result.ok && result.value).toEqual([]);
   });
 
   it("quarantines a malformed profile without suppressing valid Solana candidates", async () => {
@@ -84,7 +93,7 @@ describe("DexScreener market observation contract", () => {
     const http: JsonHttpClient = {
       get: async (url) => ({
         status: url.includes("token-profiles") ? 503 : 200,
-        body: url.includes("token-profiles")
+        body: url.includes("/tokens/v1/") ? [pair("screened", "80000")] : url.includes("token-profiles")
           ? {}
           : [
               {
