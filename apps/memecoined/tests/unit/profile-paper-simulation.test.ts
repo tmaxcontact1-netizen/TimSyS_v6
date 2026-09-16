@@ -4,6 +4,7 @@ import {
   evaluateExecutableEntryEvidence,
   evaluateProfileCandidate,
   maximumPositionBps,
+  refreshTemporalCandidateEvidence,
   trailingStopActivated,
 } from "../../src/application/services/profile-paper-simulation.js";
 import { asTimestamp } from "../../src/domain/shared/types.js";
@@ -19,6 +20,43 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("uses current market momentum without bypassing live liquidity or holder gates", () => {
+    const market = {
+      liquidityUsd: { gte: (n: number) => n <= 150_000, lt: (n: number) => n > 150_000 },
+      fiveMinutePriceChangePercentage: { gte: (n: number) => n <= 6, lte: (n: number) => n >= 6, toString: () => "6" },
+      fiveMinuteBuys: 20n,
+      fiveMinuteSells: 10n,
+      pairCreatedAt: asTimestamp("2026-09-16T11:00:00.000Z"),
+    };
+    const refreshed = refreshTemporalCandidateEvidence({
+      previousScore: { wallet: 0, holders: 15, liquidity: 0, momentum: 0, volumeQuality: 0, total: 15 },
+      previousFailedRules: ["SEC-005", "SEC-008", "SEC-012"],
+      scoreEvaluatedAt: asTimestamp("2026-09-16T11:50:00.000Z"),
+      observedAt: asTimestamp("2026-09-16T12:00:00.000Z"),
+      market: market as never,
+    });
+    expect(refreshed.score).toMatchObject({ liquidity: 15, momentum: 20, volumeQuality: 10, total: 60 });
+    expect(refreshed.failedRules).toEqual(["SEC-008"]);
+    expect(evaluateProfileCandidate(tradingProfile("fast_furious")!, refreshed.score, refreshed.failedRules).eligible).toBe(false);
+    expect(refreshed.staticEvidenceFresh).toBe(true);
+    const stale = refreshTemporalCandidateEvidence({
+      previousScore: score,
+      previousFailedRules: [],
+      scoreEvaluatedAt: asTimestamp("2026-09-16T11:30:00.000Z"),
+      observedAt: asTimestamp("2026-09-16T12:00:00.000Z"),
+      market: market as never,
+    });
+    expect(stale.staticEvidenceFresh).toBe(false);
+    const unsafe = refreshTemporalCandidateEvidence({
+      previousScore: score,
+      previousFailedRules: [],
+      scoreEvaluatedAt: asTimestamp("2026-09-16T11:50:00.000Z"),
+      observedAt: asTimestamp("2026-09-16T12:00:00.000Z"),
+      market: { ...market, liquidityUsd: null, fiveMinuteSells: 21n } as never,
+    });
+    expect(unsafe.failedRules).toContain("SEC-005");
+    expect(unsafe.failedRules).toContain("SEC-012");
+  });
   it("keeps evidence-dependent profiles in observation until their feeds exist", () => {
     const result = evaluateProfileCandidate(tradingProfile("social_catalyst")!, score, []);
     expect(result.eligible).toBe(false);

@@ -4,11 +4,13 @@ import type { Pool, PoolClient } from "pg";
 
 import type { SwapPort } from "../ports/swap.js";
 import type { MarketObservationPort } from "../ports/market.js";
+import type { PoolMarketObservation } from "../contracts/observations.js";
 import { WRAPPED_SOL_MINT } from "./portfolio-inventory-valuation.js";
 import {
   asBasisPoints,
   asRawAmount,
   asTimestamp,
+  asPercentage,
   type MintAddress,
   type Timestamp,
   type WalletAddress,
@@ -23,6 +25,7 @@ import {
   evaluateShortHorizonSignal,
   type ExecutableMarketPoint,
 } from "../../domain/strategy/short-horizon.js";
+import { scoreCandidate } from "../../domain/candidate/scoring.js";
 
 export interface ProfileScoreBreakdown {
   readonly wallet: number;
@@ -170,7 +173,12 @@ interface CandidateRow {
   readonly breakdown_json: ProfileScoreBreakdown;
   readonly failed_rules: string[] | null;
   readonly evaluated_at: Date | string;
-  readonly signal_json?: { readonly observedVolatilityBps?: number } | null;
+  readonly signal_json?: {
+    readonly observedVolatilityBps?: number;
+    readonly currentScore?: ProfileScoreBreakdown;
+    readonly currentFailedRules?: readonly string[];
+    readonly sourceScoreEvaluatedAt?: string;
+  } | null;
 }
 interface ActivationRow {
   readonly profile_id: TradingProfileId;
@@ -198,7 +206,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v4";
+const temporalEngineVersion = "temporal-v5";
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",
@@ -221,6 +229,49 @@ const temporalProfileIds = new Set<TradingProfileId>([
   "benchmark_atr_trend",
 ]);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
+
+/** Refresh volatile score components and their matching gates from one live market reading. */
+export function refreshTemporalCandidateEvidence(input: {
+  readonly previousScore: ProfileScoreBreakdown;
+  readonly previousFailedRules: readonly string[];
+  readonly scoreEvaluatedAt: Date | string;
+  readonly observedAt: Timestamp;
+  readonly market: PoolMarketObservation;
+}): Readonly<{ score: ProfileScoreBreakdown; failedRules: readonly string[]; staticEvidenceFresh: boolean }> {
+  const change = input.market.fiveMinutePriceChangePercentage;
+  const live = scoreCandidate({
+    walletConfirmation: "none",
+    liquidityUsd: input.market.liquidityUsd,
+    fiveMinutePriceChange: change !== null && change.gte(0) && change.lte(100)
+      ? asPercentage(change.toString()) : null,
+    topTenNormalPercentage: null,
+    fiveMinuteBuyTransactions: input.market.fiveMinuteBuys,
+    fiveMinuteSellTransactions: input.market.fiveMinuteSells,
+  });
+  const score = Object.freeze({
+    wallet: input.previousScore.wallet,
+    holders: input.previousScore.holders,
+    liquidity: live.liquidity,
+    momentum: live.momentum,
+    volumeQuality: live.volumeQuality,
+    total: input.previousScore.wallet + input.previousScore.holders + live.liquidity + live.momentum + live.volumeQuality,
+  });
+  const failed = new Set(input.previousFailedRules.filter((rule) =>
+    rule !== "SEC-005" && rule !== "SEC-006" && rule !== "SEC-012"));
+  if (input.market.liquidityUsd === null || input.market.liquidityUsd.lt(75_000)) failed.add("SEC-005");
+  const poolAgeMinutes = input.market.pairCreatedAt === null
+    ? NaN : (Date.parse(input.observedAt) - Date.parse(input.market.pairCreatedAt)) / 60_000;
+  if (!Number.isFinite(poolAgeMinutes) || poolAgeMinutes < 30 || poolAgeMinutes > 43_200)
+    failed.add("SEC-006");
+  if (input.market.fiveMinuteBuys === null || input.market.fiveMinuteSells === null ||
+      input.market.fiveMinuteSells > input.market.fiveMinuteBuys) failed.add("SEC-012");
+  const staticAgeMs = Date.parse(input.observedAt) - new Date(input.scoreEvaluatedAt).getTime();
+  return Object.freeze({
+    score,
+    failedRules: Object.freeze([...failed].sort()),
+    staticEvidenceFresh: Number.isFinite(staticAgeMs) && staticAgeMs >= 0 && staticAgeMs <= 15 * 60_000,
+  });
+}
 
 const shortHorizonProfiles = new Set<TradingProfileId>([
   "fast_furious",
@@ -408,11 +459,15 @@ async function collectFastMarketObservations(input: {
          FROM candidates c JOIN LATERAL
               (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                 WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
-        WHERE s.total_score>=25 AND s.evaluated_at >= $2::timestamptz-interval '12 hours'
+        WHERE s.total_score>=8 AND s.evaluated_at >= $2::timestamptz-interval '15 minutes'
         ORDER BY c.mint_address,s.evaluated_at DESC
      ), universe AS (
-       -- Broaden observation without changing any entry or security gate.
-       SELECT * FROM latest ORDER BY total_score DESC,evaluated_at DESC LIMIT 24
+       -- Market points can improve; static authority and holder failures cannot.
+       -- Spend bounded quote capacity on fresh, security-verified candidates.
+       SELECT * FROM latest
+        WHERE NOT (failed_rules && ARRAY['SEC-001','SEC-002','SEC-003','SEC-004',
+                                           'SEC-008','SEC-010','SEC-015']::text[])
+        ORDER BY total_score DESC,evaluated_at DESC LIMIT 24
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM universe
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '45 seconds'
@@ -473,18 +528,28 @@ async function collectFastMarketObservations(input: {
       fiveMinuteBuys: row.five_minute_buys === null ? null : BigInt(row.five_minute_buys),
       fiveMinuteSells: row.five_minute_sells === null ? null : BigInt(row.five_minute_sells),
     }));
+    const current = refreshTemporalCandidateEvidence({
+      previousScore: candidate.breakdown_json,
+      previousFailedRules: candidate.failed_rules ?? [],
+      scoreEvaluatedAt: candidate.evaluated_at,
+      observedAt: input.at,
+      market: observation,
+    });
     for (const activation of enabled.rows) {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
       const signal = evaluateShortHorizonSignal(profile.id, points);
-      const score = candidate.breakdown_json;
       const profileDecision = evaluateProfileCandidate(
         profile,
-        score,
-        candidate.failed_rules ?? [],
+        current.score,
+        current.failedRules,
       );
-      const eligible = signal.eligible && profileDecision.eligible;
-      const reasons = [signal.reason, ...profileDecision.reasons];
+      const eligible = signal.eligible && profileDecision.eligible && current.staticEvidenceFresh;
+      const reasons = [signal.reason, ...profileDecision.reasons,
+        ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
+      const signalEvidence = { ...signal, currentScore: current.score,
+        currentFailedRules: current.failedRules,
+        sourceScoreEvaluatedAt: iso(candidate.evaluated_at) };
       await input.pool.query(
         `INSERT INTO paper_fast_signal_events
            (wallet,profile_id,candidate_id,token_mint,observed_at,eligible,signal_json,reasons_json)
@@ -496,7 +561,7 @@ async function collectFastMarketObservations(input: {
           candidate.mint_address,
           input.at,
           eligible,
-          JSON.stringify(signal),
+          JSON.stringify(signalEvidence),
           JSON.stringify(reasons),
         ],
       );
@@ -527,10 +592,10 @@ async function collectFastMarketObservations(input: {
           profile.id,
           candidate.candidate_id,
           eligible,
-          candidate.total_score,
+          current.score.total,
           JSON.stringify(reasons),
           input.at,
-          JSON.stringify(signal),
+          JSON.stringify(signalEvidence),
         ],
       );
     }
@@ -746,10 +811,24 @@ async function processPendingEntries(input: {
       );
       continue;
     }
+    const signalEvidence = candidate.signal_json;
+    const sourceScoreMatches = signalEvidence?.sourceScoreEvaluatedAt !== undefined &&
+      Date.parse(signalEvidence.sourceScoreEvaluatedAt) === new Date(candidate.evaluated_at).getTime();
+    if (temporalProfileIds.has(profile.id) &&
+        (!sourceScoreMatches || signalEvidence?.currentScore === undefined ||
+         signalEvidence.currentFailedRules === undefined)) {
+      await input.pool.query(
+        `UPDATE paper_profile_candidate_decisions
+            SET eligible=false,entry_state='failed',last_entry_error='Current market evidence is missing or superseded',next_entry_attempt_at=NULL
+          WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+        [input.wallet, profile.id, candidate.candidate_id],
+      );
+      continue;
+    }
     const currentDecision = evaluateProfileCandidate(
       profile,
-      candidate.breakdown_json,
-      candidate.failed_rules ?? [],
+      temporalProfileIds.has(profile.id) ? signalEvidence!.currentScore! : candidate.breakdown_json,
+      temporalProfileIds.has(profile.id) ? signalEvidence!.currentFailedRules! : candidate.failed_rules ?? [],
     );
     if (!currentDecision.eligible) {
       await input.pool.query(
