@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calibrateFastFurious, calibrateProfile } from "../../src/domain/strategy/adaptive-calibration.js";
+import { calibrateFastFurious, calibrateProfile, evaluateAdaptiveEntry } from "../../src/domain/strategy/adaptive-calibration.js";
 
 const history = (prices: readonly number[]) => prices.map((price, index) => ({
   observedAt: new Date(Date.UTC(2026, 8, 19, 12, 0, index)).toISOString(),
@@ -54,5 +54,31 @@ describe("Fast & Furious per-token calibration", () => {
   it("keeps benchmark strategies fixed for honest comparison", () => {
     expect(calibrateProfile("benchmark_momentum", history(Array(12).fill(1)), "2026-09-19T12:12:00.000Z"))
       .toBeNull();
+  });
+
+  it("accepts a confirmed short trend that the legacy Fast & Furious labels excluded", () => {
+    const calibration = calibrateFastFurious(
+      history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]),
+      "2026-09-19T12:12:00.000Z",
+    );
+    expect(evaluateAdaptiveEntry("fast_furious", {
+      eligible: false, pattern: "trend", latestMoveBps: -5, shortMoveBps: 60,
+      cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
+      drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
+      buyPressureBps: 5_200, marketConfirmed: true, reason: "Legacy label excluded",
+    }, calibration).eligible).toBe(true);
+  });
+
+  it("does not turn a calibrated range into an entry without current confirmation", () => {
+    const calibration = calibrateFastFurious(
+      history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]),
+      "2026-09-19T12:12:00.000Z",
+    );
+    expect(evaluateAdaptiveEntry("fast_furious", {
+      eligible: false, pattern: "trend", latestMoveBps: 30, shortMoveBps: 80,
+      cumulativeMoveBps: 200, observedVolatilityBps: 220, positiveSteps: 4,
+      drawdownFromHighBps: 0, volumeChangeBps: null, liquidityChangeBps: null,
+      buyPressureBps: null, marketConfirmed: false, reason: "Unconfirmed",
+    }, calibration).eligible).toBe(false);
   });
 });

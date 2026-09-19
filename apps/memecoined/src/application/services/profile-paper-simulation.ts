@@ -27,6 +27,7 @@ import {
 } from "../../domain/strategy/short-horizon.js";
 import {
   calibrateProfile,
+  evaluateAdaptiveEntry,
   type AdaptiveTradeCalibration,
 } from "../../domain/strategy/adaptive-calibration.js";
 import { scoreCandidate } from "../../domain/candidate/scoring.js";
@@ -477,11 +478,11 @@ async function collectFastMarketObservations(input: {
        SELECT * FROM latest
         WHERE NOT (failed_rules && ARRAY['SEC-001','SEC-002','SEC-003','SEC-004',
                                            'SEC-008','SEC-010','SEC-015']::text[])
-        ORDER BY total_score DESC,evaluated_at DESC LIMIT 24
+        ORDER BY total_score DESC,evaluated_at DESC LIMIT 48
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM universe
-        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '45 seconds'
-        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),evaluated_at DESC LIMIT 8`,
+        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
+        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),evaluated_at DESC LIMIT 12`,
     [input.wallet, input.at],
   );
   for (const candidate of candidates.rows) {
@@ -554,17 +555,19 @@ async function collectFastMarketObservations(input: {
       if (!profile) continue;
       const signal = evaluateShortHorizonSignal(profile.id, points);
       const adaptiveCalibration = calibrateProfile(profile.id, points, input.at);
+      const adaptiveEntry = evaluateAdaptiveEntry(profile.id, signal, adaptiveCalibration);
       const profileDecision = evaluateProfileCandidate(
         profile,
         current.score,
         current.failedRules,
       );
-      const eligible = signal.eligible && profileDecision.eligible && current.staticEvidenceFresh &&
-        (adaptiveCalibration?.tradeable ?? true);
-      const reasons = [signal.reason, ...profileDecision.reasons,
+      const eligible = adaptiveEntry.eligible && profileDecision.eligible && current.staticEvidenceFresh;
+      const reasons = [adaptiveEntry.reason, ...profileDecision.reasons,
         ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
         ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
       const signalEvidence = { ...signal,
+        adaptiveEntryEligible: adaptiveEntry.eligible,
+        adaptiveEntryReason: adaptiveEntry.reason,
         ...(adaptiveCalibration ? { adaptiveCalibration } : {}), currentScore: current.score,
         currentFailedRules: current.failedRules,
         sourceScoreEvaluatedAt: iso(candidate.evaluated_at) };
@@ -1155,6 +1158,9 @@ export async function readProfilePaperPerformance(
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.eligible)::int AS short_horizon_qualified
+            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.signal_json ? 'adaptiveCalibration')::int AS adaptive_calibrations
+            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.signal_json->'adaptiveCalibration'->>'tradeable'='true')::int AS adaptive_tradeable
+            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.signal_json->'adaptiveCalibration'->>'tradeable'='true' AND e.signal_json->>'adaptiveEntryEligible'='false')::int AS adaptive_pattern_waiting
             ,(SELECT e.signal_json FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id ORDER BY e.observed_at DESC LIMIT 1) AS latest_signal
             ,(SELECT e.observed_at FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id ORDER BY e.observed_at DESC LIMIT 1) AS latest_signal_at
             ,(SELECT count(*) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS market_observations

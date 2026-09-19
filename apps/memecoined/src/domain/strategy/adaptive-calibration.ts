@@ -1,4 +1,4 @@
-import type { ExecutableMarketPoint } from "./short-horizon.js";
+import type { ExecutableMarketPoint, ShortHorizonSignal } from "./short-horizon.js";
 import type { TradingProfileId } from "./profiles.js";
 
 export type VolatilityRegime = "micro" | "moderate" | "high" | "unstable" | "insufficient";
@@ -58,3 +58,42 @@ export function calibrateProfile(id:TradingProfileId, points:readonly Executable
   return Object.freeze({...base,regime,confidencePercentage:confidence,typicalMoveBps:typical,upperMoveBps:upper,targetBps:target,hardStopBps:stop,trailingStopBps:trailing,trailingActivationBps:activation,maximumHoldingMinutes:hold,maximumRoundTripCostBps:friction,tradeable,reason:tradeable?`${p.model} supports a ${target/100}% target in this token's ${regime} executable range with ${confidence}% confidence`:unstable?`Observed movement is too discontinuous for the ${p.model} model`:`The token's repeatable movement is below the ${p.model} opportunity threshold`});
 }
 export const calibrateFastFurious=(points:readonly ExecutableMarketPoint[],at:string)=>calibrateProfile("fast_furious",points,at)!;
+
+export interface AdaptiveEntryDecision { readonly eligible: boolean; readonly reason: string; }
+
+/** Lets the calibrated range interpret a signal without discarding each profile's distinct purpose. */
+export function evaluateAdaptiveEntry(
+  id: TradingProfileId,
+  signal: ShortHorizonSignal,
+  calibration: AdaptiveTradeCalibration | null,
+): AdaptiveEntryDecision {
+  if (!calibration) return Object.freeze({ eligible: signal.eligible, reason: signal.reason });
+  if (!calibration.tradeable)
+    return Object.freeze({ eligible: false, reason: calibration.reason });
+  if (!signal.marketConfirmed)
+    return Object.freeze({ eligible: false, reason: "The calibrated movement is not confirmed by current market activity" });
+  if (signal.eligible)
+    return Object.freeze({ eligible: true, reason: `${signal.reason}; ${calibration.reason}` });
+
+  const continuing = signal.cumulativeMoveBps >= Math.max(35, calibration.targetBps * .25) &&
+    signal.shortMoveBps >= Math.max(12, calibration.targetBps * .08) &&
+    signal.positiveSteps >= 3 && signal.drawdownFromHighBps <= calibration.hardStopBps * .35;
+  const immediate = signal.latestMoveBps >= Math.max(6, calibration.targetBps * .04) &&
+    signal.shortMoveBps > 0 && signal.drawdownFromHighBps <= calibration.trailingStopBps;
+  const rangeReady = signal.observedVolatilityBps >= calibration.targetBps * .55 && immediate;
+  const liquiditySupported = (signal.liquidityChangeBps ?? -Infinity) >= 0 &&
+    (signal.volumeChangeBps ?? -Infinity) >= -500 && immediate;
+  const eligible = id === "fast_furious" ? continuing || immediate
+    : id === "scalper" ? rangeReady
+      : id === "slow_steady" || id === "capital_preservation" || id === "signal_consensus" || id === "whale_tracker"
+        ? continuing
+        : id === "trend_detector" ? continuing
+          : id === "liquidity_expansion" || id === "launch_transition" ? liquiditySupported
+            : false; // Reversal and breakout profiles retain their required structural pattern.
+  return Object.freeze({
+    eligible,
+    reason: eligible
+      ? `Adaptive ${calibration.model} entry accepted within the token's calibrated ${calibration.regime} range`
+      : `The calibrated range is tradeable, but the current movement does not yet match ${calibration.model}`,
+  });
+}
