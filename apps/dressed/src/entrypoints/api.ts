@@ -21,7 +21,7 @@ import { LifecycleRepository } from "../infrastructure/database/lifecycle-reposi
 import { InsightsRepository } from "../infrastructure/database/insights-repository.js";
 import { PrivateImageStore } from "../infrastructure/images/private-image-store.js";
 import { validateOriginalImage } from "../infrastructure/images/image-validation.js";
-import { analyseCalibrationCard, combineFingerprint, measureImage, suggestFields } from "../infrastructure/images/visual-fingerprint-engine.js";
+import { inspectCalibrationCard, combineFingerprint, measureImage, suggestFields } from "../infrastructure/images/visual-fingerprint-engine.js";
 import { evaluateStyling } from "../domain/outfit/styling-engine.js";
 import { generateEnsembles } from "../domain/outfit/ensemble-engine.js";
 import { planRotation } from "../domain/planner/rotation-engine.js";
@@ -162,9 +162,9 @@ export function createDressedServer(input: {
         const name = (url.searchParams.get("name") ?? "").trim();
         if (!name || name.length > 120) return json(response, 400, { error: "calibration_name_required" });
         const bytes = await binaryBody(request);
-        const patches = await analyseCalibrationCard(bytes);
-        const profile = await photography.createProfile(randomUUID(), calibrationProfileInputSchema.parse({ name, cardType: "Printed red, green and blue reference card", notes: "Measured automatically from the uploaded reference photograph.", patches }), now().toISOString());
-        return json(response, 201, profile);
+        const inspection = await inspectCalibrationCard(bytes);
+        const profile = await photography.createProfile(randomUUID(), calibrationProfileInputSchema.parse({ name, cardType: inspection.layout === "timsys-8" ? "Dress’Ed eight-patch reference card" : "Three-patch RGB reference card", notes: `${inspection.message} Master confidence ${Math.round(inspection.confidence*100)}%.`, patches: inspection.patches }), now().toISOString());
+        return json(response, 201, { ...profile, inspection });
       }
       const calibrationProfileMatch = /^\/api\/calibration-profiles\/([0-9a-f-]{36})$/i.exec(pathname);
       if (calibrationProfileMatch !== null) {
@@ -238,15 +238,17 @@ export function createDressedServer(input: {
           const url = new URL(request.url ?? pathname, "http://127.0.0.1");
           const role = url.searchParams.get("role"); const profileId = url.searchParams.get("calibrationProfileId"); const filename = (url.searchParams.get("filename") ?? "original").replace(/[\\/\0]/g, "_").slice(0, 240);
           if (!(["whole","detail","additional"] as readonly string[]).includes(role ?? "") || profileId === null || !/^[0-9a-f-]{36}$/i.test(profileId)) return json(response, 400, { error: "invalid_image_metadata" });
-          const cardVisible = url.searchParams.get("cardVisible") === "true";
           const capturedAtValue = url.searchParams.get("capturedAt");
           if (capturedAtValue !== null && !Number.isFinite(new Date(capturedAtValue).getTime())) return json(response, 400, { error: "invalid_captured_at" });
-          const bytes = await binaryBody(request); let validation;
-          try { validation = validateOriginalImage(bytes, cardVisible); } catch { return json(response, 415, { error: "unsupported_or_invalid_image" }); }
+          const bytes = await binaryBody(request); let validation; let calibrationInspection;
+          try { calibrationInspection = await inspectCalibrationCard(bytes); validation = validateOriginalImage(bytes, true); } catch (error) {
+            if (error instanceof Error && error.message.startsWith("calibration_")) return json(response, 422, { error: error.message });
+            return json(response, 415, { error: "unsupported_or_invalid_image" });
+          }
           const imageId = randomUUID(); const relativePath = await images.writeOriginal({ garmentId, imageId, extension: validation.extension, bytes });
           try {
-            const image = await photography.addImage({ imageId, garmentId, profileId, role: role as ImageRole, filename, relativePath, cardVisible, capturedAt: capturedAtValue === null ? null : new Date(capturedAtValue).toISOString(), timestamp: now().toISOString(), validation });
-            return json(response, 201, { image, readiness: await photography.readiness(garmentId) });
+            const image = await photography.addImage({ imageId, garmentId, profileId, role: role as ImageRole, filename, relativePath, cardVisible: true, capturedAt: capturedAtValue === null ? null : new Date(capturedAtValue).toISOString(), timestamp: now().toISOString(), validation });
+            return json(response, 201, { image, readiness: await photography.readiness(garmentId), calibration: calibrationInspection });
           } catch (error) { await images.removeOriginal(relativePath); throw error; }
         }
         return json(response, 405, { error: "method_not_allowed" });
@@ -257,7 +259,7 @@ export function createDressedServer(input: {
         if (method === "GET") { const current = await fingerprints.current(garmentId); return current === null ? json(response, 404, { error: "fingerprint_not_found" }) : json(response, 200, current); }
         if (method === "POST") {
           const sources = await fingerprints.currentImages(garmentId);
-          if (sources.length === 0) return json(response, 409, { error: "accepted_photograph_required" });
+          if (!sources.some((source)=>source.role==="whole") || !sources.some((source)=>source.role==="detail")) return json(response, 409, { error: "whole_and_detail_photographs_required" });
           const measured = await Promise.all(sources.map(async (source) => ({ ...source, measurements: await measureImage(await images.read(source.relativePath),source.patches) })));
           const whole = measured.find((source) => source.role === "whole") ?? null; const detail = measured.find((source) => source.role === "detail") ?? null;
           const fingerprint = combineFingerprint(whole?.measurements ?? null, detail?.measurements ?? null); const suggestions = suggestFields(fingerprint);

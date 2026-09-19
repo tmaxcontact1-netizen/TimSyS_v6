@@ -2,7 +2,7 @@ import { describe,expect,test } from "vitest";
 import type { VisualFingerprint } from "../../src/domain/garment/visual-fingerprint.js";
 import { evaluateStyling,type StylingGarment } from "../../src/domain/outfit/styling-engine.js";
 
-function fingerprint(lab:readonly[number,number,number],input:{complexity?:number;solid?:number;pattern?:number;texture?:number}={}):VisualFingerprint{return{schemaVersion:"1.0.0",algorithmVersion:"classical-pixels-1.0.0",whole:null,detail:null,combined:{palette:[{rgb:[0,0,0],lab,proportion:1,label:"fixture"}],averageLightness:lab[0],averageChroma:Math.hypot(lab[1],lab[2]),contrast:.3,patternDensity:input.pattern??.02,textureStrength:input.texture??.2,visualComplexity:input.complexity??.3,solidConfidence:input.solid??.9},confidence:.9}}
+function fingerprint(lab:readonly[number,number,number],input:{complexity?:number;solid?:number;pattern?:number;texture?:number}={}):VisualFingerprint{return{schemaVersion:"1.0.0",algorithmVersion:"classical-calibrated-2.0.0",whole:null,detail:null,combined:{palette:[{rgb:[0,0,0],lab,proportion:1,label:"fixture"}],averageLightness:lab[0],averageChroma:Math.hypot(lab[1],lab[2]),contrast:.3,patternDensity:input.pattern??.02,textureStrength:input.texture??.2,visualComplexity:input.complexity??.3,solidConfidence:input.solid??.9},confidence:.9}}
 function garment(id:string,name:string,categorySlug:string,print:VisualFingerprint,formality=4):StylingGarment{return{id,name,categorySlug,status:"available",formality,seasons:["all-season"],fingerprintId:id,fingerprint:print}}
 const context={id:"context",slug:"formal-business",name:"Formal business",formalityMin:4,formalityMax:5};
 

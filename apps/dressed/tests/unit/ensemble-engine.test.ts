@@ -4,7 +4,7 @@ import { generateEnsembles, type SlottedGarment } from "../../src/domain/outfit/
 
 const context={id:"context",slug:"smart-casual",name:"Smart casual",formalityMin:2,formalityMax:5};
 const requirements=[{slotId:"top",requirement:"required" as const,minimumItems:1,maximumItems:1},{slotId:"bottom",requirement:"required" as const,minimumItems:1,maximumItems:1},{slotId:"footwear",requirement:"required" as const,minimumItems:1,maximumItems:1}];
-function fingerprint(lab:readonly[number,number,number]):VisualFingerprint{return{schemaVersion:"1.0.0",algorithmVersion:"classical-pixels-1.0.0",whole:null,detail:null,combined:{palette:[{rgb:[0,0,0],lab,proportion:1,label:"fixture"}],averageLightness:lab[0],averageChroma:Math.hypot(lab[1],lab[2]),contrast:.25,patternDensity:.02,textureStrength:.2,visualComplexity:.25,solidConfidence:.9},confidence:.9}}
+function fingerprint(lab:readonly[number,number,number]):VisualFingerprint{return{schemaVersion:"1.0.0",algorithmVersion:"classical-calibrated-2.0.0",whole:null,detail:null,combined:{palette:[{rgb:[0,0,0],lab,proportion:1,label:"fixture"}],averageLightness:lab[0],averageChroma:Math.hypot(lab[1],lab[2]),contrast:.25,patternDensity:.02,textureStrength:.2,visualComplexity:.25,solidConfidence:.9},confidence:.9}}
 function garment(n:number,slotId:string,lab:readonly[number,number,number]):SlottedGarment{return{id:`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`,name:`Garment ${n}`,categorySlug:slotId,status:"available",formality:3,seasons:["all-season"],fingerprintId:`fingerprint-${n}`,fingerprint:fingerprint(lab),slotId,imageId:null}}
 const available=[garment(1,"top",[88,0,0]),garment(2,"bottom",[35,4,-18]),garment(3,"footwear",[25,2,3]),garment(4,"bottom",[55,18,22]),garment(5,"footwear",[75,0,2])];
 

@@ -1,7 +1,7 @@
 import sharp from "sharp";
 import { describe, expect, test } from "vitest";
 
-import { analyseCalibrationCard, combineFingerprint, measureImage, suggestFields } from "../../src/infrastructure/images/visual-fingerprint-engine.js";
+import { analyseCalibrationCard, inspectCalibrationCard, combineFingerprint, measureImage, suggestFields } from "../../src/infrastructure/images/visual-fingerprint-engine.js";
 
 async function fixture(patterned: boolean): Promise<Buffer> {
   const width = 160, height = 240, channels = 3; const pixels = Buffer.alloc(width * height * channels, 245);
@@ -35,11 +35,20 @@ describe("classical visual fingerprint", () => {
     expect(patches.map(patch=>patch.label)).toEqual(["Red","Green","Blue"]);
   });
 
+  test("measures the complete eight-patch card when the standard layout is present", async () => {
+    const width=640,height=260,channels=3,pixels=Buffer.alloc(width*height*channels,242),colours=[[20,20,20],[220,40,40],[40,190,55],[35,75,220],[35,190,200],[195,40,160],[225,190,35],[150,150,150]] as const;
+    colours.forEach((colour,index)=>{const centre=75+index*70;for(let y=95;y<165;y++)for(let x=centre-22;x<=centre+22;x++){const offset=(y*width+x)*channels;pixels[offset]=colour[0];pixels[offset+1]=colour[1];pixels[offset+2]=colour[2];}});
+    const result=await inspectCalibrationCard(await sharp(pixels,{raw:{width,height,channels}}).png().toBuffer());
+    expect(result.layout).toBe("timsys-8");
+    expect(result.patches.map(patch=>patch.label)).toEqual(["Black","Red","Green","Blue","Cyan","Magenta","Yellow","Grey"]);
+    expect(result.confidence).toBeGreaterThan(.9);
+  });
+
   test("is byte-for-byte deterministic for identical evidence", async () => {
     const image = await fixture(false); const first = await measureImage(image); const second = await measureImage(image);
     expect(second).toEqual(first);
     expect(first.foregroundAspectRatio).toBeCloseTo(0.25, 1);
-    expect(first.palette[0]?.label).toBe("white");
+    expect(first.palette[0]?.label).toBe("navy");
   });
 
   test("measures stripes as more complex and less solid", async () => {

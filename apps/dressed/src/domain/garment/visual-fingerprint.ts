@@ -1,5 +1,5 @@
 export const FINGERPRINT_SCHEMA_VERSION = "1.0.0";
-export const FINGERPRINT_ALGORITHM_VERSION = "classical-pixels-1.0.0";
+export const FINGERPRINT_ALGORITHM_VERSION = "classical-calibrated-2.0.0";
 
 export type PaletteEntry = Readonly<{ rgb: readonly [number, number, number]; lab: readonly [number, number, number]; proportion: number; label: string }>;
 export type ImageMeasurements = Readonly<{

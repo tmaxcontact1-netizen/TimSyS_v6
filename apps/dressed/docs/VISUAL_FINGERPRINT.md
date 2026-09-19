@@ -1,13 +1,13 @@
 # Visual fingerprint v1
 
-Algorithm: `classical-pixels-1.0.0`. Schema: `1.0.0`.
+Algorithm: `classical-calibrated-2.0.0`. Schema: `1.0.0`.
 
 The implementation uses Sharp/libvips for local deterministic decoding, orientation and bounded 256 × 256 sampling. It uses no neural model, generative model, cloud service or stochastic operation.
 
 ## Measurements
 
 - RGB pixels are converted to CIE Lab using the sRGB D65 transform.
-- Palette entries use deterministic 5-bit RGB quantisation, ordered by pixel count, with numerical RGB/Lab values and approximate human labels.
+- Palette entries use deterministic 5-bit RGB quantisation over the isolated foreground, ordered by pixel count, with numerical RGB/Lab values and approximate human labels. Detected calibration patches are excluded.
 - Foreground coverage and aspect ratio compare pixels with the averaged corner background. This is a deliberately simple silhouette estimate.
 - Luminance contrast is the normalised standard deviation of perceptual luminance.
 - Edge density counts central-gradient magnitude above the versioned threshold; horizontal and vertical energies remain separate.

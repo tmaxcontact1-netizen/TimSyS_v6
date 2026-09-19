@@ -851,7 +851,7 @@ function CalibrationForm({ close, saved }) {
             />
           </label>
           <p className="muted">
-            Print a white sheet with three large, separate blocks: red, green and blue. Photograph the whole sheet in the lighting you normally use. Dress’Ed will read the colours and use this card as the reference in later garment photographs.
+            Use a matte white sheet with eight equal patches in this order: black, red, green, blue, cyan, magenta, yellow and neutral grey. Keep the sheet flat, photograph the whole card in even light without flash, and avoid reflections. A red–green–blue card remains supported, but the eight-patch card gives stronger correction.
           </p>
           <label>
             Photograph of your colour card
@@ -878,7 +878,7 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
     [role, setRole] = useState("whole"),
     [profile, setProfile] = useState(usableProfiles[0]?.id || ""),
     [file, setFile] = useState(null),
-    [cardVisible, setCardVisible] = useState(false),
+    [calibrationNotice, setCalibrationNotice] = useState(""),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const selectedProfile = usableProfiles.find((item) => item.id === profile) || usableProfiles[0];
@@ -908,7 +908,6 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
       const q = new URLSearchParams({
         role,
         calibrationProfileId: profile,
-        cardVisible: String(cardVisible),
         filename: file.name,
       });
       const response = await fetch(`/api/garments/${garment.id}/images?${q}`, {
@@ -918,8 +917,8 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
       });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || "Upload failed");
+      setCalibrationNotice(value.calibration?.message || "Colour card found and applied to this photograph.");
       setFile(null);
-      setCardVisible(false);
       e.target.reset();
       await load();
     } catch (cause) {
@@ -950,10 +949,12 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
     const categorySlug = byField.category?.value?.[0]?.slug;
     const categoryId =
       categories.find((x) => x.slug === categorySlug)?.id ?? garment.categoryId;
+    const categoryName = categories.find((x) => x.id === categoryId)?.name;
     review({
       fingerprintId: fingerprint.id,
       values: {
         categoryId,
+        name: garment.name.startsWith("New garment ") && categoryName ? categoryName : garment.name,
         formality: byField.formality?.value ?? garment.formality,
         seasons: byField.seasons?.value ?? garment.seasons,
       },
@@ -1018,21 +1019,14 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
                 onChange={(e) => setFile(e.target.files?.[0] || null)}
               />
             </label>
-            <label className="check">
-              <input
-                required
-                type="checkbox"
-                checked={cardVisible}
-                onChange={(e) => setCardVisible(e.target.checked)}
-              />
-              My colour card is fully visible in this photograph
-            </label>
+            <p className="muted">Dress’Ed will locate and measure the colour card automatically. The photograph will be rejected if the card is missing, distorted or obscured by glare.</p>
             <button className="primary" disabled={busy}>
               {busy ? "Checking photograph…" : "Add photograph"}
             </button>
           </form>
         )}
         {error && <p className="error banner">{error}</p>}
+        {calibrationNotice && <p className="success banner" role="status">{calibrationNotice}</p>}
         <div className="photo-grid">
           {images.map((image) => (
             <article
@@ -1060,7 +1054,7 @@ function PhotoManager({ garment, profiles, categories, close, review }) {
             </article>
           ))}
         </div>
-        {(readiness.wholeReady || readiness.detailReady) && (
+        {readiness.readyForAnalysis && (
           <div className="analysis-actions">
             <button className="primary" disabled={busy} onClick={analyse}>
               {fingerprint ? "Reanalyse photographs" : "Analyse photographs"}
@@ -2641,7 +2635,7 @@ function ModernApp() {
                 <div className="calibration-profile-list">
                   <strong>{profiles.length === 1 ? "1 colour card is available" : `${profiles.length} colour cards are available`}</strong>
                   {profiles.map((profile) => <article key={profile.id}>
-                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? "Ready for new garment photographs" : "Needs attention before use"}</p></div>
+                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? `${profile.patches?.length || 0} patches measured · ready for new garment photographs` : "Needs attention before use"}</p></div>
                     <div className="source-actions">
                       <Button onClick={() => setModal({ type: "calibration" })}>Add replacement</Button>
                       <Button variant="danger" onClick={() => setCalibrationDeleteTarget(profile)}>Delete</Button>
