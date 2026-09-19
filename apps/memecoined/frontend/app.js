@@ -1,4 +1,10 @@
 const lamportsPerSol = 1_000_000_000n;
+const escapeHtml = (value) => String(value)
+  .replaceAll("&", "&amp;")
+  .replaceAll("<", "&lt;")
+  .replaceAll(">", "&gt;")
+  .replaceAll('"', "&quot;")
+  .replaceAll("'", "&#39;");
 function installActionFeedback() {
   const notice = document.createElement("div");
   notice.className = "action-feedback";

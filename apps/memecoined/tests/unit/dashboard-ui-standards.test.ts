@@ -60,6 +60,14 @@ describe("dashboard UI standards", () => {
     expect(javascript).toContain("qualification");
   });
 
+  it("defines safe calibration rendering before profile cards use it", async () => {
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    const declaration = javascript.indexOf("const escapeHtml =");
+    const calibrationUse = javascript.indexOf("escapeHtml(calibration.reason)");
+    expect(declaration).toBeGreaterThanOrEqual(0);
+    expect(calibrationUse).toBeGreaterThan(declaration);
+  });
+
   it("keeps the overview concise and suppresses empty operational furniture", async () => {
     const html = await readFile(new URL("frontend/index.html", root), "utf8");
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
