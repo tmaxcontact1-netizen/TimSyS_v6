@@ -22,17 +22,17 @@ describe("paper profile activations", () => {
         if (sql.trimStart().startsWith("SELECT profile_id")) return { rows: [] };
         return {
           rows: [{
-            profile_id: "whale_tracker", enabled: true, mode: "automatic_paper",
+            profile_id: "fast_furious", enabled: true, mode: "automatic_paper",
             allocation_bps: 1500, version: 1, updated_at: "2026-09-12T12:00:00Z",
           }],
         };
       },
     };
     const saved = await configurePaperProfile(
-      database as never, "wallet" as never, "whale_tracker", 0, true,
+      database as never, "wallet" as never, "fast_furious", 0, true,
       "automatic_paper", 1500, new Date("2026-09-12T12:00:00Z"),
     );
-    expect(saved).toMatchObject({ profileId: "whale_tracker", enabled: true, version: 1 });
+    expect(saved).toMatchObject({ profileId: "fast_furious", enabled: true, version: 1 });
     expect(statements[1]).toContain("paper_profile_activation_audit");
   });
 
@@ -42,7 +42,8 @@ describe("paper profile activations", () => {
       query: async (sql: string, parameters: readonly unknown[]) => {
         values = parameters;
         expect(sql).toContain("'automatic_paper'");
-        expect(sql).toContain("'whale_tracker',true,'automatic_paper',1500");
+        expect(sql).toContain("'whale_tracker',false,'observe',0");
+        expect(sql).toContain("'fast_furious',true,'automatic_paper',3000");
         expect(sql).toContain("'trend_detector',true,'automatic_paper',2000");
         expect(sql).toContain("'scalper',false,'observe',0");
         expect(sql).toContain("WHERE NOT EXISTS");

@@ -44,8 +44,8 @@ export async function ensureAllProfilesPaperTrialPreset(
   const result = await database.query<{ inserted_count: string | number }>(
     `WITH presets(profile_id,enabled,mode,allocation_bps,audit_id) AS (
        VALUES
-         ('whale_tracker',true,'automatic_paper',1500,$3::uuid),
-         ('fast_furious',true,'automatic_paper',1500,$4::uuid),
+         ('whale_tracker',false,'observe',0,$3::uuid),
+         ('fast_furious',true,'automatic_paper',3000,$4::uuid),
          ('slow_steady',true,'automatic_paper',2000,$5::uuid),
          ('trend_detector',true,'automatic_paper',2000,$6::uuid),
          ('capital_preservation',true,'automatic_paper',1500,$7::uuid),

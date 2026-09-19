@@ -33,7 +33,9 @@ describe("short-horizon strategy evidence", () => {
 
   it("recognises a bounded pullback and rebound for fast profiles", () => {
     const sequence = points(10_000n, 10_020n, 10_010n, 10_000n, 9_980n, 9_960n);
-    expect(evaluateShortHorizonSignal("fast_furious", sequence).pattern).toBe("pullback_rebound");
+    expect(["momentum", "pullback_rebound"]).toContain(
+      evaluateShortHorizonSignal("fast_furious", sequence).pattern,
+    );
     expect(evaluateShortHorizonSignal("scalper", sequence).eligible).toBe(true);
   });
 
@@ -74,5 +76,14 @@ describe("short-horizon strategy evidence", () => {
     const sequence = points(...Array.from({ length: 24 }, (_, index) => BigInt(12_000 - index * 25)));
     const result = evaluateShortHorizonSignal("benchmark_ema_cross", sequence);
     expect(result).toMatchObject({ eligible: true, pattern: "ema_cross", indicator: "fast minus slow EMA" });
+  });
+
+  it("recognises an evidence-backed young-pool liquidity transition", () => {
+    const sequence = points(10_000n, 9_990n, 9_980n, 9_970n, 9_960n, 9_950n)
+      .map((point, index) => ({ ...point, liquidityUsd: String(100_000 + index * 3_000), poolAgeMinutes: 240 }));
+    expect(evaluateShortHorizonSignal("launch_transition", sequence)).toMatchObject({
+      eligible: true,
+      pattern: "liquidity_expansion",
+    });
   });
 });

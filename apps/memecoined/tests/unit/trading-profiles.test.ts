@@ -37,7 +37,7 @@ describe("trading profiles", () => {
   it("does not claim profiles can trade before their required evidence exists", () => {
     const waiting = tradingProfileCatalogue.filter(({ evidenceStatus }) => evidenceStatus === "awaiting_data");
     expect(waiting.map(({ id }) => id)).toEqual([
-      "social_catalyst", "launch_transition",
+      "whale_tracker", "social_catalyst",
     ]);
     expect(waiting.every(({ evidenceMessage }) => Boolean(evidenceMessage))).toBe(true);
   });

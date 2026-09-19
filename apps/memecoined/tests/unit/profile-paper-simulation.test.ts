@@ -91,13 +91,13 @@ describe("profile paper simulation policy", () => {
     );
   });
 
-  it("keeps whale-dependent and defensive profiles selective", () => {
+  it("keeps unavailable whale evidence blocked while defensive profiles use current evidence", () => {
     expect(evaluateProfileCandidate(tradingProfile("whale_tracker")!, score, []).eligible).toBe(
       false,
     );
-    expect(
-      evaluateProfileCandidate(tradingProfile("capital_preservation")!, score, []).eligible,
-    ).toBe(false);
+    const defensive = { ...score, liquidity: 20, holders: 15, volumeQuality: 10, total: 65 };
+    expect(evaluateProfileCandidate(tradingProfile("capital_preservation")!, defensive, []).eligible).toBe(true);
+    expect(evaluateProfileCandidate(tradingProfile("slow_steady")!, defensive, []).eligible).toBe(true);
   });
 
   it("never lets a profile override a failed safety gate", () => {
@@ -149,7 +149,7 @@ describe("profile paper simulation policy", () => {
 
   it("requires every signal family for the consensus profile", () => {
     const almostComplete = {
-      wallet: 30,
+      wallet: 0,
       liquidity: 20,
       momentum: 20,
       holders: 15,

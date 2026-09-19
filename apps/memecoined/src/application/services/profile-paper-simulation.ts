@@ -158,11 +158,11 @@ export function evaluateProfileCandidate(
     reasons.push("The shared benchmark market-quality floor is not met");
   if (
     profile.id === "signal_consensus" &&
-    [score.wallet, score.liquidity, score.momentum, score.holders, score.volumeQuality].some(
+    [score.liquidity, score.momentum, score.holders, score.volumeQuality].some(
       (value) => value === 0,
     )
   )
-    reasons.push("All five independent signal groups must contribute");
+    reasons.push("Liquidity, momentum, holders and transaction quality must all contribute");
   return Object.freeze({ eligible: reasons.length === 0, reasons: Object.freeze(reasons) });
 }
 
@@ -218,6 +218,7 @@ const temporalProfileIds = new Set<TradingProfileId>([
   "breakout_retest",
   "liquidity_expansion",
   "recovery_reversal",
+  "launch_transition",
   "benchmark_buy_hold",
   "benchmark_momentum",
   "benchmark_ema_cross",
@@ -280,6 +281,7 @@ const shortHorizonProfiles = new Set<TradingProfileId>([
   "breakout_retest",
   "liquidity_expansion",
   "recovery_reversal",
+  "launch_transition",
 ]);
 
 /**
@@ -520,13 +522,17 @@ async function collectFastMarketObservations(input: {
         WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 40`,
       [input.wallet, candidate.mint_address],
     );
-    const points: ExecutableMarketPoint[] = history.rows.reverse().map((row) => ({
+    const points: ExecutableMarketPoint[] = history.rows.reverse().map((row, index, rows) => ({
       observedAt: iso(row.observed_at),
       outputAmountRaw: BigInt(row.output_amount_raw),
       liquidityUsd: row.liquidity_usd,
       fiveMinuteVolumeUsd: row.five_minute_volume_usd,
       fiveMinuteBuys: row.five_minute_buys === null ? null : BigInt(row.five_minute_buys),
       fiveMinuteSells: row.five_minute_sells === null ? null : BigInt(row.five_minute_sells),
+      ...(index === rows.length - 1
+        ? { poolAgeMinutes: observation.pairCreatedAt === null ? null
+            : Math.max(0, (Date.parse(input.at) - Date.parse(observation.pairCreatedAt)) / 60_000) }
+        : {}),
     }));
     const current = refreshTemporalCandidateEvidence({
       previousScore: candidate.breakdown_json,

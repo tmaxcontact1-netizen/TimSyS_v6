@@ -7,6 +7,7 @@ export interface ExecutableMarketPoint {
   readonly fiveMinuteVolumeUsd?: string | null;
   readonly fiveMinuteBuys?: bigint | null;
   readonly fiveMinuteSells?: bigint | null;
+  readonly poolAgeMinutes?: number | null;
 }
 
 export interface ShortHorizonSignal {
@@ -151,11 +152,19 @@ export function evaluateShortHorizonSignal(
   } else if (profileId === "benchmark_atr_trend") {
     benchmarkPattern = "atr_trend"; benchmarkEligible = prices.length >= 20 && latestPrice > emaSlow && latestPrice - priorPrice >= atr * 0.5; indicator = "move divided by ATR"; indicatorValue = atr ? Math.round((latestPrice - priorPrice) / atr * 100) / 100 : 0;
   }
+  const launchTransition = profileId === "launch_transition" &&
+    Number.isFinite(recent.at(-1)?.poolAgeMinutes) &&
+    (recent.at(-1)?.poolAgeMinutes ?? Infinity) >= 30 &&
+    (recent.at(-1)?.poolAgeMinutes ?? Infinity) <= 10_080 &&
+    (liquidityChange ?? -Infinity) >= 100 &&
+    (volumeChange ?? -Infinity) >= 0 && latest >= 0;
   const existingProfilePattern = profileId === "whale_tracker" || profileId === "slow_steady" || profileId === "capital_preservation" || profileId === "signal_consensus"
     ? trend : profileId === "liquidity_expansion"
       ? (liquidityChange ?? -Infinity) >= 100 && (volumeChange ?? -Infinity) >= 0 && latest >= 0
+      : profileId === "launch_transition" ? launchTransition
       : permittedPattern;
-  if (profileId === "liquidity_expansion" && existingProfilePattern) benchmarkPattern = "liquidity_expansion";
+  if ((profileId === "liquidity_expansion" || profileId === "launch_transition") && existingProfilePattern)
+    benchmarkPattern = "liquidity_expansion";
   const isBenchmark = profileId.startsWith("benchmark_");
   const selectedPattern = isBenchmark ? benchmarkPattern : benchmarkPattern !== "none" ? benchmarkPattern : pattern;
   const eligible = (isBenchmark ? benchmarkEligible : existingProfilePattern) && profileConfirmation;
