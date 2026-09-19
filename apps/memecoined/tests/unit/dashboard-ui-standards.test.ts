@@ -81,6 +81,17 @@ describe("dashboard UI standards", () => {
     expect(css).toContain("[hidden]");
   });
 
+  it("keeps profile diagnostics readable and operational tables inside their panels", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
+    expect(css).toContain(".detail-grid > .wide");
+    expect(css).toContain(".table-wrap {");
+    expect(css).toContain(".strategy-funnel-table table");
+    expect(css).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
+    expect(html).toContain('class="table-wrap strategy-funnel-table"');
+    expect(html).toContain('<td colspan="8">Loading strategy activity…</td>');
+  });
+
   it("guards configuration edits from accidental refresh loss", async () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain('window.addEventListener("beforeunload"');
