@@ -118,6 +118,7 @@ export function evaluateProfileCandidate(
   profile: TradingProfileDefinition,
   score: ProfileScoreBreakdown,
   failedSafetyRules: readonly string[],
+  options: Readonly<{ adaptiveEntryConfirmed?: boolean }> = {},
 ): ProfileCandidateDecision {
   const reasons: string[] = [];
   if (profile.evidenceStatus === "awaiting_data")
@@ -128,15 +129,15 @@ export function evaluateProfileCandidate(
   const applicableFailures = failedSafetyRules.filter((ruleId) => requiredRules.has(ruleId));
   if (applicableFailures.length)
     reasons.push(`Required gates failed: ${applicableFailures.join(", ")}`);
-  if (score.total < profile.minimumCandidateScore)
+  if (!options.adaptiveEntryConfirmed && score.total < profile.minimumCandidateScore)
     reasons.push(
       `Score ${score.total} is below this profile's ${profile.minimumCandidateScore}-point threshold`,
     );
   if (profile.requiresWhaleConfirmation && score.wallet === 0)
     reasons.push("No qualifying tracked-wallet confirmation");
-  if (profile.id === "fast_furious" && (score.momentum < 12 || score.volumeQuality < 5))
+  if (!options.adaptiveEntryConfirmed && profile.id === "fast_furious" && (score.momentum < 12 || score.volumeQuality < 5))
     reasons.push("Short-term momentum and transaction quality do not agree");
-  if (profile.id === "trend_detector" && (score.momentum < 12 || score.liquidity < 10))
+  if (!options.adaptiveEntryConfirmed && profile.id === "trend_detector" && (score.momentum < 12 || score.liquidity < 10))
     reasons.push("Emerging trend lacks sufficient momentum or liquidity");
   if (profile.id === "whale_tracker" && (score.liquidity < 10 || score.volumeQuality < 5))
     reasons.push("Tracked-wallet activity lacks supporting liquidity or transaction quality");
@@ -148,12 +149,12 @@ export function evaluateProfileCandidate(
       "Liquidity, holder breadth or transaction quality is below the defensive standard",
     );
   if (
-    profile.id === "liquidity_expansion" &&
+    !options.adaptiveEntryConfirmed && profile.id === "liquidity_expansion" &&
     (score.liquidity < 15 || score.volumeQuality < 8 || score.holders < 5)
   )
     reasons.push("Liquidity, transaction quality and holder breadth do not yet agree");
   if (
-    profile.id === "scalper" &&
+    !options.adaptiveEntryConfirmed && profile.id === "scalper" &&
     (score.momentum < 16 || score.volumeQuality < 10 || score.liquidity < 8)
   )
     reasons.push("Immediate momentum, liquidity and transaction quality do not yet agree");
@@ -181,6 +182,7 @@ interface CandidateRow {
   readonly signal_json?: {
     readonly observedVolatilityBps?: number;
     readonly adaptiveCalibration?: AdaptiveTradeCalibration;
+    readonly adaptiveEntryEligible?: boolean;
     readonly currentScore?: ProfileScoreBreakdown;
     readonly currentFailedRules?: readonly string[];
     readonly sourceScoreEvaluatedAt?: string;
@@ -215,7 +217,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v6";
+const temporalEngineVersion = "temporal-v7";
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",
@@ -560,6 +562,7 @@ async function collectFastMarketObservations(input: {
         profile,
         current.score,
         current.failedRules,
+        { adaptiveEntryConfirmed: adaptiveEntry.eligible },
       );
       const eligible = adaptiveEntry.eligible && profileDecision.eligible && current.staticEvidenceFresh;
       const reasons = [adaptiveEntry.reason, ...profileDecision.reasons,
@@ -855,6 +858,7 @@ async function processPendingEntries(input: {
       profile,
       temporalProfileIds.has(profile.id) ? signalEvidence!.currentScore! : candidate.breakdown_json,
       temporalProfileIds.has(profile.id) ? signalEvidence!.currentFailedRules! : candidate.failed_rules ?? [],
+      { adaptiveEntryConfirmed: signalEvidence?.adaptiveEntryEligible === true },
     );
     if (!currentDecision.eligible) {
       await input.pool.query(

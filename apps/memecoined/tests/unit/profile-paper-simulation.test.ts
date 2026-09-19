@@ -106,6 +106,26 @@ describe("profile paper simulation policy", () => {
     expect(decision.reasons[0]).toContain("SEC-001");
   });
 
+  it("does not make a confirmed adaptive entry pass the obsolete aggregate momentum gate twice", () => {
+    const adaptiveScore = {
+      wallet: 0,
+      liquidity: 15,
+      momentum: 0,
+      holders: 15,
+      volumeQuality: 0,
+      total: 30,
+    };
+    expect(evaluateProfileCandidate(
+      tradingProfile("fast_furious")!, adaptiveScore, [], { adaptiveEntryConfirmed: true },
+    ).eligible).toBe(true);
+    expect(evaluateProfileCandidate(
+      tradingProfile("scalper")!, adaptiveScore, [], { adaptiveEntryConfirmed: true },
+    ).eligible).toBe(true);
+    expect(evaluateProfileCandidate(
+      tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], { adaptiveEntryConfirmed: true },
+    ).eligible).toBe(false);
+  });
+
   it("lets the aggressive profile relax market-cap range without relaxing liquidity or ownership safety", () => {
     const aggressive = {
       wallet: 0,
