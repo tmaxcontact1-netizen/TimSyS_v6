@@ -40,6 +40,8 @@ export interface AcquisitionPipelineStatus {
     retrying: number;
     maximumAttempts: number;
     lastError: string | null;
+    screenedOutLast24Hours: number;
+    lastScreeningReason: string | null;
   }>[];
 }
 
@@ -112,8 +114,13 @@ export async function readAcquisitionPipelineStatus(
             COALESCE((SELECT jsonb_agg(work ORDER BY work.job_type,work.state)
               FROM (SELECT job_type,state,count(*)::int AS count,
                            count(*) FILTER (WHERE last_error_json IS NOT NULL)::int AS retrying,
+                           count(*) FILTER (WHERE job_type='candidate_evaluation'
+                             AND payload_json->'screening'->>'outcome'='unavailable'
+                             AND updated_at>=now()-interval '24 hours')::int AS screened_out_24h,
                            max(attempts)::int AS maximum_attempts,
-                           max(COALESCE(last_error_json->>'reason',last_error_json->>'message')) AS last_error
+                           max(COALESCE(last_error_json->>'reason',last_error_json->>'message')) AS last_error,
+                           (array_agg(payload_json->'screening'->>'reason' ORDER BY updated_at DESC)
+                             FILTER (WHERE payload_json->'screening'->>'reason' IS NOT NULL))[1] AS last_screening
                     FROM jobs
                     WHERE job_type IN ('candidate_evaluation','risk_evaluation','entry_planning','position_reconciliation')
                     GROUP BY job_type,state) work),'[]'::jsonb) AS work_json
@@ -141,6 +148,11 @@ export async function readAcquisitionPipelineStatus(
           count: Number((item as Record<string, unknown>).count),
           retrying: Number((item as Record<string, unknown>).retrying ?? 0),
           maximumAttempts: Number((item as Record<string, unknown>).maximum_attempts ?? 0),
+          screenedOutLast24Hours: Number((item as Record<string, unknown>).screened_out_24h ?? 0),
+          lastScreeningReason:
+            typeof (item as Record<string, unknown>).last_screening === "string"
+              ? String((item as Record<string, unknown>).last_screening)
+              : null,
           lastError:
             typeof (item as Record<string, unknown>).last_error === "string"
               ? String((item as Record<string, unknown>).last_error)

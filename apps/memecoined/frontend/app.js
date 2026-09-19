@@ -1620,12 +1620,21 @@ async function refreshPipeline() {
       label = document.createElement("span"),
       count = document.createElement("strong");
     const retry = item.retrying > 0 ? ` · ${item.retrying} retrying` : "";
-    label.textContent = `${item.jobType.replaceAll("_", " ")} · ${item.state}${retry}`;
+    const screened = item.screenedOutLast24Hours > 0
+      ? ` · ${item.screenedOutLast24Hours} screened out in 24h`
+      : "";
+    label.textContent = `${item.jobType.replaceAll("_", " ")} · ${item.state}${retry}${screened}`;
     if (item.lastError) {
       label.title = item.lastError;
       const reason = document.createElement("small");
       reason.className = "pipeline-error";
       reason.textContent = item.lastError;
+      label.append(reason);
+    }
+    if (item.lastScreeningReason) {
+      const reason = document.createElement("small");
+      reason.className = "pipeline-error";
+      reason.textContent = `Latest screening: ${item.lastScreeningReason}`;
       label.append(reason);
     }
     count.textContent = String(item.count);

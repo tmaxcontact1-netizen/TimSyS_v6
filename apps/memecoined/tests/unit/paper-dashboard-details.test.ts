@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  readAcquisitionPipelineStatus,
   readPaperDashboardDetails,
   readPaperPerformanceHistory,
   readPaperTokenDetails,
@@ -8,6 +9,24 @@ import {
 } from "../../src/infrastructure/database/paper-dashboard.js";
 
 describe("paper dashboard details", () => {
+  it("reports terminal evidence screening separately from successful work", async () => {
+    const database = {
+      query: async () => ({ rows: [{
+        state: "available", available_at: new Date("2026-09-19T10:12:00Z"),
+        lease_owner: null, lease_expires_at: null, attempts: 2,
+        payload_json: { status: "completed", summary: { discovered: 2 } },
+        last_error_json: null,
+        work_json: [{ job_type: "candidate_evaluation", state: "completed", count: 10,
+          retrying: 0, maximum_attempts: 1, screened_out_24h: 2,
+          last_screening: "Primary RPC method is unavailable" }],
+      }] }),
+    };
+    const result = await readAcquisitionPipelineStatus(database as never);
+    expect(result.work[0]).toMatchObject({
+      count: 10, screenedOutLast24Hours: 2,
+      lastScreeningReason: "Primary RPC method is unavailable",
+    });
+  });
   it("reads bounded wallet-scoped worker alerts", async () => {
     const queries: { text: string; values: readonly unknown[] }[] = [];
     const database = {
