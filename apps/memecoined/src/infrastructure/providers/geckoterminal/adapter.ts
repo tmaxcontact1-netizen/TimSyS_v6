@@ -28,6 +28,12 @@ const poolSchema = z.object({
 const responseSchema = z.object({ data: z.array(poolSchema) });
 type Pool = z.infer<typeof poolSchema>;
 
+const discoveryPages = Object.freeze(
+  ["new_pools", "trending_pools"].flatMap((resource) =>
+    [1, 2, 3].map((page) => Object.freeze({ resource, page })),
+  ),
+);
+
 const token = (id: string) => id.startsWith("solana_") ? id.slice(7) : id;
 const number = (value?: string | null) => value == null ? null : asNonNegativeDecimal(value);
 const signed = (value?: string | null) => value == null ? null : asDecimal(value);
@@ -46,35 +52,49 @@ export class GeckoTerminalMarketAdapter implements MarketObservationPort, Candid
   }
 
   public async discoverLatestTokens(requestedAt: Timestamp): Promise<ObservationResult<readonly CandidateDiscoveryObservation[]>> {
-    let response;
-    try { response = await this.http.get(`${this.baseUrl}/networks/solana/new_pools?page=1`); }
-    catch { return this.failure(requestedAt, "GeckoTerminal discovery request failed"); }
-    if (response.status === 429) return Object.freeze({ ok: false, error: Object.freeze({ code: "rate_limited" as const, provider: "geckoterminal" as const, occurredAt: response.receivedAt, retryable: true, reason: "GeckoTerminal rate limit" }) });
-    const parsed = responseSchema.safeParse(response.body);
-    if (!parsed.success) return this.failure(response.receivedAt, "Malformed GeckoTerminal discovery response");
-    const hash = contentHash(response.body);
+    const settled = await Promise.allSettled(discoveryPages.map(async ({ resource, page }) => ({
+      resource,
+      page,
+      response: await this.http.get(`${this.baseUrl}/networks/solana/${resource}?page=${page}`),
+    })));
+    const successful = settled.flatMap((result) => {
+      if (result.status !== "fulfilled") return [];
+      const parsed = responseSchema.safeParse(result.value.response.body);
+      return result.value.response.status >= 200 && result.value.response.status < 300 && parsed.success
+        ? [{ ...result.value, pools: parsed.data.data }]
+        : [];
+    });
+    if (successful.length === 0) {
+      const responses = settled.flatMap((result) => result.status === "fulfilled" ? [result.value.response] : []);
+      if (responses.some(({ status }) => status === 429))
+        return Object.freeze({ ok: false, error: Object.freeze({ code: "rate_limited" as const, provider: "geckoterminal" as const, occurredAt: responses[0]?.receivedAt ?? requestedAt, retryable: true, reason: "GeckoTerminal discovery rate limit" }) });
+      return this.failure(responses[0]?.receivedAt ?? requestedAt, "GeckoTerminal discovery requests failed");
+    }
     const observations: CandidateDiscoveryObservation[] = [];
     const seen = new Set<string>();
-    for (const pool of parsed.data.data) {
-      const liquidity = reserve(pool);
-      const createdAt = pool.attributes.pool_created_at;
-      const ageMs = createdAt ? Date.parse(response.receivedAt) - Date.parse(createdAt) : NaN;
-      if (!Number.isFinite(liquidity) || liquidity < 75_000 ||
-          !Number.isFinite(ageMs) || ageMs < 30 * 60_000 || ageMs > 30 * 24 * 60 * 60_000)
-        continue;
-      const address = token(pool.relationships.base_token.data.id);
-      if (seen.has(address)) continue;
-      try {
-        const mint = asMintAddress(address);
-        seen.add(address);
-        const sourceKey = `geckoterminal:new-pool:${pool.id}:${address}`;
-        observations.push(Object.freeze({ mint, sourceReference: sourceKey, observedAt: response.receivedAt, trace: Object.freeze({
-          evidenceId: this.identities.createEvidenceId({ provider: "geckoterminal", sourceKey, contentHash: hash }),
-          provider: "geckoterminal", method: "GET /networks/solana/new_pools", requestedAt, respondedAt: response.receivedAt,
-          sourceTimestamp: pool.attributes.pool_created_at ? asTimestamp(pool.attributes.pool_created_at) : null,
-          normalizedAt: response.receivedAt, sourceKey, contentHash: hash,
-        }) }));
-      } catch { continue; }
+    for (const { resource, page, response, pools } of successful) {
+      const hash = contentHash(response.body);
+      for (const pool of pools) {
+        const liquidity = reserve(pool);
+        const createdAt = pool.attributes.pool_created_at;
+        const ageMs = createdAt ? Date.parse(response.receivedAt) - Date.parse(createdAt) : NaN;
+        if (!Number.isFinite(liquidity) || liquidity < 75_000 ||
+            !Number.isFinite(ageMs) || ageMs < 30 * 60_000 || ageMs > 30 * 24 * 60 * 60_000)
+          continue;
+        const address = token(pool.relationships.base_token.data.id);
+        if (seen.has(address)) continue;
+        try {
+          const mint = asMintAddress(address);
+          seen.add(address);
+          const sourceKey = `geckoterminal:${resource}:${page}:${pool.id}:${address}`;
+          observations.push(Object.freeze({ mint, sourceReference: sourceKey, observedAt: response.receivedAt, trace: Object.freeze({
+            evidenceId: this.identities.createEvidenceId({ provider: "geckoterminal", sourceKey, contentHash: hash }),
+            provider: "geckoterminal", method: `GET /networks/solana/${resource}?page=${page}`, requestedAt, respondedAt: response.receivedAt,
+            sourceTimestamp: pool.attributes.pool_created_at ? asTimestamp(pool.attributes.pool_created_at) : null,
+            normalizedAt: response.receivedAt, sourceKey, contentHash: hash,
+          }) }));
+        } catch { continue; }
+      }
     }
     return Object.freeze({ ok: true, value: Object.freeze(observations) });
   }

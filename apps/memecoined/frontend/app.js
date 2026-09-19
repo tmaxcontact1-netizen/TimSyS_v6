@@ -1004,7 +1004,7 @@ function completedTrades(applyRange = true) {
     if (!entry || fill.side !== "sell") continue;
     const spent = BigInt(entry.settlement_amount_raw);
     const received = BigInt(fill.settlement_amount_raw);
-    const pnl = received - spent - BigInt(fill.execution_fee_raw ?? "0");
+    const pnl = received - spent - BigInt(entry.execution_fee_raw ?? "0") - BigInt(fill.execution_fee_raw ?? "0");
     trades.push({ entry, exit: fill, spent, received, pnl });
     entries.delete(key);
   }

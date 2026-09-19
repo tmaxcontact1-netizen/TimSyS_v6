@@ -5,8 +5,10 @@ All material file touches are recorded here. Dates use UTC. Entries identify the
 ## 2026-09-19 — Paper-test release gate
 
 - Broadened free live discovery beyond promotional feeds with the documented DexScreener Raydium search, while retaining liquidity, age, independent-RPC, quote-cost and token-safety gates.
+- Expanded the safe opportunity universe across Raydium, Meteora, Orca and pump searches plus three pages each of GeckoTerminal new and trending Solana pools. The expansion remains inside the public rate limits and does not relax security gates.
 - Attributed every profile decision to its strategy-engine version. Existing history remains archived as `snapshot-v1`; new decisions and fills are reported against `temporal-v5`.
 - Changed profile and pipeline presentation to distinguish current-engine assessment runs, different tokens assessed, current fills and current net result from archived calibration history.
+- Corrected completed-trade profit and percentage calculations to include both entry and exit execution fees.
 - Added startup-schema verification for engine attribution so an incomplete update fails visibly instead of silently mixing incompatible results.
 - Added discovery contract coverage and completed the 730-test MemeCoined regression suite.
 

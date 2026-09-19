@@ -1,6 +1,6 @@
 # UI Capability Coverage
 
-Generated: 2026-09-19T10:50:17.763Z
+Generated: 2026-09-19T11:52:16.331Z
 
 This report is a static connection audit. A route is **referenced** when application frontend source contains a matching endpoint. Reference proves an intended UI connection, not that the resulting workflow is usable; interaction acceptance is a later gate.
 
@@ -132,7 +132,7 @@ Operational gaps: **0**
 
 ```json
 {
-  "generatedAt": "2026-09-19T10:50:17.780Z",
+  "generatedAt": "2026-09-19T11:52:16.348Z",
   "totals": {
     "declared": 662,
     "referenced": 656,

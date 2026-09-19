@@ -63,6 +63,9 @@ const discoveryFeeds = Object.freeze([
 ]);
 const discoverySearches = Object.freeze([
   Object.freeze({ query: "Raydium", label: "raydium-search" }),
+  Object.freeze({ query: "Meteora", label: "meteora-search" }),
+  Object.freeze({ query: "Orca", label: "orca-search" }),
+  Object.freeze({ query: "pump", label: "pump-search" }),
 ]);
 type Pair = z.infer<typeof pairSchema>;
 
@@ -243,7 +246,7 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
               contentHash,
             }),
             provider: "dexscreener",
-            method: "GET /latest/dex/search?q=Raydium",
+            method: `GET /latest/dex/search?q=${search.query}`,
             requestedAt,
             respondedAt: response.receivedAt,
             sourceTimestamp: null,

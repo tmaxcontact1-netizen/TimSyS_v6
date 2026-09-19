@@ -74,6 +74,9 @@ describe("DexScreener market observation contract", () => {
       "https://api.dexscreener.com/token-boosts/latest/v1",
       "https://api.dexscreener.com/token-boosts/top/v1",
       "https://api.dexscreener.com/latest/dex/search?q=Raydium",
+      "https://api.dexscreener.com/latest/dex/search?q=Meteora",
+      "https://api.dexscreener.com/latest/dex/search?q=Orca",
+      "https://api.dexscreener.com/latest/dex/search?q=pump",
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
     ]);
   });

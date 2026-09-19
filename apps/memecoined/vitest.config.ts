@@ -103,6 +103,7 @@ export default defineConfig({
       "tests/integration/tracked-wallet-valuations.test.ts",
       "tests/integration/candidate-evaluation-facts.test.ts",
       "tests/contract/dexscreener.test.ts",
+      "tests/contract/geckoterminal.test.ts",
       "tests/contract/solana.test.ts",
       "tests/contract/solana-wallet-inventory.test.ts",
       "tests/contract/mint-security.test.ts",
