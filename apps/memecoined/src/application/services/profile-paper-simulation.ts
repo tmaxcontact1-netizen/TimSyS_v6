@@ -25,6 +25,10 @@ import {
   evaluateShortHorizonSignal,
   type ExecutableMarketPoint,
 } from "../../domain/strategy/short-horizon.js";
+import {
+  calibrateProfile,
+  type AdaptiveTradeCalibration,
+} from "../../domain/strategy/adaptive-calibration.js";
 import { scoreCandidate } from "../../domain/candidate/scoring.js";
 
 export interface ProfileScoreBreakdown {
@@ -175,6 +179,7 @@ interface CandidateRow {
   readonly evaluated_at: Date | string;
   readonly signal_json?: {
     readonly observedVolatilityBps?: number;
+    readonly adaptiveCalibration?: AdaptiveTradeCalibration;
     readonly currentScore?: ProfileScoreBreakdown;
     readonly currentFailedRules?: readonly string[];
     readonly sourceScoreEvaluatedAt?: string;
@@ -193,7 +198,10 @@ interface PositionRow {
   readonly cost_raw: string;
   readonly high_water_raw: string;
   readonly opened_at: Date | string;
-  readonly entry_signal_json: { readonly observedVolatilityBps?: number } | null;
+  readonly entry_signal_json: {
+    readonly observedVolatilityBps?: number;
+    readonly adaptiveCalibration?: AdaptiveTradeCalibration;
+  } | null;
   readonly engine_version: string;
 }
 interface PendingEntryRow extends CandidateRow {
@@ -206,7 +214,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v5";
+const temporalEngineVersion = "temporal-v6";
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",
@@ -545,15 +553,19 @@ async function collectFastMarketObservations(input: {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
       const signal = evaluateShortHorizonSignal(profile.id, points);
+      const adaptiveCalibration = calibrateProfile(profile.id, points, input.at);
       const profileDecision = evaluateProfileCandidate(
         profile,
         current.score,
         current.failedRules,
       );
-      const eligible = signal.eligible && profileDecision.eligible && current.staticEvidenceFresh;
+      const eligible = signal.eligible && profileDecision.eligible && current.staticEvidenceFresh &&
+        (adaptiveCalibration?.tradeable ?? true);
       const reasons = [signal.reason, ...profileDecision.reasons,
+        ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
         ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
-      const signalEvidence = { ...signal, currentScore: current.score,
+      const signalEvidence = { ...signal,
+        ...(adaptiveCalibration ? { adaptiveCalibration } : {}), currentScore: current.score,
         currentFailedRules: current.failedRules,
         sourceScoreEvaluatedAt: iso(candidate.evaluated_at) };
       await input.pool.query(
@@ -577,7 +589,7 @@ async function collectFastMarketObservations(input: {
             entry_state,next_entry_attempt_at,signal_json,signal_observed_at,engine_version)
          VALUES ($1,$2,$3,'automatic_paper',$4,$5,$6::jsonb,$7,
                  CASE WHEN $4 THEN 'pending' ELSE 'not_applicable' END,
-                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7,'temporal-v5')
+                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7,$9)
          ON CONFLICT (wallet,profile_id,candidate_id) DO UPDATE SET
            eligible=EXCLUDED.eligible,score=EXCLUDED.score,reasons_json=EXCLUDED.reasons_json,
            evaluated_at=EXCLUDED.evaluated_at,signal_json=EXCLUDED.signal_json,
@@ -602,6 +614,7 @@ async function collectFastMarketObservations(input: {
           JSON.stringify(reasons),
           input.at,
           JSON.stringify(signalEvidence),
+          temporalEngineVersion,
         ],
       );
     }
@@ -643,9 +656,11 @@ async function enterPosition(input: {
     });
   if (Number(row.open_positions) >= input.profile.maximumConcurrentPositions)
     return Object.freeze({ outcome: "retry", reason: "Profile position limit is currently full" });
+  const calibratedStopBps = input.candidate.signal_json?.adaptiveCalibration?.hardStopBps ??
+    input.profile.hardStopBps;
   const riskSized =
     (BigInt(row.initial_cash_raw) * BigInt(input.profile.riskPerTradeBps)) /
-    BigInt(input.profile.hardStopBps);
+    BigInt(calibratedStopBps);
   const absoluteCap =
     (BigInt(row.initial_cash_raw) * maximumPositionBps(input.profile.id)) / 10_000n;
   const available = BigInt(row.cash_raw) - input.feeRaw;
@@ -717,7 +732,9 @@ async function enterPosition(input: {
     immediateReturn >= BigInt(q.inputAmount)
       ? 0n
       : ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
-  const maximumFrictionBps = input.profile.id === "scalper" ? 100n : 200n;
+  const maximumFrictionBps = input.candidate.signal_json?.adaptiveCalibration
+    ? BigInt(input.candidate.signal_json.adaptiveCalibration.maximumRoundTripCostBps)
+    : input.profile.id === "scalper" ? 100n : 200n;
   if (roundTripLossBps > maximumFrictionBps)
     return Object.freeze({
       outcome: "failed",
@@ -971,13 +988,18 @@ async function monitorPositions(input: {
       0,
       Number(position.entry_signal_json?.observedVolatilityBps ?? 0),
     );
-    const adaptiveStopBps = observedVolatility
+    const calibration = position.entry_signal_json?.adaptiveCalibration;
+    const adaptiveStopBps = calibration
+      ? calibration.hardStopBps
+      : observedVolatility
       ? Math.min(
           profile.hardStopBps,
           Math.max(Math.round(observedVolatility * 1.25), Math.round(profile.hardStopBps / 2)),
         )
       : profile.hardStopBps;
-    const adaptiveTargetBps = observedVolatility
+    const adaptiveTargetBps = calibration
+      ? calibration.targetBps
+      : observedVolatility
       ? Math.min(
           profile.firstProfitTargetBps,
           Math.max(
@@ -986,7 +1008,9 @@ async function monitorPositions(input: {
           ),
         )
       : profile.firstProfitTargetBps;
-    const adaptiveTrailingBps = observedVolatility
+    const adaptiveTrailingBps = calibration
+      ? calibration.trailingStopBps
+      : observedVolatility
       ? Math.min(
           profile.trailingStopBps,
           Math.max(Math.round(observedVolatility), Math.round(profile.trailingStopBps / 2)),
@@ -994,8 +1018,10 @@ async function monitorPositions(input: {
       : profile.trailingStopBps;
     const stop = value * 10000n <= cost * BigInt(10000 - adaptiveStopBps);
     const target = value * 10000n >= cost * BigInt(10000 + adaptiveTargetBps);
-    const trailing = trailingStopActivated({ value, cost, high, trailingBps: adaptiveTrailingBps });
-    const timeout = ageMinutes >= profile.maximumHoldingMinutes;
+    const trailingActivationBps = calibration?.trailingActivationBps ?? adaptiveTrailingBps;
+    const trailing = high * 10_000n >= cost * BigInt(10_000 + trailingActivationBps) &&
+      value * 10_000n <= high * BigInt(10_000 - adaptiveTrailingBps);
+    const timeout = ageMinutes >= (calibration?.maximumHoldingMinutes ?? profile.maximumHoldingMinutes);
     if (!stop && !target && !trailing && !timeout) {
       await input.pool.query(
         `UPDATE paper_profile_positions SET current_value_raw=$4,high_water_raw=GREATEST(high_water_raw,$4),updated_at=$5 WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3`,

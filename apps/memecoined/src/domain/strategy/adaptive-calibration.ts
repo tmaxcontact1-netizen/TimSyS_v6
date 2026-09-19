@@ -1,0 +1,60 @@
+import type { ExecutableMarketPoint } from "./short-horizon.js";
+import type { TradingProfileId } from "./profiles.js";
+
+export type VolatilityRegime = "micro" | "moderate" | "high" | "unstable" | "insufficient";
+export interface AdaptiveTradeCalibration {
+  readonly version: "adaptive-v2"; readonly profileId: TradingProfileId; readonly model: string;
+  readonly regime: VolatilityRegime; readonly sampleCount: number; readonly confidencePercentage: number;
+  readonly typicalMoveBps: number; readonly upperMoveBps: number; readonly targetBps: number;
+  readonly hardStopBps: number; readonly trailingStopBps: number; readonly trailingActivationBps: number;
+  readonly maximumHoldingMinutes: number; readonly maximumRoundTripCostBps: number;
+  readonly calculatedAt: string; readonly validUntil: string; readonly tradeable: boolean; readonly reason: string;
+}
+interface Policy {
+  model: string; target: number; targetMin: number; targetMax: number; stop: number; stopMin: number; stopMax: number;
+  trail: number; activate: number; holdMin: number; holdMax: number; movementMin: number;
+  irregularityMax: number; friction: number; validity: number;
+}
+const policies: Partial<Record<TradingProfileId, Policy>> = {
+  scalper: { model: "repeatable range reversal", target:.55,targetMin:60,targetMax:250,stop:.75,stopMin:55,stopMax:180,trail:.32,activate:.55,holdMin:3,holdMax:10,movementMin:45,irregularityMax:4,friction:.22,validity:5 },
+  fast_furious: { model: "short momentum and pullback continuation", target:.8,targetMin:100,targetMax:500,stop:.85,stopMin:85,stopMax:350,trail:.38,activate:.6,holdMin:5,holdMax:30,movementMin:75,irregularityMax:6,friction:.3,validity:10 },
+  recovery_reversal: { model: "stabilisation and rebound", target:.85,targetMin:100,targetMax:700,stop:.75,stopMin:80,stopMax:400,trail:.4,activate:.65,holdMin:10,holdMax:180,movementMin:75,irregularityMax:4.5,friction:.3,validity:15 },
+  breakout_retest: { model: "breakout range and retest depth", target:1,targetMin:125,targetMax:900,stop:.8,stopMin:90,stopMax:500,trail:.4,activate:.65,holdMin:15,holdMax:180,movementMin:90,irregularityMax:5,friction:.3,validity:15 },
+  trend_detector: { model: "young-token expansion and trend persistence", target:1.2,targetMin:200,targetMax:1500,stop:.9,stopMin:125,stopMax:700,trail:.42,activate:.65,holdMin:20,holdMax:360,movementMin:110,irregularityMax:5.5,friction:.3,validity:15 },
+  liquidity_expansion: { model: "liquidity-supported price expansion", target:1.15,targetMin:175,targetMax:1500,stop:.85,stopMin:110,stopMax:650,trail:.42,activate:.7,holdMin:30,holdMax:360,movementMin:100,irregularityMax:5,friction:.28,validity:20 },
+  launch_transition: { model: "pool-maturity and liquidity transition", target:1.3,targetMin:250,targetMax:1800,stop:.9,stopMin:150,stopMax:800,trail:.45,activate:.7,holdMin:30,holdMax:360,movementMin:125,irregularityMax:5.5,friction:.28,validity:20 },
+  slow_steady: { model: "persistent trend with normal pullback tolerance", target:1.5,targetMin:300,targetMax:2500,stop:1.1,stopMin:175,stopMax:1200,trail:.5,activate:.75,holdMin:60,holdMax:720,movementMin:100,irregularityMax:4,friction:.25,validity:30 },
+  capital_preservation: { model: "low-volatility trend and capital protection", target:.9,targetMin:150,targetMax:900,stop:.65,stopMin:75,stopMax:400,trail:.35,activate:.6,holdMin:30,holdMax:480,movementMin:70,irregularityMax:3.5,friction:.2,validity:30 },
+  signal_consensus: { model: "multi-signal agreement within executable range", target:1.05,targetMin:175,targetMax:1200,stop:.75,stopMin:100,stopMax:550,trail:.4,activate:.65,holdMin:30,holdMax:480,movementMin:85,irregularityMax:4,friction:.25,validity:30 },
+  whale_tracker: { model: "wallet impact and market follow-through", target:1.15,targetMin:200,targetMax:1500,stop:.8,stopMin:110,stopMax:650,trail:.42,activate:.7,holdMin:30,holdMax:720,movementMin:100,irregularityMax:4.5,friction:.25,validity:30 },
+  social_catalyst: { model: "social lead time and market confirmation", target:1,targetMin:175,targetMax:1200,stop:.75,stopMin:100,stopMax:550,trail:.4,activate:.65,holdMin:30,holdMax:360,movementMin:90,irregularityMax:4,friction:.25,validity:20 },
+};
+export const isAdaptiveProfile = (id: TradingProfileId) => Boolean(policies[id]);
+const clamp = (v:number,min:number,max:number) => Math.min(max,Math.max(min,Math.round(v)));
+const quantile = (values:readonly number[], f:number) => {
+  if (!values.length) return 0; const sorted=[...values].sort((a,b)=>a-b); const p=(sorted.length-1)*f;
+  const lo=Math.floor(p), hi=Math.ceil(p); return lo===hi?sorted[lo]!:sorted[lo]!+(sorted[hi]!-sorted[lo]!)*(p-lo);
+};
+const moveBps=(older:bigint,newer:bigint)=>older<=0n||newer<=0n?0:Number((older*10_000n)/newer-10_000n);
+
+/** Applies a profile-specific policy to shared executable-price history. Benchmarks deliberately remain fixed. */
+export function calibrateProfile(id:TradingProfileId, points:readonly ExecutableMarketPoint[], at:string):AdaptiveTradeCalibration|null {
+  const p=policies[id]; if(!p) return null;
+  const recent=points.slice(-40), validUntil=new Date(Date.parse(at)+p.validity*60_000).toISOString();
+  const base={version:"adaptive-v2" as const,profileId:id,model:p.model,sampleCount:recent.length,calculatedAt:at,validUntil};
+  if(recent.length<10) return Object.freeze({...base,regime:"insufficient",confidencePercentage:clamp(recent.length/10*50,0,45),typicalMoveBps:0,upperMoveBps:0,targetBps:p.targetMin,hardStopBps:p.stopMin,trailingStopBps:clamp(p.targetMin*p.trail,30,p.stopMax),trailingActivationBps:clamp(p.targetMin*p.activate,40,p.targetMax),maximumHoldingMinutes:p.holdMin,maximumRoundTripCostBps:clamp(p.targetMin*p.friction,20,125),tradeable:false,reason:`At least 10 executable observations are required; ${recent.length} are available`});
+  const excursions:number[]=[];
+  for(const horizon of [1,2,4,8]) for(let index=horizon;index<recent.length;index+=1) excursions.push(Math.abs(moveBps(recent[index-horizon]!.outputAmountRaw,recent[index]!.outputAmountRaw)));
+  const meaningful=excursions.filter(v=>Number.isFinite(v)&&v>=5), typical=Math.round(quantile(meaningful,.5)), upper=Math.round(quantile(meaningful,.75)), extreme=Math.round(quantile(meaningful,.95));
+  const irregularity=upper>0?extreme/upper:Infinity, confidence=clamp(Math.min(90,50+(recent.length-10)*1.5)-Math.max(0,irregularity-3)*8,25,90);
+  const unstable=meaningful.length<8||irregularity>p.irregularityMax||upper>1500;
+  const regime:VolatilityRegime=unstable?"unstable":upper<225?"micro":upper<550?"moderate":"high";
+  const target=clamp(upper*p.target,p.targetMin,p.targetMax), stop=clamp(Math.min(target*p.stop,typical*1.25),p.stopMin,p.stopMax);
+  const trailing=clamp(target*p.trail,30,Math.min(p.stopMax,target)), activation=clamp(target*p.activate,40,target);
+  const intervals=recent.slice(1).map((point,index)=>Math.max(1,(Date.parse(point.observedAt)-Date.parse(recent[index]!.observedAt))/60_000)).filter(Number.isFinite);
+  const steps=recent.slice(1).map((point,index)=>Math.abs(moveBps(recent[index]!.outputAmountRaw,point.outputAmountRaw))), perStep=quantile(steps,.5);
+  const hold=clamp((perStep>0?target/perStep:12)*(quantile(intervals,.5)||.75)*2,p.holdMin,p.holdMax), friction=clamp(target*p.friction,20,125);
+  const tradeable=!unstable&&confidence>=50&&upper>=p.movementMin;
+  return Object.freeze({...base,regime,confidencePercentage:confidence,typicalMoveBps:typical,upperMoveBps:upper,targetBps:target,hardStopBps:stop,trailingStopBps:trailing,trailingActivationBps:activation,maximumHoldingMinutes:hold,maximumRoundTripCostBps:friction,tradeable,reason:tradeable?`${p.model} supports a ${target/100}% target in this token's ${regime} executable range with ${confidence}% confidence`:unstable?`Observed movement is too discontinuous for the ${p.model} model`:`The token's repeatable movement is below the ${p.model} opportunity threshold`});
+}
+export const calibrateFastFurious=(points:readonly ExecutableMarketPoint[],at:string)=>calibrateProfile("fast_furious",points,at)!;
