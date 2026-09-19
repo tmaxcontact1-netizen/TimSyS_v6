@@ -47,6 +47,7 @@ const pairSchema = z.object({
   fdv: nullableNumber,
   marketCap: nullableNumber,
   pairCreatedAt: z.number().int().nonnegative().nullable().optional(),
+  url: z.string().url().optional(),
 });
 const responseSchema = z.object({ pairs: z.array(pairSchema).nullable() });
 const profileSchema = z.object({
@@ -59,6 +60,9 @@ const discoveryFeeds = Object.freeze([
   Object.freeze({ path: "/token-profiles/latest/v1", label: "token-profile" }),
   Object.freeze({ path: "/token-boosts/latest/v1", label: "latest-boost" }),
   Object.freeze({ path: "/token-boosts/top/v1", label: "top-boost" }),
+]);
+const discoverySearches = Object.freeze([
+  Object.freeze({ query: "Raydium", label: "raydium-search" }),
 ]);
 type Pair = z.infer<typeof pairSchema>;
 
@@ -194,6 +198,60 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
             }),
           }),
         );
+      }
+    }
+    // Promotional feeds are deliberately supplemented with a broad, public DEX
+    // search. This prevents the paper engine from repeatedly assessing only the
+    // same paid/promoted tokens while retaining the existing liquidity and age
+    // admission checks below.
+    const searchSettled = await Promise.allSettled(
+      discoverySearches.map(async (search) =>
+        Object.freeze({
+          search,
+          response: await this.http.get(
+            `${this.baseUrl}/latest/dex/search?q=${encodeURIComponent(search.query)}`,
+          ),
+        }),
+      ),
+    );
+    for (const result of searchSettled) {
+      if (result.status !== "fulfilled") continue;
+      const { search, response } = result.value;
+      if (response.status < 200 || response.status >= 300) continue;
+      const parsed = responseSchema.safeParse(response.body);
+      if (!parsed.success || parsed.data.pairs === null) continue;
+      const contentHash = hash(response.body);
+      for (const pair of parsed.data.pairs) {
+        if (pair.chainId.toLowerCase() !== "solana" || seen.has(pair.baseToken.address)) continue;
+        let mint: MintAddress;
+        try {
+          mint = asMintAddress(pair.baseToken.address);
+        } catch {
+          continue;
+        }
+        seen.add(pair.baseToken.address);
+        const sourceReference = pair.url ?? `https://dexscreener.com/solana/${pair.pairAddress}`;
+        const sourceKey = `dexscreener:${search.label}:${pair.pairAddress}:${mint}`;
+        observations.push(Object.freeze({
+          mint,
+          sourceReference,
+          observedAt: response.receivedAt,
+          trace: Object.freeze({
+            evidenceId: this.identities.createEvidenceId({
+              provider: "dexscreener",
+              sourceKey,
+              contentHash,
+            }),
+            provider: "dexscreener",
+            method: "GET /latest/dex/search?q=Raydium",
+            requestedAt,
+            respondedAt: response.receivedAt,
+            sourceTimestamp: null,
+            normalizedAt: response.receivedAt,
+            sourceKey,
+            contentHash,
+          }),
+        }));
       }
     }
     if (observations.length === 0)

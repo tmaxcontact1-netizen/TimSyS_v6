@@ -74,6 +74,7 @@ const paperColumns = [
   "paper_profile_candidate_decisions.next_entry_attempt_at",
   "paper_profile_candidate_decisions.signal_json",
   "paper_profile_candidate_decisions.signal_observed_at",
+  "paper_profile_candidate_decisions.engine_version",
   "paper_fast_market_observations.output_amount_raw",
       "paper_fast_market_observations.quote_fingerprint",
       "paper_fast_market_observations.market_price_usd",

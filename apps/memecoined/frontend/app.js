@@ -559,13 +559,14 @@ function renderTradingProfiles() {
     facts.className = "profile-facts";
     const performance = profile.performance;
     const assessed = Number(performance?.candidates_evaluated ?? 0);
+    const uniqueTokens = Number(performance?.unique_tokens_evaluated ?? 0);
     const qualified = Number(performance?.candidates_qualified ?? 0);
-    const result = BigInt(performance?.net_pnl_raw ?? "0");
+    const result = BigInt(performance?.current_engine_net_pnl_raw ?? "0");
     const initial = BigInt(performance?.initial_cash_raw ?? "0");
     const temporalFacts = Number(performance?.market_observations ?? 0) > 0
       ? `<div><dt>Live price samples</dt><dd>${Number(performance.market_observations).toLocaleString()}</dd></div><div><dt>Tokens being followed</dt><dd>${Number(performance.monitored_tokens ?? 0).toLocaleString()}</dd></div><div><dt>Tokens ready for pattern detection</dt><dd>${Number(performance.history_ready_tokens ?? 0).toLocaleString()}</dd></div><div><dt>Pattern checks completed</dt><dd>${Number(performance.short_horizon_signals ?? 0).toLocaleString()}</dd></div><div><dt>Signals passing all gates</dt><dd>${Number(performance.short_horizon_qualified ?? 0).toLocaleString()}</dd></div>${performance.latest_signal ? `<div><dt>Latest detected pattern</dt><dd>${String(performance.latest_signal.pattern ?? "none").replaceAll("_", " ")}</dd></div><div><dt>Latest short movement</dt><dd>${Number(performance.latest_signal.shortMoveBps ?? 0) / 100}%</dd></div><div><dt>Five-minute volume change</dt><dd>${performance.latest_signal.volumeChangeBps == null ? "Unavailable" : `${Number(performance.latest_signal.volumeChangeBps) / 100}%`}</dd></div><div><dt>Liquidity change</dt><dd>${performance.latest_signal.liquidityChangeBps == null ? "Unavailable" : `${Number(performance.latest_signal.liquidityChangeBps) / 100}%`}</dd></div><div><dt>Buyer share</dt><dd>${performance.latest_signal.buyPressureBps == null ? "Unavailable" : `${Number(performance.latest_signal.buyPressureBps) / 100}%`}</dd></div>` : ""}`
       : "";
-    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Candidates assessed</dt><dd>${assessed.toLocaleString()}</dd></div><div><dt>Currently qualified</dt><dd>${qualified.toLocaleString()}</dd></div>${temporalFacts}<div><dt>Buy and sell fills</dt><dd>${performance?.fills ?? 0}</dd></div><div><dt>Entry attempts waiting</dt><dd>${performance?.entries_pending ?? 0}</dd></div><div><dt>Entries rejected by quote cost</dt><dd>${performance?.entries_failed ?? 0}</dd></div><div><dt>Net result</dt><dd class="${result >= 0n ? "positive" : "negative"}">${performance ? signedSol(result) : "Waiting for first cycle"}</dd></div><div><dt>Return on assigned funds</dt><dd class="${result >= 0n ? "positive" : "negative"}">${performance ? percentage(result, initial, 2) : "—"}</dd></div><div><dt>Positions open now</dt><dd>${performance?.open_positions ?? 0}</dd></div>`;
+    facts.innerHTML = `<div><dt>Risk per trade</dt><dd>${percentFromBps(profile.riskPerTradeBps)}</dd></div><div><dt>Maximum positions</dt><dd>${profile.maximumConcurrentPositions}</dd></div><div><dt>Typical time limit</dt><dd>${profile.maximumHoldingMinutes < 1440 ? `${profile.maximumHoldingMinutes} minutes` : `${profile.maximumHoldingMinutes / 1440} day(s)`}</dd></div><div><dt>Current-engine assessment runs</dt><dd>${assessed.toLocaleString()}</dd></div><div><dt>Different tokens assessed</dt><dd>${uniqueTokens.toLocaleString()}</dd></div><div><dt>Currently qualified</dt><dd>${qualified.toLocaleString()}</dd></div>${temporalFacts}<div><dt>Current-engine buy and sell fills</dt><dd>${performance?.fills ?? 0}</dd></div><div><dt>Entry attempts waiting</dt><dd>${performance?.entries_pending ?? 0}</dd></div><div><dt>Entries rejected by quote cost</dt><dd>${performance?.entries_failed ?? 0}</dd></div><div><dt>Current-engine net result</dt><dd class="${result >= 0n ? "positive" : "negative"}">${performance ? signedSol(result) : "Waiting for first cycle"}</dd></div><div><dt>Return on assigned funds</dt><dd class="${result >= 0n ? "positive" : "negative"}">${performance ? percentage(result, initial, 2) : "—"}</dd></div><div><dt>Positions open now</dt><dd>${performance?.open_positions ?? 0}</dd></div><div><dt>Archived fills from older engines</dt><dd>${Math.max(0, Number(performance?.lifetime_fills ?? 0) - Number(performance?.fills ?? 0)).toLocaleString()}</dd></div>`;
     const save = async (nextEnabled = profile.enabled) => {
       const allocationBps = profile.group === "benchmark" ? 10_000 : Math.round(Number(allocationInput.value) * 100);
       if (!Number.isSafeInteger(allocationBps) || allocationBps < 0 || allocationBps > 10000) {
@@ -993,6 +994,7 @@ function completedTrades(applyRange = true) {
     (left, right) => Date.parse(left.filled_at) - Date.parse(right.filled_at),
   );
   for (const fill of fills) {
+    if (fill.profile_id && fill.engine_version !== "temporal-v5") continue;
     const key = `${fill.profile_id ?? "core"}:${fill.token_mint}`;
     if (fill.side === "buy") {
       entries.set(key, fill);
@@ -1030,8 +1032,8 @@ function renderOperationalEvidence() {
   const best = [...tradingProfiles]
     .filter((profile) => Number(profile.performance?.fills ?? 0) > 0)
     .sort((left, right) => {
-      const a = BigInt(left.performance?.net_pnl_raw ?? "0");
-      const b = BigInt(right.performance?.net_pnl_raw ?? "0");
+      const a = BigInt(left.performance?.current_engine_net_pnl_raw ?? "0");
+      const b = BigInt(right.performance?.current_engine_net_pnl_raw ?? "0");
       return a === b ? 0 : a > b ? -1 : 1;
     })[0];
   const lastFill = [...detailSnapshot.fills].sort(
@@ -1048,7 +1050,7 @@ function renderOperationalEvidence() {
     ? `${((winners / allTrades.length) * 100).toFixed(1)}%`
     : "—";
   elements["overview-best-strategy"].textContent = best
-    ? `${BigInt(best.performance.net_pnl_raw) > 0n ? "Best gain" : "Smallest loss"}: ${best.name} · ${signedSol(best.performance.net_pnl_raw)}`
+    ? `${BigInt(best.performance.current_engine_net_pnl_raw ?? "0") > 0n ? "Best gain" : "Smallest loss"}: ${best.name} · ${signedSol(best.performance.current_engine_net_pnl_raw ?? "0")}`
     : "No strategy has completed a trade";
   elements["overview-last-trade"].textContent = lastFill
     ? `${profileName(lastFill.profile_id)} ${lastFill.side.toUpperCase()} ${short(lastFill.token_mint)} for ${sol(lastFill.settlement_amount_raw)} · ${time(lastFill.filled_at)}`
@@ -1110,14 +1112,14 @@ function renderPerformanceInsights() {
   const strategyRows = tradingProfiles
     .filter((profile) => profile.performance?.fills || profile.enabled)
     .sort((left, right) => {
-      const a = BigInt(left.performance?.net_pnl_raw ?? "0");
-      const b = BigInt(right.performance?.net_pnl_raw ?? "0");
+      const a = BigInt(left.performance?.current_engine_net_pnl_raw ?? "0");
+      const b = BigInt(right.performance?.current_engine_net_pnl_raw ?? "0");
       return a === b ? 0 : a > b ? -1 : 1;
     });
   renderRows(elements["strategy-performance-rows"], strategyRows, [
     (profile) => ({ text: profile.name }),
-    (profile) => ({ text: signedSol(profile.performance?.net_pnl_raw ?? "0"), className: BigInt(profile.performance?.net_pnl_raw ?? "0") >= 0n ? "positive" : "negative" }),
-    (profile) => ({ text: percentage(BigInt(profile.performance?.net_pnl_raw ?? "0"), BigInt(profile.performance?.initial_cash_raw ?? "0"), 2) }),
+    (profile) => ({ text: signedSol(profile.performance?.current_engine_net_pnl_raw ?? "0"), className: BigInt(profile.performance?.current_engine_net_pnl_raw ?? "0") >= 0n ? "positive" : "negative" }),
+    (profile) => ({ text: percentage(BigInt(profile.performance?.current_engine_net_pnl_raw ?? "0"), BigInt(profile.performance?.initial_cash_raw ?? "0"), 2) }),
     (profile) => ({ text: String(profile.performance?.fills ?? 0) }),
     (profile) => ({ text: String(profile.performance?.open_positions ?? 0) }),
   ], "No strategy has traded yet");

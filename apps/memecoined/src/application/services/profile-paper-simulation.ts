@@ -567,15 +567,15 @@ async function collectFastMarketObservations(input: {
       );
       await input.pool.query(
         `INSERT INTO paper_profile_candidate_decisions
-           (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
-            entry_state,next_entry_attempt_at,signal_json,signal_observed_at)
+         (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
+            entry_state,next_entry_attempt_at,signal_json,signal_observed_at,engine_version)
          VALUES ($1,$2,$3,'automatic_paper',$4,$5,$6::jsonb,$7,
                  CASE WHEN $4 THEN 'pending' ELSE 'not_applicable' END,
-                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7)
+                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7,'temporal-v5')
          ON CONFLICT (wallet,profile_id,candidate_id) DO UPDATE SET
            eligible=EXCLUDED.eligible,score=EXCLUDED.score,reasons_json=EXCLUDED.reasons_json,
            evaluated_at=EXCLUDED.evaluated_at,signal_json=EXCLUDED.signal_json,
-           signal_observed_at=EXCLUDED.signal_observed_at,
+           signal_observed_at=EXCLUDED.signal_observed_at,engine_version=EXCLUDED.engine_version,
            entry_state=CASE
              WHEN NOT EXCLUDED.eligible THEN 'not_applicable'
              WHEN paper_profile_candidate_decisions.entry_attempts>=5 THEN 'failed'
@@ -912,10 +912,11 @@ async function evaluateNewCandidates(input: {
       await input.pool.query(
         `INSERT INTO paper_profile_candidate_decisions
          (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
-          entry_state,next_entry_attempt_at)
+          entry_state,next_entry_attempt_at,engine_version)
          VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::timestamptz,
                  CASE WHEN $5=true AND $4='automatic_paper' THEN 'pending' ELSE 'not_applicable' END,
-                 CASE WHEN $5=true AND $4='automatic_paper' THEN $8::timestamptz ELSE NULL::timestamptz END)
+                 CASE WHEN $5=true AND $4='automatic_paper' THEN $8::timestamptz ELSE NULL::timestamptz END,
+                 'temporal-v5')
          ON CONFLICT DO NOTHING`,
         [
           input.wallet,
@@ -1110,9 +1111,14 @@ export async function readProfilePaperPerformance(
             COALESCE((SELECT sum(p.current_value_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id),0)::text AS open_value_raw,
             (a.cash_raw+COALESCE((SELECT sum(p.current_value_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id),0)-a.initial_cash_raw)::text AS net_pnl_raw,
             (SELECT count(*) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id)::int AS open_positions,
-            (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id)::int AS fills,
-            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id)::int AS candidates_evaluated,
-            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.eligible)::int AS candidates_qualified
+            (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id AND f.engine_version=$2)::int AS fills,
+            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.engine_version=$2)::int AS candidates_evaluated,
+            (SELECT count(DISTINCT c.mint_address) FROM paper_profile_candidate_decisions d JOIN candidates c ON c.id=d.candidate_id WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.engine_version=$2)::int AS unique_tokens_evaluated,
+            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.engine_version=$2 AND d.eligible)::int AS candidates_qualified,
+            (COALESCE((SELECT sum(CASE WHEN f.side='buy' THEN -f.settlement_amount_raw-f.execution_fee_raw ELSE f.settlement_amount_raw-f.execution_fee_raw END) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id AND f.engine_version=$2),0)
+             +COALESCE((SELECT sum(p.current_value_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id AND p.engine_version=$2),0))::text AS current_engine_net_pnl_raw,
+            (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id)::int AS lifetime_fills,
+            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id)::int AS lifetime_candidates_evaluated
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state IN ('pending','retrying') AND d.entry_attempts<5 AND d.next_entry_attempt_at IS NOT NULL)::int AS entries_pending
             ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
             ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
@@ -1126,7 +1132,7 @@ export async function readProfilePaperPerformance(
                   WHERE o.wallet=a.wallet GROUP BY o.token_mint HAVING count(*)>=6
               ) ready)::int AS history_ready_tokens
        FROM paper_profile_accounts a WHERE a.wallet=$1 ORDER BY a.profile_id`,
-    [wallet],
+    [wallet, temporalEngineVersion],
   );
   return result.rows;
 }

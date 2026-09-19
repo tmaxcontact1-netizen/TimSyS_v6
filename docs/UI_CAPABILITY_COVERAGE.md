@@ -1,13 +1,6 @@
 # UI Capability Coverage
 
-## Assessment Evaluator
-
-- Teacher workflow: upload a question paper, review extracted question candidates, then analyse.
-- Coordinator workflow: adds source roles, multiple standards frameworks, declared-intent comparison and granular reports.
-- Visual sources: detected visual elements are retained with page locators and displayed as review warnings; the UI never implies that an unexamined image was understood.
-- Uncertain items: a configured launcher AI provider can propose a semantic interpretation after rules-based analysis is locked. Provider, model, confidence and limitations are visible, and professional review remains mandatory.
-
-Generated: 2026-09-12T11:12:40.113Z
+Generated: 2026-09-19T10:50:17.763Z
 
 This report is a static connection audit. A route is **referenced** when application frontend source contains a matching endpoint. Reference proves an intended UI connection, not that the resulting workflow is usable; interaction acceptance is a later gate.
 
@@ -15,8 +8,8 @@ Infrastructure-only services are intentionally excluded unless they publish a us
 
 ## Principal'Ed
 
-Declared capabilities: **558**
-Frontend-referenced: **558**
+Declared capabilities: **563**
+Frontend-referenced: **563**
 Not referenced: **0**
 Operational gaps: **0**
 
@@ -24,8 +17,9 @@ Operational gaps: **0**
 |---|---:|---:|---:|
 | academic_commentary | 4 | 4 | 0 |
 | academic_structure | 13 | 13 | 0 |
+| ai_gateway | 1 | 1 | 0 |
 | approvals | 7 | 7 | 0 |
-| assessment_evaluator | 17 | 17 | 0 |
+| assessment_evaluator | 18 | 18 | 0 |
 | assessment_evidence | 8 | 8 | 0 |
 | assessment_scales | 7 | 7 | 0 |
 | attendance | 6 | 6 | 0 |
@@ -66,7 +60,7 @@ Operational gaps: **0**
 | school_analytics | 5 | 5 | 0 |
 | staff_profile | 4 | 4 | 0 |
 | staff_registry | 10 | 10 | 0 |
-| standards_repository | 7 | 7 | 0 |
+| standards_repository | 10 | 10 | 0 |
 | student_exits | 32 | 32 | 0 |
 | student_profile | 4 | 4 | 0 |
 | student_registry | 11 | 11 | 0 |
@@ -82,14 +76,14 @@ None.
 
 ## Dress'Ed
 
-Declared capabilities: **30**
-Frontend-referenced: **29**
+Declared capabilities: **31**
+Frontend-referenced: **30**
 Not referenced: **1**
 Operational gaps: **1**
 
 | Owner | Declared | Referenced | Unreferenced |
 |---|---:|---:|---:|
-| dressed | 30 | 29 | 1 |
+| dressed | 31 | 30 | 1 |
 
 ### Unreferenced capabilities
 
@@ -99,14 +93,14 @@ Operational gaps: **1**
 
 ## MemeCoined
 
-Declared capabilities: **16**
-Frontend-referenced: **14**
+Declared capabilities: **19**
+Frontend-referenced: **17**
 Not referenced: **2**
 Operational gaps: **1**
 
 | Owner | Declared | Referenced | Unreferenced |
 |---|---:|---:|---:|
-| memecoined | 16 | 14 | 2 |
+| memecoined | 19 | 17 | 2 |
 
 ### Unreferenced capabilities
 
@@ -138,24 +132,24 @@ Operational gaps: **0**
 
 ```json
 {
-  "generatedAt": "2026-09-12T11:12:40.129Z",
+  "generatedAt": "2026-09-19T10:50:17.780Z",
   "totals": {
-    "declared": 653,
-    "referenced": 647,
+    "declared": 662,
+    "referenced": 656,
     "unreferenced": 6
   },
   "applications": {
     "Principal'Ed": {
-      "declared": 558,
-      "referenced": 558
+      "declared": 563,
+      "referenced": 563
     },
     "Dress'Ed": {
-      "declared": 30,
-      "referenced": 29
+      "declared": 31,
+      "referenced": 30
     },
     "MemeCoined": {
-      "declared": 16,
-      "referenced": 14
+      "declared": 19,
+      "referenced": 17
     },
     "Research'Ed": {
       "declared": 49,

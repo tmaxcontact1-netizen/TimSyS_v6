@@ -37,7 +37,15 @@ function adapter(status: number, body: unknown, bulkPairs: unknown = [pair("scre
   const http: JsonHttpClient = {
     get: async (url) => {
       calls.push(url);
-      return { status, body: url.includes("/tokens/v1/") ? bulkPairs : body, receivedAt };
+      return {
+        status,
+        body: url.includes("/tokens/v1/")
+          ? bulkPairs
+          : url.includes("/latest/dex/search")
+            ? { pairs: [] }
+            : body,
+        receivedAt,
+      };
     },
   };
   return { value: new DexScreenerMarketAdapter(http, identities), calls };
@@ -65,8 +73,33 @@ describe("DexScreener market observation contract", () => {
       "https://api.dexscreener.com/token-profiles/latest/v1",
       "https://api.dexscreener.com/token-boosts/latest/v1",
       "https://api.dexscreener.com/token-boosts/top/v1",
+      "https://api.dexscreener.com/latest/dex/search?q=Raydium",
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
     ]);
+  });
+
+  it("widens discovery with liquid Raydium search results", async () => {
+    const searchedMint = asMintAddress("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    const searchedPair = {
+      ...pair("raydium-search-pair", "125000"),
+      baseToken: { address: searchedMint },
+      url: "https://dexscreener.com/solana/raydium-search-pair",
+    };
+    const calls: string[] = [];
+    const http: JsonHttpClient = {
+      get: async (url) => {
+        calls.push(url);
+        if (url.includes("/latest/dex/search"))
+          return { status: 200, body: { pairs: [searchedPair] }, receivedAt };
+        if (url.includes("/tokens/v1/"))
+          return { status: 200, body: [searchedPair], receivedAt };
+        return { status: 200, body: [], receivedAt };
+      },
+    };
+    const result = await new DexScreenerMarketAdapter(http, identities).discoverLatestTokens(receivedAt);
+    expect(result.ok && result.value.map((item) => item.mint)).toEqual([searchedMint]);
+    expect(result.ok && result.value[0]?.trace.method).toContain("GET /latest/dex/search?q=Raydium");
+    expect(calls.some((url) => url.includes("/latest/dex/search?q=Raydium"))).toBe(true);
   });
 
   it("does not queue promoted tokens that fail the existing liquidity floor", async () => {

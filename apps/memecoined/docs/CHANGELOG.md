@@ -2,6 +2,14 @@
 
 All material file touches are recorded here. Dates use UTC. Entries identify the file, change, reason, and authorization state.
 
+## 2026-09-19 — Paper-test release gate
+
+- Broadened free live discovery beyond promotional feeds with the documented DexScreener Raydium search, while retaining liquidity, age, independent-RPC, quote-cost and token-safety gates.
+- Attributed every profile decision to its strategy-engine version. Existing history remains archived as `snapshot-v1`; new decisions and fills are reported against `temporal-v5`.
+- Changed profile and pipeline presentation to distinguish current-engine assessment runs, different tokens assessed, current fills and current net result from archived calibration history.
+- Added startup-schema verification for engine attribution so an incomplete update fails visibly instead of silently mixing incompatible results.
+- Added discovery contract coverage and completed the 730-test MemeCoined regression suite.
+
 ## Unreleased — Pre-code specification
 
 ### 2026-08-26
