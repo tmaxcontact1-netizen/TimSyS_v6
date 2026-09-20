@@ -57,7 +57,10 @@ import {
   type PaperProfileMode,
   type TradingProfileId,
 } from "../domain/strategy/profiles.js";
-import { readProfilePaperPerformance } from "../application/services/profile-paper-simulation.js";
+import {
+  readProfilePaperPerformance,
+  readProfilePostExitAnalysis,
+} from "../application/services/profile-paper-simulation.js";
 
 const contentTypes: Readonly<Record<string, string>> = Object.freeze({
   ".css": "text/css; charset=utf-8",
@@ -699,6 +702,15 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         });
       } catch {
         sendJson(response, 503, { error: "paper_performance_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/post-exit-analysis") {
+      try {
+        const exits = await readProfilePostExitAnalysis(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), exits });
+      } catch {
+        sendJson(response, 503, { error: "post_exit_analysis_unavailable" });
       }
       return;
     }

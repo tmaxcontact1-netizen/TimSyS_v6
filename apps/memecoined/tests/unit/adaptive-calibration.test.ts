@@ -81,4 +81,19 @@ describe("Fast & Furious per-token calibration", () => {
       buyPressureBps: null, marketConfirmed: false, reason: "Unconfirmed",
     }, calibration).eligible).toBe(false);
   });
+
+  it("rejects a price pattern when current market flow does not support the entry", () => {
+    const calibration = calibrateFastFurious(
+      history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]),
+      "2026-09-19T12:12:00.000Z",
+    );
+    const decision = evaluateAdaptiveEntry("fast_furious", {
+      eligible: true, pattern: "momentum", latestMoveBps: 20, shortMoveBps: 60,
+      cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
+      drawdownFromHighBps: 5, volumeChangeBps: -900, liquidityChangeBps: -150,
+      buyPressureBps: 4_900, marketConfirmed: true, reason: "Price-only confirmation",
+    }, calibration);
+    expect(decision.eligible).toBe(false);
+    expect(decision.reason).toContain("buyers, volume and liquidity");
+  });
 });

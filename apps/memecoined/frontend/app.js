@@ -122,6 +122,8 @@ const ids = [
   "strategy-performance-rows",
   "exit-reason-rows",
   "closed-trade-rows",
+  "post-exit-summary",
+  "post-exit-rows",
   "overview-active-profiles",
   "overview-assessed",
   "overview-qualified",
@@ -217,6 +219,7 @@ const elements = Object.fromEntries(ids.map((id) => [id, document.getElementById
 let detailSnapshot = { positions: [], pendingEntries: [], fills: [], performance: [], events: [] };
 let latestPerformance = null;
 let performancePoints = [];
+let postExitAnalysis = [];
 let selectedRange = "7d";
 let refreshTimer;
 const connectionEvents = [];
@@ -1160,7 +1163,44 @@ function renderPerformanceInsights() {
     (trade) => ({ text: duration(Date.parse(trade.exit.filled_at) - Date.parse(trade.entry.filled_at)) }),
     (trade) => ({ text: tradeReason(trade.exit.reason) }),
   ], "No completed trades in this period");
+  const followed = postExitAnalysis.filter((exit) => Number(exit.horizons_observed) > 0);
+  const recovered = followed.filter((exit) => exit.recovered_entry === true).length;
+  const partial = followed.filter((exit) => exit.classification === "partial_rebound").length;
+  elements["post-exit-summary"].textContent = followed.length
+    ? `${followed.length} stopped or closed trade${followed.length === 1 ? " has" : "s have"} post-exit evidence. ${recovered} recovered the original entry value; ${partial} rebounded without fully recovering.`
+    : "New exits are followed for three hours so an early entry can be distinguished from a genuinely bad opportunity.";
+  const horizonResult = (exit, field) => {
+    const value = exit[field];
+    if (value == null) return { text: "Waiting" };
+    const change = BigInt(value) - BigInt(exit.exit_value_raw);
+    return { text: percentage(change, BigInt(exit.exit_value_raw), 1), className: change >= 0n ? "positive" : "negative" };
+  };
+  const interpretations = {
+    premature_stop: "Recovered entry — timing or stop needs review",
+    partial_rebound: "Rebounded, but did not recover entry",
+    correct_rejection: "Continued below exit — stop protected capital",
+    inconclusive: "Not enough separation yet",
+  };
+  renderRows(elements["post-exit-rows"], followed, [
+    (exit) => ({ text: profileName(exit.profile_id) }),
+    (exit) => ({ text: `${String(exit.token_mint).slice(0, 6)}…${String(exit.token_mint).slice(-6)}` }),
+    (exit) => ({ text: tradeReason(exit.exit_reason) }),
+    (exit) => ({ text: `${(Number(exit.best_rebound_bps) / 100).toFixed(2)}%`, className: Number(exit.best_rebound_bps) >= 0 ? "positive" : "negative" }),
+    (exit) => horizonResult(exit, "value_5m_raw"),
+    (exit) => horizonResult(exit, "value_15m_raw"),
+    (exit) => horizonResult(exit, "value_30m_raw"),
+    (exit) => horizonResult(exit, "value_60m_raw"),
+    (exit) => horizonResult(exit, "value_180m_raw"),
+    (exit) => ({ text: interpretations[exit.classification] ?? "Under review" }),
+  ], "No post-exit observations have matured yet");
   renderOperationalEvidence();
+}
+
+async function refreshPostExitAnalysis() {
+  const response = await fetch("/api/paper/post-exit-analysis", { cache: "no-store" });
+  if (!response.ok) throw new Error("post-exit analysis unavailable");
+  const payload = await response.json();
+  postExitAnalysis = Array.isArray(payload.exits) ? payload.exits : [];
 }
 function duration(milliseconds) {
   const minutes = Math.max(0, Math.round(milliseconds / 60_000));
@@ -1743,6 +1783,10 @@ async function refresh() {
       performance.healthy ? "healthy" : "unhealthy",
       performance.healthy ? "Healthy" : "Attention required",
     );
+    await refreshPostExitAnalysis().catch((error) => {
+      console.error("Post-exit analysis refresh failed", error);
+      postExitAnalysis = [];
+    });
     await refreshDetails();
     await refreshPerformance();
     await refreshAlerts();

@@ -72,6 +72,23 @@ export function evaluateAdaptiveEntry(
     return Object.freeze({ eligible: false, reason: calibration.reason });
   if (!signal.marketConfirmed)
     return Object.freeze({ eligible: false, reason: "The calibrated movement is not confirmed by current market activity" });
+  const buyers = signal.buyPressureBps ?? -Infinity;
+  const volume = signal.volumeChangeBps ?? -Infinity;
+  const liquidity = signal.liquidityChangeBps ?? -Infinity;
+  const flowConfirmed = id === "fast_furious"
+    ? buyers >= 5_200 && volume >= -500 && liquidity >= -100
+    : id === "scalper"
+      ? buyers >= 5_250 && volume >= -250 && liquidity >= -100
+      : id === "slow_steady"
+        ? buyers >= 5_400 && volume >= 0 && liquidity >= 0
+        : id === "trend_detector"
+          ? buyers >= 5_300 && volume >= 0 && liquidity >= 0
+          : true;
+  if (!flowConfirmed)
+    return Object.freeze({
+      eligible: false,
+      reason: `The price pattern is present, but current buyers, volume and liquidity do not confirm ${calibration.model}`,
+    });
   if (signal.eligible)
     return Object.freeze({ eligible: true, reason: `${signal.reason}; ${calibration.reason}` });
 

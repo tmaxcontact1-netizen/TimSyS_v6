@@ -1116,6 +1116,82 @@ async function monitorPositions(input: {
   }
 }
 
+interface DueShadowObservationRow {
+  readonly exit_fill_id: string;
+  readonly profile_id: TradingProfileId;
+  readonly token_mint: string;
+  readonly token_amount_raw: string;
+  readonly exit_reason: string;
+  readonly exit_at: Date | string;
+  readonly entry_cost_raw: string;
+  readonly exit_value_raw: string;
+  readonly horizon_minutes: number;
+  readonly target_bps: number | null;
+  readonly stop_bps: number | null;
+}
+
+/**
+ * Continues pricing closed positions at fixed horizons. This makes stop-loss
+ * review falsifiable: the dashboard can distinguish a correct stop from an
+ * early entry or a stop that was too close to normal volatility.
+ */
+async function collectPostExitShadowObservations(input: {
+  pool: Pool;
+  swap: Pick<SwapPort, "quote">;
+  wallet: WalletAddress;
+  at: Timestamp;
+}): Promise<void> {
+  const due = await input.pool.query<DueShadowObservationRow>(
+    `WITH horizons(minutes) AS (VALUES (5),(15),(30),(60),(180)), exits AS (
+       SELECT f.id::text AS exit_fill_id,f.profile_id,f.token_mint,
+              f.token_amount_raw::text,f.reason AS exit_reason,f.filled_at AS exit_at,
+              f.settlement_amount_raw::text AS exit_value_raw,
+              entry.settlement_amount_raw::text AS entry_cost_raw,
+              NULLIF(d.signal_json->'adaptiveCalibration'->>'targetBps','')::int AS target_bps,
+              NULLIF(d.signal_json->'adaptiveCalibration'->>'hardStopBps','')::int AS stop_bps
+         FROM paper_profile_fills f
+         JOIN LATERAL (
+           SELECT b.settlement_amount_raw FROM paper_profile_fills b
+            WHERE b.wallet=f.wallet AND b.profile_id=f.profile_id
+              AND b.token_mint=f.token_mint AND b.side='buy'
+              AND (b.filled_at,b.id)<(f.filled_at,f.id)
+            ORDER BY b.filled_at DESC,b.id DESC LIMIT 1
+         ) entry ON true
+         LEFT JOIN paper_profile_candidate_decisions d
+           ON d.wallet=f.wallet AND d.profile_id=f.profile_id AND d.candidate_id=f.candidate_id
+        WHERE f.wallet=$1 AND f.side='sell' AND f.engine_version=$2
+          AND f.filled_at >= $3::timestamptz-interval '4 hours'
+     )
+     SELECT e.*,h.minutes AS horizon_minutes FROM exits e CROSS JOIN horizons h
+      WHERE e.exit_at+h.minutes*interval '1 minute' <= $3
+        AND NOT EXISTS (SELECT 1 FROM paper_profile_post_exit_observations o
+                         WHERE o.wallet=$1 AND o.exit_fill_id=e.exit_fill_id::uuid
+                           AND o.horizon_minutes=h.minutes)
+      ORDER BY e.exit_at,h.minutes LIMIT 16`,
+    [input.wallet, temporalEngineVersion, input.at],
+  );
+  for (const row of due.rows) {
+    const quote = await input.swap.quote({
+      inputMint: row.token_mint as MintAddress,
+      outputMint: WRAPPED_SOL_MINT,
+      inputAmount: asRawAmount(BigInt(row.token_amount_raw)),
+      slippageBasisPoints: quoteSlippage,
+      requestedAt: input.at,
+    });
+    if (!quote.ok) continue;
+    await input.pool.query(
+      `INSERT INTO paper_profile_post_exit_observations
+       (wallet,exit_fill_id,profile_id,token_mint,exit_reason,exit_at,horizon_minutes,
+        observed_at,entry_cost_raw,exit_value_raw,observed_value_raw,target_bps,stop_bps,quote_fingerprint)
+       VALUES ($1,$2::uuid,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       ON CONFLICT DO NOTHING`,
+      [input.wallet,row.exit_fill_id,row.profile_id,row.token_mint,row.exit_reason,iso(row.exit_at),
+       row.horizon_minutes,quote.value.receivedAt,row.entry_cost_raw,row.exit_value_raw,
+       quote.value.expectedOutputAmount.toString(),row.target_bps,row.stop_bps,quote.value.fingerprint],
+    );
+  }
+}
+
 /** Runs attributable profile decisions and independent simulated sub-portfolios using executable quotes. */
 export async function runProfilePaperSimulationCycle(input: {
   readonly database: Pool;
@@ -1155,6 +1231,47 @@ export async function runProfilePaperSimulationCycle(input: {
     at,
     feeRaw: input.executionFeeRaw,
   });
+  await collectPostExitShadowObservations({
+    pool: input.database,
+    swap: input.swap,
+    wallet: input.wallet,
+    at,
+  });
+}
+
+export async function readProfilePostExitAnalysis(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+) {
+  const result = await database.query(
+    `WITH exits AS (
+       SELECT wallet,exit_fill_id,profile_id,token_mint,exit_reason,exit_at,
+              max(entry_cost_raw)::numeric AS entry_cost_raw,
+              max(exit_value_raw)::numeric AS exit_value_raw,
+              max(target_bps) AS target_bps,max(stop_bps) AS stop_bps,
+              max(observed_value_raw) AS best_after_exit_raw,
+              min(observed_value_raw) AS worst_after_exit_raw,
+              max(observed_value_raw) FILTER (WHERE horizon_minutes=5) AS value_5m_raw,
+              max(observed_value_raw) FILTER (WHERE horizon_minutes=15) AS value_15m_raw,
+              max(observed_value_raw) FILTER (WHERE horizon_minutes=30) AS value_30m_raw,
+              max(observed_value_raw) FILTER (WHERE horizon_minutes=60) AS value_60m_raw,
+              max(observed_value_raw) FILTER (WHERE horizon_minutes=180) AS value_180m_raw,
+              count(*)::int AS horizons_observed
+         FROM paper_profile_post_exit_observations WHERE wallet=$1
+        GROUP BY wallet,exit_fill_id,profile_id,token_mint,exit_reason,exit_at
+     ) SELECT *,
+       (best_after_exit_raw>exit_value_raw) AS bounced,
+       (best_after_exit_raw>=entry_cost_raw) AS recovered_entry,
+       (target_bps IS NOT NULL AND best_after_exit_raw*10000>=entry_cost_raw*(10000+target_bps)) AS reached_original_target,
+       round(((best_after_exit_raw-exit_value_raw)*10000/NULLIF(exit_value_raw,0))::numeric,2)::text AS best_rebound_bps,
+       CASE WHEN best_after_exit_raw>=entry_cost_raw THEN 'premature_stop'
+            WHEN best_after_exit_raw>exit_value_raw THEN 'partial_rebound'
+            WHEN worst_after_exit_raw<exit_value_raw THEN 'correct_rejection'
+            ELSE 'inconclusive' END AS classification
+       FROM exits ORDER BY exit_at DESC LIMIT 250`,
+    [wallet],
+  );
+  return result.rows;
 }
 
 export async function readProfilePaperPerformance(
