@@ -94,21 +94,28 @@ export function evaluateAdaptiveEntry(
     return Object.freeze({ eligible: false, reason: "Executable-price history is overextended; entry would chase the move" });
   const thesisConfirmed = id === "fast_furious"
     ? technical.sampleCount >= 16 && technical.qualityScore >= 50 && technical.emaSlopeBps > 0 &&
-      technical.rsi >= 48 && technical.rsi <= 74 && technical.accelerationBps >= -Math.max(25, technical.atrBps * .35)
+      technical.rsi >= 48 && technical.rsi <= 74 && technical.accelerationBps >= -Math.max(25, technical.atrBps * .35) &&
+      technical.efficiencyRatio >= .14 && technical.historyReturnBps >= -250 &&
+      technical.maximumDrawdownBps <= Math.max(700, technical.atrBps * 5)
     : id === "scalper"
       ? technical.sampleCount >= 16 && technical.rsi >= 32 && technical.rsi <= 66 &&
-        technical.bollingerPosition <= .65 && technical.bullishClose && technical.qualityScore >= 42
+        technical.bollingerPosition <= .65 && technical.bullishClose && technical.qualityScore >= 42 &&
+        technical.historyReturnBps >= -500 && technical.maximumDrawdownBps <= Math.max(900, technical.atrBps * 6)
       : id === "slow_steady"
         ? technical.sampleCount >= 26 && technical.emaFast > technical.emaSlow && technical.emaSlopeBps > 0 &&
           technical.macdHistogramBps >= 0 && technical.rsi >= 48 && technical.rsi <= 68 &&
-          technical.efficiencyRatio >= .3 && technical.qualityScore >= 62
+          technical.efficiencyRatio >= .3 && technical.qualityScore >= 62 && technical.higherLows &&
+          technical.historyReturnBps > 0
         : id === "trend_detector"
           ? technical.sampleCount >= 26 && technical.emaFast > technical.emaSlow && technical.emaSlopeBps > 0 &&
             technical.macdHistogramBps > 0 && technical.accelerationBps >= 0 && technical.rsi >= 50 &&
-            technical.rsi <= 74 && technical.qualityScore >= 65
+            technical.rsi <= 74 && technical.qualityScore >= 65 && technical.efficiencyRatio >= .28 &&
+            technical.higherLows && technical.historyReturnBps > 0
           : id === "liquidity_expansion"
             ? technical.sampleCount >= 20 && technical.emaFast > technical.emaSlow && technical.emaSlopeBps >= 0 &&
-              technical.rsi >= 45 && technical.rsi <= 72 && technical.qualityScore >= 52
+              technical.rsi >= 45 && technical.rsi <= 72 && technical.qualityScore >= 52 &&
+              technical.efficiencyRatio >= .18 && technical.higherLows && technical.historyReturnBps >= 0 &&
+              signal.liquidityPositiveSteps >= 3 && signal.volumePositiveSteps >= 3
             : id === "capital_preservation" || id === "signal_consensus" || id === "whale_tracker"
               ? technical.sampleCount >= 26 && technical.qualityScore >= 68 && technical.efficiencyRatio >= .35
               : true;

@@ -24,6 +24,9 @@ export interface TechnicalAnalysis {
   readonly atrBps: number;
   readonly efficiencyRatio: number;
   readonly accelerationBps: number;
+  readonly historyReturnBps: number;
+  readonly maximumDrawdownBps: number;
+  readonly recoveryFromLowBps: number;
   readonly bullishClose: boolean;
   readonly higherLows: boolean;
   readonly overextended: boolean;
@@ -107,6 +110,13 @@ export function analyseExecutableHistory(points: readonly ExecutableMarketPoint[
   const changes = prices.slice(1).map((value, index) => value - prices[index]!);
   const absoluteTravel = changes.reduce((sum, value) => sum + Math.abs(value), 0);
   const netTravel = Math.abs(latest - (prices[0] ?? latest));
+  let runningHigh = prices[0] ?? latest;
+  let maximumDrawdownBps = 0;
+  for (const price of prices) {
+    runningHigh = Math.max(runningHigh, price);
+    maximumDrawdownBps = Math.max(maximumDrawdownBps, Math.max(0, -bps(runningHigh, price)));
+  }
+  const observedLow = prices.length ? Math.min(...prices) : latest;
   const trueRanges = prices.slice(1).map((value, index) => Math.abs(bps(prices[index]!, value)));
   const bars = buildExecutableBars(recent);
   const lastBar = bars.at(-1);
@@ -144,6 +154,9 @@ export function analyseExecutableHistory(points: readonly ExecutableMarketPoint[
     atrBps: round(atrBps, 1),
     efficiencyRatio: round(efficiencyRatio, 3),
     accelerationBps: round(shortReturn - priorShortReturn, 1),
+    historyReturnBps: round(bps(prices[0] ?? latest, latest), 1),
+    maximumDrawdownBps: round(maximumDrawdownBps, 1),
+    recoveryFromLowBps: round(bps(observedLow, latest), 1),
     bullishClose,
     higherLows,
     overextended,

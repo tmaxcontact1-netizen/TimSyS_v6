@@ -23,6 +23,8 @@ export interface ShortHorizonSignal {
   readonly volumeChangeBps: number | null;
   readonly liquidityChangeBps: number | null;
   readonly buyPressureBps: number | null;
+  readonly liquidityPositiveSteps: number;
+  readonly volumePositiveSteps: number;
   readonly marketConfirmed: boolean;
   readonly indicator?: string;
   readonly indicatorValue?: number;
@@ -51,7 +53,7 @@ const insufficient = (): ShortHorizonSignal => Object.freeze({
   eligible: false, pattern: "insufficient_history", latestMoveBps: 0, shortMoveBps: 0,
   cumulativeMoveBps: 0, observedVolatilityBps: 0, positiveSteps: 0,
   drawdownFromHighBps: 0, volumeChangeBps: null, liquidityChangeBps: null,
-  buyPressureBps: null, marketConfirmed: false,
+  buyPressureBps: null, liquidityPositiveSteps: 0, volumePositiveSteps: 0, marketConfirmed: false,
   technical: analyseExecutableHistory([]),
   reason: "Six executable observations are required for multi-horizon analysis",
 });
@@ -89,6 +91,10 @@ export function evaluateShortHorizonSignal(
   const volumeChange = decimalChangeBps(recent.at(-3)!.fiveMinuteVolumeUsd, recent.at(-1)!.fiveMinuteVolumeUsd);
   const liquidityChange = decimalChangeBps(recent[0]!.liquidityUsd, recent.at(-1)!.liquidityUsd);
   const buyPressure = pressureBps(recent.at(-1)!.fiveMinuteBuys, recent.at(-1)!.fiveMinuteSells);
+  const liquidityPositiveSteps = recent.slice(1).filter((point, index) =>
+    Number(point.liquidityUsd) > Number(recent[index]!.liquidityUsd)).length;
+  const volumePositiveSteps = recent.slice(1).filter((point, index) =>
+    Number(point.fiveMinuteVolumeUsd) >= Number(recent[index]!.fiveMinuteVolumeUsd)).length;
   const technical = analyseExecutableHistory(points);
   const marketConfirmed = volumeChange !== null && liquidityChange !== null && buyPressure !== null &&
     volumeChange >= -2_000 && liquidityChange >= -200 && buyPressure >= 5_000;
@@ -184,6 +190,7 @@ export function evaluateShortHorizonSignal(
     cumulativeMoveBps: cumulative, observedVolatilityBps: volatility, positiveSteps,
     drawdownFromHighBps: drawdown, volumeChangeBps: volumeChange,
     liquidityChangeBps: liquidityChange, buyPressureBps: buyPressure,
+    liquidityPositiveSteps, volumePositiveSteps,
     marketConfirmed: profileConfirmation,
     technical,
     ...(indicator === undefined ? {} : { indicator }),

@@ -11,6 +11,7 @@ const confirmedTechnical = {
   emaFast: 10_100, emaSlow: 10_000, emaSpreadBps: 100, emaSlopeBps: 20,
   macdHistogramBps: 12, bollingerPosition: .35, atrBps: 80,
   efficiencyRatio: .55, accelerationBps: 15, bullishClose: true,
+  historyReturnBps: 240, maximumDrawdownBps: 180, recoveryFromLowBps: 300,
   higherLows: true, overextended: false, qualityScore: 82, bars: [],
 } as const;
 
@@ -73,7 +74,7 @@ describe("Fast & Furious per-token calibration", () => {
       eligible: false, pattern: "trend", latestMoveBps: -5, shortMoveBps: 60,
       cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
-      buyPressureBps: 5_200, marketConfirmed: true, reason: "Legacy label excluded",
+      buyPressureBps: 5_200, liquidityPositiveSteps: 4, volumePositiveSteps: 4, marketConfirmed: true, reason: "Legacy label excluded",
       technical: confirmedTechnical,
     }, calibration).eligible).toBe(true);
   });
@@ -87,7 +88,7 @@ describe("Fast & Furious per-token calibration", () => {
       eligible: false, pattern: "trend", latestMoveBps: 30, shortMoveBps: 80,
       cumulativeMoveBps: 200, observedVolatilityBps: 220, positiveSteps: 4,
       drawdownFromHighBps: 0, volumeChangeBps: null, liquidityChangeBps: null,
-      buyPressureBps: null, marketConfirmed: false, reason: "Unconfirmed",
+      buyPressureBps: null, liquidityPositiveSteps: 0, volumePositiveSteps: 0, marketConfirmed: false, reason: "Unconfirmed",
       technical: confirmedTechnical,
     }, calibration).eligible).toBe(false);
   });
@@ -101,7 +102,7 @@ describe("Fast & Furious per-token calibration", () => {
       eligible: true, pattern: "momentum", latestMoveBps: 20, shortMoveBps: 60,
       cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: -900, liquidityChangeBps: -150,
-      buyPressureBps: 4_900, marketConfirmed: true, reason: "Price-only confirmation",
+      buyPressureBps: 4_900, liquidityPositiveSteps: 2, volumePositiveSteps: 2, marketConfirmed: true, reason: "Price-only confirmation",
       technical: confirmedTechnical,
     }, calibration);
     expect(decision.eligible).toBe(false);
@@ -114,7 +115,7 @@ describe("Fast & Furious per-token calibration", () => {
       eligible: true as const, pattern: "trend" as const, latestMoveBps: 20, shortMoveBps: 60,
       cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
-      buyPressureBps: 5_500, marketConfirmed: true, reason: "Shared market evidence",
+      buyPressureBps: 5_500, liquidityPositiveSteps: 4, volumePositiveSteps: 4, marketConfirmed: true, reason: "Shared market evidence",
       technical: { ...confirmedTechnical, sampleCount: 20, qualityScore: 55, efficiencyRatio: .24 },
     };
     expect(evaluateAdaptiveEntry("fast_furious", signal, calibrateProfile("fast_furious", points, "2026-09-19T12:12:00.000Z"))).toMatchObject({ eligible: true });
@@ -130,10 +131,31 @@ describe("Fast & Furious per-token calibration", () => {
       eligible: true, pattern: "momentum", latestMoveBps: 80, shortMoveBps: 160,
       cumulativeMoveBps: 350, observedVolatilityBps: 400, positiveSteps: 5,
       drawdownFromHighBps: 0, volumeChangeBps: 500, liquidityChangeBps: 100,
-      buyPressureBps: 6_000, marketConfirmed: true, reason: "Strong but late",
+      buyPressureBps: 6_000, liquidityPositiveSteps: 5, volumePositiveSteps: 5, marketConfirmed: true, reason: "Strong but late",
       technical: { ...confirmedTechnical, rsi: 84, overextended: true, qualityScore: 45 },
     }, calibration);
     expect(decision).toMatchObject({ eligible: false });
     expect(decision.reason).toContain("overextended");
+  });
+
+  it("rejects the observed collapse-and-rebound false positive for every affected thesis", () => {
+    const rebound = {
+      eligible: false, pattern: "none" as const, latestMoveBps: 0, shortMoveBps: 250,
+      cumulativeMoveBps: 500, observedVolatilityBps: 550, positiveSteps: 4,
+      drawdownFromHighBps: 0, volumeChangeBps: 10_784, liquidityChangeBps: 299,
+      buyPressureBps: 5_520, liquidityPositiveSteps: 3, volumePositiveSteps: 4,
+      marketConfirmed: true, reason: "Temporary rebound inside a collapse",
+      technical: {
+        ...confirmedTechnical, qualityScore: 74, rsi: 62.7, emaSlopeBps: 103.6,
+        macdHistogramBps: 72, accelerationBps: 983.1, efficiencyRatio: .088,
+        higherLows: false, historyReturnBps: -465.5, maximumDrawdownBps: 1_515,
+        recoveryFromLowBps: 1_196,
+      },
+    };
+    const points = history(Array.from({ length: 40 }, (_, index) => index < 30 ? 1 - index * .004 : .884 + (index - 30) * .007));
+    for (const profile of ["fast_furious", "trend_detector", "liquidity_expansion"] as const) {
+      const calibration = calibrateProfile(profile, points, "2026-09-20T16:23:26.508Z");
+      expect(evaluateAdaptiveEntry(profile, rebound, calibration), profile).toMatchObject({ eligible: false });
+    }
   });
 });

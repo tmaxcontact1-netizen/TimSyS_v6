@@ -219,7 +219,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v8";
+const temporalEngineVersion = "temporal-v9";
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",
