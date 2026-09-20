@@ -66,6 +66,12 @@ const discoverySearches = Object.freeze([
   Object.freeze({ query: "Meteora", label: "meteora-search" }),
   Object.freeze({ query: "Orca", label: "orca-search" }),
   Object.freeze({ query: "pump", label: "pump-search" }),
+  // Broad theme searches prevent the promotional feeds from collapsing the
+  // paper-test universe to the same handful of boosted tokens.
+  Object.freeze({ query: "Solana meme", label: "solana-meme-search" }),
+  Object.freeze({ query: "AI", label: "ai-search" }),
+  Object.freeze({ query: "cat", label: "cat-search" }),
+  Object.freeze({ query: "dog", label: "dog-search" }),
 ]);
 type Pair = z.infer<typeof pairSchema>;
 

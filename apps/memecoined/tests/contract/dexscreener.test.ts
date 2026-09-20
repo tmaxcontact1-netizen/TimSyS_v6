@@ -77,6 +77,10 @@ describe("DexScreener market observation contract", () => {
       "https://api.dexscreener.com/latest/dex/search?q=Meteora",
       "https://api.dexscreener.com/latest/dex/search?q=Orca",
       "https://api.dexscreener.com/latest/dex/search?q=pump",
+      "https://api.dexscreener.com/latest/dex/search?q=Solana%20meme",
+      "https://api.dexscreener.com/latest/dex/search?q=AI",
+      "https://api.dexscreener.com/latest/dex/search?q=cat",
+      "https://api.dexscreener.com/latest/dex/search?q=dog",
       `https://api.dexscreener.com/tokens/v1/solana/${mint}`,
     ]);
   });

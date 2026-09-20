@@ -480,11 +480,13 @@ async function collectFastMarketObservations(input: {
        SELECT * FROM latest
         WHERE NOT (failed_rules && ARRAY['SEC-001','SEC-002','SEC-003','SEC-004',
                                            'SEC-008','SEC-010','SEC-015']::text[])
-        ORDER BY total_score DESC,evaluated_at DESC LIMIT 48
+        -- Rotation must happen before truncation. Limiting the highest scores
+        -- here caused thousands of checks against the same tiny token set.
+        ORDER BY total_score DESC,evaluated_at DESC
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM universe
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
-        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),evaluated_at DESC LIMIT 12`,
+        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),total_score DESC,evaluated_at DESC LIMIT 16`,
     [input.wallet, input.at],
   );
   for (const candidate of candidates.rows) {
@@ -602,13 +604,24 @@ async function collectFastMarketObservations(input: {
            signal_observed_at=EXCLUDED.signal_observed_at,engine_version=EXCLUDED.engine_version,
            entry_state=CASE
              WHEN NOT EXCLUDED.eligible THEN 'not_applicable'
-             WHEN paper_profile_candidate_decisions.entry_attempts>=5 THEN 'failed'
+             WHEN paper_profile_candidate_decisions.entry_attempts>=5
+               AND paper_profile_candidate_decisions.evaluated_at > $7::timestamptz-interval '10 minutes'
+             THEN 'failed'
              WHEN paper_profile_candidate_decisions.entry_state IN ('pending','retrying') THEN paper_profile_candidate_decisions.entry_state
              WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_state<>'entered'
                AND (paper_profile_candidate_decisions.entered_at IS NULL OR paper_profile_candidate_decisions.entered_at <= $7::timestamptz-interval '5 minutes')
              THEN 'pending' ELSE 'not_applicable' END,
+           entry_attempts=CASE
+             WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_attempts>=5
+               AND paper_profile_candidate_decisions.evaluated_at <= $7::timestamptz-interval '10 minutes'
+             THEN 0 ELSE paper_profile_candidate_decisions.entry_attempts END,
+           last_entry_error=CASE
+             WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_attempts>=5
+               AND paper_profile_candidate_decisions.evaluated_at <= $7::timestamptz-interval '10 minutes'
+             THEN NULL ELSE paper_profile_candidate_decisions.last_entry_error END,
            next_entry_attempt_at=CASE
-             WHEN EXCLUDED.eligible AND paper_profile_candidate_decisions.entry_attempts<5
+             WHEN EXCLUDED.eligible AND (paper_profile_candidate_decisions.entry_attempts<5
+               OR paper_profile_candidate_decisions.evaluated_at <= $7::timestamptz-interval '10 minutes')
                AND paper_profile_candidate_decisions.entry_state<>'entered'
              THEN $7::timestamptz ELSE NULL END`,
         [
@@ -636,6 +649,9 @@ async function enterPosition(input: {
   at: Timestamp;
   feeRaw: bigint;
 }): Promise<EntryAttempt> {
+  const lossCooldownMinutes = input.profile.id === "scalper" ? 15
+    : input.profile.id === "fast_furious" ? 30
+      : shortHorizonProfiles.has(input.profile.id) ? 120 : 360;
   const state = await input.pool.query<{
     cash_raw: string;
     initial_cash_raw: string;
@@ -645,12 +661,13 @@ async function enterPosition(input: {
     `SELECT a.cash_raw::text,a.initial_cash_raw::text,
             (SELECT count(*) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id)::text AS open_positions,
             EXISTS (SELECT 1 FROM paper_profile_fills f
-                     WHERE f.wallet=a.wallet AND f.token_mint=$3 AND f.side='sell'
-                       AND f.reason='hard_stop' AND f.filled_at >= $4::timestamptz-interval '24 hours') AS recent_hard_stop
+                     WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id
+                       AND f.token_mint=$3 AND f.side='sell' AND f.reason='hard_stop'
+                       AND f.filled_at >= $4::timestamptz-($5::text || ' minutes')::interval) AS recent_hard_stop
        FROM paper_profile_accounts a
       WHERE a.wallet=$1 AND a.profile_id=$2
         AND NOT EXISTS (SELECT 1 FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id AND p.token_mint=$3)`,
-    [input.wallet, input.profile.id, input.candidate.mint_address, input.at],
+    [input.wallet, input.profile.id, input.candidate.mint_address, input.at, lossCooldownMinutes],
   );
   const row = state.rows[0];
   if (!row)
@@ -658,7 +675,7 @@ async function enterPosition(input: {
   if (row.recent_hard_stop)
     return Object.freeze({
       outcome: "failed",
-      reason: "Token is in a 24-hour loss cooldown after a hard-stop exit",
+      reason: `Token is in this profile's ${lossCooldownMinutes}-minute loss cooldown after a hard-stop exit`,
     });
   if (Number(row.open_positions) >= input.profile.maximumConcurrentPositions)
     return Object.freeze({ outcome: "retry", reason: "Profile position limit is currently full" });
