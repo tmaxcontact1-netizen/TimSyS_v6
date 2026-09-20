@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE IF NOT EXISTS paper_profile_post_exit_observations (
   wallet text NOT NULL,
   exit_fill_id uuid NOT NULL REFERENCES paper_profile_fills(id) ON DELETE CASCADE,
@@ -21,3 +23,5 @@ CREATE INDEX IF NOT EXISTS paper_profile_post_exit_profile_idx
 
 CREATE INDEX IF NOT EXISTS paper_profile_post_exit_token_idx
   ON paper_profile_post_exit_observations(wallet,token_mint,exit_at DESC);
+
+COMMIT;

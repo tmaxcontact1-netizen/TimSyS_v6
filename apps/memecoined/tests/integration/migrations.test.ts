@@ -1,12 +1,26 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { applyMigrations, loadMigrationFiles } from "../../scripts/migrate.js";
 
 describe("migration execution", () => {
+  it("accepts every migration shipped with the application", async () => {
+    const applicationRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+    const files = await loadMigrationFiles(join(applicationRoot, "migrations"));
+    const client = {
+      query: async (sql: string) =>
+        sql.startsWith("SELECT name")
+          ? { rows: [], rowCount: 0 }
+          : { rows: [], rowCount: 0 },
+    };
+
+    await expect(applyMigrations(client as never, files)).resolves.toHaveLength(files.length);
+  });
+
   it("loads a complete ordered immutable migration sequence", async () => {
     const directory = await mkdtemp(join(tmpdir(), "memecoined-migrations-"));
     await writeFile(join(directory, "0002_second.sql"), "SELECT 2;");
