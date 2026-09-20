@@ -1,4 +1,5 @@
 import type { TradingProfileId } from "./profiles.js";
+import { analyseExecutableHistory, type TechnicalAnalysis } from "./technical-analysis.js";
 
 export interface ExecutableMarketPoint {
   readonly observedAt: string;
@@ -25,6 +26,7 @@ export interface ShortHorizonSignal {
   readonly marketConfirmed: boolean;
   readonly indicator?: string;
   readonly indicatorValue?: number;
+  readonly technical: TechnicalAnalysis;
   readonly reason: string;
 }
 
@@ -50,6 +52,7 @@ const insufficient = (): ShortHorizonSignal => Object.freeze({
   cumulativeMoveBps: 0, observedVolatilityBps: 0, positiveSteps: 0,
   drawdownFromHighBps: 0, volumeChangeBps: null, liquidityChangeBps: null,
   buyPressureBps: null, marketConfirmed: false,
+  technical: analyseExecutableHistory([]),
   reason: "Six executable observations are required for multi-horizon analysis",
 });
 
@@ -86,6 +89,7 @@ export function evaluateShortHorizonSignal(
   const volumeChange = decimalChangeBps(recent.at(-3)!.fiveMinuteVolumeUsd, recent.at(-1)!.fiveMinuteVolumeUsd);
   const liquidityChange = decimalChangeBps(recent[0]!.liquidityUsd, recent.at(-1)!.liquidityUsd);
   const buyPressure = pressureBps(recent.at(-1)!.fiveMinuteBuys, recent.at(-1)!.fiveMinuteSells);
+  const technical = analyseExecutableHistory(points);
   const marketConfirmed = volumeChange !== null && liquidityChange !== null && buyPressure !== null &&
     volumeChange >= -2_000 && liquidityChange >= -200 && buyPressure >= 5_000;
   const momentum = latest >= 8 && latest <= 350 && short >= 20 && cumulative >= 35 &&
@@ -158,9 +162,16 @@ export function evaluateShortHorizonSignal(
     (recent.at(-1)?.poolAgeMinutes ?? Infinity) <= 10_080 &&
     (liquidityChange ?? -Infinity) >= 100 &&
     (volumeChange ?? -Infinity) >= 0 && latest >= 0;
+  const persistentTrend = trend && technical.sampleCount >= 20 && technical.emaFast > technical.emaSlow &&
+    technical.emaSlopeBps > 0 && technical.macdHistogramBps >= 0 && technical.rsi >= 48 &&
+    technical.rsi <= 72 && technical.efficiencyRatio >= .22 && !technical.overextended;
   const existingProfilePattern = profileId === "whale_tracker" || profileId === "slow_steady" || profileId === "capital_preservation" || profileId === "signal_consensus"
-    ? trend : profileId === "liquidity_expansion"
-      ? (liquidityChange ?? -Infinity) >= 100 && (volumeChange ?? -Infinity) >= 0 && latest >= 0
+    ? persistentTrend : profileId === "trend_detector"
+      ? persistentTrend && technical.qualityScore >= 60 && technical.accelerationBps >= -25
+      : profileId === "liquidity_expansion"
+      ? (liquidityChange ?? -Infinity) >= 100 && (volumeChange ?? -Infinity) >= 0 && latest >= 0 &&
+        technical.sampleCount >= 16 && technical.emaFast > technical.emaSlow && technical.rsi <= 74 &&
+        technical.qualityScore >= 48 && !technical.overextended
       : profileId === "launch_transition" ? launchTransition
       : permittedPattern;
   if ((profileId === "liquidity_expansion" || profileId === "launch_transition") && existingProfilePattern)
@@ -174,6 +185,7 @@ export function evaluateShortHorizonSignal(
     drawdownFromHighBps: drawdown, volumeChangeBps: volumeChange,
     liquidityChangeBps: liquidityChange, buyPressureBps: buyPressure,
     marketConfirmed: profileConfirmation,
+    technical,
     ...(indicator === undefined ? {} : { indicator }),
     ...(indicatorValue === undefined ? {} : { indicatorValue }),
     reason: eligible

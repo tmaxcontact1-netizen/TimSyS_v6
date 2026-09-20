@@ -6,6 +6,14 @@ const history = (prices: readonly number[]) => prices.map((price, index) => ({
   outputAmountRaw: BigInt(Math.round(10_000_000 / price)),
 }));
 
+const confirmedTechnical = {
+  sampleCount: 30, barCount: 6, rsi: 58, priorRsi: 55,
+  emaFast: 10_100, emaSlow: 10_000, emaSpreadBps: 100, emaSlopeBps: 20,
+  macdHistogramBps: 12, bollingerPosition: .35, atrBps: 80,
+  efficiencyRatio: .55, accelerationBps: 15, bullishClose: true,
+  higherLows: true, overextended: false, qualityScore: 82, bars: [],
+} as const;
+
 describe("Fast & Furious per-token calibration", () => {
   it("refuses to invent a range without enough executable observations", () => {
     expect(calibrateFastFurious(history([1, 1.01, 1, 1.01]), "2026-09-19T12:04:00.000Z"))
@@ -66,6 +74,7 @@ describe("Fast & Furious per-token calibration", () => {
       cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_200, marketConfirmed: true, reason: "Legacy label excluded",
+      technical: confirmedTechnical,
     }, calibration).eligible).toBe(true);
   });
 
@@ -79,6 +88,7 @@ describe("Fast & Furious per-token calibration", () => {
       cumulativeMoveBps: 200, observedVolatilityBps: 220, positiveSteps: 4,
       drawdownFromHighBps: 0, volumeChangeBps: null, liquidityChangeBps: null,
       buyPressureBps: null, marketConfirmed: false, reason: "Unconfirmed",
+      technical: confirmedTechnical,
     }, calibration).eligible).toBe(false);
   });
 
@@ -92,8 +102,38 @@ describe("Fast & Furious per-token calibration", () => {
       cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: -900, liquidityChangeBps: -150,
       buyPressureBps: 4_900, marketConfirmed: true, reason: "Price-only confirmation",
+      technical: confirmedTechnical,
     }, calibration);
     expect(decision.eligible).toBe(false);
     expect(decision.reason).toContain("buyers, volume and liquidity");
+  });
+
+  it("requires each strategy to prove its own mathematical thesis", () => {
+    const points = history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]);
+    const signal = {
+      eligible: true as const, pattern: "trend" as const, latestMoveBps: 20, shortMoveBps: 60,
+      cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
+      drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
+      buyPressureBps: 5_500, marketConfirmed: true, reason: "Shared market evidence",
+      technical: { ...confirmedTechnical, sampleCount: 20, qualityScore: 55, efficiencyRatio: .24 },
+    };
+    expect(evaluateAdaptiveEntry("fast_furious", signal, calibrateProfile("fast_furious", points, "2026-09-19T12:12:00.000Z"))).toMatchObject({ eligible: true });
+    expect(evaluateAdaptiveEntry("slow_steady", signal, calibrateProfile("slow_steady", points, "2026-09-19T12:12:00.000Z"))).toMatchObject({ eligible: false });
+  });
+
+  it("never chases a mathematically overextended move", () => {
+    const calibration = calibrateFastFurious(
+      history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]),
+      "2026-09-19T12:12:00.000Z",
+    );
+    const decision = evaluateAdaptiveEntry("fast_furious", {
+      eligible: true, pattern: "momentum", latestMoveBps: 80, shortMoveBps: 160,
+      cumulativeMoveBps: 350, observedVolatilityBps: 400, positiveSteps: 5,
+      drawdownFromHighBps: 0, volumeChangeBps: 500, liquidityChangeBps: 100,
+      buyPressureBps: 6_000, marketConfirmed: true, reason: "Strong but late",
+      technical: { ...confirmedTechnical, rsi: 84, overextended: true, qualityScore: 45 },
+    }, calibration);
+    expect(decision).toMatchObject({ eligible: false });
+    expect(decision.reason).toContain("overextended");
   });
 });

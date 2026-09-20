@@ -25,6 +25,7 @@ import {
   evaluateShortHorizonSignal,
   type ExecutableMarketPoint,
 } from "../../domain/strategy/short-horizon.js";
+import type { TechnicalAnalysis } from "../../domain/strategy/technical-analysis.js";
 import {
   calibrateProfile,
   evaluateAdaptiveEntry,
@@ -186,6 +187,7 @@ interface CandidateRow {
     readonly currentScore?: ProfileScoreBreakdown;
     readonly currentFailedRules?: readonly string[];
     readonly sourceScoreEvaluatedAt?: string;
+    readonly technical?: TechnicalAnalysis;
   } | null;
 }
 interface ActivationRow {
@@ -217,7 +219,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v7";
+const temporalEngineVersion = "temporal-v8";
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",

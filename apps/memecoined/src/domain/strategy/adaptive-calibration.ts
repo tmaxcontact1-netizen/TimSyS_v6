@@ -75,6 +75,7 @@ export function evaluateAdaptiveEntry(
   const buyers = signal.buyPressureBps ?? -Infinity;
   const volume = signal.volumeChangeBps ?? -Infinity;
   const liquidity = signal.liquidityChangeBps ?? -Infinity;
+  const technical = signal.technical;
   const flowConfirmed = id === "fast_furious"
     ? buyers >= 5_200 && volume >= -500 && liquidity >= -100
     : id === "scalper"
@@ -88,6 +89,33 @@ export function evaluateAdaptiveEntry(
     return Object.freeze({
       eligible: false,
       reason: `The price pattern is present, but current buyers, volume and liquidity do not confirm ${calibration.model}`,
+    });
+  if (technical.overextended)
+    return Object.freeze({ eligible: false, reason: "Executable-price history is overextended; entry would chase the move" });
+  const thesisConfirmed = id === "fast_furious"
+    ? technical.sampleCount >= 16 && technical.qualityScore >= 50 && technical.emaSlopeBps > 0 &&
+      technical.rsi >= 48 && technical.rsi <= 74 && technical.accelerationBps >= -Math.max(25, technical.atrBps * .35)
+    : id === "scalper"
+      ? technical.sampleCount >= 16 && technical.rsi >= 32 && technical.rsi <= 66 &&
+        technical.bollingerPosition <= .65 && technical.bullishClose && technical.qualityScore >= 42
+      : id === "slow_steady"
+        ? technical.sampleCount >= 26 && technical.emaFast > technical.emaSlow && technical.emaSlopeBps > 0 &&
+          technical.macdHistogramBps >= 0 && technical.rsi >= 48 && technical.rsi <= 68 &&
+          technical.efficiencyRatio >= .3 && technical.qualityScore >= 62
+        : id === "trend_detector"
+          ? technical.sampleCount >= 26 && technical.emaFast > technical.emaSlow && technical.emaSlopeBps > 0 &&
+            technical.macdHistogramBps > 0 && technical.accelerationBps >= 0 && technical.rsi >= 50 &&
+            technical.rsi <= 74 && technical.qualityScore >= 65
+          : id === "liquidity_expansion"
+            ? technical.sampleCount >= 20 && technical.emaFast > technical.emaSlow && technical.emaSlopeBps >= 0 &&
+              technical.rsi >= 45 && technical.rsi <= 72 && technical.qualityScore >= 52
+            : id === "capital_preservation" || id === "signal_consensus" || id === "whale_tracker"
+              ? technical.sampleCount >= 26 && technical.qualityScore >= 68 && technical.efficiencyRatio >= .35
+              : true;
+  if (!thesisConfirmed)
+    return Object.freeze({
+      eligible: false,
+      reason: `Market flow passed, but executable-price mathematics do not confirm ${calibration.model} (quality ${technical.qualityScore}/100)`,
     });
   if (signal.eligible)
     return Object.freeze({ eligible: true, reason: `${signal.reason}; ${calibration.reason}` });
