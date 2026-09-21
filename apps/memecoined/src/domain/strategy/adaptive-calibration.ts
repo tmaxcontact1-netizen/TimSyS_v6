@@ -6,7 +6,7 @@ export interface AdaptiveTradeCalibration {
   readonly version: "adaptive-v2"; readonly profileId: TradingProfileId; readonly model: string;
   readonly regime: VolatilityRegime; readonly sampleCount: number; readonly confidencePercentage: number;
   readonly typicalMoveBps: number; readonly upperMoveBps: number; readonly targetBps: number;
-  readonly hardStopBps: number; readonly trailingStopBps: number; readonly trailingActivationBps: number;
+  readonly hardStopBps: number; readonly observedDownsideBps: number; readonly trailingStopBps: number; readonly trailingActivationBps: number;
   readonly maximumHoldingMinutes: number; readonly maximumRoundTripCostBps: number;
   readonly calculatedAt: string; readonly validUntil: string; readonly tradeable: boolean; readonly reason: string;
 }
@@ -42,20 +42,32 @@ export function calibrateProfile(id:TradingProfileId, points:readonly Executable
   const p=policies[id]; if(!p) return null;
   const recent=points.slice(-40), validUntil=new Date(Date.parse(at)+p.validity*60_000).toISOString();
   const base={version:"adaptive-v2" as const,profileId:id,model:p.model,sampleCount:recent.length,calculatedAt:at,validUntil};
-  if(recent.length<10) return Object.freeze({...base,regime:"insufficient",confidencePercentage:clamp(recent.length/10*50,0,45),typicalMoveBps:0,upperMoveBps:0,targetBps:p.targetMin,hardStopBps:p.stopMin,trailingStopBps:clamp(p.targetMin*p.trail,30,p.stopMax),trailingActivationBps:clamp(p.targetMin*p.activate,40,p.targetMax),maximumHoldingMinutes:p.holdMin,maximumRoundTripCostBps:clamp(p.targetMin*p.friction,20,125),tradeable:false,reason:`At least 10 executable observations are required; ${recent.length} are available`});
+  if(recent.length<10) return Object.freeze({...base,regime:"insufficient",confidencePercentage:clamp(recent.length/10*50,0,45),typicalMoveBps:0,upperMoveBps:0,targetBps:p.targetMin,hardStopBps:p.stopMin,observedDownsideBps:0,trailingStopBps:clamp(p.targetMin*p.trail,30,p.stopMax),trailingActivationBps:clamp(p.targetMin*p.activate,40,p.targetMax),maximumHoldingMinutes:p.holdMin,maximumRoundTripCostBps:clamp(p.targetMin*p.friction,20,125),tradeable:false,reason:`At least 10 executable observations are required; ${recent.length} are available`});
   const excursions:number[]=[];
-  for(const horizon of [1,2,4,8]) for(let index=horizon;index<recent.length;index+=1) excursions.push(Math.abs(moveBps(recent[index-horizon]!.outputAmountRaw,recent[index]!.outputAmountRaw)));
-  const meaningful=excursions.filter(v=>Number.isFinite(v)&&v>=5), typical=Math.round(quantile(meaningful,.5)), upper=Math.round(quantile(meaningful,.75)), extreme=Math.round(quantile(meaningful,.95));
-  const irregularity=upper>0?extreme/upper:Infinity, confidence=clamp(Math.min(90,50+(recent.length-10)*1.5)-Math.max(0,irregularity-3)*8,25,90);
-  const unstable=meaningful.length<8||irregularity>p.irregularityMax||upper>1500;
+  for(const horizon of [1,2,4,8]) for(let index=horizon;index<recent.length;index+=horizon) {
+    const elapsed=(Date.parse(recent[index]!.observedAt)-Date.parse(recent[index-horizon]!.observedAt))/60_000;
+    if(elapsed>=horizon*.25&&elapsed<=horizon*2.5)
+      excursions.push(Math.abs(moveBps(recent[index-horizon]!.outputAmountRaw,recent[index]!.outputAmountRaw)));
+  }
+  const meaningful=excursions.filter(v=>Number.isFinite(v)&&v>=5), typical=Math.round(quantile(meaningful,.5)), upper=Math.round(quantile(meaningful,.75));
+  const irregularity=typical>0?upper/typical:Infinity, confidence=clamp(Math.min(90,50+(recent.length-10)*1.5)-Math.max(0,irregularity-3)*8,25,90);
+  const discontinuous=meaningful.some((move)=>move>Math.max(2_000,upper*p.irregularityMax));
+  const unstable=meaningful.length<8||irregularity>p.irregularityMax||upper>1500||discontinuous;
   const regime:VolatilityRegime=unstable?"unstable":upper<225?"micro":upper<550?"moderate":"high";
-  const target=clamp(upper*p.target,p.targetMin,p.targetMax), stop=clamp(Math.min(target*p.stop,typical*1.25),p.stopMin,p.stopMax);
+  const downside=recent.slice(1).map((point,index)=>{
+    const seconds=(Date.parse(point.observedAt)-Date.parse(recent[index]!.observedAt))/1000;
+    const change=moveBps(recent[index]!.outputAmountRaw,point.outputAmountRaw);
+    return seconds>=15&&seconds<=120&&change<0?-change:null;
+  }).filter((value):value is number=>value!==null);
+  const observedDownside=Math.round(quantile(downside,.75));
+  const target=clamp(upper*p.target,p.targetMin,p.targetMax);
+  const stop=clamp(Math.max(target*p.stop,observedDownside*1.25,typical),p.stopMin,p.stopMax);
   const trailing=clamp(target*p.trail,30,Math.min(p.stopMax,target)), activation=clamp(target*p.activate,40,target);
   const intervals=recent.slice(1).map((point,index)=>Math.max(1,(Date.parse(point.observedAt)-Date.parse(recent[index]!.observedAt))/60_000)).filter(Number.isFinite);
   const steps=recent.slice(1).map((point,index)=>Math.abs(moveBps(recent[index]!.outputAmountRaw,point.outputAmountRaw))), perStep=quantile(steps,.5);
   const hold=clamp((perStep>0?target/perStep:12)*(quantile(intervals,.5)||.75)*2,p.holdMin,p.holdMax), friction=clamp(target*p.friction,20,125);
   const tradeable=!unstable&&confidence>=50&&upper>=p.movementMin;
-  return Object.freeze({...base,regime,confidencePercentage:confidence,typicalMoveBps:typical,upperMoveBps:upper,targetBps:target,hardStopBps:stop,trailingStopBps:trailing,trailingActivationBps:activation,maximumHoldingMinutes:hold,maximumRoundTripCostBps:friction,tradeable,reason:tradeable?`${p.model} supports a ${target/100}% target in this token's ${regime} executable range with ${confidence}% confidence`:unstable?`Observed movement is too discontinuous for the ${p.model} model`:`The token's repeatable movement is below the ${p.model} opportunity threshold`});
+  return Object.freeze({...base,regime,confidencePercentage:confidence,typicalMoveBps:typical,upperMoveBps:upper,targetBps:target,hardStopBps:stop,observedDownsideBps:observedDownside,trailingStopBps:trailing,trailingActivationBps:activation,maximumHoldingMinutes:hold,maximumRoundTripCostBps:friction,tradeable,reason:tradeable?`${p.model} supports a ${target/100}% target in this token's ${regime} executable range with ${confidence}% confidence`:unstable?`Observed movement is too discontinuous for the ${p.model} model`:`The token's repeatable movement is below the ${p.model} opportunity threshold`});
 }
 export const calibrateFastFurious=(points:readonly ExecutableMarketPoint[],at:string)=>calibrateProfile("fast_furious",points,at)!;
 
@@ -76,6 +88,8 @@ export function evaluateAdaptiveEntry(
   const volume = signal.volumeChangeBps ?? -Infinity;
   const liquidity = signal.liquidityChangeBps ?? -Infinity;
   const technical = signal.technical;
+  if (technical.recentMaxGapSeconds > 120 || technical.coveredRecentBars < 3)
+    return Object.freeze({ eligible: false, reason: "Executable-price observations are too sparse or uneven for a reliable entry" });
   const allowedPatterns: Partial<Record<TradingProfileId, readonly ShortHorizonSignal["pattern"][]>> = {
     fast_furious: ["momentum", "pullback_rebound", "trend"],
     scalper: ["range_rebound", "pullback_rebound"],
@@ -105,6 +119,9 @@ export function evaluateAdaptiveEntry(
     });
   if (technical.overextended)
     return Object.freeze({ eligible: false, reason: "Executable-price history is overextended; entry would chase the move" });
+  if ((id === "fast_furious" || id === "scalper") &&
+      signal.cumulativeMoveBps > Math.max(150, calibration.targetBps * 1.5))
+    return Object.freeze({ eligible: false, reason: "The current short move has already consumed more than the calibrated opportunity" });
   const thesisConfirmed = id === "fast_furious"
     ? technical.sampleCount >= 16 && technical.qualityScore >= 50 && technical.emaSlopeBps > 0 &&
       technical.rsi >= 48 && technical.rsi <= 74 && technical.accelerationBps >= -Math.max(25, technical.atrBps * .35) &&

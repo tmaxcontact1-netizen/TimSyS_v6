@@ -1719,6 +1719,7 @@ async function refreshStrategyFunnel() {
       (row) => ({ text: Number(row.quote_failures).toLocaleString() }),
       (row) => ({ text: Number(row.buys).toLocaleString() }),
       (row) => ({ text: row.main_rejection || "No rejection recorded" }),
+      (row) => ({ text: row.latest_execution_blocker || "None recorded" }),
     ],
     "No strategies are currently active",
   );

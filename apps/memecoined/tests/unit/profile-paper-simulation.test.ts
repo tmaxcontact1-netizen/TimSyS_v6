@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  confirmedEntryLag,
   entryConfirmationPolicy,
   evaluateExecutableEntryEvidence,
   evaluateProfileCandidate,
@@ -22,6 +23,11 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("rejects a confirmation that arrives after half the executable target is gone", () => {
+    expect(confirmedEntryLag(10_000n, 9_901n, 150).eligible).toBe(false);
+    expect(confirmedEntryLag(10_000n, 9_960n, 150).eligible).toBe(true);
+    expect(confirmedEntryLag(0n, 9_960n, 150).eligible).toBe(false);
+  });
   it("requires repeated confirmation in proportion to the strategy horizon", () => {
     expect(entryConfirmationPolicy("fast_furious")).toEqual({ observations: 2, minimumSpanSeconds: 15 });
     expect(entryConfirmationPolicy("scalper")).toEqual({ observations: 2, minimumSpanSeconds: 15 });

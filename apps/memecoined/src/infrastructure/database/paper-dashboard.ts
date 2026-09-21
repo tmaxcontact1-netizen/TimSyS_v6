@@ -55,29 +55,36 @@ export async function readStrategyFunnel(
             COALESCE(s.signals,0)::int AS signals,
             COALESCE(s.patterns,0)::int AS patterns,
             COALESCE(s.market_confirmed,0)::int AS market_confirmed,
-            COALESCE(d.qualified,0)::int AS qualified,
+            COALESCE(s.qualified,0)::int AS qualified,
             COALESCE(d.quote_failures,0)::int AS quote_failures,
             COALESCE(f.buys,0)::int AS buys,
+            (SELECT q.last_entry_error FROM paper_profile_candidate_decisions q
+              WHERE q.wallet=a.wallet AND q.profile_id=a.profile_id
+                AND q.last_entry_error IS NOT NULL
+                AND q.evaluated_at>=now()-interval '24 hours'
+              ORDER BY q.evaluated_at DESC LIMIT 1) AS latest_execution_blocker,
             (SELECT x.reason FROM (
-               SELECT COALESCE(NULLIF(q.reasons_json->>0,''),q.last_entry_error) AS reason,
+               SELECT COALESCE(NULLIF(q.last_entry_error,''),NULLIF(q.reasons_json->>0,'')) AS reason,
                       count(*) AS uses
                  FROM paper_profile_candidate_decisions q
                 WHERE q.wallet=a.wallet AND q.profile_id=a.profile_id
-                  AND q.evaluated_at>=now()-interval '24 hours' AND NOT q.eligible
+                  AND q.evaluated_at>=now()-interval '24 hours'
+                  AND (NOT q.eligible OR q.last_entry_error IS NOT NULL)
                 GROUP BY 1 ORDER BY uses DESC LIMIT 1
              ) x) AS main_rejection
        FROM paper_profile_activations a
        LEFT JOIN LATERAL (
          SELECT count(*) AS signals,
                 count(*) FILTER (WHERE signal_json->>'pattern' NOT IN ('none','insufficient_history')) AS patterns,
-                count(*) FILTER (WHERE signal_json->>'marketConfirmed'='true') AS market_confirmed
+                count(*) FILTER (WHERE signal_json->>'marketConfirmed'='true') AS market_confirmed,
+                count(DISTINCT token_mint) FILTER (WHERE eligible) AS qualified
            FROM paper_fast_signal_events e
           WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id
             AND e.observed_at>=now()-interval '24 hours'
        ) s ON true
        LEFT JOIN LATERAL (
-         SELECT count(*) FILTER (WHERE eligible) AS qualified,
-                count(*) FILTER (WHERE entry_state='failed' AND last_entry_error ILIKE '%quote%') AS quote_failures
+         SELECT count(*) FILTER (WHERE last_entry_error ILIKE '%quote%'
+                  OR last_entry_error ILIKE '%round-trip cost%') AS quote_failures
            FROM paper_profile_candidate_decisions d
           WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id
             AND d.evaluated_at>=now()-interval '24 hours'

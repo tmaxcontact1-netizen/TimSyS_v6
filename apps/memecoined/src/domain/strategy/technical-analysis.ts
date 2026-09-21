@@ -13,6 +13,8 @@ export interface ExecutableBar {
 export interface TechnicalAnalysis {
   readonly sampleCount: number;
   readonly barCount: number;
+  readonly recentMaxGapSeconds: number;
+  readonly coveredRecentBars: number;
   readonly rsi: number;
   readonly priorRsi: number;
   readonly emaFast: number;
@@ -39,9 +41,15 @@ const round = (value: number, places = 2): number => {
   const scale = 10 ** places;
   return Math.round(finite(value) * scale) / scale;
 };
-const ema = (values: readonly number[], period: number): number => {
-  const multiplier = 2 / (period + 1);
-  return values.slice(1).reduce((value, next) => next * multiplier + value * (1 - multiplier), values[0] ?? 0);
+const elapsedEma = (values: readonly number[], times: readonly number[], halfLifeMinutes: number): number => {
+  let value = values[0] ?? 0;
+  for (let index = 1; index < values.length; index += 1) {
+    const minutes = (times[index]! - times[index - 1]!) / 60_000;
+    if (!Number.isFinite(minutes) || minutes <= 0) continue;
+    const weight = 1 - Math.exp(-Math.LN2 * minutes / halfLifeMinutes);
+    value += weight * (values[index]! - value);
+  }
+  return value;
 };
 const rsi = (values: readonly number[], period = 14): number => {
   const sample = values.slice(-period - 1);
@@ -92,18 +100,20 @@ export function analyseExecutableHistory(points: readonly ExecutableMarketPoint[
   const recent = points.slice(-60);
   const anchor = Number(recent[0]?.outputAmountRaw ?? 1n);
   const prices = recent.map((point) => anchor / Number(point.outputAmountRaw) * 10_000);
+  const times = recent.map((point) => Date.parse(point.observedAt));
   const latest = prices.at(-1) ?? 0;
-  const fast = ema(prices.slice(-12), 5);
-  const slow = ema(prices.slice(-26), 12);
-  const priorFast = ema(prices.slice(0, -1).slice(-12), 5);
+  const fast = elapsedEma(prices, times, 2.5);
+  const slow = elapsedEma(prices, times, 6);
+  const priorFast = elapsedEma(prices.slice(0, -1), times.slice(0, -1), 2.5);
   const currentRsi = prices.length >= 15 ? rsi(prices) : 50;
   const previousRsi = prices.length >= 16 ? rsi(prices.slice(0, -1)) : 50;
   const macdSeries = prices.length >= 26 ? prices.slice(25).map((_, index) => {
     const sample = prices.slice(0, index + 26);
-    return ema(sample.slice(-26), 12) - ema(sample.slice(-26), 26);
+    const sampleTimes = times.slice(0, index + 26);
+    return elapsedEma(sample, sampleTimes, 6) - elapsedEma(sample, sampleTimes, 13);
   }) : [];
   const macd = macdSeries.at(-1) ?? 0;
-  const macdSignal = ema(macdSeries.slice(-9), 9);
+  const macdSignal = elapsedEma(macdSeries, times.slice(25), 4.5);
   const band = prices.slice(-20);
   const mean = band.reduce((sum, value) => sum + value, 0) / Math.max(band.length, 1);
   const deviation = Math.sqrt(band.reduce((sum, value) => sum + (value - mean) ** 2, 0) / Math.max(band.length, 1));
@@ -119,6 +129,10 @@ export function analyseExecutableHistory(points: readonly ExecutableMarketPoint[
   const observedLow = prices.length ? Math.min(...prices) : latest;
   const trueRanges = prices.slice(1).map((value, index) => Math.abs(bps(prices[index]!, value)));
   const bars = buildExecutableBars(recent);
+  const recentTimes = recent.slice(-20).map((point) => Date.parse(point.observedAt));
+  const recentMaxGapSeconds = recentTimes.slice(1).reduce((maximum, time, index) =>
+    Math.max(maximum, (time - recentTimes[index]!) / 1000), 0);
+  const coveredRecentBars = bars.slice(-3).filter((bar) => bar.samples >= 2).length;
   const lastBar = bars.at(-1);
   const barRange = lastBar ? lastBar.high - lastBar.low : 0;
   const bullishClose = Boolean(lastBar && lastBar.close >= lastBar.open &&
@@ -143,6 +157,8 @@ export function analyseExecutableHistory(points: readonly ExecutableMarketPoint[
   return Object.freeze({
     sampleCount: prices.length,
     barCount: bars.length,
+    recentMaxGapSeconds: round(recentMaxGapSeconds, 1),
+    coveredRecentBars,
     rsi: round(currentRsi, 1),
     priorRsi: round(previousRsi, 1),
     emaFast: round(fast, 4),

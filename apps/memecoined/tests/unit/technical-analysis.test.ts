@@ -27,4 +27,21 @@ describe("executable-price technical analysis", () => {
     const sequence = [...Array.from({ length: 30 }, (_, index) => 1 + index * .001), 1.2, 1.35];
     expect(analyseExecutableHistory(points(sequence)).overextended).toBe(true);
   });
+
+  it("measures observation coverage rather than treating a single quote as a complete bar", () => {
+    const sparse = analyseExecutableHistory(points(Array.from({ length: 30 }, (_, index) => 1 + index * .001), 5));
+    expect(sparse.coveredRecentBars).toBe(0);
+    expect(sparse.recentMaxGapSeconds).toBe(300);
+  });
+
+  it("keeps elapsed-time EMA comparable when an identical price is polled more often", () => {
+    const base = points(Array.from({ length: 30 }, (_, index) => 1 + index * .001));
+    const dense = base.flatMap((point) => [
+      point,
+      { ...point, observedAt: new Date(Date.parse(point.observedAt) + 30_000).toISOString() },
+    ]);
+    const ordinary = analyseExecutableHistory(base);
+    const polledMoreOften = analyseExecutableHistory(dense);
+    expect(Math.abs(ordinary.emaFast - polledMoreOften.emaFast)).toBeLessThan(5);
+  });
 });

@@ -183,6 +183,7 @@ interface CandidateRow {
   readonly signal_json?: {
     readonly observedVolatilityBps?: number;
     readonly pattern?: string;
+    readonly executableOutputAmountRaw?: string;
     readonly adaptiveCalibration?: AdaptiveTradeCalibration;
     readonly adaptiveEntryEligible?: boolean;
     readonly currentScore?: ProfileScoreBreakdown;
@@ -220,7 +221,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v10";
+const temporalEngineVersion = "temporal-v11";
 
 export function entryConfirmationPolicy(profileId: TradingProfileId): Readonly<{
   observations: number;
@@ -238,6 +239,14 @@ export function minimumThesisMaturityMinutes(profileId: TradingProfileId): numbe
     : profileId === "liquidity_expansion" ? 15
       : profileId === "trend_detector" ? 10
         : 0;
+}
+export function confirmedEntryLag(firstOutput: bigint, latestOutput: bigint, targetBps: number): Readonly<{
+  eligible: boolean; moveBps: number;
+}> {
+  if (firstOutput <= 0n || latestOutput <= 0n || targetBps <= 0)
+    return Object.freeze({ eligible: false, moveBps: 0 });
+  const moveBps = Number((firstOutput * 10_000n) / latestOutput - 10_000n);
+  return Object.freeze({ eligible: moveBps <= Math.max(50, targetBps * .5), moveBps });
 }
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
@@ -592,6 +601,7 @@ async function collectFastMarketObservations(input: {
         ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
         ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
       const signalEvidence = { ...signal,
+        executableOutputAmountRaw: quote.value.expectedOutputAmount.toString(),
         adaptiveEntryEligible: adaptiveEntry.eligible,
         adaptiveEntryReason: adaptiveEntry.reason,
         ...(adaptiveCalibration ? { adaptiveCalibration } : {}), currentScore: current.score,
@@ -930,13 +940,19 @@ async function processPendingEntries(input: {
     }
     const confirmationPolicy = entryConfirmationPolicy(profile.id);
     if (confirmationPolicy.observations > 1) {
-      const confirmations = await input.pool.query<{ confirmations: string; span_seconds: string | null }>(
+      const confirmations = await input.pool.query<{
+        confirmations: string; span_seconds: string | null;
+        first_output_raw: string | null; last_output_raw: string | null;
+      }>(
         `SELECT count(*)::text AS confirmations,
-                extract(epoch FROM (max(observed_at)-min(observed_at)))::text AS span_seconds
-           FROM (SELECT observed_at
+                extract(epoch FROM (max(observed_at)-min(observed_at)))::text AS span_seconds,
+                (array_agg(output_raw ORDER BY observed_at))[1] AS first_output_raw,
+                (array_agg(output_raw ORDER BY observed_at DESC))[1] AS last_output_raw
+           FROM (SELECT observed_at,signal_json->>'executableOutputAmountRaw' AS output_raw
                    FROM paper_fast_signal_events
                   WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 AND eligible=true
                     AND signal_json->>'pattern'=$4
+                    AND signal_json->>'executableOutputAmountRaw' IS NOT NULL
                     AND observed_at >= $5::timestamptz-interval '10 minutes'
                   ORDER BY observed_at DESC LIMIT $6) confirmed`,
         [
@@ -964,6 +980,20 @@ async function processPendingEntries(input: {
             `Waiting for ${confirmationPolicy.observations} matching observations across ${confirmationPolicy.minimumSpanSeconds} seconds`,
             nextAt,
           ],
+        );
+        continue;
+      }
+      const firstOutput = BigInt(confirmation?.first_output_raw ?? "0");
+      const lastOutput = BigInt(confirmation?.last_output_raw ?? "0");
+      const adaptiveTargetBps = signalEvidence?.adaptiveCalibration?.targetBps ?? 0;
+      const entryLag = confirmedEntryLag(firstOutput, lastOutput, adaptiveTargetBps);
+      if (!entryLag.eligible) {
+        await input.pool.query(
+          `UPDATE paper_profile_candidate_decisions
+              SET eligible=false,entry_state='failed',last_entry_error=$4,next_entry_attempt_at=NULL
+            WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+          [input.wallet, profile.id, candidate.candidate_id,
+            `Entry arrived ${entryLag.moveBps} bps after the first confirmed signal, beyond half its calibrated target`],
         );
         continue;
       }

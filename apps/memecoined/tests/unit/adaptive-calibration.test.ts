@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { calibrateFastFurious, calibrateProfile, evaluateAdaptiveEntry } from "../../src/domain/strategy/adaptive-calibration.js";
 
 const history = (prices: readonly number[]) => prices.map((price, index) => ({
-  observedAt: new Date(Date.UTC(2026, 8, 19, 12, 0, index)).toISOString(),
+  observedAt: new Date(Date.UTC(2026, 8, 19, 12, index)).toISOString(),
   outputAmountRaw: BigInt(Math.round(10_000_000 / price)),
 }));
 
 const confirmedTechnical = {
-  sampleCount: 30, barCount: 6, rsi: 58, priorRsi: 55,
+  sampleCount: 30, barCount: 6, recentMaxGapSeconds: 60, coveredRecentBars: 3, rsi: 58, priorRsi: 55,
   emaFast: 10_100, emaSlow: 10_000, emaSpreadBps: 100, emaSlopeBps: 20,
   macdHistogramBps: 12, bollingerPosition: .35, atrBps: 80,
   efficiencyRatio: .55, accelerationBps: 15, bullishClose: true,
@@ -60,6 +60,13 @@ describe("Fast & Furious per-token calibration", () => {
     expect(scalper.maximumHoldingMinutes).toBeLessThan(trend.maximumHoldingMinutes);
   });
 
+  it("does not set a stop below the observed downside or target-based floor", () => {
+    const result = calibrateFastFurious(history([1,1.018,1.004,1.025,1.008,1.031,1.014,1.036,1.017,1.043,1.024,1.05]),
+      "2026-09-19T12:12:00.000Z");
+    expect(result.observedDownsideBps).toBeGreaterThan(0);
+    expect(result.hardStopBps).toBeGreaterThanOrEqual(result.observedDownsideBps);
+  });
+
   it("keeps benchmark strategies fixed for honest comparison", () => {
     expect(calibrateProfile("benchmark_momentum", history(Array(12).fill(1)), "2026-09-19T12:12:00.000Z"))
       .toBeNull();
@@ -72,7 +79,7 @@ describe("Fast & Furious per-token calibration", () => {
     );
     expect(evaluateAdaptiveEntry("fast_furious", {
       eligible: false, pattern: "trend", latestMoveBps: -5, shortMoveBps: 60,
-      cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
+      cumulativeMoveBps: 140, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_200, liquidityPositiveSteps: 4, volumePositiveSteps: 4, marketConfirmed: true, reason: "Legacy label excluded",
       technical: confirmedTechnical,
@@ -83,7 +90,7 @@ describe("Fast & Furious per-token calibration", () => {
     const points = history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]);
     const patternless = {
       eligible: false, pattern: "none" as const, latestMoveBps: 20, shortMoveBps: 60,
-      cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
+      cumulativeMoveBps: 140, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_500, liquidityPositiveSteps: 4, volumePositiveSteps: 4,
       marketConfirmed: true, reason: "No explicit setup", technical: confirmedTechnical,
@@ -128,7 +135,7 @@ describe("Fast & Furious per-token calibration", () => {
     const points = history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]);
     const signal = {
       eligible: true as const, pattern: "trend" as const, latestMoveBps: 20, shortMoveBps: 60,
-      cumulativeMoveBps: 180, observedVolatilityBps: 200, positiveSteps: 4,
+      cumulativeMoveBps: 140, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_500, liquidityPositiveSteps: 4, volumePositiveSteps: 4, marketConfirmed: true, reason: "Shared market evidence",
       technical: { ...confirmedTechnical, sampleCount: 20, qualityScore: 55, efficiencyRatio: .24 },
