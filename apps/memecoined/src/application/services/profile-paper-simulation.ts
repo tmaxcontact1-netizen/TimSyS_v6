@@ -182,6 +182,7 @@ interface CandidateRow {
   readonly evaluated_at: Date | string;
   readonly signal_json?: {
     readonly observedVolatilityBps?: number;
+    readonly pattern?: string;
     readonly adaptiveCalibration?: AdaptiveTradeCalibration;
     readonly adaptiveEntryEligible?: boolean;
     readonly currentScore?: ProfileScoreBreakdown;
@@ -219,7 +220,25 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v9";
+const temporalEngineVersion = "temporal-v10";
+
+export function entryConfirmationPolicy(profileId: TradingProfileId): Readonly<{
+  observations: number;
+  minimumSpanSeconds: number;
+}> {
+  return profileId === "fast_furious" || profileId === "scalper"
+    ? Object.freeze({ observations: 2, minimumSpanSeconds: 15 })
+    : profileId === "slow_steady" || profileId === "trend_detector" || profileId === "liquidity_expansion"
+      ? Object.freeze({ observations: 3, minimumSpanSeconds: 60 })
+      : Object.freeze({ observations: 1, minimumSpanSeconds: 0 });
+}
+
+export function minimumThesisMaturityMinutes(profileId: TradingProfileId): number {
+  return profileId === "slow_steady" ? 30
+    : profileId === "liquidity_expansion" ? 15
+      : profileId === "trend_detector" ? 10
+        : 0;
+}
 const temporalProfileIds = new Set<TradingProfileId>([
   "whale_tracker",
   "fast_furious",
@@ -679,6 +698,27 @@ async function enterPosition(input: {
       outcome: "failed",
       reason: `Token is in this profile's ${lossCooldownMinutes}-minute loss cooldown after a hard-stop exit`,
     });
+  const recentCrossProfileStop = await input.pool.query<{ stopped_at: Date }>(
+    `SELECT filled_at AS stopped_at
+       FROM paper_profile_fills
+      WHERE wallet=$1 AND token_mint=$2 AND side='sell' AND reason='hard_stop'
+        AND filled_at >= $3::timestamptz-interval '6 hours'
+      ORDER BY filled_at DESC LIMIT 1`,
+    [input.wallet, input.candidate.mint_address, input.at],
+  );
+  if (recentCrossProfileStop.rows[0]) {
+    const technical = input.candidate.signal_json?.technical;
+    const demonstrablyImproved = technical?.higherLows === true &&
+      Number(technical.historyReturnBps ?? 0) > 0 &&
+      Number(technical.qualityScore ?? 0) >= 75 &&
+      Number(technical.efficiencyRatio ?? 0) >= 0.4 &&
+      Number(technical.maximumDrawdownBps ?? Infinity) <= 500;
+    if (!demonstrablyImproved)
+      return Object.freeze({
+        outcome: "failed",
+        reason: "A recent hard stop remains negative evidence across strategies; the price structure has not demonstrably improved",
+      });
+  }
   if (Number(row.open_positions) >= input.profile.maximumConcurrentPositions)
     return Object.freeze({ outcome: "retry", reason: "Profile position limit is currently full" });
   const calibratedStopBps = input.candidate.signal_json?.adaptiveCalibration?.hardStopBps ??
@@ -888,6 +928,46 @@ async function processPendingEntries(input: {
       );
       continue;
     }
+    const confirmationPolicy = entryConfirmationPolicy(profile.id);
+    if (confirmationPolicy.observations > 1) {
+      const confirmations = await input.pool.query<{ confirmations: string; span_seconds: string | null }>(
+        `SELECT count(*)::text AS confirmations,
+                extract(epoch FROM (max(observed_at)-min(observed_at)))::text AS span_seconds
+           FROM (SELECT observed_at
+                   FROM paper_fast_signal_events
+                  WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 AND eligible=true
+                    AND signal_json->>'pattern'=$4
+                    AND observed_at >= $5::timestamptz-interval '10 minutes'
+                  ORDER BY observed_at DESC LIMIT $6) confirmed`,
+        [
+          input.wallet,
+          profile.id,
+          candidate.mint_address,
+          signalEvidence?.pattern ?? "none",
+          input.at,
+          confirmationPolicy.observations,
+        ],
+      );
+      const confirmation = confirmations.rows[0];
+      const count = Number(confirmation?.confirmations ?? 0);
+      const spanSeconds = Number(confirmation?.span_seconds ?? 0);
+      if (count < confirmationPolicy.observations || spanSeconds < confirmationPolicy.minimumSpanSeconds) {
+        const nextAt = asTimestamp(new Date(Date.parse(input.at) + 20_000));
+        await input.pool.query(
+          `UPDATE paper_profile_candidate_decisions
+              SET entry_state='retrying',last_entry_error=$4,next_entry_attempt_at=$5
+            WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
+          [
+            input.wallet,
+            profile.id,
+            candidate.candidate_id,
+            `Waiting for ${confirmationPolicy.observations} matching observations across ${confirmationPolicy.minimumSpanSeconds} seconds`,
+            nextAt,
+          ],
+        );
+        continue;
+      }
+    }
     const attempt = await enterPosition({ ...input, profile, candidate });
     const attempts = candidate.entry_attempts + 1;
     if (attempt.outcome === "entered") {
@@ -1043,9 +1123,10 @@ async function monitorPositions(input: {
         )
       : profile.trailingStopBps;
     const stop = value * 10000n <= cost * BigInt(10000 - adaptiveStopBps);
-    const target = value * 10000n >= cost * BigInt(10000 + adaptiveTargetBps);
+    const thesisMature = ageMinutes >= minimumThesisMaturityMinutes(profile.id);
+    const target = thesisMature && value * 10000n >= cost * BigInt(10000 + adaptiveTargetBps);
     const trailingActivationBps = calibration?.trailingActivationBps ?? adaptiveTrailingBps;
-    const trailing = high * 10_000n >= cost * BigInt(10_000 + trailingActivationBps) &&
+    const trailing = thesisMature && high * 10_000n >= cost * BigInt(10_000 + trailingActivationBps) &&
       value * 10_000n <= high * BigInt(10_000 - adaptiveTrailingBps);
     const timeout = ageMinutes >= (calibration?.maximumHoldingMinutes ?? profile.maximumHoldingMinutes);
     if (!stop && !target && !trailing && !timeout) {

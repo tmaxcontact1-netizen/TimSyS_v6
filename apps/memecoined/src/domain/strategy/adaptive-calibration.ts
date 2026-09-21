@@ -76,6 +76,19 @@ export function evaluateAdaptiveEntry(
   const volume = signal.volumeChangeBps ?? -Infinity;
   const liquidity = signal.liquidityChangeBps ?? -Infinity;
   const technical = signal.technical;
+  const allowedPatterns: Partial<Record<TradingProfileId, readonly ShortHorizonSignal["pattern"][]>> = {
+    fast_furious: ["momentum", "pullback_rebound", "trend"],
+    scalper: ["range_rebound", "pullback_rebound"],
+    slow_steady: ["trend"],
+    trend_detector: ["trend"],
+    liquidity_expansion: ["liquidity_expansion"],
+  };
+  const patterns = allowedPatterns[id];
+  if (patterns && (!signal.eligible || !patterns.includes(signal.pattern)))
+    return Object.freeze({
+      eligible: false,
+      reason: `${calibration.model} requires an explicit ${patterns.join(" or ").replaceAll("_", " ")} pattern`,
+    });
   const flowConfirmed = id === "fast_furious"
     ? buyers >= 5_200 && volume >= -500 && liquidity >= -100
     : id === "scalper"

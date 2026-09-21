@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  entryConfirmationPolicy,
   evaluateExecutableEntryEvidence,
   evaluateProfileCandidate,
   maximumPositionBps,
+  minimumThesisMaturityMinutes,
   refreshTemporalCandidateEvidence,
   trailingStopActivated,
 } from "../../src/application/services/profile-paper-simulation.js";
@@ -20,6 +22,20 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("requires repeated confirmation in proportion to the strategy horizon", () => {
+    expect(entryConfirmationPolicy("fast_furious")).toEqual({ observations: 2, minimumSpanSeconds: 15 });
+    expect(entryConfirmationPolicy("scalper")).toEqual({ observations: 2, minimumSpanSeconds: 15 });
+    expect(entryConfirmationPolicy("trend_detector")).toEqual({ observations: 3, minimumSpanSeconds: 60 });
+    expect(entryConfirmationPolicy("liquidity_expansion")).toEqual({ observations: 3, minimumSpanSeconds: 60 });
+  });
+
+  it("gives longer theses time to develop without delaying hard-stop protection", () => {
+    expect(minimumThesisMaturityMinutes("fast_furious")).toBe(0);
+    expect(minimumThesisMaturityMinutes("scalper")).toBe(0);
+    expect(minimumThesisMaturityMinutes("trend_detector")).toBe(10);
+    expect(minimumThesisMaturityMinutes("liquidity_expansion")).toBe(15);
+    expect(minimumThesisMaturityMinutes("slow_steady")).toBe(30);
+  });
   it("uses current market momentum without bypassing live liquidity or holder gates", () => {
     const market = {
       liquidityUsd: { gte: (n: number) => n <= 150_000, lt: (n: number) => n > 150_000 },
