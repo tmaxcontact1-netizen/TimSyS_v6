@@ -36,7 +36,7 @@ describe("short-horizon strategy evidence", () => {
     expect(["momentum", "pullback_rebound"]).toContain(
       evaluateShortHorizonSignal("fast_furious", sequence).pattern,
     );
-    expect(evaluateShortHorizonSignal("scalper", sequence).eligible).toBe(true);
+    expect(evaluateShortHorizonSignal("scalper", sequence)).toMatchObject({ eligible: true, pattern: "range_rebound" });
   });
 
   it("does not turn noise or a continuing fall into a signal", () => {

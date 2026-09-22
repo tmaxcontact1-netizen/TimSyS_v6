@@ -44,7 +44,8 @@ export function calibrateProfile(id:TradingProfileId, points:readonly Executable
   const base={version:"adaptive-v2" as const,profileId:id,model:p.model,sampleCount:recent.length,calculatedAt:at,validUntil};
   if(recent.length<10) return Object.freeze({...base,regime:"insufficient",confidencePercentage:clamp(recent.length/10*50,0,45),typicalMoveBps:0,upperMoveBps:0,targetBps:p.targetMin,hardStopBps:p.stopMin,observedDownsideBps:0,trailingStopBps:clamp(p.targetMin*p.trail,30,p.stopMax),trailingActivationBps:clamp(p.targetMin*p.activate,40,p.targetMax),maximumHoldingMinutes:p.holdMin,maximumRoundTripCostBps:clamp(p.targetMin*p.friction,20,125),tradeable:false,reason:`At least 10 executable observations are required; ${recent.length} are available`});
   const excursions:number[]=[];
-  for(const horizon of [1,2,4,8]) for(let index=horizon;index<recent.length;index+=horizon) {
+  const horizons = id === "slow_steady" || id === "trend_detector" ? [4,8] : [1,2,4,8];
+  for(const horizon of horizons) for(let index=horizon;index<recent.length;index+=horizon) {
     const elapsed=(Date.parse(recent[index]!.observedAt)-Date.parse(recent[index-horizon]!.observedAt))/60_000;
     if(elapsed>=horizon*.25&&elapsed<=horizon*2.5)
       excursions.push(Math.abs(moveBps(recent[index-horizon]!.outputAmountRaw,recent[index]!.outputAmountRaw)));

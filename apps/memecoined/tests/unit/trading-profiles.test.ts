@@ -8,7 +8,6 @@ import {
 describe("trading profiles", () => {
   it("ships the complete operator catalogue with unique profiles", () => {
     expect(tradingProfileCatalogue.map(({ id }) => id)).toEqual([
-      "whale_tracker",
       "fast_furious",
       "slow_steady",
       "trend_detector",
@@ -16,7 +15,6 @@ describe("trading profiles", () => {
       "signal_consensus",
       "breakout_retest",
       "liquidity_expansion",
-      "social_catalyst",
       "recovery_reversal",
       "launch_transition",
       "scalper",
@@ -30,28 +28,25 @@ describe("trading profiles", () => {
       "benchmark_volume_breakout",
       "benchmark_atr_trend",
     ]);
-    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(21);
+    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(19);
     expect(tradingProfileCatalogue.every(({ hardStopBps }) => hardStopBps > 0)).toBe(true);
   });
 
-  it("does not claim profiles can trade before their required evidence exists", () => {
+  it("does not offer profiles whose required evidence feeds are absent", () => {
     const waiting = tradingProfileCatalogue.filter(({ evidenceStatus }) => evidenceStatus === "awaiting_data");
-    expect(waiting.map(({ id }) => id)).toEqual([
-      "whale_tracker", "social_catalyst",
-    ]);
-    expect(waiting.every(({ evidenceMessage }) => Boolean(evidenceMessage))).toBe(true);
+    expect(waiting).toEqual([]);
   });
 
   it("allows concurrent profiles only inside the shared allocation boundary", () => {
     expect(
       validateConcurrentProfileAllocation([
-        { profileId: "whale_tracker", enabled: true, mode: "automatic_paper", allocationBps: 4000 },
+        { profileId: "fast_furious", enabled: true, mode: "automatic_paper", allocationBps: 4000 },
         { profileId: "trend_detector", enabled: true, mode: "automatic_paper", allocationBps: 6000 },
       ]),
     ).toEqual({ allocatedBps: 10_000, unallocatedBps: 0 });
     expect(() =>
       validateConcurrentProfileAllocation([
-        { profileId: "whale_tracker", enabled: true, mode: "automatic_paper", allocationBps: 5000 },
+        { profileId: "fast_furious", enabled: true, mode: "automatic_paper", allocationBps: 5000 },
         { profileId: "trend_detector", enabled: true, mode: "automatic_paper", allocationBps: 5001 },
       ]),
     ).toThrow(/exceed/i);
@@ -59,7 +54,7 @@ describe("trading profiles", () => {
 
   it("allows zero-allocation observation profiles but not automatic traders", () => {
     expect(validateConcurrentProfileAllocation([
-      { profileId: "social_catalyst", enabled: true, mode: "observe", allocationBps: 0 },
+      { profileId: "breakout_retest", enabled: true, mode: "observe", allocationBps: 0 },
     ])).toEqual({ allocatedBps: 0, unallocatedBps: 10_000 });
     expect(() => validateConcurrentProfileAllocation([
       { profileId: "scalper", enabled: true, mode: "automatic_paper", allocationBps: 0 },

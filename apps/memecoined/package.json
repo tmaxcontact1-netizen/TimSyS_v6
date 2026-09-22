@@ -17,6 +17,7 @@
     "verify:environment": "tsx scripts/verify-environment.ts",
     "verify:providers": "tsx scripts/verify-environment.ts --probe-providers",
     "verify:handoff": "npm run typecheck && npm test && npm run build",
+    "verify:pipeline": "npm run build && node dist/scripts/diagnose-profile-roundtrips.js",
     "test:coverage": "vitest run --coverage",
     "report:paper": "tsx scripts/generate-report.ts",
     "dashboard:paper": "node dist/src/entrypoints/dashboard.js",

@@ -6,7 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const stage = join(root, 'apps', 'launcher', 'runtime-stage');
-const output = join(root, 'dist-updates');
+const outputDirectoryArgument = process.argv.find(value => value.startsWith('--output-dir='));
+const outputDirectoryName = outputDirectoryArgument?.slice('--output-dir='.length) ?? null;
+if (outputDirectoryName !== null && !/^[a-z0-9][a-z0-9-]{0,79}$/i.test(outputDirectoryName)) {
+  throw new Error('--output-dir must be a simple folder name under dist-updates');
+}
+const output = outputDirectoryName === null
+  ? join(root, 'dist-updates') : join(root, 'dist-updates', outputDirectoryName);
 const releaseVersion = process.argv[2];
 const onlyArgument = process.argv.find(value => value.startsWith('--only='));
 const selectedBundles = onlyArgument ? new Set(onlyArgument.slice('--only='.length).split(',').filter(Boolean)) : null;
@@ -23,6 +29,14 @@ const sources = Object.freeze({
 });
 if (selectedBundles) {
   for (const id of selectedBundles) if (!Object.prototype.hasOwnProperty.call(sources, id)) throw new Error(`Unknown bundle in --only: ${id}`);
+}
+if (outputDirectoryName !== null) {
+  try {
+    await access(output);
+    throw new Error(`Isolated output directory already exists: ${output}`);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+  }
 }
 
 async function createArchive(source, archive) {
@@ -45,6 +59,30 @@ async function runNodeScript(script, arguments_ = []) {
       ? resolveRun()
       : reject(new Error(`${script} exited with ${code}`)));
   });
+}
+
+async function verifyMemecoinedPipeline() {
+  if (!process.env.MEMECOINED_VERIFY_ADMIN_URL) {
+    throw new Error('MemeCoin\'Ed update requires MEMECOINED_VERIFY_ADMIN_URL for its isolated full-path verification');
+  }
+  const output = await new Promise((resolveRun, reject) => {
+    const chunks = [];
+    const child = spawn(process.execPath, [join(root, 'apps', 'memecoined', 'dist', 'scripts', 'diagnose-profile-roundtrips.js')], {
+      cwd: join(root, 'apps', 'memecoined'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout.on('data', chunk => { chunks.push(chunk); process.stdout.write(chunk); });
+    child.stderr.on('data', chunk => process.stderr.write(chunk));
+    child.once('error', reject);
+    child.once('exit', code => code === 0
+      ? resolveRun(Buffer.concat(chunks).toString('utf8'))
+      : reject(new Error(`MemeCoin'Ed full-path verification exited with ${code}`)));
+  });
+  const result = JSON.parse(output);
+  if (result.diagnostic !== 'discovery-to-displayed-paper-result' ||
+      result.controlledFixture !== true || result.profiles?.length !== 19) {
+    throw new Error('MemeCoin\'Ed full-path verification returned incomplete evidence');
+  }
+  return { passedAt: new Date().toISOString(), command: 'node dist/scripts/diagnose-profile-roundtrips.js', result };
 }
 
 async function stageHasProductionDependencies() {
@@ -90,8 +128,10 @@ await runNodeScript(
   await stageHasProductionDependencies() ? ['--refresh-source-only'] : [],
 );
 await runNodeScript('verify-windows-runtime.mjs');
+const memecoinedVerification = !selectedBundles || selectedBundles.has('memecoined')
+  ? await verifyMemecoinedPipeline() : null;
 
-await rm(output, { recursive: true, force: true });
+if (outputDirectoryName === null) await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const bundles = [];
 for (const [id, source] of Object.entries(sources)) {
@@ -117,4 +157,12 @@ const manifest = {
   bundles,
 };
 await writeFile(join(output, 'timsys-update.json'), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+if (memecoinedVerification) {
+  const bundle = bundles.find(item => item.id === 'memecoined');
+  if (!bundle) throw new Error('MemeCoin\'Ed bundle is missing after verification');
+  await writeFile(join(output, `memecoined-verification-${releaseVersion}.json`), `${JSON.stringify({
+    schemaVersion: 1, releaseVersion, bundleVersion: bundle.version, bundleSha256: bundle.sha256,
+    ...memecoinedVerification,
+  }, null, 2)}\n`, 'utf8');
+}
 process.stdout.write(`Created ${bundles.length} verified update bundles in ${output}\n`);

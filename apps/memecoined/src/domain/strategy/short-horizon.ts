@@ -183,7 +183,12 @@ export function evaluateShortHorizonSignal(
   if ((profileId === "liquidity_expansion" || profileId === "launch_transition") && existingProfilePattern)
     benchmarkPattern = "liquidity_expansion";
   const isBenchmark = profileId.startsWith("benchmark_");
-  const selectedPattern = isBenchmark ? benchmarkPattern : benchmarkPattern !== "none" ? benchmarkPattern : pattern;
+  const selectedPattern = isBenchmark ? benchmarkPattern : benchmarkPattern !== "none" ? benchmarkPattern
+    : profileId === "scalper" && rangeRebound ? "range_rebound"
+    : profileId === "scalper" && pullbackRebound ? "pullback_rebound"
+    : profileId === "fast_furious" && momentum ? "momentum"
+    : profileId === "fast_furious" && pullbackRebound ? "pullback_rebound"
+    : pattern;
   const eligible = (isBenchmark ? benchmarkEligible : existingProfilePattern) && profileConfirmation;
   return Object.freeze({
     eligible, pattern: selectedPattern, latestMoveBps: latest, shortMoveBps: short,

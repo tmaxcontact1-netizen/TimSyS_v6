@@ -1,5 +1,46 @@
 # TimSyS Test Protocol v1.0
 
+## Pipeline release rule (mandatory)
+
+Whenever a change touches any stage of an operational pipeline, the entire
+affected pipeline must be verified end to end against the build being released.
+Passing unit, component, mocked-service, or packaging tests does not satisfy
+this rule. An update must not be described or published as a *fix* without a
+recorded, passing full-path result.
+
+The verification must exercise the actual orchestrator and persistence path
+from real-shaped input to final output, including intermediate gates, retries,
+negative cases, and user-visible reporting. Use isolated test data; never
+modify a user's live records to make a test pass. Record the build fingerprint,
+test command, time, inputs, outputs, and each gate's observed result. A failed
+or unavailable end-to-end test blocks release of the affected bundle. Do not
+replace it with an assertion that individual functions work.
+
+For MemeCoin'Ed, the required positive path is discovery -> security and
+scoring -> quote observations -> profile signal -> sized buy quote -> paper buy
+persisted -> exit quote -> paper sell persisted -> net P&L shown by the dashboard
+reader. Negative paths must demonstrate that unsafe tokens and unacceptable
+executable costs do not fill. Run
+`apps/memecoined/dist/scripts/diagnose-profile-roundtrips.js` with
+`MEMECOINED_VERIFY_ADMIN_URL` against a local PostgreSQL administrator endpoint.
+It creates and drops a uniquely named disposable database, exercises all 19
+selectable profiles through the actual paper orchestrator and dashboard reader,
+and exits nonzero if any round trip or negative control fails. The release
+bundler runs this after build and runtime-stage verification; it fails closed
+without the database endpoint. The older
+`apps/memecoined/tests/e2e/profile-paper-path.test.ts` covers separate
+components and remains insufficient as release proof by itself.
+
+This controlled full-path test verifies code wiring and guardrails, not the
+quality, availability, or profitability of live market data. Do not reset live
+paper history until the verified build has been installed and its live provider
+configuration and version have been confirmed.
+
+Historical runs remain observations, not proof that a particular fix worked.
+Attribute each observation to its installed build and configuration. Compare
+frozen, time-separated runs with the same outcome definitions; mark older data
+with missing provenance or incomplete gate traces as exploratory only.
+
 ## Purpose
 
 This document defines the mandatory standards for constructing, maintaining, and extending the TimSyS test suite. Non-compliance will result in flaky tests, port collisions, database corruption, and unreliable CI/CD pipelines.

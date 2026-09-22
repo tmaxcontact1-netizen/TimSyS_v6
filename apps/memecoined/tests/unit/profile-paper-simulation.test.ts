@@ -28,11 +28,12 @@ describe("profile paper simulation policy", () => {
     expect(confirmedEntryLag(10_000n, 9_960n, 150).eligible).toBe(true);
     expect(confirmedEntryLag(0n, 9_960n, 150).eligible).toBe(false);
   });
-  it("requires repeated confirmation in proportion to the strategy horizon", () => {
-    expect(entryConfirmationPolicy("fast_furious")).toEqual({ observations: 2, minimumSpanSeconds: 15 });
-    expect(entryConfirmationPolicy("scalper")).toEqual({ observations: 2, minimumSpanSeconds: 15 });
-    expect(entryConfirmationPolicy("trend_detector")).toEqual({ observations: 3, minimumSpanSeconds: 60 });
-    expect(entryConfirmationPolicy("liquidity_expansion")).toEqual({ observations: 3, minimumSpanSeconds: 60 });
+  it("uses the multi-bar signal itself as confirmation before a fresh executable quote", () => {
+    expect(entryConfirmationPolicy("fast_furious")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
+    expect(entryConfirmationPolicy("scalper")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
+    expect(entryConfirmationPolicy("slow_steady")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
+    expect(entryConfirmationPolicy("trend_detector")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
+    expect(entryConfirmationPolicy("liquidity_expansion")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
   });
 
   it("gives longer theses time to develop without delaying hard-stop protection", () => {
@@ -79,10 +80,9 @@ describe("profile paper simulation policy", () => {
     expect(unsafe.failedRules).toContain("SEC-005");
     expect(unsafe.failedRules).toContain("SEC-012");
   });
-  it("keeps evidence-dependent profiles in observation until their feeds exist", () => {
-    const result = evaluateProfileCandidate(tradingProfile("social_catalyst")!, score, []);
-    expect(result.eligible).toBe(false);
-    expect(result.reasons.join(" ")).toMatch(/Telegram, Reddit and X/i);
+  it("does not offer evidence-dependent profiles until their feeds exist", () => {
+    expect(tradingProfile("social_catalyst")).toBeNull();
+    expect(tradingProfile("whale_tracker")).toBeNull();
   });
 
   it("gives liquidity expansion and scalping distinct deterministic gates", () => {
@@ -113,10 +113,7 @@ describe("profile paper simulation policy", () => {
     );
   });
 
-  it("keeps unavailable whale evidence blocked while defensive profiles use current evidence", () => {
-    expect(evaluateProfileCandidate(tradingProfile("whale_tracker")!, score, []).eligible).toBe(
-      false,
-    );
+  it("lets defensive profiles use current evidence without whale data", () => {
     const defensive = { ...score, liquidity: 20, holders: 15, volumeQuality: 10, total: 65 };
     expect(evaluateProfileCandidate(tradingProfile("capital_preservation")!, defensive, []).eligible).toBe(true);
     expect(evaluateProfileCandidate(tradingProfile("slow_steady")!, defensive, []).eligible).toBe(true);

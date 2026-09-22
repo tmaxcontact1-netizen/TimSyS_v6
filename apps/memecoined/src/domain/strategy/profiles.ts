@@ -47,24 +47,6 @@ export interface TradingProfileDefinition {
 
 export const tradingProfileCatalogue: readonly TradingProfileDefinition[] = Object.freeze([
   {
-    id: "whale_tracker",
-    name: "Whale Watch",
-    summary: "Follows independently verified, consistently profitable wallets.",
-    approach: "Only acts when trusted-wallet activity survives manipulation and security checks.",
-    decisionModel: "Verified wallet confirmation + sustained trend + market activity + safety gates",
-    defaultAllocationBps: 1500,
-    maximumConcurrentPositions: 2,
-    riskPerTradeBps: 35,
-    minimumCandidateScore: 75,
-    requiresWhaleConfirmation: true,
-    maximumHoldingMinutes: 1440,
-    hardStopBps: 1500,
-    firstProfitTargetBps: 2500,
-    trailingStopBps: 1500,
-    evidenceStatus: "awaiting_data",
-    evidenceMessage: "The strategy is implemented, but automatic paper trading needs at least one independently verified tracked wallet with recorded purchases.",
-  },
-  {
     id: "fast_furious",
     name: "Fast & Furious",
     summary: "Adapts each short trade to the token's repeatable executable price range.",
@@ -183,24 +165,6 @@ export const tradingProfileCatalogue: readonly TradingProfileDefinition[] = Obje
     evidenceMessage: "Can operate from the verified market, liquidity and holder evidence already collected.",
   },
   {
-    id: "social_catalyst",
-    name: "Social Catalyst",
-    summary: "Looks for market activity supported by independent, credible social attention.",
-    approach: "Rejects a single viral source and requires social evidence to agree with market evidence.",
-    decisionModel: "Independent social-source agreement + market confirmation (waiting for social feeds)",
-    defaultAllocationBps: 500,
-    maximumConcurrentPositions: 2,
-    riskPerTradeBps: 20,
-    minimumCandidateScore: 70,
-    requiresWhaleConfirmation: false,
-    maximumHoldingMinutes: 720,
-    hardStopBps: 1000,
-    firstProfitTargetBps: 2200,
-    trailingStopBps: 900,
-    evidenceStatus: "awaiting_data",
-    evidenceMessage: "Needs the planned Telegram, Reddit and X evidence feeds before it can trade honestly.",
-  },
-  {
     id: "recovery_reversal",
     name: "Recovery & Reversal",
     summary: "Looks for a genuine recovery after a sell-off rather than buying a continuing fall.",
@@ -294,6 +258,8 @@ export function validateConcurrentProfileAllocation(
   for (const allocation of allocations) {
     if (seen.has(allocation.profileId)) throw new Error("A trading profile may be configured once");
     seen.add(allocation.profileId);
+    if (allocation.enabled && !tradingProfile(allocation.profileId))
+      throw new RangeError("This trading profile is no longer available");
     if (!Number.isSafeInteger(allocation.allocationBps) || allocation.allocationBps < 0 || allocation.allocationBps > 10_000)
       throw new RangeError("Profile allocation must be between 0% and 100%");
     if (allocation.enabled && allocation.mode === "automatic_paper" && allocation.allocationBps === 0)

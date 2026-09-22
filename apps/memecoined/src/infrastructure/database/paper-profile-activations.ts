@@ -40,31 +40,31 @@ export async function ensureAllProfilesPaperTrialPreset(
   wallet: WalletAddress,
   occurredAt: Date,
 ): Promise<boolean> {
+  // The legacy whale/social rows remain disabled in old schemas for audit
+  // compatibility; only currently supported profiles are seeded on new wallets.
   const auditIds = tradingProfileCatalogue.map(() => randomUUID());
   const result = await database.query<{ inserted_count: string | number }>(
     `WITH presets(profile_id,enabled,mode,allocation_bps,audit_id) AS (
        VALUES
-         ('whale_tracker',false,'observe',0,$3::uuid),
-         ('fast_furious',true,'automatic_paper',3000,$4::uuid),
-         ('slow_steady',true,'automatic_paper',2000,$5::uuid),
-         ('trend_detector',true,'automatic_paper',2000,$6::uuid),
-         ('capital_preservation',true,'automatic_paper',1500,$7::uuid),
-         ('signal_consensus',true,'automatic_paper',1500,$8::uuid),
-         ('breakout_retest',false,'observe',0,$9::uuid),
-         ('liquidity_expansion',false,'observe',0,$10::uuid),
-         ('social_catalyst',false,'observe',0,$11::uuid),
-         ('recovery_reversal',false,'observe',0,$12::uuid),
-         ('launch_transition',false,'observe',0,$13::uuid),
-         ('scalper',false,'observe',0,$14::uuid),
-         ('benchmark_buy_hold',false,'observe',10000,$15::uuid),
-         ('benchmark_momentum',false,'observe',10000,$16::uuid),
-         ('benchmark_ema_cross',false,'observe',10000,$17::uuid),
-         ('benchmark_rsi_reversal',false,'observe',10000,$18::uuid),
-         ('benchmark_macd_trend',false,'observe',10000,$19::uuid),
-         ('benchmark_bollinger_reversion',false,'observe',10000,$20::uuid),
-         ('benchmark_donchian_breakout',false,'observe',10000,$21::uuid),
-         ('benchmark_volume_breakout',false,'observe',10000,$22::uuid),
-         ('benchmark_atr_trend',false,'observe',10000,$23::uuid)
+         ('fast_furious',true,'automatic_paper',3000,$3::uuid),
+         ('slow_steady',true,'automatic_paper',2000,$4::uuid),
+         ('trend_detector',true,'automatic_paper',2000,$5::uuid),
+         ('capital_preservation',true,'automatic_paper',1500,$6::uuid),
+         ('signal_consensus',true,'automatic_paper',1500,$7::uuid),
+         ('breakout_retest',false,'observe',0,$8::uuid),
+         ('liquidity_expansion',false,'observe',0,$9::uuid),
+         ('recovery_reversal',false,'observe',0,$10::uuid),
+         ('launch_transition',false,'observe',0,$11::uuid),
+         ('scalper',false,'observe',0,$12::uuid),
+         ('benchmark_buy_hold',false,'observe',10000,$13::uuid),
+         ('benchmark_momentum',false,'observe',10000,$14::uuid),
+         ('benchmark_ema_cross',false,'observe',10000,$15::uuid),
+         ('benchmark_rsi_reversal',false,'observe',10000,$16::uuid),
+         ('benchmark_macd_trend',false,'observe',10000,$17::uuid),
+         ('benchmark_bollinger_reversion',false,'observe',10000,$18::uuid),
+         ('benchmark_donchian_breakout',false,'observe',10000,$19::uuid),
+         ('benchmark_volume_breakout',false,'observe',10000,$20::uuid),
+         ('benchmark_atr_trend',false,'observe',10000,$21::uuid)
      ), inserted AS (
        INSERT INTO paper_profile_activations
          (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)
@@ -143,6 +143,7 @@ export async function configurePaperProfile(
   occurredAt: Date,
 ): Promise<PaperProfileActivation> {
   const definition = tradingProfile(profileId);
+  if (!definition) throw new RangeError("This trading profile is no longer available");
   if (enabled && mode === "automatic_paper" && definition?.evidenceStatus === "awaiting_data")
     throw new RangeError(definition.evidenceMessage ?? "This profile is waiting for required evidence");
   const current = await listPaperProfileActivations(database, wallet);

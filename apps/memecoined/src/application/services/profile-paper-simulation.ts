@@ -227,11 +227,11 @@ export function entryConfirmationPolicy(profileId: TradingProfileId): Readonly<{
   observations: number;
   minimumSpanSeconds: number;
 }> {
-  return profileId === "fast_furious" || profileId === "scalper"
-    ? Object.freeze({ observations: 2, minimumSpanSeconds: 15 })
-    : profileId === "slow_steady" || profileId === "trend_detector" || profileId === "liquidity_expansion"
-      ? Object.freeze({ observations: 3, minimumSpanSeconds: 60 })
-      : Object.freeze({ observations: 1, minimumSpanSeconds: 0 });
+  // The profile signal itself already requires time-spaced executable samples,
+  // multi-bar coverage and independent market flow. Repeating a fleeting
+  // pattern can consume the calibrated opportunity before any entry is quoted.
+  void profileId;
+  return Object.freeze({ observations: 1, minimumSpanSeconds: 0 });
 }
 
 export function minimumThesisMaturityMinutes(profileId: TradingProfileId): number {
@@ -249,7 +249,6 @@ export function confirmedEntryLag(firstOutput: bigint, latestOutput: bigint, tar
   return Object.freeze({ eligible: moveBps <= Math.max(50, targetBps * .5), moveBps });
 }
 const temporalProfileIds = new Set<TradingProfileId>([
-  "whale_tracker",
   "fast_furious",
   "slow_steady",
   "scalper",
@@ -889,7 +888,13 @@ async function processPendingEntries(input: {
       WHERE d.wallet=$1 AND d.eligible=true AND d.mode='automatic_paper'
         AND d.entry_state IN ('pending','retrying') AND d.entry_attempts < 5
         AND d.next_entry_attempt_at <= $2
-      ORDER BY d.next_entry_attempt_at,d.evaluated_at,d.profile_id LIMIT 20`,
+      ORDER BY row_number() OVER (
+                 PARTITION BY d.profile_id
+                 ORDER BY CASE WHEN d.entry_state='pending' THEN 0 ELSE 1 END,
+                          d.signal_observed_at DESC NULLS LAST,d.next_entry_attempt_at,c.id),
+               CASE WHEN d.profile_id LIKE 'benchmark_%' THEN 1 ELSE 0 END,
+               d.signal_observed_at DESC NULLS LAST,d.profile_id,c.id
+      LIMIT 40`,
     [input.wallet, input.at],
   );
   for (const candidate of due.rows) {

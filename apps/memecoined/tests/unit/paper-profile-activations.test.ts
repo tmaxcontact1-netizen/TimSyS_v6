@@ -10,7 +10,7 @@ describe("paper profile activations", () => {
   it("supplies safe disabled defaults when no choices have been saved", async () => {
     const database = { query: async () => ({ rows: [] }) };
     const profiles = await listPaperProfileActivations(database as never, "wallet" as never);
-    expect(profiles).toHaveLength(21);
+    expect(profiles).toHaveLength(19);
     expect(profiles.every((profile) => !profile.enabled && profile.version === 0)).toBe(true);
   });
 
@@ -42,13 +42,13 @@ describe("paper profile activations", () => {
       query: async (sql: string, parameters: readonly unknown[]) => {
         values = parameters;
         expect(sql).toContain("'automatic_paper'");
-        expect(sql).toContain("'whale_tracker',false,'observe',0");
+        expect(sql).not.toContain("'whale_tracker'");
         expect(sql).toContain("'fast_furious',true,'automatic_paper',3000");
         expect(sql).toContain("'trend_detector',true,'automatic_paper',2000");
         expect(sql).toContain("'scalper',false,'observe',0");
         expect(sql).toContain("WHERE NOT EXISTS");
         expect(sql).toContain("paper_profile_activation_audit");
-        return { rows: [{ inserted_count: "21" }] };
+        return { rows: [{ inserted_count: "19" }] };
       },
     };
     await expect(
@@ -58,14 +58,14 @@ describe("paper profile activations", () => {
         new Date("2026-09-12T12:00:00Z"),
       ),
     ).resolves.toBe(true);
-    expect(values).toHaveLength(23);
+    expect(values).toHaveLength(21);
   });
 
-  it("blocks automatic trading when required evidence is unavailable", async () => {
+  it("blocks reactivating a retired profile", async () => {
     const database = { query: async () => ({ rows: [] }) };
     await expect(configurePaperProfile(
       database as never, "wallet" as never, "social_catalyst", 0, true,
       "automatic_paper", 500, new Date("2026-09-12T12:00:00Z"),
-    )).rejects.toThrow(/Telegram, Reddit and X/i);
+    )).rejects.toThrow(/no longer available/i);
   });
 });

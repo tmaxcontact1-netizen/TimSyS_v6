@@ -31,7 +31,10 @@ const evidence = [
   },
 ];
 
-describe("complete candidate-to-paper-fill path", () => {
+// This exercises candidate evaluation and a separate queued paper-fill service.
+// It does NOT exercise the running profile engine's observation, confirmation,
+// sizing, buy, position monitoring, or sell path. Do not use it as release proof.
+describe("candidate evaluation and queued paper-fill components", () => {
   it("qualifies complete evidence and records a simulated fill without weakening safety gates", async () => {
     const decision = evaluateCandidate({
       evaluatedAt: at,
