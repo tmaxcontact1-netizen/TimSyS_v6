@@ -19,6 +19,7 @@ import {
   readPaperWorkerAlerts,
   readAcquisitionPipelineStatus,
   readStrategyFunnel,
+  readPaperOpportunityAudit,
 } from "../infrastructure/database/paper-dashboard.js";
 import {
   addDashboardWatchlistToken,
@@ -258,6 +259,19 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", period: "24h", rows });
       } catch {
         sendJson(response, 503, { error: "strategy_funnel_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/opportunity-audit") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const rows = await readPaperOpportunityAudit(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", period: "24h", priceHorizonMinutes: 5, rows });
+      } catch {
+        sendJson(response, 503, { error: "opportunity_audit_unavailable" });
       }
       return;
     }

@@ -89,7 +89,9 @@ describe("dashboard UI standards", () => {
     expect(css).toContain(".strategy-funnel-table table");
     expect(css).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
     expect(html).toContain('class="table-wrap strategy-funnel-table"');
-    expect(html).toContain('<td colspan="9">Loading strategy activity…</td>');
+    expect(html).toContain('<td colspan="10">Loading strategy activity…</td>');
+    expect(html).toContain('id="opportunity-audit-run"');
+    expect(html).toContain('id="opportunity-audit-rows"');
   });
 
   it("guards configuration edits from accidental refresh loss", async () => {

@@ -61,18 +61,24 @@ const discoveryFeeds = Object.freeze([
   Object.freeze({ path: "/token-boosts/latest/v1", label: "latest-boost" }),
   Object.freeze({ path: "/token-boosts/top/v1", label: "top-boost" }),
 ]);
-const discoverySearches = Object.freeze([
+const coreDiscoverySearches = Object.freeze([
   Object.freeze({ query: "Raydium", label: "raydium-search" }),
   Object.freeze({ query: "Meteora", label: "meteora-search" }),
   Object.freeze({ query: "Orca", label: "orca-search" }),
   Object.freeze({ query: "pump", label: "pump-search" }),
-  // Broad theme searches prevent the promotional feeds from collapsing the
-  // paper-test universe to the same handful of boosted tokens.
-  Object.freeze({ query: "Solana meme", label: "solana-meme-search" }),
-  Object.freeze({ query: "AI", label: "ai-search" }),
-  Object.freeze({ query: "cat", label: "cat-search" }),
-  Object.freeze({ query: "dog", label: "dog-search" }),
 ]);
+// Search is a ranked result, not a market-wide feed. Rotate themes so the
+// public request budget samples more than the same static ranked pairs.
+const discoveryThemes = Object.freeze([
+  ["Solana meme", "AI", "cat", "dog"],
+  ["BONK", "WIF", "PEPE", "frog"],
+  ["memecoin", "SOL", "gaming", "animal"],
+]);
+const discoverySearches = (at: Timestamp) => [
+  ...coreDiscoverySearches,
+  ...discoveryThemes[Math.floor(Date.parse(at) / 60_000) % discoveryThemes.length]!.map((query) =>
+    Object.freeze({ query, label: `${query.toLowerCase().replaceAll(" ", "-")}-search` })),
+];
 type Pair = z.infer<typeof pairSchema>;
 
 function hash(body: unknown): string {
@@ -214,7 +220,7 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
     // same paid/promoted tokens while retaining the existing liquidity and age
     // admission checks below.
     const searchSettled = await Promise.allSettled(
-      discoverySearches.map(async (search) =>
+      discoverySearches(requestedAt).map(async (search) =>
         Object.freeze({
           search,
           response: await this.http.get(
@@ -296,8 +302,11 @@ export class DexScreenerMarketAdapter implements MarketObservationPort, Candidat
           const usd = Number(pair.liquidity?.usd);
           const age = pair.pairCreatedAt === null || pair.pairCreatedAt === undefined
             ? NaN : Date.parse(response.receivedAt) - pair.pairCreatedAt;
+          // Older liquid pools remain useful to the slower and benchmark
+          // strategies. Admission is only a discovery hint; candidate security
+          // and executable-quote checks still decide whether trading is safe.
           return Number.isFinite(usd) && usd >= 75_000 &&
-            Number.isFinite(age) && age >= 30 * 60_000 && age <= 30 * 24 * 60 * 60_000;
+            Number.isFinite(age) && age >= 30 * 60_000 && age <= 180 * 24 * 60 * 60_000;
         });
         if (!eligible) continue;
         const contentHash = hash([hint.trace.contentHash, response.body]);

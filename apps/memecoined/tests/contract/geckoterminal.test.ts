@@ -32,7 +32,7 @@ function pool(id: string) {
 }
 
 describe("GeckoTerminal discovery contract", () => {
-  it("combines three new-pool and three trending-pool pages without duplicating tokens", async () => {
+  it("keeps each discovery cycle within one public request", async () => {
     const calls: string[] = [];
     const http: JsonHttpClient = {
       get: async (url) => {
@@ -42,18 +42,41 @@ describe("GeckoTerminal discovery contract", () => {
     };
     const result = await new GeckoTerminalMarketAdapter(http, identities).discoverLatestTokens(receivedAt);
     expect(result.ok && result.value).toHaveLength(1);
-    expect(calls).toHaveLength(6);
-    expect(calls).toContain("https://api.geckoterminal.com/api/v2/networks/solana/new_pools?page=3");
-    expect(calls).toContain("https://api.geckoterminal.com/api/v2/networks/solana/trending_pools?page=3");
+    expect(calls).toHaveLength(1);
+    expect(calls).toContain("https://api.geckoterminal.com/api/v2/networks/solana/new_pools?page=1");
   });
 
-  it("keeps healthy pages when another page is unavailable", async () => {
+  it("continues on the next page when an earlier page is unavailable", async () => {
     const http: JsonHttpClient = {
       get: async (url) => url.endsWith("page=1")
         ? { status: 503, body: {}, receivedAt }
         : { status: 200, body: { data: [pool("healthy-pool")] }, receivedAt },
     };
-    const result = await new GeckoTerminalMarketAdapter(http, identities).discoverLatestTokens(receivedAt);
-    expect(result.ok && result.value).toHaveLength(1);
+    const adapter = new GeckoTerminalMarketAdapter(http, identities);
+    const unavailable = await adapter.discoverLatestTokens(receivedAt);
+    expect(unavailable.ok).toBe(false);
+    const healthy = await adapter.discoverLatestTokens(asTimestamp("2026-09-19T12:00:30Z"));
+    expect(healthy.ok && healthy.value).toHaveLength(1);
+  });
+
+  it("rotates public discovery pages without increasing requests per cycle", async () => {
+    const calls: string[] = [];
+    const http: JsonHttpClient = {
+      get: async (url) => {
+        calls.push(url);
+        return { status: 200, body: { data: [pool(`pool-${calls.length}`)] }, receivedAt };
+      },
+    };
+    const adapter = new GeckoTerminalMarketAdapter(http, identities);
+    await adapter.discoverLatestTokens(asTimestamp("2026-09-19T12:02:30Z"));
+    expect(calls).toHaveLength(1);
+    expect(calls).toContain("https://api.geckoterminal.com/api/v2/networks/solana/new_pools?page=6");
+    calls.length = 0;
+    await adapter.discoverLatestTokens(asTimestamp("2026-09-19T12:08:30Z"));
+    expect(calls).toHaveLength(1);
+    expect(calls).toContain("https://api.geckoterminal.com/api/v2/networks/solana/pools?page=3");
+    calls.length = 0;
+    await adapter.discoverLatestTokens(asTimestamp("2026-09-19T12:06:00Z"));
+    expect(calls).toContain("https://api.geckoterminal.com/api/v2/networks/solana/trending_pools?page=1&duration=1h");
   });
 });

@@ -28,11 +28,19 @@ const poolSchema = z.object({
 const responseSchema = z.object({ data: z.array(poolSchema) });
 type Pool = z.infer<typeof poolSchema>;
 
-const discoveryPages = Object.freeze(
-  ["new_pools", "trending_pools"].flatMap((resource) =>
-    [1, 2, 3].map((page) => Object.freeze({ resource, page })),
-  ),
-);
+// Reserve the public API's 30-requests/minute budget for market confirmation.
+// One discovery page per cycle rotates through eighteen pages over time.
+const discoveryPages = (at: Timestamp) => {
+  const feeds = [
+    ...[1, 2, 3, 4, 5, 6].map((page) => ({ resource: "new_pools", page, query: "" })),
+    ...[1, 2, 3].map((page) => ({ resource: "trending_pools", page, query: "" })),
+    ...[1, 2, 3].map((page) => ({ resource: "trending_pools", page, query: "&duration=5m" })),
+    ...[1, 2, 3].map((page) => ({ resource: "trending_pools", page, query: "&duration=1h" })),
+    ...[1, 2, 3].map((page) => ({ resource: "pools", page, query: "" })),
+  ];
+  const rotation = Math.floor(Date.parse(at) / 30_000) % feeds.length;
+  return [feeds[rotation]!];
+};
 
 const token = (id: string) => id.startsWith("solana_") ? id.slice(7) : id;
 const number = (value?: string | null) => value == null ? null : asNonNegativeDecimal(value);
@@ -52,10 +60,11 @@ export class GeckoTerminalMarketAdapter implements MarketObservationPort, Candid
   }
 
   public async discoverLatestTokens(requestedAt: Timestamp): Promise<ObservationResult<readonly CandidateDiscoveryObservation[]>> {
-    const settled = await Promise.allSettled(discoveryPages.map(async ({ resource, page }) => ({
+    const settled = await Promise.allSettled(discoveryPages(requestedAt).map(async ({ resource, page, query }) => ({
       resource,
       page,
-      response: await this.http.get(`${this.baseUrl}/networks/solana/${resource}?page=${page}`),
+      query,
+      response: await this.http.get(`${this.baseUrl}/networks/solana/${resource}?page=${page}${query}`),
     })));
     const successful = settled.flatMap((result) => {
       if (result.status !== "fulfilled") return [];
@@ -72,14 +81,15 @@ export class GeckoTerminalMarketAdapter implements MarketObservationPort, Candid
     }
     const observations: CandidateDiscoveryObservation[] = [];
     const seen = new Set<string>();
-    for (const { resource, page, response, pools } of successful) {
+    for (const { resource, page, query, response, pools } of successful) {
       const hash = contentHash(response.body);
       for (const pool of pools) {
         const liquidity = reserve(pool);
         const createdAt = pool.attributes.pool_created_at;
         const ageMs = createdAt ? Date.parse(response.receivedAt) - Date.parse(createdAt) : NaN;
         if (!Number.isFinite(liquidity) || liquidity < 75_000 ||
-            !Number.isFinite(ageMs) || ageMs < 30 * 60_000 || ageMs > 30 * 24 * 60 * 60_000)
+            !Number.isFinite(ageMs) || ageMs < 30 * 60_000 ||
+            ageMs > (resource === "pools" ? 180 : 30) * 24 * 60 * 60_000)
           continue;
         const address = token(pool.relationships.base_token.data.id);
         if (seen.has(address)) continue;
@@ -89,7 +99,7 @@ export class GeckoTerminalMarketAdapter implements MarketObservationPort, Candid
           const sourceKey = `geckoterminal:${resource}:${page}:${pool.id}:${address}`;
           observations.push(Object.freeze({ mint, sourceReference: sourceKey, observedAt: response.receivedAt, trace: Object.freeze({
             evidenceId: this.identities.createEvidenceId({ provider: "geckoterminal", sourceKey, contentHash: hash }),
-            provider: "geckoterminal", method: `GET /networks/solana/${resource}?page=${page}`, requestedAt, respondedAt: response.receivedAt,
+            provider: "geckoterminal", method: `GET /networks/solana/${resource}?page=${page}${query}`, requestedAt, respondedAt: response.receivedAt,
             sourceTimestamp: pool.attributes.pool_created_at ? asTimestamp(pool.attributes.pool_created_at) : null,
             normalizedAt: response.receivedAt, sourceKey, contentHash: hash,
           }) }));

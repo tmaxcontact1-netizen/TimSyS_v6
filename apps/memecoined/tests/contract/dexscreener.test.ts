@@ -109,6 +109,17 @@ describe("DexScreener market observation contract", () => {
     expect(calls.some((url) => url.includes("/latest/dex/search?q=Raydium"))).toBe(true);
   });
 
+  it("rotates broad searches without increasing search requests per cycle", async () => {
+    const fixture = adapter(200, []);
+    await fixture.value.discoverLatestTokens(asTimestamp("2026-08-04T12:01:00Z"));
+    expect(fixture.calls.filter((url) => url.includes("/latest/dex/search"))).toHaveLength(8);
+    expect(fixture.calls).toContain("https://api.dexscreener.com/latest/dex/search?q=BONK");
+    fixture.calls.length = 0;
+    await fixture.value.discoverLatestTokens(asTimestamp("2026-08-04T12:02:00Z"));
+    expect(fixture.calls.filter((url) => url.includes("/latest/dex/search"))).toHaveLength(8);
+    expect(fixture.calls).toContain("https://api.dexscreener.com/latest/dex/search?q=memecoin");
+  });
+
   it("does not queue promoted tokens that fail the existing liquidity floor", async () => {
     const fixture = adapter(200, [
       { chainId: "solana", tokenAddress: mint, url: `https://dexscreener.com/solana/${mint}` },

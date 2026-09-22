@@ -142,6 +142,9 @@ const ids = [
   "pipeline-quote-failures",
   "pipeline-interpretation",
   "strategy-funnel-rows",
+  "opportunity-audit-run",
+  "opportunity-audit-status",
+  "opportunity-audit-rows",
   "positions-history-toolbar",
   "alert-count",
   "alert-rows",
@@ -1712,6 +1715,7 @@ async function refreshStrategyFunnel() {
     rows,
     [
       (row) => ({ text: profileName(row.profile_id) }),
+      (row) => ({ text: Number(row.distinct_tokens).toLocaleString() }),
       (row) => ({ text: Number(row.signals).toLocaleString() }),
       (row) => ({ text: Number(row.patterns).toLocaleString() }),
       (row) => ({ text: Number(row.market_confirmed).toLocaleString() }),
@@ -1723,6 +1727,32 @@ async function refreshStrategyFunnel() {
     ],
     "No strategies are currently active",
   );
+}
+async function reviewOpportunityAudit() {
+  const button = elements["opportunity-audit-run"];
+  button.disabled = true;
+  elements["opportunity-audit-status"].textContent = "Comparing observed prices after each screening gate…";
+  try {
+    const response = await fetch("/api/paper/opportunity-audit", { cache: "no-store" });
+    if (!response.ok) throw new Error("The review could not be calculated right now.");
+    const { rows } = await response.json();
+    const labels = { observed: "Observed", pattern: "Price pattern", market: "Market activity", adaptive: "Adaptive entry", all_gates: "All gates" };
+    renderRows(elements["opportunity-audit-rows"], rows, [
+      (row) => ({ text: profileName(row.profile_id) }),
+      (row) => ({ text: labels[row.stage] ?? row.stage }),
+      (row) => ({ text: Number(row.windows).toLocaleString() }),
+      (row) => ({ text: Number(row.distinct_tokens).toLocaleString() }),
+      (row) => ({ text: Number(row.matched).toLocaleString() }),
+      (row) => ({ text: row.average_gross_bps == null ? "—" : `${(Number(row.average_gross_bps) / 100).toFixed(2)}%` }),
+      (row) => ({ text: Number(row.gained_two_percent).toLocaleString() }),
+      (row) => ({ text: Number(row.lost_two_percent).toLocaleString() }),
+    ], "Not enough matched price observations yet");
+    elements["opportunity-audit-status"].textContent = `${rows.length} gate comparisons calculated. These are observed gross price moves, not simulated profits.`;
+  } catch (error) {
+    elements["opportunity-audit-status"].textContent = error instanceof Error ? error.message : "The review could not be calculated.";
+  } finally {
+    button.disabled = false;
+  }
 }
 function recordConnection(state, label) {
   connectionEvents.unshift({ state, label, at: new Date() });
@@ -2064,6 +2094,7 @@ elements["action-dialog"].addEventListener("cancel", (event) => {
   event.preventDefault();
   finishAction(null);
 });
+elements["opportunity-audit-run"].addEventListener("click", reviewOpportunityAudit);
 elements["configuration-form"].addEventListener("input", () => {
   configurationDirty = true;
   if (!activeConfigurationId) {

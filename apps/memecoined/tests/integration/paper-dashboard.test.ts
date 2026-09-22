@@ -266,6 +266,31 @@ describe("paper dashboard", () => {
     expect((await get(address.port, "/api/paper/strategy-funnel", "POST")).status).toBe(405);
   });
 
+  it("provides a read-only gross-price gate audit on request", async () => {
+    const database = {
+      query: async () => ({ rows: [{ profile_id: "scalper", stage: "all_gates", windows: 3,
+        matched: 3, average_gross_bps: 80 }] }),
+      end: async () => undefined,
+    };
+    const server = createPaperDashboardServer({
+      database: database as never,
+      wallet: "paper-wallet" as never,
+      publicDirectory: "frontend",
+    });
+    servers.push(server);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const address = server.address();
+    if (address === null || typeof address === "string") throw new Error("Missing test address");
+    const response = await get(address.port, "/api/paper/opportunity-audit");
+    expect(response.status).toBe(200);
+    expect(JSON.parse(response.body)).toMatchObject({
+      mode: "paper", period: "24h", priceHorizonMinutes: 5,
+      rows: [{ profile_id: "scalper", stage: "all_gates", average_gross_bps: 80 }],
+    });
+    expect((await get(address.port, "/api/paper/opportunity-audit", "POST")).status).toBe(405);
+  });
+
   it("fails closed when the durable snapshot is unavailable", async () => {
     const database = {
       query: async () => {

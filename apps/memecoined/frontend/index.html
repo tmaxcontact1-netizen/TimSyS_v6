@@ -311,7 +311,13 @@
         <article class="panel wide">
           <div class="panel-heading"><div><p class="eyebrow">LAST 24 HOURS</p><h2>Where each strategy stops</h2></div></div>
           <p class="panel-copy">A price pattern is only a possible opportunity. The last column now shows execution blockers too. An expensive buy-and-sell route is a reason to avoid a trade, not a reason to relax the cost limit.</p>
-          <div class="table-wrap strategy-funnel-table"><table><thead><tr><th>Strategy</th><th>Price checks</th><th>Patterns</th><th>Market confirmed</th><th>Tokens qualified</th><th>Cost / quote blocks</th><th>Paper buys</th><th>Main screening reason</th><th>Latest execution blocker</th></tr></thead><tbody id="strategy-funnel-rows"><tr><td colspan="9">Loading strategy activity…</td></tr></tbody></table></div>
+          <div class="table-wrap strategy-funnel-table"><table><thead><tr><th>Strategy</th><th>Different tokens seen</th><th>Repeat price checks</th><th>Patterns</th><th>Market confirmed</th><th>Tokens qualified</th><th>Cost / quote blocks</th><th>Paper buys</th><th>Main screening reason</th><th>Latest execution blocker</th></tr></thead><tbody id="strategy-funnel-rows"><tr><td colspan="10">Loading strategy activity…</td></tr></tbody></table></div>
+        </article>
+        <article class="panel wide">
+          <div class="panel-heading"><div><p class="eyebrow">PAPER RESEARCH</p><h2>What happened after each gate?</h2></div><button id="opportunity-audit-run" type="button">Review missed moves</button></div>
+          <p class="panel-copy">Each row tests one condition independently; the counts are not a step-by-step funnel. One sample per token and strategy in each ten-minute window. Shows the observed price change about five minutes later, before fees and without claiming a trade could have filled. Use this to compare conditions, not as a profit backtest.</p>
+          <p id="opportunity-audit-status" class="operator-action">Run the review after the bot has collected several hours of observations.</p>
+          <div class="table-wrap strategy-funnel-table"><table><thead><tr><th>Strategy</th><th>Condition met</th><th>Sample windows</th><th>Different tokens</th><th>Five-minute matches</th><th>Average gross move</th><th>Up at least 2%</th><th>Down at least 2%</th></tr></thead><tbody id="opportunity-audit-rows"><tr><td colspan="8">No review run yet</td></tr></tbody></table></div>
         </article>
       </section>
       <section

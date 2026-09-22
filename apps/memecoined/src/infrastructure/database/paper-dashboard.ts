@@ -53,6 +53,7 @@ export async function readStrategyFunnel(
   const result = await database.query(
     `SELECT a.profile_id,a.mode,
             COALESCE(s.signals,0)::int AS signals,
+            COALESCE(s.distinct_tokens,0)::int AS distinct_tokens,
             COALESCE(s.patterns,0)::int AS patterns,
             COALESCE(s.market_confirmed,0)::int AS market_confirmed,
             COALESCE(s.qualified,0)::int AS qualified,
@@ -75,6 +76,7 @@ export async function readStrategyFunnel(
        FROM paper_profile_activations a
        LEFT JOIN LATERAL (
          SELECT count(*) AS signals,
+                count(DISTINCT token_mint) AS distinct_tokens,
                 count(*) FILTER (WHERE signal_json->>'pattern' NOT IN ('none','insufficient_history')) AS patterns,
                 count(*) FILTER (WHERE signal_json->>'marketConfirmed'='true') AS market_confirmed,
                 count(DISTINCT token_mint) FILTER (WHERE eligible) AS qualified
@@ -95,6 +97,64 @@ export async function readStrategyFunnel(
             AND f.filled_at>=now()-interval '24 hours'
        ) f ON true
       WHERE a.wallet=$1 AND a.enabled=true ORDER BY a.profile_id`,
+    [wallet],
+  );
+  return result.rows;
+}
+
+/** Exploratory, gross-price outcomes for non-overlapping token/profile windows.
+ * This is not executable P&L: it intentionally does not estimate fees, route
+ * changes or whether a position could have been filled at the later quote.
+ */
+export async function readPaperOpportunityAudit(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+): Promise<readonly Record<string, unknown>[]> {
+  const result = await database.query(
+    `WITH ranked AS (
+       SELECT e.profile_id,e.token_mint,e.observed_at,g.stage,
+              (e.signal_json->>'executableOutputAmountRaw')::numeric AS entry_output,
+              row_number() OVER (PARTITION BY e.profile_id,e.token_mint,
+                floor(extract(epoch FROM e.observed_at)/600),g.stage
+                ORDER BY e.observed_at) AS sample_rank
+         FROM paper_fast_signal_events e CROSS JOIN LATERAL (VALUES
+           ('observed',true),
+           ('pattern',e.signal_json->>'pattern' NOT IN ('none','insufficient_history')),
+           ('market',e.signal_json->>'marketConfirmed'='true'),
+           ('adaptive',e.signal_json->>'adaptiveEntryEligible'='true'),
+           ('all_gates',e.eligible)
+         ) g(stage,passed)
+        WHERE e.wallet=$1 AND e.observed_at>=now()-interval '24 hours'
+          AND e.observed_at<=now()-interval '7 minutes'
+          AND e.signal_json ? 'executableOutputAmountRaw'
+          AND g.passed
+     ), samples AS (
+       SELECT * FROM ranked WHERE sample_rank=1 AND entry_output>0
+     ), outcomes AS (
+       SELECT s.*,
+              CASE WHEN future.output_amount_raw>0
+                   THEN round(10000*(s.entry_output/future.output_amount_raw-1))
+                   ELSE NULL END AS gross_five_minute_bps
+         FROM samples s
+         LEFT JOIN LATERAL (
+           SELECT o.output_amount_raw
+             FROM paper_fast_market_observations o
+            WHERE o.wallet=$1 AND o.token_mint=s.token_mint
+              AND o.observed_at>=s.observed_at+interval '5 minutes'
+              AND o.observed_at<=s.observed_at+interval '7 minutes'
+            ORDER BY o.observed_at LIMIT 1
+         ) future ON true
+     )
+     SELECT profile_id,stage,count(*)::int AS windows,
+            count(DISTINCT token_mint)::int AS distinct_tokens,
+            count(gross_five_minute_bps)::int AS matched,
+            round(avg(gross_five_minute_bps),0)::int AS average_gross_bps,
+            count(*) FILTER (WHERE gross_five_minute_bps>=200)::int AS gained_two_percent,
+            count(*) FILTER (WHERE gross_five_minute_bps<=-200)::int AS lost_two_percent
+       FROM outcomes GROUP BY profile_id,stage
+       ORDER BY profile_id,CASE stage
+         WHEN 'observed' THEN 1 WHEN 'pattern' THEN 2 WHEN 'market' THEN 3
+         WHEN 'adaptive' THEN 4 ELSE 5 END`,
     [wallet],
   );
   return result.rows;
