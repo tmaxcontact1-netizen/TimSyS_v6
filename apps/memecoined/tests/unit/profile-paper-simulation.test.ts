@@ -7,6 +7,7 @@ import {
   evaluateProfileCandidate,
   maximumPositionBps,
   minimumThesisMaturityMinutes,
+  observationUniverseBlockingRuleIds,
   refreshTemporalCandidateEvidence,
   trailingStopActivated,
 } from "../../src/application/services/profile-paper-simulation.js";
@@ -23,6 +24,13 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("collects history for profile-dependent concentration rules without weakening authority safety", () => {
+    expect(observationUniverseBlockingRuleIds).toEqual([
+      "SEC-001", "SEC-002", "SEC-003", "SEC-004", "SEC-015",
+    ]);
+    expect(observationUniverseBlockingRuleIds).not.toContain("SEC-008");
+    expect(observationUniverseBlockingRuleIds).not.toContain("SEC-010");
+  });
   it("rejects a confirmation that arrives after half the executable target is gone", () => {
     expect(confirmedEntryLag(10_000n, 9_901n, 150).eligible).toBe(false);
     expect(confirmedEntryLag(10_000n, 9_960n, 150).eligible).toBe(true);

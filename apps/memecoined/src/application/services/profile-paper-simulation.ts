@@ -67,6 +67,16 @@ const nonNegotiablePaperRuleIds = Object.freeze([
   "SEC-004",
   "SEC-015",
 ]);
+// Observation is not execution. Holder concentration remains a mandatory gate
+// for the defensive profiles below, but must not prevent the faster paper
+// profiles from collecting executable history before applying their own policy.
+export const observationUniverseBlockingRuleIds = Object.freeze([
+  "SEC-001",
+  "SEC-002",
+  "SEC-003",
+  "SEC-004",
+  "SEC-015",
+]);
 const strictPaperRuleIds = Object.freeze([
   ...nonNegotiablePaperRuleIds,
   "SEC-005",
@@ -507,8 +517,7 @@ async function collectFastMarketObservations(input: {
        -- Market points can improve; static authority and holder failures cannot.
        -- Spend bounded quote capacity on fresh, security-verified candidates.
        SELECT * FROM latest
-        WHERE NOT (failed_rules && ARRAY['SEC-001','SEC-002','SEC-003','SEC-004',
-                                           'SEC-008','SEC-010','SEC-015']::text[])
+        WHERE NOT (failed_rules && $3::text[])
         -- Rotation must happen before truncation. Limiting the highest scores
         -- here caused thousands of checks against the same tiny token set.
         ORDER BY total_score DESC,evaluated_at DESC
@@ -516,7 +525,7 @@ async function collectFastMarketObservations(input: {
          FROM universe
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
         ORDER BY COALESCE(last_observed,'epoch'::timestamptz),total_score DESC,evaluated_at DESC LIMIT 16`,
-    [input.wallet, input.at],
+    [input.wallet, input.at, observationUniverseBlockingRuleIds],
   );
   for (const candidate of candidates.rows) {
     const mint = candidate.mint_address as MintAddress;
