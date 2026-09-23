@@ -231,7 +231,10 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v11";
+const temporalEngineVersion = "temporal-v12";
+export const fastObservationCohortSize = 12;
+export const fastObservationDiscoverySlots = 4;
+export const fastObservationTrackingUniverseSize = 24;
 
 export function entryConfirmationPolicy(profileId: TradingProfileId): Readonly<{
   observations: number;
@@ -501,16 +504,19 @@ async function collectFastMarketObservations(input: {
   );
   if (enabled.rows.length === 0) return;
   const candidates = await input.pool.query<FastObservationCandidate>(
-    `WITH latest AS (
+    `WITH observation_history AS (
+       SELECT token_mint,max(observed_at) AS last_observed
+         FROM paper_fast_market_observations WHERE wallet=$1 GROUP BY token_mint
+     ), latest AS (
        SELECT DISTINCT ON (c.mint_address) c.id::text AS candidate_id,c.mint_address,
               s.total_score,s.breakdown_json,s.evaluated_at,
               COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
                          WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules,
-              (SELECT max(o.observed_at) FROM paper_fast_market_observations o
-                WHERE o.wallet=$1 AND o.token_mint=c.mint_address) AS last_observed
+              h.last_observed
          FROM candidates c JOIN LATERAL
               (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                 WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
+              LEFT JOIN observation_history h ON h.token_mint=c.mint_address
         WHERE s.total_score>=8 AND s.evaluated_at >= $2::timestamptz-interval '15 minutes'
         ORDER BY c.mint_address,s.evaluated_at DESC
      ), universe AS (
@@ -518,14 +524,41 @@ async function collectFastMarketObservations(input: {
        -- Spend bounded quote capacity on fresh, security-verified candidates.
        SELECT * FROM latest
         WHERE NOT (failed_rules && $3::text[])
-        -- Rotation must happen before truncation. Limiting the highest scores
-        -- here caused thousands of checks against the same tiny token set.
-        ORDER BY total_score DESC,evaluated_at DESC
-     ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
-         FROM universe
+     ), tracked_universe AS (
+       -- Hold a deterministic hourly universe larger than one quote batch. The
+       -- least-recently sampled members then form genuine time series while the
+       -- hourly seed prevents the same high-score tokens monopolising the day.
+       SELECT * FROM universe
+        ORDER BY abs(hashtextextended(mint_address,
+                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),total_score DESC
+        LIMIT $4
+     ), incumbents AS (
+       SELECT * FROM tracked_universe
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
-        ORDER BY COALESCE(last_observed,'epoch'::timestamptz),total_score DESC,evaluated_at DESC LIMIT 16`,
-    [input.wallet, input.at, observationUniverseBlockingRuleIds],
+        ORDER BY last_observed ASC NULLS FIRST,total_score DESC
+        LIMIT $5
+     ), discoveries AS (
+       -- Preserve explicit capacity for candidates not already in the cohort.
+       SELECT u.* FROM universe u
+        WHERE NOT EXISTS (SELECT 1 FROM tracked_universe i WHERE i.mint_address=u.mint_address)
+          AND (u.last_observed IS NULL OR u.last_observed <= $2::timestamptz-interval '30 minutes')
+        ORDER BY u.total_score DESC,u.evaluated_at DESC
+        LIMIT $6
+     ), selected AS (
+       SELECT * FROM incumbents UNION ALL SELECT * FROM discoveries
+     ), fillers AS (
+       -- Fill unused discovery capacity from the tracked round-robin only.
+       SELECT u.* FROM tracked_universe u
+        WHERE NOT EXISTS (SELECT 1 FROM selected s WHERE s.mint_address=u.mint_address)
+          AND (u.last_observed IS NULL OR u.last_observed <= $2::timestamptz-interval '30 seconds')
+        ORDER BY COALESCE(u.last_observed,'epoch'::timestamptz),u.total_score DESC,u.evaluated_at DESC
+        LIMIT GREATEST(0,16-(SELECT count(*) FROM selected))
+     ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
+         FROM (SELECT * FROM selected UNION ALL SELECT * FROM fillers) observation_batch
+        ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
+                 last_observed ASC NULLS FIRST,total_score DESC LIMIT 16`,
+    [input.wallet, input.at, observationUniverseBlockingRuleIds, fastObservationTrackingUniverseSize,
+     fastObservationCohortSize, fastObservationDiscoverySlots],
   );
   for (const candidate of candidates.rows) {
     const mint = candidate.mint_address as MintAddress;

@@ -7,6 +7,9 @@ import {
   evaluateProfileCandidate,
   maximumPositionBps,
   minimumThesisMaturityMinutes,
+  fastObservationCohortSize,
+  fastObservationDiscoverySlots,
+  fastObservationTrackingUniverseSize,
   observationUniverseBlockingRuleIds,
   refreshTemporalCandidateEvidence,
   trailingStopActivated,
@@ -24,6 +27,13 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("reserves most quote capacity for a dense cohort while continuously admitting discoveries", () => {
+    expect(fastObservationCohortSize).toBe(12);
+    expect(fastObservationDiscoverySlots).toBe(4);
+    expect(fastObservationCohortSize + fastObservationDiscoverySlots).toBe(16);
+    expect(fastObservationTrackingUniverseSize).toBe(24);
+    expect(fastObservationTrackingUniverseSize).toBeGreaterThan(fastObservationCohortSize);
+  });
   it("collects history for profile-dependent concentration rules without weakening authority safety", () => {
     expect(observationUniverseBlockingRuleIds).toEqual([
       "SEC-001", "SEC-002", "SEC-003", "SEC-004", "SEC-015",
