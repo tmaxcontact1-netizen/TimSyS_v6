@@ -600,13 +600,27 @@ async function collectFastMarketObservations(input: {
       ],
     );
     const history = await input.pool.query<FastObservationRow>(
-      `SELECT observed_at,output_amount_raw::text,liquidity_usd::text,five_minute_volume_usd::text,
-              five_minute_buys::text,five_minute_sells::text
-         FROM paper_fast_market_observations
-        WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 40`,
+      `WITH recent AS (
+         SELECT observed_at,output_amount_raw,liquidity_usd,five_minute_volume_usd,
+                five_minute_buys,five_minute_sells
+           FROM paper_fast_market_observations
+          WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 40
+       ), spaced AS (
+         SELECT *,lag(observed_at) OVER (ORDER BY observed_at) AS previous_at FROM recent
+       ), segmented AS (
+         SELECT *,sum(CASE WHEN previous_at IS NOT NULL
+                                AND observed_at-previous_at>interval '5 minutes'
+                           THEN 1 ELSE 0 END)
+                    OVER (ORDER BY observed_at) AS session_id
+           FROM spaced
+       ) SELECT observed_at,output_amount_raw::text,liquidity_usd::text,
+                five_minute_volume_usd::text,five_minute_buys::text,five_minute_sells::text
+           FROM segmented
+          WHERE session_id=(SELECT max(session_id) FROM segmented)
+          ORDER BY observed_at`,
       [input.wallet, candidate.mint_address],
     );
-    const points: ExecutableMarketPoint[] = history.rows.reverse().map((row, index, rows) => ({
+    const points: ExecutableMarketPoint[] = history.rows.map((row, index, rows) => ({
       observedAt: iso(row.observed_at),
       outputAmountRaw: BigInt(row.output_amount_raw),
       liquidityUsd: row.liquidity_usd,
