@@ -525,12 +525,15 @@ async function collectFastMarketObservations(input: {
        SELECT * FROM latest
         WHERE NOT (failed_rules && $3::text[])
      ), tracked_universe AS (
-       -- Hold a deterministic hourly universe larger than one quote batch. The
-       -- least-recently sampled members then form genuine time series while the
-       -- hourly seed prevents the same high-score tokens monopolising the day.
+       -- Observation capacity is scarce: build dense time series for the best
+       -- currently supported candidates first.  The hourly hash is only a
+       -- deterministic tie-breaker; putting it first caused effectively random
+       -- quiet tokens to consume the entire tracking cohort while stronger
+       -- candidates never accumulated enough history to become tradeable.
        SELECT * FROM universe
-        ORDER BY abs(hashtextextended(mint_address,
-                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),total_score DESC
+        ORDER BY total_score DESC,evaluated_at DESC,
+                 abs(hashtextextended(mint_address,
+                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint))
         LIMIT $4
      ), incumbents AS (
        SELECT * FROM tracked_universe
