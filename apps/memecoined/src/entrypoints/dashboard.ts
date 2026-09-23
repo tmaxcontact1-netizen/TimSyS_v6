@@ -179,6 +179,8 @@ function publicFile(publicDirectory: string, pathname: string): string | null {
 
 export function createPaperDashboardServer(dependencies: PaperDashboardDependencies) {
   const now = dependencies.now ?? (() => new Date());
+  let profilePerformanceCache: readonly Record<string, unknown>[] | null = null;
+  let profilePerformanceReadAt = 0;
   return createServer(async (request: IncomingMessage, response: ServerResponse) => {
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
@@ -388,7 +390,14 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     if (pathname === "/api/trading-profiles" && method === "GET") {
       try {
         const activations = await listPaperProfileActivations(dependencies.database, dependencies.wallet);
-        const performance = await readProfilePaperPerformance(dependencies.database, dependencies.wallet);
+        if (profilePerformanceCache === null || Date.now() - profilePerformanceReadAt >= 300_000) {
+          profilePerformanceCache = await readProfilePaperPerformance(
+            dependencies.database,
+            dependencies.wallet,
+          );
+          profilePerformanceReadAt = Date.now();
+        }
+        const performance = profilePerformanceCache;
         sendJson(response, 200, {
           profiles: tradingProfileCatalogue.map((definition) => ({
             ...definition,

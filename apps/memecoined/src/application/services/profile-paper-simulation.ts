@@ -1456,35 +1456,86 @@ export async function readProfilePaperPerformance(
   wallet: WalletAddress,
 ) {
   const result = await database.query(
-    `SELECT a.profile_id,a.initial_cash_raw::text,a.cash_raw::text,a.realized_pnl_raw::text,
-            COALESCE((SELECT sum(p.cost_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id),0)::text AS open_cost_raw,
-            COALESCE((SELECT sum(p.current_value_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id),0)::text AS open_value_raw,
-            (a.cash_raw+COALESCE((SELECT sum(p.current_value_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id),0)-a.initial_cash_raw)::text AS net_pnl_raw,
-            (SELECT count(*) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id)::int AS open_positions,
-            (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id AND f.engine_version=$2)::int AS fills,
-            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.engine_version=$2)::int AS candidates_evaluated,
-            (SELECT count(DISTINCT c.mint_address) FROM paper_profile_candidate_decisions d JOIN candidates c ON c.id=d.candidate_id WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.engine_version=$2)::int AS unique_tokens_evaluated,
-            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.engine_version=$2 AND d.eligible)::int AS candidates_qualified,
-            (COALESCE((SELECT sum(CASE WHEN f.side='buy' THEN -f.settlement_amount_raw-f.execution_fee_raw ELSE f.settlement_amount_raw-f.execution_fee_raw END) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id AND f.engine_version=$2),0)
-             +COALESCE((SELECT sum(p.current_value_raw) FROM paper_profile_positions p WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id AND p.engine_version=$2),0))::text AS current_engine_net_pnl_raw,
-            (SELECT count(*) FROM paper_profile_fills f WHERE f.wallet=a.wallet AND f.profile_id=a.profile_id)::int AS lifetime_fills,
-            (SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id)::int AS lifetime_candidates_evaluated
-            ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state IN ('pending','retrying') AND d.entry_attempts<5 AND d.next_entry_attempt_at IS NOT NULL)::int AS entries_pending
-            ,(SELECT count(*) FROM paper_profile_candidate_decisions d WHERE d.wallet=a.wallet AND d.profile_id=a.profile_id AND d.entry_state='failed')::int AS entries_failed
-            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id)::int AS short_horizon_signals
-            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.eligible)::int AS short_horizon_qualified
-            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.signal_json ? 'adaptiveCalibration')::int AS adaptive_calibrations
-            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.signal_json->'adaptiveCalibration'->>'tradeable'='true')::int AS adaptive_tradeable
-            ,(SELECT count(*) FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id AND e.signal_json->'adaptiveCalibration'->>'tradeable'='true' AND e.signal_json->>'adaptiveEntryEligible'='false')::int AS adaptive_pattern_waiting
-            ,(SELECT e.signal_json FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id ORDER BY e.observed_at DESC LIMIT 1) AS latest_signal
-            ,(SELECT e.observed_at FROM paper_fast_signal_events e WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id ORDER BY e.observed_at DESC LIMIT 1) AS latest_signal_at
-            ,(SELECT count(*) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS market_observations
-            ,(SELECT count(DISTINCT o.token_mint) FROM paper_fast_market_observations o WHERE o.wallet=a.wallet)::int AS monitored_tokens
-            ,(SELECT count(*) FROM (
-                 SELECT o.token_mint FROM paper_fast_market_observations o
-                  WHERE o.wallet=a.wallet GROUP BY o.token_mint HAVING count(*)>=6
-              ) ready)::int AS history_ready_tokens
-       FROM paper_profile_accounts a WHERE a.wallet=$1 ORDER BY a.profile_id`,
+    `WITH positions AS (
+       SELECT profile_id,
+              sum(cost_raw) AS open_cost_raw,
+              sum(current_value_raw) AS open_value_raw,
+              count(*)::int AS open_positions,
+              sum(current_value_raw) FILTER (WHERE engine_version=$2) AS engine_open_value_raw
+         FROM paper_profile_positions WHERE wallet=$1 GROUP BY profile_id
+     ), fills AS (
+       SELECT profile_id,
+              count(*) FILTER (WHERE engine_version=$2)::int AS fills,
+              count(*)::int AS lifetime_fills,
+              sum(CASE WHEN side='buy' THEN -settlement_amount_raw-execution_fee_raw
+                       ELSE settlement_amount_raw-execution_fee_raw END)
+                FILTER (WHERE engine_version=$2) AS engine_settlement_raw
+         FROM paper_profile_fills WHERE wallet=$1 GROUP BY profile_id
+     ), decisions AS (
+       SELECT d.profile_id,
+              count(*) FILTER (WHERE d.engine_version=$2)::int AS candidates_evaluated,
+              count(DISTINCT c.mint_address) FILTER (WHERE d.engine_version=$2)::int AS unique_tokens_evaluated,
+              count(*) FILTER (WHERE d.engine_version=$2 AND d.eligible)::int AS candidates_qualified,
+              count(*)::int AS lifetime_candidates_evaluated,
+              count(*) FILTER (WHERE d.entry_state IN ('pending','retrying') AND d.entry_attempts<5 AND d.next_entry_attempt_at IS NOT NULL)::int AS entries_pending,
+              count(*) FILTER (WHERE d.entry_state='failed')::int AS entries_failed
+         FROM paper_profile_candidate_decisions d
+         JOIN candidates c ON c.id=d.candidate_id
+        WHERE d.wallet=$1 GROUP BY d.profile_id
+     ), signal_totals AS (
+       SELECT profile_id,
+              count(*)::int AS short_horizon_signals,
+              count(*) FILTER (WHERE eligible)::int AS short_horizon_qualified,
+              count(*) FILTER (WHERE signal_json ? 'adaptiveCalibration')::int AS adaptive_calibrations,
+              count(*) FILTER (WHERE signal_json->'adaptiveCalibration'->>'tradeable'='true')::int AS adaptive_tradeable,
+              count(*) FILTER (WHERE signal_json->'adaptiveCalibration'->>'tradeable'='true' AND signal_json->>'adaptiveEntryEligible'='false')::int AS adaptive_pattern_waiting
+         FROM paper_fast_signal_events
+        WHERE wallet=$1 AND observed_at>=now()-interval '24 hours' GROUP BY profile_id
+     ), latest_signals AS (
+       SELECT DISTINCT ON (profile_id) profile_id,signal_json AS latest_signal,observed_at AS latest_signal_at
+         FROM paper_fast_signal_events
+        WHERE wallet=$1 AND observed_at>=now()-interval '24 hours'
+        ORDER BY profile_id,observed_at DESC
+     ), observation_totals AS (
+       SELECT COALESCE(sum(observations),0)::int AS market_observations,
+              count(DISTINCT token_mint)::int AS monitored_tokens,
+              count(*) FILTER (WHERE observations>=6)::int AS history_ready_tokens
+         FROM (SELECT token_mint,count(*) AS observations
+                 FROM paper_fast_market_observations
+                WHERE wallet=$1 AND observed_at>=now()-interval '24 hours'
+                GROUP BY token_mint) observed
+     )
+     SELECT a.profile_id,a.initial_cash_raw::text,a.cash_raw::text,a.realized_pnl_raw::text,
+            COALESCE(p.open_cost_raw,0)::text AS open_cost_raw,
+            COALESCE(p.open_value_raw,0)::text AS open_value_raw,
+            (a.cash_raw+COALESCE(p.open_value_raw,0)-a.initial_cash_raw)::text AS net_pnl_raw,
+            COALESCE(p.open_positions,0)::int AS open_positions,
+            COALESCE(f.fills,0)::int AS fills,
+            COALESCE(d.candidates_evaluated,0)::int AS candidates_evaluated,
+            COALESCE(d.unique_tokens_evaluated,0)::int AS unique_tokens_evaluated,
+            COALESCE(d.candidates_qualified,0)::int AS candidates_qualified,
+            (COALESCE(f.engine_settlement_raw,0)+COALESCE(p.engine_open_value_raw,0))::text AS current_engine_net_pnl_raw,
+            COALESCE(f.lifetime_fills,0)::int AS lifetime_fills,
+            COALESCE(d.lifetime_candidates_evaluated,0)::int AS lifetime_candidates_evaluated,
+            COALESCE(d.entries_pending,0)::int AS entries_pending,
+            COALESCE(d.entries_failed,0)::int AS entries_failed,
+            COALESCE(s.short_horizon_signals,0)::int AS short_horizon_signals,
+            COALESCE(s.short_horizon_qualified,0)::int AS short_horizon_qualified,
+            COALESCE(s.adaptive_calibrations,0)::int AS adaptive_calibrations,
+            COALESCE(s.adaptive_tradeable,0)::int AS adaptive_tradeable,
+            COALESCE(s.adaptive_pattern_waiting,0)::int AS adaptive_pattern_waiting,
+            l.latest_signal,l.latest_signal_at,
+            COALESCE(o.market_observations,0)::int AS market_observations,
+            COALESCE(o.monitored_tokens,0)::int AS monitored_tokens,
+            COALESCE(o.history_ready_tokens,0)::int AS history_ready_tokens
+       FROM paper_profile_accounts a
+       LEFT JOIN positions p USING (profile_id)
+       LEFT JOIN fills f USING (profile_id)
+       LEFT JOIN decisions d USING (profile_id)
+       LEFT JOIN signal_totals s USING (profile_id)
+       LEFT JOIN latest_signals l USING (profile_id)
+       CROSS JOIN observation_totals o
+      WHERE a.wallet=$1 ORDER BY a.profile_id`,
     [wallet, temporalEngineVersion],
   );
   return result.rows;
