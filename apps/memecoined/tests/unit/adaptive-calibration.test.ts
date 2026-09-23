@@ -72,7 +72,7 @@ describe("Fast & Furious per-token calibration", () => {
       .toBeNull();
   });
 
-  it("does not let calibration override an unconfirmed Fast & Furious pattern", () => {
+  it("accepts a calibrated continuing move without waiting for a legacy pattern label", () => {
     const calibration = calibrateFastFurious(
       history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]),
       "2026-09-19T12:12:00.000Z",
@@ -83,7 +83,7 @@ describe("Fast & Furious per-token calibration", () => {
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_200, liquidityPositiveSteps: 4, volumePositiveSteps: 4, marketConfirmed: true, reason: "Legacy label excluded",
       technical: confirmedTechnical,
-    }, calibration).eligible).toBe(false);
+    }, calibration).eligible).toBe(true);
   });
 
   it("requires an explicit supported pattern even when the mathematical evidence is excellent", () => {
@@ -95,7 +95,9 @@ describe("Fast & Furious per-token calibration", () => {
       buyPressureBps: 5_500, liquidityPositiveSteps: 4, volumePositiveSteps: 4,
       marketConfirmed: true, reason: "No explicit setup", technical: confirmedTechnical,
     };
-    for (const profile of ["fast_furious", "scalper", "slow_steady", "trend_detector", "liquidity_expansion"] as const) {
+    expect(evaluateAdaptiveEntry("fast_furious", patternless, calibrateProfile("fast_furious", points, "2026-09-19T12:12:00.000Z")))
+      .toMatchObject({ eligible: true });
+    for (const profile of ["scalper", "slow_steady", "trend_detector", "liquidity_expansion"] as const) {
       expect(evaluateAdaptiveEntry(profile, patternless, calibrateProfile(profile, points, "2026-09-19T12:12:00.000Z")), profile)
         .toMatchObject({ eligible: false });
     }

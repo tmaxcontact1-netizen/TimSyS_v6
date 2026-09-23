@@ -81,7 +81,9 @@ export function evaluateAdaptiveEntry(
   calibration: AdaptiveTradeCalibration | null,
 ): AdaptiveEntryDecision {
   if (!calibration) return Object.freeze({ eligible: signal.eligible, reason: signal.reason });
-  if (!calibration.tradeable)
+  const fastLiveOpportunity = id === "fast_furious" && calibration.sampleCount >= 10 &&
+    signal.marketConfirmed && signal.observedVolatilityBps >= Math.max(75, calibration.maximumRoundTripCostBps * 2.5);
+  if (!calibration.tradeable && !fastLiveOpportunity)
     return Object.freeze({ eligible: false, reason: calibration.reason });
   if (!signal.marketConfirmed)
     return Object.freeze({ eligible: false, reason: "The calibrated movement is not confirmed by current market activity" });
@@ -89,10 +91,39 @@ export function evaluateAdaptiveEntry(
   const volume = signal.volumeChangeBps ?? -Infinity;
   const liquidity = signal.liquidityChangeBps ?? -Infinity;
   const technical = signal.technical;
-  if (technical.recentMaxGapSeconds > 120 || technical.coveredRecentBars < 3)
+  const minimumCoveredBars = id === "fast_furious" ? 2 : 3;
+  if (technical.recentMaxGapSeconds > 120 || technical.coveredRecentBars < minimumCoveredBars)
     return Object.freeze({ eligible: false, reason: "Executable-price observations are too sparse or uneven for a reliable entry" });
+  if (id === "fast_furious") {
+    const namedPattern = signal.eligible && ["momentum", "pullback_rebound", "trend"].includes(signal.pattern);
+    const continuingMove = signal.cumulativeMoveBps >= Math.max(35, calibration.targetBps * .25) &&
+      signal.shortMoveBps >= Math.max(12, calibration.targetBps * .08) &&
+      signal.positiveSteps >= 3 && signal.drawdownFromHighBps <= calibration.hardStopBps * .35;
+    const immediateMove = signal.latestMoveBps >= Math.max(6, calibration.targetBps * .04) &&
+      signal.shortMoveBps > 0 && signal.drawdownFromHighBps <= calibration.trailingStopBps;
+    if (!namedPattern && !continuingMove && !immediateMove)
+      return Object.freeze({ eligible: false, reason: "Fast & Furious requires current momentum, a pullback rebound, or a continuing calibrated move" });
+    const flowConfirmed = (signal.buyPressureBps ?? -Infinity) >= 5_000 &&
+      (signal.volumeChangeBps ?? -Infinity) >= -2_000 &&
+      (signal.liquidityChangeBps ?? -Infinity) >= -500;
+    if (!flowConfirmed)
+      return Object.freeze({ eligible: false, reason: "Current buyers, volume and liquidity do not support a short momentum entry" });
+    const moveConsumed = signal.cumulativeMoveBps > Math.max(300, calibration.targetBps * 2.5) &&
+      signal.drawdownFromHighBps < calibration.trailingStopBps;
+    if (moveConsumed)
+      return Object.freeze({ eligible: false, reason: "The move is overextended beyond the calibrated Fast & Furious entry range" });
+    const thesisConfirmed = technical.sampleCount >= 10 && technical.qualityScore >= 35 &&
+      technical.emaSlopeBps >= -5 && technical.rsi >= 38 && technical.rsi <= 80 &&
+      technical.efficiencyRatio >= .05 && technical.historyReturnBps >= -300 &&
+      technical.maximumDrawdownBps <= Math.max(800, technical.atrBps * 6);
+    return Object.freeze({
+      eligible: thesisConfirmed,
+      reason: thesisConfirmed
+        ? `${signal.reason}; ${calibration.reason}`
+        : `Executable-price mathematics do not confirm a Fast & Furious entry (quality ${technical.qualityScore}/100)`,
+    });
+  }
   const allowedPatterns: Partial<Record<TradingProfileId, readonly ShortHorizonSignal["pattern"][]>> = {
-    fast_furious: ["momentum", "pullback_rebound", "trend"],
     scalper: ["range_rebound", "pullback_rebound"],
     slow_steady: ["trend"],
     trend_detector: ["trend"],
@@ -104,9 +135,7 @@ export function evaluateAdaptiveEntry(
       eligible: false,
       reason: `${calibration.model} requires an explicit ${patterns.join(" or ").replaceAll("_", " ")} pattern`,
     });
-  const flowConfirmed = id === "fast_furious"
-    ? buyers >= 5_200 && volume >= -500 && liquidity >= -100
-    : id === "scalper"
+  const flowConfirmed = id === "scalper"
       ? buyers >= 5_250 && volume >= -250 && liquidity >= -100
       : id === "slow_steady"
         ? buyers >= 5_400 && volume >= 0 && liquidity >= 0
@@ -120,15 +149,10 @@ export function evaluateAdaptiveEntry(
     });
   if (technical.overextended)
     return Object.freeze({ eligible: false, reason: "Executable-price history is overextended; entry would chase the move" });
-  if ((id === "fast_furious" || id === "scalper") &&
+  if (id === "scalper" &&
       signal.cumulativeMoveBps > Math.max(150, calibration.targetBps * 1.5))
     return Object.freeze({ eligible: false, reason: "The current short move has already consumed more than the calibrated opportunity" });
-  const thesisConfirmed = id === "fast_furious"
-    ? technical.sampleCount >= 16 && technical.qualityScore >= 50 && technical.emaSlopeBps > 0 &&
-      technical.rsi >= 48 && technical.rsi <= 74 && technical.accelerationBps >= -Math.max(25, technical.atrBps * .35) &&
-      technical.efficiencyRatio >= .14 && technical.historyReturnBps >= -250 &&
-      technical.maximumDrawdownBps <= Math.max(700, technical.atrBps * 5)
-    : id === "scalper"
+  const thesisConfirmed = id === "scalper"
       ? technical.sampleCount >= 16 && technical.rsi >= 32 && technical.rsi <= 66 &&
         technical.bollingerPosition <= .65 && technical.bullishClose && technical.qualityScore >= 42 &&
         technical.historyReturnBps >= -500 && technical.maximumDrawdownBps <= Math.max(900, technical.atrBps * 6)
@@ -166,8 +190,7 @@ export function evaluateAdaptiveEntry(
   const rangeReady = signal.observedVolatilityBps >= calibration.targetBps * .55 && immediate;
   const liquiditySupported = (signal.liquidityChangeBps ?? -Infinity) >= 0 &&
     (signal.volumeChangeBps ?? -Infinity) >= -500 && immediate;
-  const eligible = id === "fast_furious" ? continuing || immediate
-    : id === "scalper" ? rangeReady
+  const eligible = id === "scalper" ? rangeReady
       : id === "slow_steady" || id === "capital_preservation" || id === "signal_consensus" || id === "whale_tracker"
         ? continuing
         : id === "trend_detector" ? continuing
