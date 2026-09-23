@@ -231,10 +231,10 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v12";
-export const fastObservationCohortSize = 12;
-export const fastObservationDiscoverySlots = 4;
-export const fastObservationTrackingUniverseSize = 24;
+const temporalEngineVersion = "temporal-v13";
+export const fastObservationCohortSize = 14;
+export const fastObservationDiscoverySlots = 2;
+export const fastObservationTrackingUniverseSize = 32;
 
 export function entryConfirmationPolicy(profileId: TradingProfileId): Readonly<{
   observations: number;
@@ -505,14 +505,16 @@ async function collectFastMarketObservations(input: {
   if (enabled.rows.length === 0) return;
   const candidates = await input.pool.query<FastObservationCandidate>(
     `WITH observation_history AS (
-       SELECT token_mint,max(observed_at) AS last_observed
+       SELECT token_mint,max(observed_at) AS last_observed,
+              count(*) FILTER (WHERE observed_at >= $2::timestamptz-interval '15 minutes')::int
+                AS recent_observations
          FROM paper_fast_market_observations WHERE wallet=$1 GROUP BY token_mint
      ), latest AS (
        SELECT DISTINCT ON (c.mint_address) c.id::text AS candidate_id,c.mint_address,
               s.total_score,s.breakdown_json,s.evaluated_at,
               COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
                          WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules,
-              h.last_observed
+              h.last_observed,COALESCE(h.recent_observations,0) AS recent_observations
          FROM candidates c JOIN LATERAL
               (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                 WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
@@ -525,36 +527,41 @@ async function collectFastMarketObservations(input: {
        SELECT * FROM latest
         WHERE NOT (failed_rules && $3::text[])
      ), tracked_universe AS (
-       -- Observation capacity is scarce: build dense time series for the best
-       -- currently supported candidates first.  The hourly hash is only a
-       -- deterministic tie-breaker; putting it first caused effectively random
-       -- quiet tokens to consume the entire tracking cohort while stronger
-       -- candidates never accumulated enough history to become tradeable.
+       -- Keep candidates with a live observation series ahead of newcomers.
+       -- Re-ranking solely by the newest discovery score caused cohort churn:
+       -- tokens were repeatedly replaced after 3-7 samples and could never
+       -- reach the ten executable observations required by calibration.
        SELECT * FROM universe
-        ORDER BY total_score DESC,evaluated_at DESC,
+        ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
+                 recent_observations DESC,total_score DESC,evaluated_at DESC,
                  abs(hashtextextended(mint_address,
                    floor(extract(epoch FROM $2::timestamptz)/3600)::bigint))
-        LIMIT $4
+       LIMIT $4
      ), incumbents AS (
        SELECT * FROM tracked_universe
-        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
-        ORDER BY last_observed ASC NULLS FIRST,total_score DESC
+        WHERE last_observed >= $2::timestamptz-interval '5 minutes'
+          AND last_observed <= $2::timestamptz-interval '30 seconds'
+        ORDER BY recent_observations DESC,last_observed ASC,total_score DESC
         LIMIT $5
      ), discoveries AS (
-       -- Preserve explicit capacity for candidates not already in the cohort.
+       -- Preserve a small, explicit intake for new high-quality candidates
+       -- without evicting the dense cohort on every discovery cycle.
        SELECT u.* FROM universe u
-        WHERE NOT EXISTS (SELECT 1 FROM tracked_universe i WHERE i.mint_address=u.mint_address)
-          AND (u.last_observed IS NULL OR u.last_observed <= $2::timestamptz-interval '30 minutes')
+        WHERE (u.last_observed IS NULL OR u.last_observed < $2::timestamptz-interval '5 minutes')
+          AND NOT EXISTS (SELECT 1 FROM incumbents i WHERE i.mint_address=u.mint_address)
         ORDER BY u.total_score DESC,u.evaluated_at DESC
         LIMIT $6
      ), selected AS (
        SELECT * FROM incumbents UNION ALL SELECT * FROM discoveries
      ), fillers AS (
-       -- Fill unused discovery capacity from the tracked round-robin only.
+       -- If fewer than fourteen incumbents are due, fill the unused capacity
+       -- without displacing the candidates whose history is already maturing.
        SELECT u.* FROM tracked_universe u
         WHERE NOT EXISTS (SELECT 1 FROM selected s WHERE s.mint_address=u.mint_address)
           AND (u.last_observed IS NULL OR u.last_observed <= $2::timestamptz-interval '30 seconds')
-        ORDER BY COALESCE(u.last_observed,'epoch'::timestamptz),u.total_score DESC,u.evaluated_at DESC
+        ORDER BY CASE WHEN u.last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
+                 u.recent_observations DESC,COALESCE(u.last_observed,'epoch'::timestamptz),
+                 u.total_score DESC,u.evaluated_at DESC
         LIMIT GREATEST(0,16-(SELECT count(*) FROM selected))
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM (SELECT * FROM selected UNION ALL SELECT * FROM fillers) observation_batch

@@ -28,10 +28,10 @@ const score = {
 
 describe("profile paper simulation policy", () => {
   it("reserves most quote capacity for a dense cohort while continuously admitting discoveries", () => {
-    expect(fastObservationCohortSize).toBe(12);
-    expect(fastObservationDiscoverySlots).toBe(4);
+    expect(fastObservationCohortSize).toBe(14);
+    expect(fastObservationDiscoverySlots).toBe(2);
     expect(fastObservationCohortSize + fastObservationDiscoverySlots).toBe(16);
-    expect(fastObservationTrackingUniverseSize).toBe(24);
+    expect(fastObservationTrackingUniverseSize).toBe(32);
     expect(fastObservationTrackingUniverseSize).toBeGreaterThan(fastObservationCohortSize);
   });
   it("collects history for profile-dependent concentration rules without weakening authority safety", () => {
