@@ -17,7 +17,7 @@ interface Policy {
 }
 const policies: Partial<Record<TradingProfileId, Policy>> = {
   scalper: { model: "repeatable range reversal", target:.55,targetMin:60,targetMax:250,stop:.75,stopMin:55,stopMax:180,trail:.32,activate:.55,holdMin:3,holdMax:10,movementMin:45,irregularityMax:4,friction:.22,validity:5 },
-  fast_furious: { model: "short momentum and pullback continuation", target:.8,targetMin:100,targetMax:500,stop:.85,stopMin:85,stopMax:350,trail:.38,activate:.6,holdMin:5,holdMax:30,movementMin:75,irregularityMax:6,friction:.3,validity:10 },
+  fast_furious: { model: "short momentum and pullback continuation", target:.8,targetMin:100,targetMax:500,stop:.85,stopMin:85,stopMax:350,trail:.38,activate:.6,holdMin:5,holdMax:30,movementMin:45,irregularityMax:6,friction:.3,validity:10 },
   recovery_reversal: { model: "stabilisation and rebound", target:.85,targetMin:100,targetMax:700,stop:.75,stopMin:80,stopMax:400,trail:.4,activate:.65,holdMin:10,holdMax:180,movementMin:75,irregularityMax:4.5,friction:.3,validity:15 },
   breakout_retest: { model: "breakout range and retest depth", target:1,targetMin:125,targetMax:900,stop:.8,stopMin:90,stopMax:500,trail:.4,activate:.65,holdMin:15,holdMax:180,movementMin:90,irregularityMax:5,friction:.3,validity:15 },
   trend_detector: { model: "young-token expansion and trend persistence", target:1.2,targetMin:200,targetMax:1500,stop:.9,stopMin:125,stopMax:700,trail:.42,activate:.65,holdMin:20,holdMax:360,movementMin:110,irregularityMax:5.5,friction:.3,validity:15 },
@@ -82,7 +82,7 @@ export function evaluateAdaptiveEntry(
 ): AdaptiveEntryDecision {
   if (!calibration) return Object.freeze({ eligible: signal.eligible, reason: signal.reason });
   const fastLiveOpportunity = id === "fast_furious" && calibration.sampleCount >= 10 &&
-    signal.marketConfirmed && signal.observedVolatilityBps >= Math.max(75, calibration.maximumRoundTripCostBps * 2.5);
+    signal.marketConfirmed && signal.observedVolatilityBps >= Math.max(45, calibration.maximumRoundTripCostBps * 2);
   if (!calibration.tradeable && !fastLiveOpportunity)
     return Object.freeze({ eligible: false, reason: calibration.reason });
   if (!signal.marketConfirmed)

@@ -263,7 +263,7 @@ describe("profile paper simulation policy", () => {
     expect(decision).toEqual({ eligible: true, reasons: [] });
   });
 
-  it("scales Fast & Furious volume evidence to an executable liquid pool", () => {
+  it("uses executable liquidity and quote economics instead of an arbitrary turnover floor", () => {
     const decision = evaluateExecutableEntryEvidence({
       profile: tradingProfile("fast_furious")!,
       proposedInputRaw: 20_000_000n,
@@ -273,7 +273,7 @@ describe("profile paper simulation policy", () => {
         inputAmountRaw: 10_000_000n,
         outputAmountRaw: 1_000_000n,
         liquidityUsd: 100_000,
-        fiveMinuteVolumeUsd: 1_200,
+        fiveMinuteVolumeUsd: 0,
         fiveMinuteBuys: 12n,
         fiveMinuteSells: 10n,
       },

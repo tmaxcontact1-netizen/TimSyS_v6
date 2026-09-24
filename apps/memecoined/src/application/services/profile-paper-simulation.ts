@@ -231,7 +231,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v14";
+const temporalEngineVersion = "temporal-v15";
 export const fastObservationCohortSize = 14;
 export const fastObservationDiscoverySlots = 2;
 export const fastObservationTrackingUniverseSize = 32;
@@ -380,19 +380,14 @@ export function evaluateExecutableEntryEvidence(input: {
   // checks yet be rejected solely because five-minute turnover was <$5k. Scale
   // the activity floor to the pool while retaining a meaningful lower bound;
   // the fresh sized quote and reverse quote remain the final economic gates.
-  const liquidity = evidence.liquidityUsd ?? 0;
-  const minimumVolumeUsd =
-    input.profile.id === "fast_furious"
-      ? Math.max(750, Math.min(2_500, liquidity * 0.005))
-      : input.profile.id === "scalper"
-        ? Math.max(1_500, Math.min(5_000, liquidity * 0.01))
-        : shortHorizonProfiles.has(input.profile.id)
-          ? Math.max(1_000, Math.min(3_500, liquidity * 0.0075))
-          : Math.max(750, Math.min(2_500, liquidity * 0.005));
   if (evidence.liquidityUsd === null || evidence.liquidityUsd < minimumLiquidityUsd)
     reasons.push(`Pool liquidity is below $${minimumLiquidityUsd.toLocaleString()}`);
-  if (evidence.fiveMinuteVolumeUsd === null || evidence.fiveMinuteVolumeUsd < minimumVolumeUsd)
-    reasons.push(`Five-minute volume is below $${minimumVolumeUsd.toLocaleString()}`);
+  // Turnover is discovery evidence, not execution authority. A fixed or
+  // liquidity-scaled volume floor rejected live, profitable opportunities even
+  // when the sized quote, reverse quote, pool liquidity and price impact proved
+  // the proposed paper position executable. Those economic checks below are
+  // the authoritative gate; missing activity data is still rejected earlier by
+  // the profile's market-confirmation policy.
 
   if (
     evidence.fiveMinuteBuys !== null &&
@@ -698,6 +693,22 @@ async function collectFastMarketObservations(input: {
           JSON.stringify(reasons),
         ],
       );
+      if (eligible) {
+        // Discovery can create several candidate rows for the same mint. Only
+        // the freshest opportunity for a profile/token may own execution;
+        // otherwise one market signal fans out into duplicate retries that can
+        // consume quote capacity until every copy expires.
+        await input.pool.query(
+          `UPDATE paper_profile_candidate_decisions d
+              SET eligible=false,entry_state='not_applicable',next_entry_attempt_at=NULL,
+                  last_entry_error='Superseded by a newer opportunity for this token'
+             FROM candidates superseded
+            WHERE d.candidate_id=superseded.id AND d.wallet=$1 AND d.profile_id=$2
+              AND superseded.mint_address=$3 AND d.candidate_id<>$4
+              AND d.entry_state IN ('pending','retrying')`,
+          [input.wallet, profile.id, candidate.mint_address, candidate.candidate_id],
+        );
+      }
       await input.pool.query(
         `INSERT INTO paper_profile_candidate_decisions
          (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
@@ -968,24 +979,32 @@ async function processPendingEntries(input: {
   feeRaw: bigint;
 }): Promise<void> {
   const due = await input.pool.query<PendingEntryRow>(
-    `SELECT d.profile_id,d.entry_attempts,d.signal_json,d.signal_observed_at,c.id::text AS candidate_id,c.mint_address,
-            s.total_score,s.breakdown_json,s.evaluated_at,
-            COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
-                       WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules
-       FROM paper_profile_candidate_decisions d
-       JOIN candidates c ON c.id=d.candidate_id
-       JOIN LATERAL (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
-                      WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
-      WHERE d.wallet=$1 AND d.eligible=true AND d.mode='automatic_paper'
-        AND d.entry_state IN ('pending','retrying') AND d.entry_attempts < 5
-        AND d.next_entry_attempt_at <= $2
-      ORDER BY row_number() OVER (
-                 PARTITION BY d.profile_id
-                 ORDER BY CASE WHEN d.entry_state='pending' THEN 0 ELSE 1 END,
-                          d.signal_observed_at DESC NULLS LAST,d.next_entry_attempt_at,c.id),
-               CASE WHEN d.profile_id LIKE 'benchmark_%' THEN 1 ELSE 0 END,
-               d.signal_observed_at DESC NULLS LAST,d.profile_id,c.id
-      LIMIT 40`,
+    `WITH current_per_token AS (
+       SELECT DISTINCT ON (d.profile_id,c.mint_address)
+              d.profile_id,d.entry_attempts,d.entry_state,d.next_entry_attempt_at,
+              d.signal_json,d.signal_observed_at,c.id::text AS candidate_id,c.mint_address,
+              s.total_score,s.breakdown_json,s.evaluated_at,
+              COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
+                         WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules
+         FROM paper_profile_candidate_decisions d
+         JOIN candidates c ON c.id=d.candidate_id
+         JOIN LATERAL (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
+                        WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
+        WHERE d.wallet=$1 AND d.eligible=true AND d.mode='automatic_paper'
+          AND d.entry_state IN ('pending','retrying') AND d.entry_attempts < 5
+          AND d.next_entry_attempt_at <= $2
+        ORDER BY d.profile_id,c.mint_address,d.signal_observed_at DESC NULLS LAST,
+                 d.next_entry_attempt_at DESC,c.id DESC
+     ) SELECT profile_id,entry_attempts,signal_json,signal_observed_at,candidate_id,mint_address,
+              total_score,breakdown_json,evaluated_at,failed_rules
+         FROM current_per_token
+        ORDER BY row_number() OVER (
+                   PARTITION BY profile_id
+                   ORDER BY CASE WHEN entry_state='pending' THEN 0 ELSE 1 END,
+                            signal_observed_at DESC NULLS LAST,next_entry_attempt_at,candidate_id),
+                 CASE WHEN profile_id LIKE 'benchmark_%' THEN 1 ELSE 0 END,
+                 signal_observed_at DESC NULLS LAST,profile_id,candidate_id
+        LIMIT 40`,
     [input.wallet, input.at],
   );
   for (const candidate of due.rows) {
