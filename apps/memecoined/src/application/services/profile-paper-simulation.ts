@@ -231,7 +231,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v13";
+const temporalEngineVersion = "temporal-v14";
 export const fastObservationCohortSize = 14;
 export const fastObservationDiscoverySlots = 2;
 export const fastObservationTrackingUniverseSize = 32;
@@ -375,12 +375,20 @@ export function evaluateExecutableEntryEvidence(input: {
       : shortHorizonProfiles.has(input.profile.id)
         ? 50_000
         : 35_000;
+  // Absolute volume floors contradicted otherwise executable signals: a small
+  // position in a $75k liquid pool could pass live price-impact and round-trip
+  // checks yet be rejected solely because five-minute turnover was <$5k. Scale
+  // the activity floor to the pool while retaining a meaningful lower bound;
+  // the fresh sized quote and reverse quote remain the final economic gates.
+  const liquidity = evidence.liquidityUsd ?? 0;
   const minimumVolumeUsd =
-    input.profile.id === "scalper"
-      ? 10_000
-      : shortHorizonProfiles.has(input.profile.id)
-        ? 5_000
-        : 2_500;
+    input.profile.id === "fast_furious"
+      ? Math.max(750, Math.min(2_500, liquidity * 0.005))
+      : input.profile.id === "scalper"
+        ? Math.max(1_500, Math.min(5_000, liquidity * 0.01))
+        : shortHorizonProfiles.has(input.profile.id)
+          ? Math.max(1_000, Math.min(3_500, liquidity * 0.0075))
+          : Math.max(750, Math.min(2_500, liquidity * 0.005));
   if (evidence.liquidityUsd === null || evidence.liquidityUsd < minimumLiquidityUsd)
     reasons.push(`Pool liquidity is below $${minimumLiquidityUsd.toLocaleString()}`);
   if (evidence.fiveMinuteVolumeUsd === null || evidence.fiveMinuteVolumeUsd < minimumVolumeUsd)
@@ -496,6 +504,7 @@ async function collectFastMarketObservations(input: {
   market: MarketObservationPort;
   wallet: WalletAddress;
   at: Timestamp;
+  feeRaw: bigint;
 }): Promise<void> {
   const enabled = await input.pool.query<{ profile_id: TradingProfileId }>(
     `SELECT profile_id FROM paper_profile_activations
@@ -649,6 +658,7 @@ async function collectFastMarketObservations(input: {
       observedAt: input.at,
       market: observation,
     });
+    let producedEligibleSignal = false;
     for (const activation of enabled.rows) {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
@@ -662,6 +672,7 @@ async function collectFastMarketObservations(input: {
         { adaptiveEntryConfirmed: adaptiveEntry.eligible },
       );
       const eligible = adaptiveEntry.eligible && profileDecision.eligible && current.staticEvidenceFresh;
+      producedEligibleSignal ||= eligible;
       const reasons = [adaptiveEntry.reason, ...profileDecision.reasons,
         ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
         ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
@@ -719,7 +730,9 @@ async function collectFastMarketObservations(input: {
              WHEN EXCLUDED.eligible AND (paper_profile_candidate_decisions.entry_attempts<5
                OR paper_profile_candidate_decisions.evaluated_at <= $7::timestamptz-interval '10 minutes')
                AND paper_profile_candidate_decisions.entry_state<>'entered'
-             THEN $7::timestamptz ELSE NULL END`,
+             THEN $7::timestamptz ELSE NULL END
+         WHERE EXCLUDED.eligible
+            OR paper_profile_candidate_decisions.entry_state NOT IN ('pending','retrying')`,
         [
           input.wallet,
           profile.id,
@@ -732,6 +745,18 @@ async function collectFastMarketObservations(input: {
           temporalEngineVersion,
         ],
       );
+    }
+    // A qualified short-horizon opportunity is perishable. Attempt it while the
+    // quote and market evidence that created it are still current instead of
+    // waiting for every other token in the observation batch to finish.
+    if (producedEligibleSignal) {
+      await processPendingEntries({
+        pool: input.pool,
+        swap: input.swap,
+        wallet: input.wallet,
+        at: quote.value.receivedAt,
+        feeRaw: input.feeRaw,
+      });
     }
   }
 }
@@ -1393,6 +1418,7 @@ export async function runProfilePaperSimulationCycle(input: {
     market: input.market,
     wallet: input.wallet,
     at,
+    feeRaw: input.executionFeeRaw,
   });
   await evaluateNewCandidates({
     pool: input.database,
@@ -1484,8 +1510,10 @@ export async function readProfilePaperPerformance(
               count(DISTINCT c.mint_address) FILTER (WHERE d.engine_version=$2)::int AS unique_tokens_evaluated,
               count(*) FILTER (WHERE d.engine_version=$2 AND d.eligible)::int AS candidates_qualified,
               count(*)::int AS lifetime_candidates_evaluated,
-              count(*) FILTER (WHERE d.entry_state IN ('pending','retrying') AND d.entry_attempts<5 AND d.next_entry_attempt_at IS NOT NULL)::int AS entries_pending,
-              count(*) FILTER (WHERE d.entry_state='failed')::int AS entries_failed
+              count(*) FILTER (WHERE d.engine_version=$2 AND d.entry_attempts>0)::int AS entries_attempted,
+              count(*) FILTER (WHERE d.engine_version=$2 AND d.entry_state IN ('pending','retrying') AND d.entry_attempts<5 AND d.next_entry_attempt_at IS NOT NULL)::int AS entries_pending,
+              count(*) FILTER (WHERE d.engine_version=$2 AND d.entry_state='failed')::int AS entries_failed,
+              count(*) FILTER (WHERE d.engine_version=$2 AND d.entry_state='entered')::int AS entries_entered
          FROM paper_profile_candidate_decisions d
          JOIN candidates c ON c.id=d.candidate_id
         WHERE d.wallet=$1 GROUP BY d.profile_id
@@ -1524,8 +1552,10 @@ export async function readProfilePaperPerformance(
             (COALESCE(f.engine_settlement_raw,0)+COALESCE(p.engine_open_value_raw,0))::text AS current_engine_net_pnl_raw,
             COALESCE(f.lifetime_fills,0)::int AS lifetime_fills,
             COALESCE(d.lifetime_candidates_evaluated,0)::int AS lifetime_candidates_evaluated,
+            COALESCE(d.entries_attempted,0)::int AS entries_attempted,
             COALESCE(d.entries_pending,0)::int AS entries_pending,
             COALESCE(d.entries_failed,0)::int AS entries_failed,
+            COALESCE(d.entries_entered,0)::int AS entries_entered,
             COALESCE(s.short_horizon_signals,0)::int AS short_horizon_signals,
             COALESCE(s.short_horizon_qualified,0)::int AS short_horizon_qualified,
             COALESCE(s.adaptive_calibrations,0)::int AS adaptive_calibrations,

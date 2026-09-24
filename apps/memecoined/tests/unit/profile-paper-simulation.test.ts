@@ -263,6 +263,25 @@ describe("profile paper simulation policy", () => {
     expect(decision).toEqual({ eligible: true, reasons: [] });
   });
 
+  it("scales Fast & Furious volume evidence to an executable liquid pool", () => {
+    const decision = evaluateExecutableEntryEvidence({
+      profile: tradingProfile("fast_furious")!,
+      proposedInputRaw: 20_000_000n,
+      proposedOutputRaw: 1_990_000n,
+      evidence: {
+        observedAt: asTimestamp(new Date("2026-09-16T00:00:00Z")),
+        inputAmountRaw: 10_000_000n,
+        outputAmountRaw: 1_000_000n,
+        liquidityUsd: 100_000,
+        fiveMinuteVolumeUsd: 1_200,
+        fiveMinuteBuys: 12n,
+        fiveMinuteSells: 10n,
+      },
+      at: asTimestamp(new Date("2026-09-16T00:00:30Z")),
+    });
+    expect(decision).toEqual({ eligible: true, reasons: [] });
+  });
+
   it("does not call an ordinary loss a trailing-stop exit", () => {
     expect(
       trailingStopActivated({ value: 970n, cost: 1_000n, high: 1_010n, trailingBps: 250 }),
