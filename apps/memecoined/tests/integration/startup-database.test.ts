@@ -91,7 +91,9 @@ const paperColumns = [
   "paper_profile_positions.current_value_raw",
       "paper_profile_positions.entry_signal_json",
       "paper_profile_positions.engine_version",
+      "paper_profile_positions.entry_fee_raw",
       "paper_profile_fills.engine_version",
+  "paper_profile_fills.decision_snapshot_json",
   "paper_profile_fills.reason",
 ];
 

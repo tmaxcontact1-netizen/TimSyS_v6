@@ -8,6 +8,7 @@ export interface AdaptiveTradeCalibration {
   readonly typicalMoveBps: number; readonly upperMoveBps: number; readonly targetBps: number;
   readonly hardStopBps: number; readonly observedDownsideBps: number; readonly trailingStopBps: number; readonly trailingActivationBps: number;
   readonly maximumHoldingMinutes: number; readonly maximumRoundTripCostBps: number;
+  readonly riskSupported: boolean;
   readonly calculatedAt: string; readonly validUntil: string; readonly tradeable: boolean; readonly reason: string;
 }
 interface Policy {
@@ -42,7 +43,7 @@ export function calibrateProfile(id:TradingProfileId, points:readonly Executable
   const p=policies[id]; if(!p) return null;
   const recent=points.slice(-40), validUntil=new Date(Date.parse(at)+p.validity*60_000).toISOString();
   const base={version:"adaptive-v2" as const,profileId:id,model:p.model,sampleCount:recent.length,calculatedAt:at,validUntil};
-  if(recent.length<10) return Object.freeze({...base,regime:"insufficient",confidencePercentage:clamp(recent.length/10*50,0,45),typicalMoveBps:0,upperMoveBps:0,targetBps:p.targetMin,hardStopBps:p.stopMin,observedDownsideBps:0,trailingStopBps:clamp(p.targetMin*p.trail,30,p.stopMax),trailingActivationBps:clamp(p.targetMin*p.activate,40,p.targetMax),maximumHoldingMinutes:p.holdMin,maximumRoundTripCostBps:clamp(p.targetMin*p.friction,20,125),tradeable:false,reason:`At least 10 executable observations are required; ${recent.length} are available`});
+  if(recent.length<10) return Object.freeze({...base,regime:"insufficient",confidencePercentage:clamp(recent.length/10*50,0,45),typicalMoveBps:0,upperMoveBps:0,targetBps:p.targetMin,hardStopBps:p.stopMin,observedDownsideBps:0,trailingStopBps:clamp(p.targetMin*p.trail,30,p.stopMax),trailingActivationBps:clamp(p.targetMin*p.activate,40,p.targetMax),maximumHoldingMinutes:p.holdMin,maximumRoundTripCostBps:clamp(p.targetMin*p.friction,20,125),riskSupported:false,tradeable:false,reason:`At least 10 executable observations are required; ${recent.length} are available`});
   const excursions:number[]=[];
   const horizons = id === "slow_steady" || id === "trend_detector" ? [4,8] : [1,2,4,8];
   for(const horizon of horizons) for(let index=horizon;index<recent.length;index+=horizon) {
@@ -62,13 +63,15 @@ export function calibrateProfile(id:TradingProfileId, points:readonly Executable
   }).filter((value):value is number=>value!==null);
   const observedDownside=Math.round(quantile(downside,.75));
   const target=clamp(upper*p.target,p.targetMin,p.targetMax);
-  const stop=clamp(Math.max(target*p.stop,observedDownside*1.25,typical),p.stopMin,p.stopMax);
+  const requiredStop=Math.max(target*p.stop,observedDownside*1.25,typical);
+  const riskSupported=requiredStop<=p.stopMax;
+  const stop=clamp(requiredStop,p.stopMin,p.stopMax);
   const trailing=clamp(target*p.trail,30,Math.min(p.stopMax,target)), activation=clamp(target*p.activate,40,target);
   const intervals=recent.slice(1).map((point,index)=>Math.max(1,(Date.parse(point.observedAt)-Date.parse(recent[index]!.observedAt))/60_000)).filter(Number.isFinite);
   const steps=recent.slice(1).map((point,index)=>Math.abs(moveBps(recent[index]!.outputAmountRaw,point.outputAmountRaw))), perStep=quantile(steps,.5);
   const hold=clamp((perStep>0?target/perStep:12)*(quantile(intervals,.5)||.75)*2,p.holdMin,p.holdMax), friction=clamp(target*p.friction,20,125);
-  const tradeable=!unstable&&confidence>=50&&upper>=p.movementMin;
-  return Object.freeze({...base,regime,confidencePercentage:confidence,typicalMoveBps:typical,upperMoveBps:upper,targetBps:target,hardStopBps:stop,observedDownsideBps:observedDownside,trailingStopBps:trailing,trailingActivationBps:activation,maximumHoldingMinutes:hold,maximumRoundTripCostBps:friction,tradeable,reason:tradeable?`${p.model} supports a ${target/100}% target in this token's ${regime} executable range with ${confidence}% confidence`:unstable?`Observed movement is too discontinuous for the ${p.model} model`:`The token's repeatable movement is below the ${p.model} opportunity threshold`});
+  const tradeable=!unstable&&riskSupported&&confidence>=50&&upper>=p.movementMin;
+  return Object.freeze({...base,regime,confidencePercentage:confidence,typicalMoveBps:typical,upperMoveBps:upper,targetBps:target,hardStopBps:stop,observedDownsideBps:observedDownside,trailingStopBps:trailing,trailingActivationBps:activation,maximumHoldingMinutes:hold,maximumRoundTripCostBps:friction,riskSupported,tradeable,reason:tradeable?`${p.model} supports a ${target/100}% target in this token's ${regime} executable range with ${confidence}% confidence`:!riskSupported?`Required volatility stop ${Math.round(requiredStop)/100}% exceeds this profile's ${p.stopMax/100}% risk limit`:unstable?`Observed movement is too discontinuous for the ${p.model} model`:`The token's repeatable movement is below the ${p.model} opportunity threshold`});
 }
 export const calibrateFastFurious=(points:readonly ExecutableMarketPoint[],at:string)=>calibrateProfile("fast_furious",points,at)!;
 
@@ -82,7 +85,8 @@ export function evaluateAdaptiveEntry(
 ): AdaptiveEntryDecision {
   if (!calibration) return Object.freeze({ eligible: signal.eligible, reason: signal.reason });
   const fastLiveOpportunity = id === "fast_furious" && calibration.sampleCount >= 10 &&
-    signal.marketConfirmed && signal.observedVolatilityBps >= Math.max(45, calibration.maximumRoundTripCostBps * 2);
+    calibration.riskSupported && signal.marketConfirmed &&
+    signal.observedVolatilityBps >= Math.max(45, calibration.maximumRoundTripCostBps * 2);
   if (!calibration.tradeable && !fastLiveOpportunity)
     return Object.freeze({ eligible: false, reason: calibration.reason });
   if (!signal.marketConfirmed)
@@ -95,14 +99,15 @@ export function evaluateAdaptiveEntry(
   if (technical.recentMaxGapSeconds > 120 || technical.coveredRecentBars < minimumCoveredBars)
     return Object.freeze({ eligible: false, reason: "Executable-price observations are too sparse or uneven for a reliable entry" });
   if (id === "fast_furious") {
-    const namedPattern = signal.eligible && ["momentum", "pullback_rebound", "trend"].includes(signal.pattern);
-    const continuingMove = signal.cumulativeMoveBps >= Math.max(35, calibration.targetBps * .25) &&
+    const namedPattern = signal.eligible && ["momentum", "pullback_rebound"].includes(signal.pattern);
+    const strictDirectionalContinuation = signal.marketConfirmed &&
+      signal.cumulativeMoveBps >= Math.max(35, calibration.targetBps * .25) &&
       signal.shortMoveBps >= Math.max(12, calibration.targetBps * .08) &&
-      signal.positiveSteps >= 3 && signal.drawdownFromHighBps <= calibration.hardStopBps * .35;
-    const immediateMove = signal.latestMoveBps >= Math.max(6, calibration.targetBps * .04) &&
-      signal.shortMoveBps > 0 && signal.drawdownFromHighBps <= calibration.trailingStopBps;
-    if (!namedPattern && !continuingMove && !immediateMove)
-      return Object.freeze({ eligible: false, reason: "Fast & Furious requires current momentum, a pullback rebound, or a continuing calibrated move" });
+      signal.positiveSteps >= 3 && signal.drawdownFromHighBps <= calibration.hardStopBps * .35 &&
+      technical.efficiencyRatio >= .30 && technical.accelerationBps >= -50 &&
+      technical.bullishClose && technical.emaSlopeBps >= 0;
+    if (!namedPattern && !strictDirectionalContinuation)
+      return Object.freeze({ eligible: false, reason: "Fast & Furious requires a confirmed momentum or pullback-rebound pattern, or a directionally efficient continuation" });
     const flowConfirmed = (signal.buyPressureBps ?? -Infinity) >= 5_000 &&
       (signal.volumeChangeBps ?? -Infinity) >= -2_000 &&
       (signal.liquidityChangeBps ?? -Infinity) >= -500;
@@ -113,8 +118,9 @@ export function evaluateAdaptiveEntry(
     if (moveConsumed)
       return Object.freeze({ eligible: false, reason: "The move is overextended beyond the calibrated Fast & Furious entry range" });
     const thesisConfirmed = technical.sampleCount >= 10 && technical.qualityScore >= 35 &&
-      technical.emaSlopeBps >= -5 && technical.rsi >= 38 && technical.rsi <= 80 &&
-      technical.efficiencyRatio >= .05 && technical.historyReturnBps >= -300 &&
+      technical.emaSlopeBps >= 0 && technical.rsi >= 38 && technical.rsi <= 78 &&
+      technical.efficiencyRatio >= .25 && technical.accelerationBps >= -50 &&
+      technical.bullishClose && technical.historyReturnBps >= -100 &&
       technical.maximumDrawdownBps <= Math.max(800, technical.atrBps * 6);
     return Object.freeze({
       eligible: thesisConfirmed,

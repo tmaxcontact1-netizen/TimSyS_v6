@@ -213,6 +213,7 @@ interface PositionRow {
   readonly candidate_id: string;
   readonly token_amount_raw: string;
   readonly cost_raw: string;
+  readonly entry_fee_raw: string;
   readonly high_water_raw: string;
   readonly opened_at: Date | string;
   readonly entry_signal_json: {
@@ -231,7 +232,7 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v15";
+const temporalEngineVersion = "temporal-v16";
 export const fastObservationCohortSize = 14;
 export const fastObservationDiscoverySlots = 2;
 export const fastObservationTrackingUniverseSize = 32;
@@ -548,12 +549,15 @@ async function collectFastMarketObservations(input: {
         ORDER BY recent_observations DESC,last_observed ASC,total_score DESC
         LIMIT $5
      ), discoveries AS (
-       -- Preserve a small, explicit intake for new high-quality candidates
-       -- without evicting the dense cohort on every discovery cycle.
+       -- Stratify new intake independently of the momentum score. Ordering
+       -- newcomers by score caused tokens to be observed because they had just
+       -- pumped and then rewarded the same rise again inside entry indicators.
        SELECT u.* FROM universe u
         WHERE (u.last_observed IS NULL OR u.last_observed < $2::timestamptz-interval '5 minutes')
           AND NOT EXISTS (SELECT 1 FROM incumbents i WHERE i.mint_address=u.mint_address)
-        ORDER BY u.total_score DESC,u.evaluated_at DESC
+        ORDER BY abs(hashtextextended(u.mint_address,
+                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),
+                 u.evaluated_at DESC
         LIMIT $6
      ), selected AS (
        SELECT * FROM incumbents UNION ALL SELECT * FROM discoveries
@@ -565,7 +569,8 @@ async function collectFastMarketObservations(input: {
           AND (u.last_observed IS NULL OR u.last_observed <= $2::timestamptz-interval '30 seconds')
         ORDER BY CASE WHEN u.last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
                  u.recent_observations DESC,COALESCE(u.last_observed,'epoch'::timestamptz),
-                 u.total_score DESC,u.evaluated_at DESC
+                 abs(hashtextextended(u.mint_address,
+                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),u.evaluated_at DESC
         LIMIT GREATEST(0,16-(SELECT count(*) FROM selected))
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM (SELECT * FROM selected UNION ALL SELECT * FROM fillers) observation_batch
@@ -930,8 +935,8 @@ async function enterPosition(input: {
     if (debit.rowCount !== 1) return false;
     const inserted = await client.query(
       `INSERT INTO paper_profile_positions
-       (wallet,profile_id,token_mint,candidate_id,token_amount_raw,cost_raw,current_value_raw,high_water_raw,entry_signal_json,engine_version,opened_at,updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$6,$6,$7::jsonb,$8,$9,$9) ON CONFLICT DO NOTHING`,
+       (wallet,profile_id,token_mint,candidate_id,token_amount_raw,cost_raw,current_value_raw,high_water_raw,entry_signal_json,engine_version,entry_fee_raw,opened_at,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$6,$6,$7::jsonb,$8,$9,$10,$10) ON CONFLICT DO NOTHING`,
       [
         input.wallet,
         input.profile.id,
@@ -941,14 +946,15 @@ async function enterPosition(input: {
         q.inputAmount.toString(),
         JSON.stringify(input.candidate.signal_json ?? null),
         temporalEngineVersion,
+        input.feeRaw.toString(),
         filledAt,
       ],
     );
     if (inserted.rowCount !== 1) throw new Error("Profile position changed during entry");
     await client.query(
       `INSERT INTO paper_profile_fills
-       (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,engine_version,quoted_at,filled_at)
-       VALUES ($1,$2,$3,$4,'buy',$5,$6,$7,$8,$9,'profile_entry',$10,$11,$12)`,
+       (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,engine_version,decision_snapshot_json,quoted_at,filled_at)
+       VALUES ($1,$2,$3,$4,'buy',$5,$6,$7,$8,$9,'profile_entry',$10,$11::jsonb,$12,$13)`,
       [
         uuid([input.wallet, input.profile.id, "buy", q.fingerprint]),
         input.wallet,
@@ -960,6 +966,7 @@ async function enterPosition(input: {
         input.feeRaw.toString(),
         q.fingerprint,
         temporalEngineVersion,
+        JSON.stringify(input.candidate.signal_json ?? null),
         q.receivedAt,
         filledAt,
       ],
@@ -1215,7 +1222,7 @@ async function monitorPositions(input: {
   feeRaw: bigint;
 }): Promise<void> {
   const result = await input.pool.query<PositionRow>(
-    `SELECT profile_id,token_mint,candidate_id,token_amount_raw::text,cost_raw::text,high_water_raw::text,entry_signal_json,engine_version,opened_at
+    `SELECT profile_id,token_mint,candidate_id,token_amount_raw::text,cost_raw::text,entry_fee_raw::text,high_water_raw::text,entry_signal_json,engine_version,opened_at
        FROM paper_profile_positions WHERE wallet=$1 ORDER BY profile_id,opened_at LIMIT 50`,
     [input.wallet],
   );
@@ -1301,8 +1308,8 @@ async function monitorPositions(input: {
       await client.query(
         `UPDATE paper_profile_accounts
             SET cash_raw=cash_raw+$3::numeric,
-                realized_pnl_raw=realized_pnl_raw+($4::numeric-$5::numeric-$6::numeric),
-                updated_at=$7
+                realized_pnl_raw=realized_pnl_raw+($4::numeric-$5::numeric-$6::numeric-$7::numeric),
+                updated_at=$8
           WHERE wallet=$1 AND profile_id=$2`,
         [
           input.wallet,
@@ -1311,6 +1318,7 @@ async function monitorPositions(input: {
           value.toString(),
           cost.toString(),
           input.feeRaw.toString(),
+          position.entry_fee_raw,
           filledAt,
         ],
       );

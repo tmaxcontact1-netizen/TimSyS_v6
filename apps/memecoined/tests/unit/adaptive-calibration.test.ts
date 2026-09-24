@@ -32,12 +32,13 @@ describe("Fast & Furious per-token calibration", () => {
     expect(result.maximumRoundTripCostBps).toBeLessThan(result.targetBps);
   });
 
-  it("widens the envelope for repeatable larger swings", () => {
+  it("refuses a range whose volatility requires a stop beyond the profile risk limit", () => {
     const result = calibrateFastFurious(
       history([1, 1.025, .995, 1.035, 1.005, 1.045, 1.01, 1.055, 1.02, 1.06, 1.025, 1.07]),
       "2026-09-19T12:12:00.000Z",
     );
-    expect(result.tradeable).toBe(true);
+    expect(result.tradeable).toBe(false);
+    expect(result.riskSupported).toBe(false);
     expect(result.targetBps).toBeGreaterThan(200);
     expect(result.targetBps).toBeLessThanOrEqual(500);
   });
@@ -72,7 +73,7 @@ describe("Fast & Furious per-token calibration", () => {
       .toBeNull();
   });
 
-  it("accepts a calibrated continuing move without waiting for a legacy pattern label", () => {
+  it("accepts a patternless continuation only when directional integrity is independently strong", () => {
     const calibration = calibrateFastFurious(
       history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]),
       "2026-09-19T12:12:00.000Z",
@@ -86,17 +87,18 @@ describe("Fast & Furious per-token calibration", () => {
     }, calibration).eligible).toBe(true);
   });
 
-  it("requires an explicit supported pattern even when the mathematical evidence is excellent", () => {
+  it("rejects a patternless move whose directionality does not meet the strict continuation path", () => {
     const points = history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]);
     const patternless = {
       eligible: false, pattern: "none" as const, latestMoveBps: 20, shortMoveBps: 60,
       cumulativeMoveBps: 140, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_500, liquidityPositiveSteps: 4, volumePositiveSteps: 4,
-      marketConfirmed: true, reason: "No explicit setup", technical: confirmedTechnical,
+      marketConfirmed: true, reason: "No explicit setup",
+      technical: { ...confirmedTechnical, efficiencyRatio: .20, accelerationBps: -100 },
     };
     expect(evaluateAdaptiveEntry("fast_furious", patternless, calibrateProfile("fast_furious", points, "2026-09-19T12:12:00.000Z")))
-      .toMatchObject({ eligible: true });
+      .toMatchObject({ eligible: false });
     for (const profile of ["scalper", "slow_steady", "trend_detector", "liquidity_expansion"] as const) {
       expect(evaluateAdaptiveEntry(profile, patternless, calibrateProfile(profile, points, "2026-09-19T12:12:00.000Z")), profile)
         .toMatchObject({ eligible: false });
@@ -136,11 +138,11 @@ describe("Fast & Furious per-token calibration", () => {
   it("requires each strategy to prove its own mathematical thesis", () => {
     const points = history([1, 1.006, .998, 1.009, 1.001, 1.012, 1.003, 1.014, 1.005, 1.016, 1.007, 1.018]);
     const signal = {
-      eligible: true as const, pattern: "trend" as const, latestMoveBps: 20, shortMoveBps: 60,
+      eligible: true as const, pattern: "momentum" as const, latestMoveBps: 20, shortMoveBps: 60,
       cumulativeMoveBps: 140, observedVolatilityBps: 200, positiveSteps: 4,
       drawdownFromHighBps: 5, volumeChangeBps: 200, liquidityChangeBps: 50,
       buyPressureBps: 5_500, liquidityPositiveSteps: 4, volumePositiveSteps: 4, marketConfirmed: true, reason: "Shared market evidence",
-      technical: { ...confirmedTechnical, sampleCount: 20, qualityScore: 55, efficiencyRatio: .24 },
+      technical: { ...confirmedTechnical, sampleCount: 20, qualityScore: 55, efficiencyRatio: .30 },
     };
     expect(evaluateAdaptiveEntry("fast_furious", signal, calibrateProfile("fast_furious", points, "2026-09-19T12:12:00.000Z"))).toMatchObject({ eligible: true });
     expect(evaluateAdaptiveEntry("slow_steady", signal, calibrateProfile("slow_steady", points, "2026-09-19T12:12:00.000Z"))).toMatchObject({ eligible: false });

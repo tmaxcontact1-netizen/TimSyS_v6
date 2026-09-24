@@ -266,6 +266,26 @@ async function main() {
          AND d.last_entry_error LIKE 'Position-size price impact%'`,
       [wallet, costlyToken],
     );
+    const accountingMismatches = await pool.query<{ profile_id: string }>(
+      `WITH buys AS (
+         SELECT profile_id,token_mint,settlement_amount_raw,execution_fee_raw,
+                row_number() OVER (PARTITION BY profile_id,token_mint ORDER BY filled_at,id) AS trade_number
+           FROM paper_profile_fills WHERE wallet=$1 AND side='buy'
+       ), sells AS (
+         SELECT profile_id,token_mint,settlement_amount_raw,execution_fee_raw,
+                row_number() OVER (PARTITION BY profile_id,token_mint ORDER BY filled_at,id) AS trade_number
+           FROM paper_profile_fills WHERE wallet=$1 AND side='sell'
+       ), expected AS (
+         SELECT s.profile_id,
+                sum(s.settlement_amount_raw-b.settlement_amount_raw-
+                    s.execution_fee_raw-b.execution_fee_raw) AS realized
+           FROM sells s JOIN buys b USING (profile_id,token_mint,trade_number)
+          GROUP BY s.profile_id
+       ) SELECT a.profile_id FROM paper_profile_accounts a
+           JOIN expected e USING (profile_id)
+          WHERE a.wallet=$1 AND a.realized_pnl_raw<>e.realized`,
+      [wallet],
+    );
     const dashboard = await readPaperDashboardDetails(pool, wallet);
     const performance = await readPaperPerformanceHistory(pool, wallet, "all");
     const failed = result.rows.filter((row) => Number(row.buys) === 0 || Number(row.sells) === 0);
@@ -278,7 +298,7 @@ async function main() {
         reasons: reasons.rows.filter((row) => failed.some((profile) => profile.profile_id === row.profile_id)).slice(0, 20) } : {}),
       negativeControls: { unsafeObservations: Number(unsafeObservations.rows[0]?.count ?? 0),
         degradedQuoteCount, priceImpactRejections: Number(costRejections.rows[0]?.count ?? 0),
-        negativeFills: negativeFills.rows },
+        negativeFills: negativeFills.rows, accountingMismatches: accountingMismatches.rows },
       dashboard: { displayedFills: dashboard.fills.length, performancePoints: performance.length,
         latestBookEquityRaw: performance.at(-1)?.bookEquityRaw ?? null },
     }, null, 2)}\n`);
@@ -286,6 +306,7 @@ async function main() {
       process.exitCode = 1;
     if (unsafeObservations.rows[0]?.count !== "0" || degradedQuoteCount === 0 ||
         costRejections.rows[0]?.count === "0" || negativeFills.rows.length !== 0 ||
+        accountingMismatches.rows.length !== 0 ||
         dashboard.fills.length === 0 || performance.length < 2)
       process.exitCode = 1;
   } finally {
