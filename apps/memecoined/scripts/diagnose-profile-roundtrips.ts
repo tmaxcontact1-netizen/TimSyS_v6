@@ -51,7 +51,6 @@ tokenIndex.set(unsafeToken, profiles.findIndex((profile) => profile.id === "benc
 tokenIndex.set(costlyToken, profiles.findIndex((profile) => profile.id === "benchmark_momentum"));
 let cycle = 0;
 const exitBoost = new Set<string>();
-const observedBuyQuotes = new Set<string>();
 let degradedQuoteCount = 0;
 
 function candidateFacts(at: ReturnType<typeof asTimestamp>, unsafe: boolean): CandidateEvaluationInput {
@@ -185,11 +184,9 @@ async function main() {
       const mint = request.inputMint === WRAPPED_SOL_MINT ? request.outputMint : request.inputMint;
       const index = tokenIndex.get(mint);
       if (index === undefined) throw new Error(`Unknown diagnostic token ${mint}`);
-      const quoteKey = `${cycle}-${mint}`;
       const uneconomicEntry = request.inputMint === WRAPPED_SOL_MINT && mint === costlyToken &&
-        observedBuyQuotes.has(quoteKey);
+        BigInt(request.inputAmount) !== 10_000_000n;
       if (uneconomicEntry) degradedQuoteCount += 1;
-      if (request.inputMint === WRAPPED_SOL_MINT) observedBuyQuotes.add(quoteKey);
       const quotedPrice = request.inputMint !== WRAPPED_SOL_MINT && exitBoost.has(mint)
         ? 1.7 : price(index, cycle) * (uneconomicEntry ? 2 : 1);
       const scaledPrice = BigInt(Math.round(quotedPrice * 1_000_000));
