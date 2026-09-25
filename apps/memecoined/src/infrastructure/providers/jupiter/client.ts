@@ -23,6 +23,14 @@ export class JupiterClientError extends Error {
     public readonly code: JupiterClientFailureCode,
     public readonly retryable: boolean,
     public readonly occurredAt: Timestamp,
+    public readonly httpStatus?: number,
+    public readonly failureKind:
+      | "timeout"
+      | "rate_limited"
+      | "http_4xx"
+      | "http_5xx"
+      | "transport_error"
+      | "validation_error" = "transport_error",
   ) {
     super(message);
     this.name = "JupiterClientError";
@@ -52,19 +60,30 @@ export class JupiterSwapApiClient {
     if (response.status >= 200 && response.status < 300)
       return Object.freeze({ body: response.body, receivedAt: response.receivedAt });
     if (response.status === 429)
-      throw new JupiterClientError("Jupiter rate limit", "rate_limited", true, response.receivedAt);
+      throw new JupiterClientError(
+        "Jupiter rate limit",
+        "rate_limited",
+        true,
+        response.receivedAt,
+        429,
+        "rate_limited",
+      );
     if (response.status >= 500)
       throw new JupiterClientError(
         "Jupiter is temporarily unavailable",
         "unavailable",
         true,
         response.receivedAt,
+        response.status,
+        "http_5xx",
       );
     throw new JupiterClientError(
       "Jupiter rejected the request",
       "validation",
       false,
       response.receivedAt,
+      response.status,
+      "http_4xx",
     );
   }
 
@@ -80,6 +99,10 @@ export class JupiterSwapApiClient {
         "unavailable",
         true,
         requestedAt,
+        undefined,
+        error instanceof DOMException && error.name === "AbortError"
+          ? "timeout"
+          : "transport_error",
       );
     }
   }
@@ -99,6 +122,10 @@ export class JupiterSwapApiClient {
         "unavailable",
         true,
         requestedAt,
+        undefined,
+        error instanceof DOMException && error.name === "AbortError"
+          ? "timeout"
+          : "transport_error",
       );
     }
   }

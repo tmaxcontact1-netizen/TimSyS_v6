@@ -14,6 +14,7 @@ import {
   oscillationObservationDiscoverySlots,
   oscillationObservationTrackingUniverseSize,
   observationConcurrency,
+  observationWatchSlotOrderSql,
   observationUniverseBlockingRuleIds,
   refreshTemporalCandidateEvidence,
   trailingStopActivated,
@@ -31,6 +32,11 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
+  it("uses one production watch-eviction policy: score, newest qualification, then mint", () => {
+    expect(observationWatchSlotOrderSql).toBe(
+      "watch_score DESC,qualified_at DESC,token_mint",
+    );
+  });
   it("reserves most quote capacity for a dense cohort while continuously admitting discoveries", () => {
     expect(fastObservationCohortSize).toBe(8);
     expect(fastObservationDiscoverySlots).toBe(8);
@@ -40,11 +46,15 @@ describe("profile paper simulation policy", () => {
     expect(oscillationObservationCohortSize).toBe(8);
     expect(oscillationObservationDiscoverySlots).toBe(8);
     expect(oscillationObservationTrackingUniverseSize).toBe(64);
-    expect(observationConcurrency).toBe(8);
+    expect(observationConcurrency).toBe(16);
   });
   it("collects history for profile-dependent concentration rules without weakening authority safety", () => {
     expect(observationUniverseBlockingRuleIds).toEqual([
-      "SEC-001", "SEC-002", "SEC-003", "SEC-004", "SEC-015",
+      "SEC-001",
+      "SEC-002",
+      "SEC-003",
+      "SEC-004",
+      "SEC-015",
     ]);
     expect(observationUniverseBlockingRuleIds).not.toContain("SEC-008");
     expect(observationUniverseBlockingRuleIds).not.toContain("SEC-010");
@@ -55,11 +65,23 @@ describe("profile paper simulation policy", () => {
     expect(confirmedEntryLag(0n, 9_960n, 150).eligible).toBe(false);
   });
   it("uses the multi-bar signal itself as confirmation before a fresh executable quote", () => {
-    expect(entryConfirmationPolicy("fast_furious")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
+    expect(entryConfirmationPolicy("fast_furious")).toEqual({
+      observations: 1,
+      minimumSpanSeconds: 0,
+    });
     expect(entryConfirmationPolicy("scalper")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
-    expect(entryConfirmationPolicy("slow_steady")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
-    expect(entryConfirmationPolicy("trend_detector")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
-    expect(entryConfirmationPolicy("liquidity_expansion")).toEqual({ observations: 1, minimumSpanSeconds: 0 });
+    expect(entryConfirmationPolicy("slow_steady")).toEqual({
+      observations: 1,
+      minimumSpanSeconds: 0,
+    });
+    expect(entryConfirmationPolicy("trend_detector")).toEqual({
+      observations: 1,
+      minimumSpanSeconds: 0,
+    });
+    expect(entryConfirmationPolicy("liquidity_expansion")).toEqual({
+      observations: 1,
+      minimumSpanSeconds: 0,
+    });
   });
 
   it("gives longer theses time to develop without delaying hard-stop protection", () => {
@@ -72,21 +94,43 @@ describe("profile paper simulation policy", () => {
   it("uses current market momentum without bypassing live liquidity or holder gates", () => {
     const market = {
       liquidityUsd: { gte: (n: number) => n <= 150_000, lt: (n: number) => n > 150_000 },
-      fiveMinutePriceChangePercentage: { gte: (n: number) => n <= 6, lte: (n: number) => n >= 6, toString: () => "6" },
+      fiveMinutePriceChangePercentage: {
+        gte: (n: number) => n <= 6,
+        lte: (n: number) => n >= 6,
+        toString: () => "6",
+      },
       fiveMinuteBuys: 20n,
       fiveMinuteSells: 10n,
       pairCreatedAt: asTimestamp("2026-09-16T11:00:00.000Z"),
     };
     const refreshed = refreshTemporalCandidateEvidence({
-      previousScore: { wallet: 0, holders: 15, liquidity: 0, momentum: 0, volumeQuality: 0, total: 15 },
+      previousScore: {
+        wallet: 0,
+        holders: 15,
+        liquidity: 0,
+        momentum: 0,
+        volumeQuality: 0,
+        total: 15,
+      },
       previousFailedRules: ["SEC-005", "SEC-008", "SEC-012"],
       scoreEvaluatedAt: asTimestamp("2026-09-16T11:50:00.000Z"),
       observedAt: asTimestamp("2026-09-16T12:00:00.000Z"),
       market: market as never,
     });
-    expect(refreshed.score).toMatchObject({ liquidity: 15, momentum: 20, volumeQuality: 10, total: 60 });
+    expect(refreshed.score).toMatchObject({
+      liquidity: 15,
+      momentum: 20,
+      volumeQuality: 10,
+      total: 60,
+    });
     expect(refreshed.failedRules).toEqual(["SEC-008"]);
-    expect(evaluateProfileCandidate(tradingProfile("fast_furious")!, refreshed.score, refreshed.failedRules).eligible).toBe(false);
+    expect(
+      evaluateProfileCandidate(
+        tradingProfile("fast_furious")!,
+        refreshed.score,
+        refreshed.failedRules,
+      ).eligible,
+    ).toBe(false);
     expect(refreshed.staticEvidenceFresh).toBe(true);
     const stale = refreshTemporalCandidateEvidence({
       previousScore: score,
@@ -141,8 +185,12 @@ describe("profile paper simulation policy", () => {
 
   it("lets defensive profiles use current evidence without whale data", () => {
     const defensive = { ...score, liquidity: 20, holders: 15, volumeQuality: 10, total: 65 };
-    expect(evaluateProfileCandidate(tradingProfile("capital_preservation")!, defensive, []).eligible).toBe(true);
-    expect(evaluateProfileCandidate(tradingProfile("slow_steady")!, defensive, []).eligible).toBe(true);
+    expect(
+      evaluateProfileCandidate(tradingProfile("capital_preservation")!, defensive, []).eligible,
+    ).toBe(true);
+    expect(evaluateProfileCandidate(tradingProfile("slow_steady")!, defensive, []).eligible).toBe(
+      true,
+    );
   });
 
   it("never lets a profile override a failed safety gate", () => {
@@ -160,15 +208,21 @@ describe("profile paper simulation policy", () => {
       volumeQuality: 0,
       total: 30,
     };
-    expect(evaluateProfileCandidate(
-      tradingProfile("fast_furious")!, adaptiveScore, [], { adaptiveEntryConfirmed: true },
-    ).eligible).toBe(true);
-    expect(evaluateProfileCandidate(
-      tradingProfile("scalper")!, adaptiveScore, [], { adaptiveEntryConfirmed: true },
-    ).eligible).toBe(true);
-    expect(evaluateProfileCandidate(
-      tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], { adaptiveEntryConfirmed: true },
-    ).eligible).toBe(false);
+    expect(
+      evaluateProfileCandidate(tradingProfile("fast_furious")!, adaptiveScore, [], {
+        adaptiveEntryConfirmed: true,
+      }).eligible,
+    ).toBe(true);
+    expect(
+      evaluateProfileCandidate(tradingProfile("scalper")!, adaptiveScore, [], {
+        adaptiveEntryConfirmed: true,
+      }).eligible,
+    ).toBe(true);
+    expect(
+      evaluateProfileCandidate(tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], {
+        adaptiveEntryConfirmed: true,
+      }).eligible,
+    ).toBe(false);
   });
 
   it("lets the aggressive profile relax market-cap range without relaxing liquidity or ownership safety", () => {

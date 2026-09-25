@@ -52,7 +52,14 @@ export async function startProductionWorker(
   try {
     const runtime = factories.compose({ config, database, signal: controller.signal });
     processOwnsPool = true;
-    return await factories.run({ config, database, supervisor: runtime.supervisor });
+    return await factories.run({
+      config,
+      database,
+      supervisor: runtime.supervisor,
+      ...(runtime.observationScheduler
+        ? { observationScheduler: runtime.observationScheduler }
+        : {}),
+    });
   } finally {
     removeSignals();
     if (!processOwnsPool) await database.end();

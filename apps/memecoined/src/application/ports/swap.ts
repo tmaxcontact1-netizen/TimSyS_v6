@@ -54,6 +54,9 @@ export interface SwapFailure {
   readonly occurredAt: Timestamp;
   readonly retryable: boolean;
   readonly reason: string;
+  readonly httpStatus?: number;
+  readonly failureKind?:
+    "timeout" | "rate_limited" | "http_4xx" | "http_5xx" | "transport_error" | "validation_error";
 }
 
 export type SwapResult<Value> =

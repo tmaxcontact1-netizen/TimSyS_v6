@@ -87,10 +87,19 @@ function failure(
   occurredAt: Timestamp,
   reason: string,
   retryable: boolean,
+  telemetry?: Readonly<{ httpStatus?: number; failureKind?: SwapFailure["failureKind"] }>,
 ): SwapResult<never> {
   return Object.freeze({
     ok: false,
-    error: Object.freeze({ code, provider, occurredAt, reason, retryable }),
+    error: Object.freeze({
+      code,
+      provider,
+      occurredAt,
+      reason,
+      retryable,
+      ...(telemetry?.httpStatus === undefined ? {} : { httpStatus: telemetry.httpStatus }),
+      ...(telemetry?.failureKind === undefined ? {} : { failureKind: telemetry.failureKind }),
+    }),
   });
 }
 
@@ -166,7 +175,10 @@ export class JupiterSwapAdapter implements SwapPort {
 
   private clientFailure(error: unknown, fallbackAt: Timestamp): SwapResult<never> {
     if (error instanceof JupiterClientError)
-      return failure(error.code, "jupiter", error.occurredAt, error.message, error.retryable);
+      return failure(error.code, "jupiter", error.occurredAt, error.message, error.retryable, {
+        ...(error.httpStatus === undefined ? {} : { httpStatus: error.httpStatus }),
+        failureKind: error.failureKind,
+      });
     return failure("unavailable", "jupiter", fallbackAt, "Jupiter request failed", true);
   }
 

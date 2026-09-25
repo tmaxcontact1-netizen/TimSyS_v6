@@ -104,7 +104,13 @@ import {
 import { PostgresPaperAccountingLedger } from "../infrastructure/database/paper-accounting.js";
 import { PostgresPaperRiskAuthoritySource } from "../infrastructure/database/paper-risk-authority.js";
 import { ensureAllProfilesPaperTrialPreset } from "../infrastructure/database/paper-profile-activations.js";
-import { runProfilePaperSimulationCycle } from "../application/services/profile-paper-simulation.js";
+import {
+  collectFastMarketObservations,
+  runProfilePaperSimulationCycle,
+} from "../application/services/profile-paper-simulation.js";
+import type { ObservationSchedulerDependencies } from "../workers/observation-scheduler.js";
+import type { ObservationCohort } from "../domain/strategy/observation-runtime.js";
+import { ObservationAttemptExecutor } from "../workers/observation-attempt-executor.js";
 import { PostgresPaperEntryWorkQueue } from "../infrastructure/database/paper-entry-work.js";
 import { PostgresPaperPositionWorkQueue } from "../infrastructure/database/paper-position-work.js";
 import { PostgresPaperExitAuthority } from "../infrastructure/database/paper-exit-authority.js";
@@ -145,6 +151,7 @@ export interface CompletedPositionServices {
 export interface PositionRuntimeComposition {
   readonly checkpoints: PositionWorkerCheckpointRepository;
   readonly supervisor: PositionJobSupervisorDependencies;
+  readonly observationScheduler?: ObservationSchedulerDependencies;
 }
 
 export interface CompletePortfolioPublicationCycle {
@@ -181,6 +188,7 @@ export function composePaperTradingRuntime(input: {
   if (input.config.paper === null || input.config.execution !== null)
     throw new Error("Paper trading runtime requires paper-only configuration");
   const clock = new SystemSchedulerClock();
+  const observationAttempts = new ObservationAttemptExecutor<boolean>();
   const providers = input.providers ?? composePaperProviders(input.config);
   const wallet = input.config.paper.walletAddress as WalletAddress;
   const ledger = new PostgresPaperAccountingLedger(input.database);
@@ -343,7 +351,40 @@ export function composePaperTradingRuntime(input: {
             wallet,
             now: () => clock.now(),
             executionFeeRaw: input.config.paper!.executionFeeLamports,
+            collectObservations: false,
           });
+      },
+    }),
+    observationScheduler: Object.freeze({
+      signal: input.signal,
+      wait: clock,
+      runTick: async ({
+        scheduledAt,
+        allowedCohorts,
+        overlapDetected,
+      }: Readonly<{
+        scheduledAt: Timestamp;
+        allowedCohorts: ReadonlySet<ObservationCohort>;
+        overlapDetected: boolean;
+      }>) => {
+        if (!initialized) return;
+        await collectFastMarketObservations({
+          pool: input.database,
+          swap: providers.swap,
+          market: providers.market,
+          wallet,
+          at: clock.now(),
+          scheduledAt,
+          allowedCohorts,
+          attemptExecutor: observationAttempts,
+          feeRaw: input.config.paper!.executionFeeLamports,
+        });
+        if (overlapDetected)
+          await input.database.query(
+            `UPDATE paper_observation_cycles SET overlap_detected=true WHERE epoch_id=current_paper_validation_epoch_id()
+            AND scheduled_at=$1`,
+            [scheduledAt],
+          );
       },
     }),
   });

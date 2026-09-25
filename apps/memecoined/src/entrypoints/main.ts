@@ -9,15 +9,25 @@ import {
   type PositionJobSupervisorDependencies,
   type PositionJobSupervisorResult,
 } from "../workers/supervisor.js";
+import {
+  runObservationScheduler,
+  type ObservationSchedulerDependencies,
+  type ObservationSchedulerResult,
+} from "../workers/observation-scheduler.js";
+import { assertPaperEpochConfiguration } from "../application/services/paper-epoch-configuration.js";
+import { ensureAllProfilesPaperTrialPreset } from "../infrastructure/database/paper-profile-activations.js";
+import type { WalletAddress } from "../domain/shared/types.js";
 
 export interface ProductionProcessDependencies {
   readonly config: RuntimeConfig;
   readonly database: Pick<Pool, "query" | "end">;
   readonly supervisor: PositionJobSupervisorDependencies;
+  readonly observationScheduler?: ObservationSchedulerDependencies;
 }
 export interface ProductionProcessResult {
   readonly database: DatabaseReadiness;
   readonly supervisor: PositionJobSupervisorResult;
+  readonly observationScheduler?: ObservationSchedulerResult;
 }
 
 /** Validates durable state before recovery and always drains the database pool on exit. */
@@ -26,6 +36,15 @@ export async function runProductionProcess(
 ): Promise<ProductionProcessResult> {
   try {
     const database = await verifyRuntimeDatabase(dependencies.database, dependencies.config.mode);
+    if (dependencies.config.mode === "paper") {
+      if (dependencies.config.paper?.trialPreset === "all_profiles")
+        await ensureAllProfilesPaperTrialPreset(
+          dependencies.database,
+          dependencies.config.paper.walletAddress as WalletAddress,
+          new Date(),
+        );
+      await assertPaperEpochConfiguration(dependencies.database, dependencies.config);
+    }
     if (dependencies.supervisor.signal.aborted)
       return Object.freeze({
         database,
@@ -36,10 +55,14 @@ export async function runProductionProcess(
           acquisitionCyclesCompleted: 0,
         }),
       });
-    return Object.freeze({
-      database,
-      supervisor: await runPositionJobSupervisor(dependencies.supervisor),
-    });
+    const supervisor = runPositionJobSupervisor(dependencies.supervisor);
+    if (!dependencies.observationScheduler)
+      return Object.freeze({ database, supervisor: await supervisor });
+    const [supervisorResult, observationScheduler] = await Promise.all([
+      supervisor,
+      runObservationScheduler(dependencies.observationScheduler),
+    ]);
+    return Object.freeze({ database, supervisor: supervisorResult, observationScheduler });
   } finally {
     await dependencies.database.end();
   }
