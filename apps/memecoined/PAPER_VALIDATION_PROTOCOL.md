@@ -7,9 +7,9 @@ The evaluation begins only after the verified build is installed and its engine 
 
 ## Current window origin
 
-- Results produced before release `2026.09.25.6` are invalidated and removed by migration `0058`.
-- The new clock begins only after `2026.09.25.6` has installed, MemeCoin'Ed has restarted, and the database reports ready.
-- The exact source commit is recorded in `memecoined-verification-2026.09.25.6.json`; that release artifact is the authoritative build identity.
+- Results produced before release `2026.09.25.7` are invalidated and removed by migration `0059`.
+- The new clock begins only after `2026.09.25.7` has installed, MemeCoin'Ed has restarted, and the database reports ready.
+- The exact source commit is recorded in `memecoined-verification-2026.09.25.7.json`; that release artifact is the authoritative build identity.
 - Data from an earlier release is never concatenated with or averaged into this window.
 - The release gate starts from a newly created database with zero persisted market observations and simulates four hours at the production 30-second orchestration cadence across at least 50 competing tokens. It must demonstrate observation, qualification, eight pin assignments, entry eligibility, completed paper round trips and displayed results.
 

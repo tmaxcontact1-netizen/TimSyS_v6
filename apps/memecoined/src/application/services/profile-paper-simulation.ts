@@ -518,7 +518,19 @@ async function updateRegimeWatch(input: {
   at: Timestamp;
   score: number;
   qualified: boolean;
+  evaluable: boolean;
 }): Promise<void> {
+  // Missing or stale sampling evidence is not a market vote. Preserve an
+  // existing qualification streak until a sufficiently sampled evaluation can
+  // confirm or reject the regime.
+  if (!input.evaluable) {
+    await input.pool.query(
+      `UPDATE paper_profile_regime_watches SET last_evaluated_at=$4,updated_at=$4
+        WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 AND status='active'`,
+      [input.wallet, input.profileId, input.mint, input.at],
+    );
+    return;
+  }
   if (input.qualified) {
     await input.pool.query(
       `INSERT INTO paper_profile_regime_watches
@@ -763,6 +775,7 @@ async function collectFastMarketObservations(input: {
         pool: input.pool, wallet: input.wallet, profileId: profile.id, mint, at: input.at,
         score: oscillation?.score ?? fastRegime!.score,
         qualified: oscillation?.regimeQualified ?? fastRegime!.qualified,
+        evaluable: oscillation?.gates.observations ?? (fastRegime!.sampleCount >= 30),
       });
       const signal = shortSignal !== null
         ? shortSignal

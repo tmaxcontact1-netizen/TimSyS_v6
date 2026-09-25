@@ -375,6 +375,39 @@ async function main() {
     const dashboard = await readPaperDashboardDetails(pool, wallet);
     const performance = await readPaperPerformanceHistory(pool, wallet, "all");
     const failed = result.rows.filter((row) => Number(row.buys) === 0 || Number(row.sells) === 0);
+    const resetRegression = { seededRows: 0, residualRows: 0, preservedActivations: 0 };
+    if (densityMode) {
+      const seedMint = discoveredMints.find((mint) => mint !== unsafeToken && mint !== costlyToken)!;
+      await pool.query(
+        `INSERT INTO paper_fast_market_observations
+           (wallet,token_mint,observed_at,input_amount_raw,output_amount_raw,quote_fingerprint)
+         SELECT $1,$2,$3::timestamptz-(n::text||' milliseconds')::interval,1,1,'old-'||n
+           FROM generate_series(1,150001) n`,
+        [wallet,seedMint,start],
+      );
+      resetRegression.seededRows = 150001;
+      await pool.query(
+        `SELECT reset_paper_validation_epoch('diagnostic-reset','seeded-history-v1',
+          'Regression proving explicit evidence reset')`,
+      );
+      const evidenceTables = [
+        "paper_cash_events","paper_entry_executions","paper_exit_evaluations",
+        "paper_fast_market_observations","paper_fast_signal_events","paper_fills",
+        "paper_lot_disposals","paper_operator_control_audit","paper_position_close_requests",
+        "paper_position_lots","paper_position_work","paper_profile_accounts",
+        "paper_profile_candidate_decisions","paper_profile_entry_intents","paper_profile_fills",
+        "paper_profile_positions","paper_profile_post_exit_observations",
+        "paper_profile_regime_watches","paper_profile_signal_outcomes","paper_profile_signals",
+        "paper_realized_performance",
+      ];
+      for (const table of evidenceTables) {
+        const remaining = await pool.query<{ count: string }>(`SELECT count(*)::text AS count FROM ${table}`);
+        resetRegression.residualRows += Number(remaining.rows[0]?.count ?? 0);
+      }
+      const preserved = await pool.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM paper_profile_activations WHERE wallet=$1`, [wallet]);
+      resetRegression.preservedActivations = Number(preserved.rows[0]?.count ?? 0);
+    }
     process.stdout.write(`${JSON.stringify({ diagnostic: "discovery-to-displayed-paper-result",
       verificationMode: densityMode ? "production-density" : "all-profiles",
       controlledFixture: true, marketData: "synthetic; not a profitability estimate",
@@ -391,6 +424,7 @@ async function main() {
       productionDensity: density.rows[0],
       coldStartProgression: { initialObservations: Number(initialObservationCount.rows[0]?.count ?? -1),
         simulatedHours: densityMode ? 4 : 1, ...coldStartProgression.rows[0] },
+      resetRegression,
       rejectionTotals: rejectionTotals.rows,
       rejectionAttributionMismatch,
       dashboard: { displayedFills: dashboard.fills.length, performancePoints: performance.length,
@@ -410,7 +444,9 @@ async function main() {
         !coldStartProgression.rows[0]?.first_observation_at ||
         !coldStartProgression.rows[0]?.first_qualification_at ||
         !coldStartProgression.rows[0]?.first_eligible_at ||
-        Number(coldStartProgression.rows[0]?.pinned_tokens ?? 0) !== 8)) ||
+        Number(coldStartProgression.rows[0]?.pinned_tokens ?? 0) !== 8 ||
+        resetRegression.seededRows < 150000 || resetRegression.residualRows !== 0 ||
+        resetRegression.preservedActivations !== 20)) ||
         dashboard.fills.length === 0 || performance.length < 2)
       process.exitCode = 1;
   } finally {

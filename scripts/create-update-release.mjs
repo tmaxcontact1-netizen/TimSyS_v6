@@ -111,7 +111,10 @@ async function verifyMemecoinedPipeline() {
       Number(productionDensity.productionDensity?.eligible_tokens ?? 0) < 5 ||
       productionDensity.coldStartProgression?.initialObservations !== 0 ||
       productionDensity.coldStartProgression?.simulatedHours !== 4 ||
-      Number(productionDensity.coldStartProgression?.pinned_tokens ?? 0) !== 8) {
+      Number(productionDensity.coldStartProgression?.pinned_tokens ?? 0) !== 8 ||
+      Number(productionDensity.resetRegression?.seededRows ?? 0) < 150000 ||
+      Number(productionDensity.resetRegression?.residualRows ?? -1) !== 0 ||
+      Number(productionDensity.resetRegression?.preservedActivations ?? 0) !== 20) {
     throw new Error('MemeCoin\'Ed full-path verification returned incomplete evidence');
   }
   return { passedAt: new Date().toISOString(),
