@@ -65,25 +65,41 @@ async function verifyMemecoinedPipeline() {
   if (!process.env.MEMECOINED_VERIFY_ADMIN_URL) {
     throw new Error('MemeCoin\'Ed update requires MEMECOINED_VERIFY_ADMIN_URL for its isolated full-path verification');
   }
-  const output = await new Promise((resolveRun, reject) => {
-    const chunks = [];
-    const child = spawn(process.execPath, [join(root, 'apps', 'memecoined', 'dist', 'scripts', 'diagnose-profile-roundtrips.js')], {
-      cwd: join(root, 'apps', 'memecoined'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+  const runDiagnostic = async (densityMode = false) => {
+    const output = await new Promise((resolveRun, reject) => {
+      const chunks = [];
+      const child = spawn(process.execPath, [join(root, 'apps', 'memecoined', 'dist', 'scripts', 'diagnose-profile-roundtrips.js')], {
+        cwd: join(root, 'apps', 'memecoined'), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+        env: { ...process.env, ...(densityMode ? { MEMECOINED_VERIFY_DENSITY: '1' } : {}) },
+      });
+      child.stdout.on('data', chunk => { chunks.push(chunk); process.stdout.write(chunk); });
+      child.stderr.on('data', chunk => process.stderr.write(chunk));
+      child.once('error', reject);
+      child.once('exit', code => code === 0
+        ? resolveRun(Buffer.concat(chunks).toString('utf8'))
+        : reject(new Error(`MemeCoin'Ed ${densityMode ? 'production-density' : 'full-path'} verification exited with ${code}`)));
     });
-    child.stdout.on('data', chunk => { chunks.push(chunk); process.stdout.write(chunk); });
-    child.stderr.on('data', chunk => process.stderr.write(chunk));
-    child.once('error', reject);
-    child.once('exit', code => code === 0
-      ? resolveRun(Buffer.concat(chunks).toString('utf8'))
-      : reject(new Error(`MemeCoin'Ed full-path verification exited with ${code}`)));
-  });
-  const result = JSON.parse(output);
-  if (result.diagnostic !== 'discovery-to-displayed-paper-result' ||
-      result.controlledFixture !== true || result.profiles?.length !== 20 ||
-      !result.profiles.some(profile => profile.profile_id === 'oscillation_trader')) {
+    return JSON.parse(output);
+  };
+  const fullPath = await runDiagnostic(false);
+  const productionDensity = await runDiagnostic(true);
+  if (fullPath.diagnostic !== 'discovery-to-displayed-paper-result' ||
+      fullPath.controlledFixture !== true || fullPath.verificationMode !== 'all-profiles' ||
+      fullPath.profiles?.length !== 20 ||
+      !fullPath.profiles.some(profile => profile.profile_id === 'oscillation_trader') ||
+      productionDensity.diagnostic !== 'discovery-to-displayed-paper-result' ||
+      productionDensity.verificationMode !== 'production-density' ||
+      productionDensity.profiles?.length !== 2 ||
+      productionDensity.profiles.some(profile => Number(profile.buys) === 0 || Number(profile.sells) === 0) ||
+      Number(productionDensity.productionDensity?.observed_tokens ?? 0) < 50 ||
+      Number(productionDensity.productionDensity?.dense_tokens ?? 0) < 8 ||
+      Number(productionDensity.productionDensity?.eligible_tokens ?? 0) < 5) {
     throw new Error('MemeCoin\'Ed full-path verification returned incomplete evidence');
   }
-  return { passedAt: new Date().toISOString(), command: 'node dist/scripts/diagnose-profile-roundtrips.js', result };
+  return { passedAt: new Date().toISOString(),
+    commands: ['node dist/scripts/diagnose-profile-roundtrips.js',
+      'MEMECOINED_VERIFY_DENSITY=1 node dist/scripts/diagnose-profile-roundtrips.js'],
+    fullPath, productionDensity };
 }
 
 async function stageHasProductionDependencies() {

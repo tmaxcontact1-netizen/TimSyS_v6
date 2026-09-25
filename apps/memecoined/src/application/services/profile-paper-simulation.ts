@@ -634,8 +634,18 @@ async function collectFastMarketObservations(input: {
        SELECT * FROM universe WHERE pinned=true
          AND (last_observed IS NULL OR last_observed <= $2::timestamptz-interval '15 seconds')
         ORDER BY last_observed ASC NULLS FIRST,recent_observations DESC,total_score DESC LIMIT $5
+     ), bootstrap_due AS (
+       -- Full regime qualification needs dense history. Until all eight genuine
+       -- pins exist, keep a stable high-quality cohort on the same 15-second
+       -- cadence so qualification is reachable instead of circular.
+       SELECT * FROM universe WHERE pinned=false
+         AND (last_observed IS NULL OR last_observed <= $2::timestamptz-interval '15 seconds')
+         AND NOT EXISTS (SELECT 1 FROM pinned_due p WHERE p.mint_address=universe.mint_address)
+        ORDER BY total_score DESC,recent_observations DESC,evaluated_at DESC,mint_address
+        LIMIT GREATEST(0,$5-(SELECT count(*) FROM pinned_due))
      ), rotating_pool AS (
        SELECT * FROM universe WHERE pinned=false
+         AND NOT EXISTS (SELECT 1 FROM bootstrap_due b WHERE b.mint_address=universe.mint_address)
         ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
                  recent_observations DESC,total_score DESC,evaluated_at DESC,
                  abs(hashtextextended(mint_address,floor(extract(epoch FROM $2::timestamptz)/3600)::bigint))
@@ -644,9 +654,10 @@ async function collectFastMarketObservations(input: {
        SELECT * FROM rotating_pool
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
         ORDER BY last_observed ASC NULLS FIRST,recent_observations DESC,total_score DESC
-        LIMIT ($6+GREATEST(0,$5-(SELECT count(*) FROM pinned_due)))
+        LIMIT $6
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules,watched_profiles
-         FROM (SELECT * FROM pinned_due UNION ALL SELECT * FROM rotating_due) observation_batch
+         FROM (SELECT * FROM pinned_due UNION ALL SELECT * FROM bootstrap_due
+               UNION ALL SELECT * FROM rotating_due) observation_batch
         ORDER BY pinned DESC,last_observed ASC NULLS FIRST,total_score DESC LIMIT $7`,
     [input.wallet, input.at, observationUniverseBlockingRuleIds, trackingUniverseSize,
      cohortSize, discoverySlots, batchSize, enabled.rows.map(({ profile_id }) => profile_id)],

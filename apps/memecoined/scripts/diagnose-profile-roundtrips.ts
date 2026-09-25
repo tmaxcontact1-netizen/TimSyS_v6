@@ -23,6 +23,7 @@ import { applyMigrations, loadMigrationFiles } from "./migrate.js";
 
 const adminUrl = process.env.MEMECOINED_VERIFY_ADMIN_URL;
 if (!adminUrl) throw new Error("MEMECOINED_VERIFY_ADMIN_URL is required");
+const densityMode = process.env.MEMECOINED_VERIFY_DENSITY === "1";
 const databaseName = `memecoined_verify_${randomUUID().replaceAll("-", "").slice(0, 12)}`;
 if (!/^memecoined_verify_[0-9a-f]{12}$/.test(databaseName)) throw new Error("Unsafe diagnostic database name");
 const admin = new Client({ connectionString: adminUrl });
@@ -144,6 +145,19 @@ async function main() {
       .filter(([, profile]) => candidateFixtures.has(profile.id))
       .map(([index]) => tokenFor(index));
     discoveredMints.push(unsafeToken, costlyToken);
+    const densityMints = new Set<string>();
+    const densityOscillatorMints = new Set<string>();
+    // Production density is proved independently from the all-profile roundtrip
+    // so neither test can make the other easier by changing its candidate mix.
+    if (densityMode) for (let extra = 0; extra < 35; extra += 1) {
+      const mint = tokenFor(profiles.length + 2 + extra);
+      const oscillator = extra < 5;
+      tokenIndex.set(mint, profiles.findIndex((profile) =>
+        profile.id === (oscillator ? "oscillation_trader" : "fast_furious")));
+      densityMints.add(mint);
+      if (oscillator) densityOscillatorMints.add(mint);
+      discoveredMints.push(mint);
+    }
     const source = new LiveCandidateDiscoverySource({
       strategyVersionId: asStrategyVersionId("strategy-v1.0.0"), now: () => start,
       deduplicationWindow: () => "isolated-verification",
@@ -164,15 +178,21 @@ async function main() {
     }
     async function evaluateDiscovered(at: ReturnType<typeof asTimestamp>) {
       for (const [mint, candidateId] of discovered) {
+        const evaluationRunId = `verify-${cycle}-${mint}`;
         const result = await evaluateAndPersistCandidate({
           candidateId: candidateId as never,
-          evaluationRunId: `verify-${cycle}-${mint}`,
+          evaluationRunId,
           signalId: asUuid<SignalId>(randomUUID()),
           facts: candidateFacts(at, mint === unsafeToken),
           repository: evaluationRepository,
         });
         if (result.eligible === (mint === unsafeToken))
           throw new Error(`Unexpected candidate safety result for ${mint}`);
+        if (densityMints.has(mint)) await pool.query(
+          `UPDATE score_breakdowns SET total_score=$3
+            WHERE candidate_id=$1 AND evaluation_run_id=$2`,
+          [candidateId,evaluationRunId,densityOscillatorMints.has(mint) ? 95 : 94],
+        );
       }
     }
     await evaluateDiscovered(start);
@@ -183,9 +203,11 @@ async function main() {
       profile.profileId === "whale_tracker" || profile.profileId === "social_catalyst"))
       throw new Error("Retired profiles remain in the selectable catalogue");
     await pool.query(
-      `UPDATE paper_profile_activations SET enabled=true,mode='automatic_paper',
+      `UPDATE paper_profile_activations SET enabled=CASE WHEN $2::boolean
+              THEN profile_id IN ('fast_furious','oscillation_trader') ELSE true END,
+         mode='automatic_paper',
          allocation_bps=CASE WHEN profile_id LIKE 'benchmark_%' THEN 10000 ELSE 1000 END
-       WHERE wallet=$1`, [wallet],
+       WHERE wallet=$1`, [wallet,densityMode],
     );
     const swap = { quote: async (request: { inputMint: string; outputMint: string; inputAmount: bigint; requestedAt: string }) => {
       const mint = request.inputMint === WRAPPED_SOL_MINT ? request.outputMint : request.inputMint;
@@ -237,7 +259,8 @@ async function main() {
               count(f.id) FILTER (WHERE f.side='sell')::text AS sells
        FROM paper_profile_activations a LEFT JOIN paper_profile_fills f
          ON f.wallet=a.wallet AND f.profile_id=a.profile_id
-       WHERE a.wallet=$1 GROUP BY a.profile_id ORDER BY a.profile_id`, [wallet]);
+       WHERE a.wallet=$1 AND a.enabled=true
+       GROUP BY a.profile_id ORDER BY a.profile_id`, [wallet]);
     const signals = await pool.query(
       `SELECT profile_id,count(*)::int AS observed,
               count(*) FILTER (WHERE eligible)::int AS eligible,
@@ -315,6 +338,17 @@ async function main() {
               count(*) FILTER (WHERE status='active' AND pinned)::text AS pinned
          FROM paper_profile_regime_watches WHERE wallet=$1`, [wallet],
     );
+    const density = await pool.query<{ observed_tokens: string; dense_tokens: string; eligible_tokens: string }>(
+      `WITH observations AS (
+         SELECT token_mint,count(*) AS samples FROM paper_fast_market_observations
+          WHERE wallet=$1 GROUP BY token_mint
+       ), eligible AS (
+         SELECT count(DISTINCT token_mint) AS tokens FROM paper_profile_signals
+          WHERE wallet=$1 AND profile_id='oscillation_trader' AND eligible
+       ) SELECT count(*)::text AS observed_tokens,
+                count(*) FILTER (WHERE samples>=30)::text AS dense_tokens,
+                (SELECT tokens::text FROM eligible) AS eligible_tokens FROM observations`, [wallet],
+    );
     const rejectionTotals = await pool.query<{ profile_id: string; total: string }>(
       `SELECT profile_id,count(*)::text AS total FROM paper_profile_signals
         WHERE wallet=$1 AND NOT eligible GROUP BY profile_id ORDER BY profile_id`, [wallet],
@@ -326,6 +360,7 @@ async function main() {
     const performance = await readPaperPerformanceHistory(pool, wallet, "all");
     const failed = result.rows.filter((row) => Number(row.buys) === 0 || Number(row.sells) === 0);
     process.stdout.write(`${JSON.stringify({ diagnostic: "discovery-to-displayed-paper-result",
+      verificationMode: densityMode ? "production-density" : "all-profiles",
       controlledFixture: true, marketData: "synthetic; not a profitability estimate",
       profiles: result.rows,
       ...(failed.length ? { signals: signals.rows.filter((row) => failed.some((profile) => profile.profile_id === row.profile_id)),
@@ -337,6 +372,7 @@ async function main() {
         negativeFills: negativeFills.rows, accountingMismatches: accountingMismatches.rows },
       oscillatorTelemetry: telemetry.rows[0],
       regimeWatch: watches.rows[0],
+      productionDensity: density.rows[0],
       rejectionTotals: rejectionTotals.rows,
       rejectionAttributionMismatch,
       dashboard: { displayedFills: dashboard.fills.length, performancePoints: performance.length,
@@ -344,11 +380,14 @@ async function main() {
     }, null, 2)}\n`);
     if (failed.length !== 0)
       process.exitCode = 1;
-    if (unsafeObservations.rows[0]?.count !== "0" || degradedQuoteCount === 0 ||
-        costRejections.rows[0]?.count === "0" || negativeFills.rows.length !== 0 ||
+    if ((!densityMode && (unsafeObservations.rows[0]?.count !== "0" || degradedQuoteCount === 0 ||
+        costRejections.rows[0]?.count === "0")) || negativeFills.rows.length !== 0 ||
         accountingMismatches.rows.length !== 0 ||
         Number(telemetry.rows[0]?.closed ?? 0) === 0 || telemetry.rows[0]?.incomplete !== "0" ||
         Number(watches.rows[0]?.pinned ?? 0) !== 8 || rejectionAttributionMismatch.length !== 0 ||
+        (densityMode && (Number(density.rows[0]?.observed_tokens ?? 0) < 50 ||
+        Number(density.rows[0]?.dense_tokens ?? 0) < 8 ||
+        Number(density.rows[0]?.eligible_tokens ?? 0) < 5)) ||
         dashboard.fills.length === 0 || performance.length < 2)
       process.exitCode = 1;
   } finally {
