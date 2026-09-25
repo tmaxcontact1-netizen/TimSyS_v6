@@ -79,7 +79,8 @@ async function verifyMemecoinedPipeline() {
   });
   const result = JSON.parse(output);
   if (result.diagnostic !== 'discovery-to-displayed-paper-result' ||
-      result.controlledFixture !== true || result.profiles?.length !== 19) {
+      result.controlledFixture !== true || result.profiles?.length !== 20 ||
+      !result.profiles.some(profile => profile.profile_id === 'oscillation_trader')) {
     throw new Error('MemeCoin\'Ed full-path verification returned incomplete evidence');
   }
   return { passedAt: new Date().toISOString(), command: 'node dist/scripts/diagnose-profile-roundtrips.js', result };

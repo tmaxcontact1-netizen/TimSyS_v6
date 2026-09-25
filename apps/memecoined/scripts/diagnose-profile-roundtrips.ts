@@ -104,6 +104,8 @@ const candidateFixtures = new Set<string>([
 
 function price(index: number, step: number): number {
   const profile = profiles[index]!;
+  if (profile.id === "oscillation_trader")
+    return [1.003, .997, 1.003, .997, 1.003, .997, .994, .990, .970, .971][step % 10]!;
   if (profile.id === "slow_steady" || profile.id === "trend_detector")
     return step < trendFixture.length ? trendFixture[step]! : trendFixture.at(-1)! + (step - trendFixture.length + 1) * .0003;
   if (profile.id === "scalper") return 1 + step * .0003 + .005 * Math.sin(.6 * step + 1);
@@ -172,7 +174,7 @@ async function main() {
     if (!await ensureAllProfilesPaperTrialPreset(pool, wallet, new Date(start)))
       throw new Error("The initial profile preset did not create the complete catalogue");
     const visibleProfiles = await listPaperProfileActivations(pool, wallet);
-    if (visibleProfiles.length !== 19 || visibleProfiles.some((profile) =>
+    if (visibleProfiles.length !== 20 || visibleProfiles.some((profile) =>
       profile.profileId === "whale_tracker" || profile.profileId === "social_catalyst"))
       throw new Error("Retired profiles remain in the selectable catalogue");
     await pool.query(
@@ -286,6 +288,15 @@ async function main() {
           WHERE a.wallet=$1 AND a.realized_pnl_raw<>e.realized`,
       [wallet],
     );
+    const telemetry = await pool.query<{ observed: string; entered: string; closed: string; incomplete: string }>(
+      `SELECT count(*)::text AS observed,
+              count(*) FILTER (WHERE lifecycle_state IN ('entered','closed'))::text AS entered,
+              count(*) FILTER (WHERE lifecycle_state='closed')::text AS closed,
+              count(*) FILTER (WHERE lifecycle_state='closed' AND
+                (entry_fill_id IS NULL OR exit_fill_id IS NULL OR realized_net_bps IS NULL OR holding_seconds IS NULL))::text AS incomplete
+         FROM paper_profile_signal_outcomes WHERE wallet=$1 AND profile_id='oscillation_trader'`,
+      [wallet],
+    );
     const dashboard = await readPaperDashboardDetails(pool, wallet);
     const performance = await readPaperPerformanceHistory(pool, wallet, "all");
     const failed = result.rows.filter((row) => Number(row.buys) === 0 || Number(row.sells) === 0);
@@ -299,6 +310,7 @@ async function main() {
       negativeControls: { unsafeObservations: Number(unsafeObservations.rows[0]?.count ?? 0),
         degradedQuoteCount, priceImpactRejections: Number(costRejections.rows[0]?.count ?? 0),
         negativeFills: negativeFills.rows, accountingMismatches: accountingMismatches.rows },
+      oscillatorTelemetry: telemetry.rows[0],
       dashboard: { displayedFills: dashboard.fills.length, performancePoints: performance.length,
         latestBookEquityRaw: performance.at(-1)?.bookEquityRaw ?? null },
     }, null, 2)}\n`);
@@ -307,6 +319,7 @@ async function main() {
     if (unsafeObservations.rows[0]?.count !== "0" || degradedQuoteCount === 0 ||
         costRejections.rows[0]?.count === "0" || negativeFills.rows.length !== 0 ||
         accountingMismatches.rows.length !== 0 ||
+        Number(telemetry.rows[0]?.closed ?? 0) === 0 || telemetry.rows[0]?.incomplete !== "0" ||
         dashboard.fills.length === 0 || performance.length < 2)
       process.exitCode = 1;
   } finally {

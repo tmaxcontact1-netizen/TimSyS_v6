@@ -18,6 +18,7 @@ describe("trading profiles", () => {
       "recovery_reversal",
       "launch_transition",
       "scalper",
+      "oscillation_trader",
       "benchmark_buy_hold",
       "benchmark_momentum",
       "benchmark_ema_cross",
@@ -28,7 +29,7 @@ describe("trading profiles", () => {
       "benchmark_volume_breakout",
       "benchmark_atr_trend",
     ]);
-    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(19);
+    expect(new Set(tradingProfileCatalogue.map(({ id }) => id)).size).toBe(20);
     expect(tradingProfileCatalogue.every(({ hardStopBps }) => hardStopBps > 0)).toBe(true);
   });
 

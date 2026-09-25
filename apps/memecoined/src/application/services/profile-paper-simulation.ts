@@ -32,6 +32,7 @@ import {
   type AdaptiveTradeCalibration,
 } from "../../domain/strategy/adaptive-calibration.js";
 import { scoreCandidate } from "../../domain/candidate/scoring.js";
+import { evaluateOscillation } from "../../domain/strategy/oscillation.js";
 
 export interface ProfileScoreBreakdown {
   readonly wallet: number;
@@ -92,7 +93,7 @@ const strictPaperRuleIds = Object.freeze([
 ]);
 
 function requiredPaperRules(profile: TradingProfileDefinition): ReadonlySet<string> {
-  if (profile.id === "fast_furious")
+  if (profile.id === "fast_furious" || profile.id === "oscillation_trader")
     return new Set([
       ...nonNegotiablePaperRuleIds,
       "SEC-005",
@@ -200,6 +201,7 @@ interface CandidateRow {
     readonly currentFailedRules?: readonly string[];
     readonly sourceScoreEvaluatedAt?: string;
     readonly technical?: TechnicalAnalysis;
+    readonly oscillation?: ReturnType<typeof evaluateOscillation>;
   } | null;
 }
 interface ActivationRow {
@@ -226,9 +228,10 @@ interface PendingEntryRow extends CandidateRow {
   readonly profile_id: TradingProfileId;
   readonly entry_attempts: number;
   readonly signal_observed_at: Date | string | null;
+  readonly signal_id: string | null;
 }
 type EntryAttempt =
-  Readonly<{ outcome: "entered" }> | Readonly<{ outcome: "retry" | "failed"; reason: string }>;
+  Readonly<{ outcome: "entered"; fillId: string }> | Readonly<{ outcome: "retry" | "failed"; reason: string }>;
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
@@ -236,6 +239,10 @@ const temporalEngineVersion = "temporal-v16";
 export const fastObservationCohortSize = 14;
 export const fastObservationDiscoverySlots = 2;
 export const fastObservationTrackingUniverseSize = 32;
+export const oscillationObservationCohortSize = 56;
+export const oscillationObservationDiscoverySlots = 8;
+export const oscillationObservationTrackingUniverseSize = 64;
+export const observationConcurrency = 8;
 
 export function entryConfirmationPolicy(profileId: TradingProfileId): Readonly<{
   observations: number;
@@ -266,6 +273,7 @@ const temporalProfileIds = new Set<TradingProfileId>([
   "fast_furious",
   "slow_steady",
   "scalper",
+  "oscillation_trader",
   "trend_detector",
   "capital_preservation",
   "signal_consensus",
@@ -336,6 +344,7 @@ const shortHorizonProfiles = new Set<TradingProfileId>([
   "liquidity_expansion",
   "recovery_reversal",
   "launch_transition",
+  "oscillation_trader",
 ]);
 
 /**
@@ -344,6 +353,7 @@ const shortHorizonProfiles = new Set<TradingProfileId>([
  * disappears between monitoring cycles.
  */
 export function maximumPositionBps(profileId: TradingProfileId): bigint {
+  if (profileId === "oscillation_trader") return 125n;
   if (profileId === "scalper" || profileId === "recovery_reversal") return 100n;
   if (shortHorizonProfiles.has(profileId)) return 150n;
   if (profileId.startsWith("benchmark_")) return 200n;
@@ -508,6 +518,14 @@ async function collectFastMarketObservations(input: {
     [input.wallet, [...temporalProfileIds]],
   );
   if (enabled.rows.length === 0) return;
+  const oscillationEnabled = enabled.rows.some(({ profile_id }) => profile_id === "oscillation_trader");
+  const trackingUniverseSize = oscillationEnabled
+    ? oscillationObservationTrackingUniverseSize : fastObservationTrackingUniverseSize;
+  const cohortSize = oscillationEnabled
+    ? oscillationObservationCohortSize : fastObservationCohortSize;
+  const discoverySlots = oscillationEnabled
+    ? oscillationObservationDiscoverySlots : fastObservationDiscoverySlots;
+  const batchSize = cohortSize + discoverySlots;
   const candidates = await input.pool.query<FastObservationCandidate>(
     `WITH observation_history AS (
        SELECT token_mint,max(observed_at) AS last_observed,
@@ -571,15 +589,18 @@ async function collectFastMarketObservations(input: {
                  u.recent_observations DESC,COALESCE(u.last_observed,'epoch'::timestamptz),
                  abs(hashtextextended(u.mint_address,
                    floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),u.evaluated_at DESC
-        LIMIT GREATEST(0,16-(SELECT count(*) FROM selected))
+        LIMIT GREATEST(0,$7::int-(SELECT count(*) FROM selected))
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
          FROM (SELECT * FROM selected UNION ALL SELECT * FROM fillers) observation_batch
         ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
-                 last_observed ASC NULLS FIRST,total_score DESC LIMIT 16`,
-    [input.wallet, input.at, observationUniverseBlockingRuleIds, fastObservationTrackingUniverseSize,
-     fastObservationCohortSize, fastObservationDiscoverySlots],
+                 last_observed ASC NULLS FIRST,total_score DESC LIMIT $7`,
+    [input.wallet, input.at, observationUniverseBlockingRuleIds, trackingUniverseSize,
+     cohortSize, discoverySlots, batchSize],
   );
-  for (const candidate of candidates.rows) {
+  let anyEligibleSignal = false;
+  for (let offset = 0; offset < candidates.rows.length; offset += observationConcurrency) {
+    const batch = candidates.rows.slice(offset, offset + observationConcurrency);
+    await Promise.all(batch.map(async (candidate) => {
     const mint = candidate.mint_address as MintAddress;
     const [quote, market] = await Promise.all([
       input.swap.quote({
@@ -591,7 +612,7 @@ async function collectFastMarketObservations(input: {
       }),
       input.market.observePrimaryPool(mint, input.at),
     ]);
-    if (!quote.ok || !market.ok) continue;
+    if (!quote.ok || !market.ok) return;
     const observation = market.value;
     await input.pool.query(
       `INSERT INTO paper_fast_market_observations
@@ -623,7 +644,7 @@ async function collectFastMarketObservations(input: {
          SELECT observed_at,output_amount_raw,liquidity_usd,five_minute_volume_usd,
                 five_minute_buys,five_minute_sells
            FROM paper_fast_market_observations
-          WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 40
+          WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC LIMIT 64
        ), spaced AS (
          SELECT *,lag(observed_at) OVER (ORDER BY observed_at) AS previous_at FROM recent
        ), segmented AS (
@@ -662,9 +683,46 @@ async function collectFastMarketObservations(input: {
     for (const activation of enabled.rows) {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
-      const signal = evaluateShortHorizonSignal(profile.id, points);
-      const adaptiveCalibration = calibrateProfile(profile.id, points, input.at);
-      const adaptiveEntry = evaluateAdaptiveEntry(profile.id, signal, adaptiveCalibration);
+      const oscillation = profile.id === "oscillation_trader"
+        ? evaluateOscillation(points)
+        : null;
+      const shortSignal = oscillation === null
+        ? evaluateShortHorizonSignal(profile.id, points) : null;
+      const signal = shortSignal !== null
+        ? shortSignal
+        : Object.freeze({
+            eligible: oscillation!.eligible,
+            pattern: oscillation!.signalType ?? "none",
+            reason: oscillation!.reason,
+            observedVolatilityBps: oscillation!.meanAbsoluteReturnBps,
+          });
+      const adaptiveCalibration = oscillation === null
+        ? calibrateProfile(profile.id, points, input.at)
+        : Object.freeze({
+            version: "adaptive-v2" as const,
+            profileId: profile.id,
+            model: "executable oscillation mean reversion",
+            regime: "moderate" as const,
+            targetBps: oscillation.targetBps,
+            hardStopBps: oscillation.hardStopBps,
+            observedDownsideBps: oscillation.q75ExcursionBps,
+            trailingStopBps: oscillation.trailingStopBps,
+            trailingActivationBps: Math.max(25, Math.round(oscillation.targetBps / 2)),
+            maximumHoldingMinutes: oscillation.maximumHoldingMinutes,
+            maximumRoundTripCostBps: oscillation.maximumRoundTripCostBps,
+            sampleCount: oscillation.observationCount,
+            confidencePercentage: Math.min(95, 50 + oscillation.score / 2),
+            typicalMoveBps: oscillation.meanAbsoluteReturnBps,
+            upperMoveBps: oscillation.q75ExcursionBps,
+            riskSupported: true,
+            calculatedAt: input.at,
+            validUntil: new Date(Date.parse(input.at) + 2 * 60_000).toISOString(),
+            tradeable: oscillation.eligible,
+            reason: "Calibrated from non-overlapping executable-price excursions",
+          } satisfies AdaptiveTradeCalibration);
+      const adaptiveEntry = oscillation === null
+        ? evaluateAdaptiveEntry(profile.id, shortSignal!, adaptiveCalibration)
+        : Object.freeze({ eligible: oscillation.eligible, reason: oscillation.reason });
       const profileDecision = evaluateProfileCandidate(
         profile,
         current.score,
@@ -672,7 +730,6 @@ async function collectFastMarketObservations(input: {
         { adaptiveEntryConfirmed: adaptiveEntry.eligible },
       );
       const eligible = adaptiveEntry.eligible && profileDecision.eligible && current.staticEvidenceFresh;
-      producedEligibleSignal ||= eligible;
       const reasons = [adaptiveEntry.reason, ...profileDecision.reasons,
         ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
         ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
@@ -680,9 +737,44 @@ async function collectFastMarketObservations(input: {
         executableOutputAmountRaw: quote.value.expectedOutputAmount.toString(),
         adaptiveEntryEligible: adaptiveEntry.eligible,
         adaptiveEntryReason: adaptiveEntry.reason,
-        ...(adaptiveCalibration ? { adaptiveCalibration } : {}), currentScore: current.score,
+        ...(adaptiveCalibration ? { adaptiveCalibration } : {}),
+        ...(oscillation ? { oscillation } : {}), currentScore: current.score,
         currentFailedRules: current.failedRules,
         sourceScoreEvaluatedAt: iso(candidate.evaluated_at) };
+      const signalId = uuid([
+        input.wallet, profile.id, candidate.mint_address, input.at,
+        signal.pattern ?? "none",
+      ]);
+      await input.pool.query(
+        `INSERT INTO paper_profile_signals
+           (id,wallet,profile_id,candidate_id,token_mint,signal_type,observed_at,
+            engine_version,eligible,score,metrics_json,gates_json,rejection_reasons_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb)
+         ON CONFLICT DO NOTHING`,
+        [signalId,input.wallet,profile.id,candidate.candidate_id,candidate.mint_address,
+         signal.pattern === "none" ? null : signal.pattern,input.at,temporalEngineVersion,
+         eligible,oscillation?.score ?? Math.max(0,Math.min(100,current.score.total)),
+         JSON.stringify(signalEvidence),JSON.stringify(oscillation?.gates ?? {}),JSON.stringify(reasons)],
+      );
+      await input.pool.query(
+        `INSERT INTO paper_profile_signal_outcomes
+           (signal_id,wallet,profile_id,token_mint,lifecycle_state,planned_target_bps,
+            planned_stop_bps,estimated_friction_bps,created_at,updated_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) ON CONFLICT DO NOTHING`,
+        [signalId,input.wallet,profile.id,candidate.mint_address,
+         eligible ? "observed" : "rejected",adaptiveCalibration?.targetBps ?? null,
+         adaptiveCalibration?.hardStopBps ?? null,
+         adaptiveCalibration?.maximumRoundTripCostBps ?? null,input.at],
+      );
+      const intent = eligible ? await input.pool.query(
+        `INSERT INTO paper_profile_entry_intents
+           (signal_id,wallet,profile_id,token_mint,state,next_attempt_at,created_at,updated_at)
+         VALUES ($1,$2,$3,$4,'pending',$5,$5,$5)
+         ON CONFLICT DO NOTHING RETURNING signal_id`,
+        [signalId,input.wallet,profile.id,candidate.mint_address,input.at],
+      ) : null;
+      const ownsEntryIntent = !eligible || intent?.rowCount === 1;
+      producedEligibleSignal ||= eligible && ownsEntryIntent;
       await input.pool.query(
         `INSERT INTO paper_fast_signal_events
            (wallet,profile_id,candidate_id,token_mint,observed_at,eligible,signal_json,reasons_json)
@@ -698,6 +790,10 @@ async function collectFastMarketObservations(input: {
           JSON.stringify(reasons),
         ],
       );
+      // An independently valid signal is still telemetry when another live
+      // intent or position owns this profile/token. It must not replace that
+      // owner's execution identity or reset its state.
+      if (eligible && !ownsEntryIntent) continue;
       if (eligible) {
         // Discovery can create several candidate rows for the same mint. Only
         // the freshest opportunity for a profile/token may own execution;
@@ -717,15 +813,18 @@ async function collectFastMarketObservations(input: {
       await input.pool.query(
         `INSERT INTO paper_profile_candidate_decisions
          (wallet,profile_id,candidate_id,mode,eligible,score,reasons_json,evaluated_at,
-            entry_state,next_entry_attempt_at,signal_json,signal_observed_at,engine_version)
+            entry_state,next_entry_attempt_at,signal_json,signal_observed_at,engine_version,signal_id)
          VALUES ($1,$2,$3,'automatic_paper',$4,$5,$6::jsonb,$7,
                  CASE WHEN $4 THEN 'pending' ELSE 'not_applicable' END,
-                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7,$9)
+                 CASE WHEN $4 THEN $7::timestamptz ELSE NULL END,$8::jsonb,$7,$9,$10)
          ON CONFLICT (wallet,profile_id,candidate_id) DO UPDATE SET
            eligible=EXCLUDED.eligible,score=EXCLUDED.score,reasons_json=EXCLUDED.reasons_json,
            evaluated_at=EXCLUDED.evaluated_at,signal_json=EXCLUDED.signal_json,
            signal_observed_at=EXCLUDED.signal_observed_at,engine_version=EXCLUDED.engine_version,
+           signal_id=CASE WHEN paper_profile_candidate_decisions.entry_state='entered'
+                          THEN paper_profile_candidate_decisions.signal_id ELSE EXCLUDED.signal_id END,
            entry_state=CASE
+             WHEN paper_profile_candidate_decisions.entry_state='entered' THEN 'entered'
              WHEN NOT EXCLUDED.eligible THEN 'not_applicable'
              WHEN paper_profile_candidate_decisions.entry_attempts>=5
                AND paper_profile_candidate_decisions.evaluated_at > $7::timestamptz-interval '10 minutes'
@@ -759,22 +858,19 @@ async function collectFastMarketObservations(input: {
           input.at,
           JSON.stringify(signalEvidence),
           temporalEngineVersion,
+          signalId,
         ],
       );
     }
-    // A qualified short-horizon opportunity is perishable. Attempt it while the
-    // quote and market evidence that created it are still current instead of
-    // waiting for every other token in the observation batch to finish.
-    if (producedEligibleSignal) {
-      await processPendingEntries({
-        pool: input.pool,
-        swap: input.swap,
-        wallet: input.wallet,
-        at: quote.value.receivedAt,
-        feeRaw: input.feeRaw,
-      });
-    }
+    anyEligibleSignal ||= producedEligibleSignal;
+    }));
   }
+  // Entry processing is deliberately serialized after concurrent observation.
+  // Concurrent pending-entry consumers can quote the same live intent before
+  // either transaction commits, creating avoidable contention and false errors.
+  if (anyEligibleSignal) await processPendingEntries({
+    pool: input.pool, swap: input.swap, wallet: input.wallet, at: input.at, feeRaw: input.feeRaw,
+  });
 }
 
 async function enterPosition(input: {
@@ -788,6 +884,7 @@ async function enterPosition(input: {
 }): Promise<EntryAttempt> {
   const lossCooldownMinutes = input.profile.id === "scalper" ? 15
     : input.profile.id === "fast_furious" ? 30
+      : input.profile.id === "oscillation_trader" ? 240
       : shortHorizonProfiles.has(input.profile.id) ? 120 : 360;
   const state = await input.pool.query<{
     cash_raw: string;
@@ -924,6 +1021,7 @@ async function enterPosition(input: {
   // The provider receives the quote after the simulation cycle begins. Use that
   // later timestamp for the audited fill so filled_at can never precede quoted_at.
   const filledAt = q.receivedAt;
+  const fillId = uuid([input.wallet, input.profile.id, "buy", q.fingerprint]);
   const entered = await transaction(input.pool, async (client) => {
     const debit = await client.query(
       `UPDATE paper_profile_accounts
@@ -956,7 +1054,7 @@ async function enterPosition(input: {
        (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,engine_version,decision_snapshot_json,quoted_at,filled_at)
        VALUES ($1,$2,$3,$4,'buy',$5,$6,$7,$8,$9,'profile_entry',$10,$11::jsonb,$12,$13)`,
       [
-        uuid([input.wallet, input.profile.id, "buy", q.fingerprint]),
+        fillId,
         input.wallet,
         input.profile.id,
         input.candidate.candidate_id,
@@ -974,7 +1072,7 @@ async function enterPosition(input: {
     return true;
   });
   return entered
-    ? Object.freeze({ outcome: "entered" })
+    ? Object.freeze({ outcome: "entered", fillId })
     : Object.freeze({ outcome: "retry", reason: "Profile funds changed before entry" });
 }
 
@@ -989,20 +1087,23 @@ async function processPendingEntries(input: {
     `WITH current_per_token AS (
        SELECT DISTINCT ON (d.profile_id,c.mint_address)
               d.profile_id,d.entry_attempts,d.entry_state,d.next_entry_attempt_at,
-              d.signal_json,d.signal_observed_at,c.id::text AS candidate_id,c.mint_address,
+              d.signal_json,d.signal_observed_at,d.signal_id::text,c.id::text AS candidate_id,c.mint_address,
               s.total_score,s.breakdown_json,s.evaluated_at,
               COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
                          WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules
          FROM paper_profile_candidate_decisions d
          JOIN candidates c ON c.id=d.candidate_id
+         LEFT JOIN paper_profile_entry_intents i ON i.signal_id=d.signal_id
          JOIN LATERAL (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                         WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
         WHERE d.wallet=$1 AND d.eligible=true AND d.mode='automatic_paper'
           AND d.entry_state IN ('pending','retrying') AND d.entry_attempts < 5
           AND d.next_entry_attempt_at <= $2
+          AND (d.profile_id<>'oscillation_trader' OR
+               (i.state IN ('pending','retrying') AND i.next_attempt_at <= $2))
         ORDER BY d.profile_id,c.mint_address,d.signal_observed_at DESC NULLS LAST,
                  d.next_entry_attempt_at DESC,c.id DESC
-     ) SELECT profile_id,entry_attempts,signal_json,signal_observed_at,candidate_id,mint_address,
+     ) SELECT profile_id,entry_attempts,signal_json,signal_observed_at,signal_id,candidate_id,mint_address,
               total_score,breakdown_json,evaluated_at,failed_rules
          FROM current_per_token
         ORDER BY row_number() OVER (
@@ -1029,6 +1130,15 @@ async function processPendingEntries(input: {
           WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
         [input.wallet, profile.id, candidate.candidate_id],
       );
+      if (candidate.signal_id) await input.pool.query(
+        `UPDATE paper_profile_entry_intents SET state='expired',last_error='Entry evidence expired before execution',
+                next_attempt_at=NULL,updated_at=$2 WHERE signal_id=$1`,
+        [candidate.signal_id,input.at],
+      );
+      if (candidate.signal_id) await input.pool.query(
+        `UPDATE paper_profile_signal_outcomes SET lifecycle_state='expired',updated_at=$2
+          WHERE signal_id=$1 AND lifecycle_state='observed'`, [candidate.signal_id,input.at],
+      );
       continue;
     }
     const signalEvidence = candidate.signal_json;
@@ -1042,6 +1152,15 @@ async function processPendingEntries(input: {
             SET eligible=false,entry_state='failed',last_entry_error='Current market evidence is missing or superseded',next_entry_attempt_at=NULL
           WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
         [input.wallet, profile.id, candidate.candidate_id],
+      );
+      if (candidate.signal_id) await input.pool.query(
+        `UPDATE paper_profile_entry_intents SET state='rejected',last_error=$2,next_attempt_at=NULL,updated_at=$3
+          WHERE signal_id=$1`,
+        [candidate.signal_id,"Current market evidence is missing or superseded",input.at],
+      );
+      if (candidate.signal_id) await input.pool.query(
+        `UPDATE paper_profile_signal_outcomes SET lifecycle_state='rejected',updated_at=$2
+          WHERE signal_id=$1 AND lifecycle_state='observed'`, [candidate.signal_id,input.at],
       );
       continue;
     }
@@ -1057,6 +1176,15 @@ async function processPendingEntries(input: {
             SET eligible=false,entry_state='failed',last_entry_error=$4,next_entry_attempt_at=NULL
           WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
         [input.wallet, profile.id, candidate.candidate_id, currentDecision.reasons.join("; ")],
+      );
+      if (candidate.signal_id) await input.pool.query(
+        `UPDATE paper_profile_entry_intents SET state='rejected',last_error=$2,next_attempt_at=NULL,updated_at=$3
+          WHERE signal_id=$1`,
+        [candidate.signal_id,currentDecision.reasons.join("; "),input.at],
+      );
+      if (candidate.signal_id) await input.pool.query(
+        `UPDATE paper_profile_signal_outcomes SET lifecycle_state='rejected',updated_at=$2
+          WHERE signal_id=$1 AND lifecycle_state='observed'`, [candidate.signal_id,input.at],
       );
       continue;
     }
@@ -1130,6 +1258,18 @@ async function processPendingEntries(input: {
           WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$5`,
         [input.wallet, profile.id, input.at, attempts, candidate.candidate_id],
       );
+      if (candidate.signal_id) {
+        await input.pool.query(
+          `UPDATE paper_profile_entry_intents SET state='entered',attempt_count=$2,entry_fill_id=$3,
+                  next_attempt_at=NULL,last_error=NULL,updated_at=$4 WHERE signal_id=$1`,
+          [candidate.signal_id,attempts,attempt.fillId,input.at],
+        );
+        await input.pool.query(
+          `UPDATE paper_profile_signal_outcomes SET lifecycle_state='entered',entry_fill_id=$2,
+                  entered_at=$3,updated_at=$3 WHERE signal_id=$1`,
+          [candidate.signal_id,attempt.fillId,input.at],
+        );
+      }
       continue;
     }
     const terminal = attempt.outcome === "failed" || attempts >= 5;
@@ -1149,6 +1289,16 @@ async function processPendingEntries(input: {
         attempt.reason,
         terminal ? null : nextAt,
       ],
+    );
+    if (candidate.signal_id) await input.pool.query(
+      `UPDATE paper_profile_entry_intents SET state=$2,attempt_count=$3,last_error=$4,
+              next_attempt_at=$5,updated_at=$6 WHERE signal_id=$1`,
+      [candidate.signal_id,terminal ? "rejected" : "retrying",attempts,attempt.reason,
+       terminal ? null : nextAt,input.at],
+    );
+    if (candidate.signal_id && terminal) await input.pool.query(
+      `UPDATE paper_profile_signal_outcomes SET lifecycle_state='rejected',updated_at=$2
+        WHERE signal_id=$1 AND lifecycle_state='observed'`, [candidate.signal_id,input.at],
     );
   }
 }
@@ -1280,8 +1430,11 @@ async function monitorPositions(input: {
     const trailingActivationBps = calibration?.trailingActivationBps ?? adaptiveTrailingBps;
     const trailing = thesisMature && high * 10_000n >= cost * BigInt(10_000 + trailingActivationBps) &&
       value * 10_000n <= high * BigInt(10_000 - adaptiveTrailingBps);
+    const breakeven = profile.id === "oscillation_trader" &&
+      high * 10_000n >= cost * BigInt(10_000 + Math.round(adaptiveTargetBps / 2)) &&
+      value <= cost;
     const timeout = ageMinutes >= (calibration?.maximumHoldingMinutes ?? profile.maximumHoldingMinutes);
-    if (!stop && !target && !trailing && !timeout) {
+    if (!stop && !target && !trailing && !breakeven && !timeout) {
       await input.pool.query(
         `UPDATE paper_profile_positions SET current_value_raw=$4,high_water_raw=GREATEST(high_water_raw,$4),updated_at=$5 WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3`,
         [input.wallet, profile.id, position.token_mint, value.toString(), input.at],
@@ -1294,10 +1447,13 @@ async function monitorPositions(input: {
         ? "profit_target"
         : trailing
           ? "trailing_stop"
+          : breakeven
+            ? "breakeven_stop"
           : "time_limit";
     // As with entries, the quote is received after the cycle timestamp. Keep
     // the fill audit chronologically valid when an exit condition fires.
     const filledAt = q.receivedAt;
+    const exitFillId = uuid([input.wallet, profile.id, "sell", q.fingerprint]);
     await transaction(input.pool, async (client) => {
       const removed = await client.query(
         `DELETE FROM paper_profile_positions WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 RETURNING token_amount_raw`,
@@ -1327,7 +1483,7 @@ async function monitorPositions(input: {
          (id,wallet,profile_id,candidate_id,side,token_mint,token_amount_raw,settlement_amount_raw,execution_fee_raw,quote_fingerprint,reason,engine_version,quoted_at,filled_at)
          VALUES ($1,$2,$3,$4,'sell',$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
-          uuid([input.wallet, profile.id, "sell", q.fingerprint]),
+          exitFillId,
           input.wallet,
           profile.id,
           position.candidate_id,
@@ -1347,6 +1503,42 @@ async function monitorPositions(input: {
             SET entry_state='not_applicable',next_entry_attempt_at=NULL
           WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3`,
         [input.wallet, profile.id, position.candidate_id],
+      );
+      await client.query(
+        `WITH linked AS (
+           SELECT signal_id FROM paper_profile_candidate_decisions
+            WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3 AND signal_id IS NOT NULL
+         ) UPDATE paper_profile_entry_intents i SET state='closed',updated_at=$4
+            FROM linked WHERE i.signal_id=linked.signal_id`,
+        [input.wallet,profile.id,position.candidate_id,filledAt],
+      );
+      await client.query(
+        `WITH linked AS (
+           SELECT signal_id FROM paper_profile_candidate_decisions
+            WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3 AND signal_id IS NOT NULL
+         ), changes AS (
+           SELECT linked.signal_id,
+                  (((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000 AS change_bps
+             FROM linked JOIN paper_profile_signals s ON s.id=linked.signal_id
+             JOIN paper_fast_market_observations x ON x.wallet=s.wallet AND x.token_mint=s.token_mint
+              AND x.observed_at BETWEEN $11::timestamptz AND $5::timestamptz
+            WHERE s.metrics_json->>'executableOutputAmountRaw' IS NOT NULL
+         ), excursion AS (
+           SELECT signal_id,max(change_bps) FILTER (WHERE change_bps>0) AS favorable_bps,
+                  abs(min(change_bps) FILTER (WHERE change_bps<0)) AS adverse_bps
+             FROM changes GROUP BY signal_id
+         ) UPDATE paper_profile_signal_outcomes o SET lifecycle_state='closed',exit_fill_id=$4,
+              exited_at=$5,exit_reason=$6,
+              realized_gross_bps=round((($7::numeric-$8::numeric)*10000/NULLIF($8::numeric,0)),2),
+              realized_net_bps=round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2),
+              realized_friction_bps=round((($9::numeric+$10::numeric)*10000/NULLIF($8::numeric,0)),2),
+              maximum_favorable_excursion_bps=GREATEST(0,round(excursion.favorable_bps,2)),
+              maximum_adverse_excursion_bps=GREATEST(0,round(excursion.adverse_bps,2)),
+              holding_seconds=GREATEST(0,extract(epoch FROM ($5::timestamptz-$11::timestamptz))::int),
+              target_hit=($6='profit_target'),stop_hit=($6='hard_stop'),updated_at=$5
+           FROM linked LEFT JOIN excursion USING (signal_id) WHERE o.signal_id=linked.signal_id`,
+        [input.wallet,profile.id,position.candidate_id,exitFillId,filledAt,reason,value.toString(),
+         cost.toString(),input.feeRaw.toString(),position.entry_fee_raw,iso(position.opened_at)],
       );
     });
   }
@@ -1428,6 +1620,62 @@ async function collectPostExitShadowObservations(input: {
   }
 }
 
+/**
+ * Prices every signal at fixed future horizons, including rejected signals.
+ * This is essential validation telemetry: measuring entered trades alone would
+ * hide profitable opportunities rejected by an over-restrictive gate.
+ */
+async function updateSignalForwardReturns(input: {
+  pool: Pool; wallet: WalletAddress; at: Timestamp;
+}): Promise<void> {
+  await input.pool.query(
+    `WITH due AS (
+       SELECT s.id FROM paper_profile_signals s
+       JOIN paper_profile_signal_outcomes existing ON existing.signal_id=s.id
+       WHERE s.wallet=$1 AND s.profile_id='oscillation_trader'
+         AND s.observed_at >= $2::timestamptz-interval '4 hours'
+         AND s.observed_at <= $2::timestamptz-interval '1 minute'
+         AND (NOT (existing.forward_returns_json ? 'oneMinuteBps')
+           OR (s.observed_at <= $2::timestamptz-interval '3 minutes' AND NOT (existing.forward_returns_json ? 'threeMinuteBps'))
+           OR (s.observed_at <= $2::timestamptz-interval '5 minutes' AND NOT (existing.forward_returns_json ? 'fiveMinuteBps'))
+           OR (s.observed_at <= $2::timestamptz-interval '10 minutes' AND NOT (existing.forward_returns_json ? 'tenMinuteBps')))
+       ORDER BY s.observed_at LIMIT 64
+     ) UPDATE paper_profile_signal_outcomes o SET
+       forward_returns_json=jsonb_strip_nulls(jsonb_build_object(
+         'oneMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '1 minute' ORDER BY x.observed_at LIMIT 1),
+         'threeMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '3 minutes' ORDER BY x.observed_at LIMIT 1),
+         'fiveMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '5 minutes' ORDER BY x.observed_at LIMIT 1),
+         'tenMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '10 minutes' ORDER BY x.observed_at LIMIT 1)
+       )),updated_at=$2
+      FROM paper_profile_signals s JOIN due ON due.id=s.id
+     WHERE o.signal_id=s.id AND o.wallet=$1
+       AND s.metrics_json->>'executableOutputAmountRaw' IS NOT NULL
+       AND o.forward_returns_json<>jsonb_strip_nulls(jsonb_build_object(
+         'oneMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '1 minute' ORDER BY x.observed_at LIMIT 1),
+         'threeMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '3 minutes' ORDER BY x.observed_at LIMIT 1),
+         'fiveMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '5 minutes' ORDER BY x.observed_at LIMIT 1),
+         'tenMinuteBps',(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000,2)
+           FROM paper_fast_market_observations x WHERE x.wallet=s.wallet AND x.token_mint=s.token_mint
+             AND x.observed_at>=s.observed_at+interval '10 minutes' ORDER BY x.observed_at LIMIT 1)
+       ))`,
+    [input.wallet,input.at],
+  );
+}
+
 /** Runs attributable profile decisions and independent simulated sub-portfolios using executable quotes. */
 export async function runProfilePaperSimulationCycle(input: {
   readonly database: Pool;
@@ -1474,6 +1722,7 @@ export async function runProfilePaperSimulationCycle(input: {
     wallet: input.wallet,
     at,
   });
+  await updateSignalForwardReturns({ pool: input.database, wallet: input.wallet, at });
 }
 
 export async function readProfilePostExitAnalysis(
@@ -1566,6 +1815,17 @@ export async function readProfilePaperPerformance(
                  FROM paper_fast_market_observations
                 WHERE wallet=$1 AND observed_at>=now()-interval '24 hours'
                 GROUP BY token_mint) observed
+     ), validation AS (
+       SELECT profile_id,count(*)::int AS telemetry_signals,
+              count(*) FILTER (WHERE lifecycle_state IN ('entered','closed'))::int AS telemetry_entered,
+              count(*) FILTER (WHERE lifecycle_state='closed')::int AS telemetry_closed,
+              count(*) FILTER (WHERE lifecycle_state='closed' AND realized_net_bps>0)::int AS telemetry_wins,
+              round(avg(realized_net_bps) FILTER (WHERE lifecycle_state='closed'),2)::text AS average_net_bps,
+              round(avg(realized_friction_bps) FILTER (WHERE lifecycle_state='closed'),2)::text AS average_realized_friction_bps,
+              round(avg(holding_seconds) FILTER (WHERE lifecycle_state='closed'),0)::text AS average_holding_seconds,
+              count(*) FILTER (WHERE lifecycle_state='rejected' AND
+                NULLIF(forward_returns_json->>'fiveMinuteBps','')::numeric>0)::int AS profitable_rejections
+         FROM paper_profile_signal_outcomes WHERE wallet=$1 GROUP BY profile_id
      )
      SELECT a.profile_id,a.initial_cash_raw::text,a.cash_raw::text,a.realized_pnl_raw::text,
             COALESCE(p.open_cost_raw,0)::text AS open_cost_raw,
@@ -1592,12 +1852,19 @@ export async function readProfilePaperPerformance(
             COALESCE(o.market_observations,0)::int AS market_observations,
             COALESCE(o.monitored_tokens,0)::int AS monitored_tokens,
             COALESCE(o.history_ready_tokens,0)::int AS history_ready_tokens
+            ,COALESCE(v.telemetry_signals,0)::int AS telemetry_signals
+            ,COALESCE(v.telemetry_entered,0)::int AS telemetry_entered
+            ,COALESCE(v.telemetry_closed,0)::int AS telemetry_closed
+            ,COALESCE(v.telemetry_wins,0)::int AS telemetry_wins
+            ,v.average_net_bps,v.average_realized_friction_bps,v.average_holding_seconds
+            ,COALESCE(v.profitable_rejections,0)::int AS profitable_rejections
        FROM paper_profile_accounts a
        LEFT JOIN positions p USING (profile_id)
        LEFT JOIN fills f USING (profile_id)
        LEFT JOIN decisions d USING (profile_id)
        LEFT JOIN signal_totals s USING (profile_id)
        LEFT JOIN latest_signals l USING (profile_id)
+       LEFT JOIN validation v USING (profile_id)
        CROSS JOIN observation_totals o
       WHERE a.wallet=$1 ORDER BY a.profile_id`,
     [wallet, temporalEngineVersion],

@@ -10,7 +10,7 @@ describe("paper profile activations", () => {
   it("supplies safe disabled defaults when no choices have been saved", async () => {
     const database = { query: async () => ({ rows: [] }) };
     const profiles = await listPaperProfileActivations(database as never, "wallet" as never);
-    expect(profiles).toHaveLength(19);
+    expect(profiles).toHaveLength(20);
     expect(profiles.every((profile) => !profile.enabled && profile.version === 0)).toBe(true);
   });
 
@@ -46,9 +46,10 @@ describe("paper profile activations", () => {
         expect(sql).toContain("'fast_furious',true,'automatic_paper',3000");
         expect(sql).toContain("'trend_detector',true,'automatic_paper',2000");
         expect(sql).toContain("'scalper',false,'observe',0");
+        expect(sql).toContain("'oscillation_trader',false,'observe',1250");
         expect(sql).toContain("WHERE NOT EXISTS");
         expect(sql).toContain("paper_profile_activation_audit");
-        return { rows: [{ inserted_count: "19" }] };
+        return { rows: [{ inserted_count: "20" }] };
       },
     };
     await expect(
@@ -58,7 +59,7 @@ describe("paper profile activations", () => {
         new Date("2026-09-12T12:00:00Z"),
       ),
     ).resolves.toBe(true);
-    expect(values).toHaveLength(21);
+    expect(values).toHaveLength(22);
   });
 
   it("blocks reactivating a retired profile", async () => {

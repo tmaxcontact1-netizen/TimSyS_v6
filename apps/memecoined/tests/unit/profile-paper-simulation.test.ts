@@ -10,6 +10,10 @@ import {
   fastObservationCohortSize,
   fastObservationDiscoverySlots,
   fastObservationTrackingUniverseSize,
+  oscillationObservationCohortSize,
+  oscillationObservationDiscoverySlots,
+  oscillationObservationTrackingUniverseSize,
+  observationConcurrency,
   observationUniverseBlockingRuleIds,
   refreshTemporalCandidateEvidence,
   trailingStopActivated,
@@ -33,6 +37,10 @@ describe("profile paper simulation policy", () => {
     expect(fastObservationCohortSize + fastObservationDiscoverySlots).toBe(16);
     expect(fastObservationTrackingUniverseSize).toBe(32);
     expect(fastObservationTrackingUniverseSize).toBeGreaterThan(fastObservationCohortSize);
+    expect(oscillationObservationCohortSize).toBe(56);
+    expect(oscillationObservationDiscoverySlots).toBe(8);
+    expect(oscillationObservationTrackingUniverseSize).toBe(64);
+    expect(observationConcurrency).toBe(8);
   });
   it("collects history for profile-dependent concentration rules without weakening authority safety", () => {
     expect(observationUniverseBlockingRuleIds).toEqual([
