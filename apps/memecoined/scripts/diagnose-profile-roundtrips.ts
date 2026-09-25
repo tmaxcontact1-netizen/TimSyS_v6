@@ -146,17 +146,18 @@ async function main() {
       .map(([index]) => tokenFor(index));
     discoveredMints.push(unsafeToken, costlyToken);
     const densityMints = new Set<string>();
-    const densityOscillatorMints = new Set<string>();
     // Production density is proved independently from the all-profile roundtrip
     // so neither test can make the other easier by changing its candidate mix.
     if (densityMode) for (let extra = 0; extra < 35; extra += 1) {
       const mint = tokenFor(profiles.length + 2 + extra);
-      const oscillator = extra < 5;
-      tokenIndex.set(mint, profiles.findIndex((profile) =>
-        profile.id === (oscillator ? "oscillation_trader" : "fast_furious")));
+      tokenIndex.set(mint, profiles.findIndex((profile) => profile.id === "oscillation_trader"));
       densityMints.add(mint);
-      if (oscillator) densityOscillatorMints.add(mint);
       discoveredMints.push(mint);
+    }
+    if (densityMode) {
+      const oscillatorIndex = profiles.findIndex((profile) => profile.id === "oscillation_trader");
+      for (const mint of discoveredMints)
+        if (mint !== unsafeToken && mint !== costlyToken) tokenIndex.set(mint, oscillatorIndex);
     }
     const source = new LiveCandidateDiscoverySource({
       strategyVersionId: asStrategyVersionId("strategy-v1.0.0"), now: () => start,
@@ -189,9 +190,9 @@ async function main() {
         if (result.eligible === (mint === unsafeToken))
           throw new Error(`Unexpected candidate safety result for ${mint}`);
         if (densityMints.has(mint)) await pool.query(
-          `UPDATE score_breakdowns SET total_score=$3
+          `UPDATE score_breakdowns SET total_score=95
             WHERE candidate_id=$1 AND evaluation_run_id=$2`,
-          [candidateId,evaluationRunId,densityOscillatorMints.has(mint) ? 95 : 94],
+          [candidateId,evaluationRunId],
         );
       }
     }
@@ -203,8 +204,8 @@ async function main() {
       profile.profileId === "whale_tracker" || profile.profileId === "social_catalyst"))
       throw new Error("Retired profiles remain in the selectable catalogue");
     await pool.query(
-      `UPDATE paper_profile_activations SET enabled=CASE WHEN $2::boolean
-              THEN profile_id IN ('fast_furious','oscillation_trader') ELSE true END,
+       `UPDATE paper_profile_activations SET enabled=CASE WHEN $2::boolean
+              THEN profile_id='oscillation_trader' ELSE true END,
          mode='automatic_paper',
          allocation_bps=CASE WHEN profile_id LIKE 'benchmark_%' THEN 10000 ELSE 1000 END
        WHERE wallet=$1`, [wallet,densityMode],
@@ -243,8 +244,12 @@ async function main() {
         trace: { provider: "diagnostic", sourceKey: "disposable" },
       },
     }) };
-    // Sixty simulated minutes at the production 30-second orchestration cadence.
-    for (cycle = 0; cycle < 120; cycle++) {
+    const initialObservationCount = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM paper_fast_market_observations WHERE wallet=$1`, [wallet]);
+    // Four simulated hours from empty persisted state at the production
+    // 30-second orchestration cadence. No observation history is seeded.
+    const verificationCycles = densityMode ? 480 : 120;
+    for (cycle = 0; cycle < verificationCycles; cycle++) {
       const at = asTimestamp(new Date(initial + cycle * 30_000));
       if (cycle > 0 && cycle % 20 === 0) await evaluateDiscovered(at);
       await runProfilePaperSimulationCycle({ database: pool, swap: swap as never, market: market as never,
@@ -349,6 +354,17 @@ async function main() {
                 count(*) FILTER (WHERE samples>=30)::text AS dense_tokens,
                 (SELECT tokens::text FROM eligible) AS eligible_tokens FROM observations`, [wallet],
     );
+    const coldStartProgression = await pool.query<{
+      first_observation_at: string | null; first_qualification_at: string | null;
+      first_eligible_at: string | null; pinned_tokens: string;
+    }>(
+      `SELECT
+         (SELECT min(observed_at)::text FROM paper_fast_market_observations WHERE wallet=$1) AS first_observation_at,
+         (SELECT min(qualified_at)::text FROM paper_profile_regime_watches WHERE wallet=$1) AS first_qualification_at,
+         (SELECT min(observed_at)::text FROM paper_profile_signals WHERE wallet=$1 AND eligible) AS first_eligible_at,
+         (SELECT count(DISTINCT token_mint)::text FROM paper_profile_regime_watches
+           WHERE wallet=$1 AND status='active' AND pinned) AS pinned_tokens`, [wallet],
+    );
     const rejectionTotals = await pool.query<{ profile_id: string; total: string }>(
       `SELECT profile_id,count(*)::text AS total FROM paper_profile_signals
         WHERE wallet=$1 AND NOT eligible GROUP BY profile_id ORDER BY profile_id`, [wallet],
@@ -373,6 +389,8 @@ async function main() {
       oscillatorTelemetry: telemetry.rows[0],
       regimeWatch: watches.rows[0],
       productionDensity: density.rows[0],
+      coldStartProgression: { initialObservations: Number(initialObservationCount.rows[0]?.count ?? -1),
+        simulatedHours: densityMode ? 4 : 1, ...coldStartProgression.rows[0] },
       rejectionTotals: rejectionTotals.rows,
       rejectionAttributionMismatch,
       dashboard: { displayedFills: dashboard.fills.length, performancePoints: performance.length,
@@ -387,7 +405,12 @@ async function main() {
         Number(watches.rows[0]?.pinned ?? 0) !== 8 || rejectionAttributionMismatch.length !== 0 ||
         (densityMode && (Number(density.rows[0]?.observed_tokens ?? 0) < 50 ||
         Number(density.rows[0]?.dense_tokens ?? 0) < 8 ||
-        Number(density.rows[0]?.eligible_tokens ?? 0) < 5)) ||
+        Number(density.rows[0]?.eligible_tokens ?? 0) < 5 ||
+        initialObservationCount.rows[0]?.count !== "0" ||
+        !coldStartProgression.rows[0]?.first_observation_at ||
+        !coldStartProgression.rows[0]?.first_qualification_at ||
+        !coldStartProgression.rows[0]?.first_eligible_at ||
+        Number(coldStartProgression.rows[0]?.pinned_tokens ?? 0) !== 8)) ||
         dashboard.fills.length === 0 || performance.length < 2)
       process.exitCode = 1;
   } finally {

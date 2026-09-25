@@ -61,6 +61,21 @@ async function runNodeScript(script, arguments_ = []) {
   });
 }
 
+async function readSourceCommit() {
+  return await new Promise((resolveRun, reject) => {
+    const chunks = [];
+    const child = spawn('git', ['rev-parse', 'HEAD'], {
+      cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    child.stdout.on('data', chunk => chunks.push(chunk));
+    child.stderr.on('data', chunk => process.stderr.write(chunk));
+    child.once('error', reject);
+    child.once('exit', code => code === 0
+      ? resolveRun(Buffer.concat(chunks).toString('utf8').trim())
+      : reject(new Error(`Unable to read source commit (${code})`)));
+  });
+}
+
 async function verifyMemecoinedPipeline() {
   if (!process.env.MEMECOINED_VERIFY_ADMIN_URL) {
     throw new Error('MemeCoin\'Ed update requires MEMECOINED_VERIFY_ADMIN_URL for its isolated full-path verification');
@@ -89,11 +104,14 @@ async function verifyMemecoinedPipeline() {
       !fullPath.profiles.some(profile => profile.profile_id === 'oscillation_trader') ||
       productionDensity.diagnostic !== 'discovery-to-displayed-paper-result' ||
       productionDensity.verificationMode !== 'production-density' ||
-      productionDensity.profiles?.length !== 2 ||
+      productionDensity.profiles?.length !== 1 ||
       productionDensity.profiles.some(profile => Number(profile.buys) === 0 || Number(profile.sells) === 0) ||
       Number(productionDensity.productionDensity?.observed_tokens ?? 0) < 50 ||
       Number(productionDensity.productionDensity?.dense_tokens ?? 0) < 8 ||
-      Number(productionDensity.productionDensity?.eligible_tokens ?? 0) < 5) {
+      Number(productionDensity.productionDensity?.eligible_tokens ?? 0) < 5 ||
+      productionDensity.coldStartProgression?.initialObservations !== 0 ||
+      productionDensity.coldStartProgression?.simulatedHours !== 4 ||
+      Number(productionDensity.coldStartProgression?.pinned_tokens ?? 0) !== 8) {
     throw new Error('MemeCoin\'Ed full-path verification returned incomplete evidence');
   }
   return { passedAt: new Date().toISOString(),
@@ -147,6 +165,7 @@ await runNodeScript(
 await runNodeScript('verify-windows-runtime.mjs');
 const memecoinedVerification = !selectedBundles || selectedBundles.has('memecoined')
   ? await verifyMemecoinedPipeline() : null;
+const sourceCommit = await readSourceCommit();
 
 if (outputDirectoryName === null) await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
@@ -179,6 +198,7 @@ if (memecoinedVerification) {
   if (!bundle) throw new Error('MemeCoin\'Ed bundle is missing after verification');
   await writeFile(join(output, `memecoined-verification-${releaseVersion}.json`), `${JSON.stringify({
     schemaVersion: 1, releaseVersion, bundleVersion: bundle.version, bundleSha256: bundle.sha256,
+    sourceCommit,
     ...memecoinedVerification,
   }, null, 2)}\n`, 'utf8');
 }

@@ -636,12 +636,15 @@ async function collectFastMarketObservations(input: {
         ORDER BY last_observed ASC NULLS FIRST,recent_observations DESC,total_score DESC LIMIT $5
      ), bootstrap_due AS (
        -- Full regime qualification needs dense history. Until all eight genuine
-       -- pins exist, keep a stable high-quality cohort on the same 15-second
-       -- cadence so qualification is reachable instead of circular.
+       -- pins exist, keep a stable security-cleared cohort on the same 15-second
+       -- cadence so qualification is reachable instead of circular. Selection
+       -- is independent of discovery score to avoid conditioning the observed
+       -- population on the upstream ranking model.
        SELECT * FROM universe WHERE pinned=false
          AND (last_observed IS NULL OR last_observed <= $2::timestamptz-interval '15 seconds')
          AND NOT EXISTS (SELECT 1 FROM pinned_due p WHERE p.mint_address=universe.mint_address)
-        ORDER BY total_score DESC,recent_observations DESC,evaluated_at DESC,mint_address
+        ORDER BY abs(hashtextextended(mint_address,
+                   floor(extract(epoch FROM $2::timestamptz)/21600)::bigint)),mint_address
         LIMIT GREATEST(0,$5-(SELECT count(*) FROM pinned_due))
      ), rotating_pool AS (
        SELECT * FROM universe WHERE pinned=false
