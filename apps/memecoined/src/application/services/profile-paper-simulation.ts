@@ -39,7 +39,7 @@ import { ObservationAttemptExecutor } from "../../workers/observation-attempt-ex
 
 export const profileSignalGateCounter = new SignalGateCounter();
 export const observationWatchSlotOrderSql =
-  "watch_score DESC,qualified_at DESC,token_mint";
+  "watch_score DESC,qualified_at DESC,mint_address";
 
 export interface ProfileScoreBreakdown {
   readonly wallet: number;
@@ -748,13 +748,10 @@ export async function collectFastMarketObservations(input: {
   const trackingUniverseSize = oscillationEnabled
     ? oscillationObservationTrackingUniverseSize
     : fastObservationTrackingUniverseSize;
-  const cohortSize = oscillationEnabled
-    ? oscillationObservationCohortSize
-    : fastObservationCohortSize;
   const discoverySlots = oscillationEnabled
     ? oscillationObservationDiscoverySlots
     : fastObservationDiscoverySlots;
-  const batchSize = cohortSize + discoverySlots;
+  const batchSize = observationConcurrency;
   await input.pool.query(
     `DELETE FROM paper_observation_probe_assignments
       WHERE wallet=$1 AND expires_at<=$2`,
@@ -805,7 +802,7 @@ export async function collectFastMarketObservations(input: {
               bool_or(pinned) AS pinned,max(regime_score) AS watch_score,max(qualified_at) AS qualified_at
          FROM paper_profile_regime_watches
         WHERE wallet=$1 AND status='active' AND qualified_at >= $2::timestamptz-interval '24 hours'
-          AND profile_id=ANY($8::text[])
+          AND profile_id=ANY($7::text[])
         GROUP BY token_mint
      ), latest AS (
        SELECT DISTINCT ON (c.mint_address) c.id::text AS candidate_id,c.mint_address,
@@ -840,28 +837,26 @@ export async function collectFastMarketObservations(input: {
      ), rotating_pool AS (
        SELECT * FROM universe WHERE watched_profiles IS NULL
          AND NOT EXISTS (SELECT 1 FROM probe_due b WHERE b.mint_address=universe.mint_address)
-        ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
-                 recent_observations DESC,total_score DESC,evaluated_at DESC,
+        ORDER BY last_observed ASC NULLS FIRST,recent_observations ASC,total_score DESC,evaluated_at DESC,
                  abs(hashtextextended(mint_address,floor(extract(epoch FROM $2::timestamptz)/3600)::bigint))
         LIMIT $4
      ), rotating_due AS (
        SELECT * FROM rotating_pool
         WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
         ORDER BY last_observed ASC NULLS FIRST,recent_observations DESC,total_score DESC
-        LIMIT $6
+        LIMIT $5
      ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules,watched_profiles,
               observation_cohort
          FROM (SELECT watch_due.*,'watch'::text observation_cohort FROM watch_due
                UNION ALL SELECT probe_due.*,'ot_probe'::text FROM probe_due
                UNION ALL SELECT rotating_due.*,'rotating'::text FROM rotating_due) observation_batch
         ORDER BY CASE observation_cohort WHEN 'watch' THEN 0 WHEN 'ot_probe' THEN 1 ELSE 2 END,
-                 last_observed ASC NULLS FIRST,total_score DESC LIMIT $7`,
+                 last_observed ASC NULLS FIRST,total_score DESC LIMIT $6`,
     [
       input.wallet,
       input.at,
       observationUniverseBlockingRuleIds,
       trackingUniverseSize,
-      cohortSize,
       discoverySlots,
       batchSize,
       enabled.rows.map(({ profile_id }) => profile_id),

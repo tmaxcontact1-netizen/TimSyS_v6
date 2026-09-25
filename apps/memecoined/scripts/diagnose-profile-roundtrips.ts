@@ -52,6 +52,7 @@ tokenIndex.set(unsafeToken, profiles.findIndex((profile) => profile.id === "benc
 tokenIndex.set(costlyToken, profiles.findIndex((profile) => profile.id === "benchmark_momentum"));
 let cycle = 0;
 const exitBoost = new Set<string>();
+const costlyObservationInstants = new Set<string>();
 let degradedQuoteCount = 0;
 
 function candidateFacts(at: ReturnType<typeof asTimestamp>, unsafe: boolean): CandidateEvaluationInput {
@@ -110,7 +111,12 @@ function price(index: number, step: number): number {
     if (phase < 35) return phase % 2 === 0 ? 1.006 : .994;
     return [1.001, .988, .974, .945, .958][phase - 35]!;
   }
-  if (profile.id === "slow_steady" || profile.id === "trend_detector")
+  if (
+    profile.id === "slow_steady" ||
+    profile.id === "trend_detector" ||
+    profile.id === "capital_preservation" ||
+    profile.id === "signal_consensus"
+  )
     return step < trendFixture.length ? trendFixture[step]! : trendFixture.at(-1)! + (step - trendFixture.length + 1) * .0003;
   // A bounded, liquid micro-range followed by an explicit rebound. The diagnostic
   // must prove the scalper's intended regime, not force it through a trend fixture.
@@ -214,8 +220,17 @@ async function main() {
       const mint = request.inputMint === WRAPPED_SOL_MINT ? request.outputMint : request.inputMint;
       const index = tokenIndex.get(mint);
       if (index === undefined) throw new Error(`Unknown diagnostic token ${mint}`);
-      const uneconomicEntry = request.inputMint === WRAPPED_SOL_MINT && mint === costlyToken &&
-        BigInt(request.inputAmount) !== 10_000_000n;
+      const firstCostlyObservationAtInstant =
+        request.inputMint === WRAPPED_SOL_MINT &&
+        mint === costlyToken &&
+        BigInt(request.inputAmount) === 10_000_000n &&
+        !costlyObservationInstants.has(request.requestedAt);
+      if (firstCostlyObservationAtInstant)
+        costlyObservationInstants.add(request.requestedAt);
+      const uneconomicEntry =
+        request.inputMint === WRAPPED_SOL_MINT &&
+        mint === costlyToken &&
+        !firstCostlyObservationAtInstant;
       if (uneconomicEntry) degradedQuoteCount += 1;
       const quotedPrice = request.inputMint !== WRAPPED_SOL_MINT && exitBoost.has(mint)
         ? 1.7 : price(index, cycle) * (uneconomicEntry ? 2 : 1);
@@ -457,7 +472,9 @@ async function main() {
 }
 
 main().catch(async (error: unknown) => {
-  process.stderr.write(`${error instanceof Error ? error.message : "Diagnostic failed"}\n`);
+  process.stderr.write(
+    `${error instanceof Error ? (error.stack ?? error.message) : "Diagnostic failed"}\n${JSON.stringify(error)}\n`,
+  );
   try { await admin.end(); } catch { /* best effort */ }
   process.exitCode = 1;
 });

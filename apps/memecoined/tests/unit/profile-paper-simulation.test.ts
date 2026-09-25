@@ -34,7 +34,7 @@ const score = {
 describe("profile paper simulation policy", () => {
   it("uses one production watch-eviction policy: score, newest qualification, then mint", () => {
     expect(observationWatchSlotOrderSql).toBe(
-      "watch_score DESC,qualified_at DESC,token_mint",
+      "watch_score DESC,qualified_at DESC,mint_address",
     );
   });
   it("reserves most quote capacity for a dense cohort while continuously admitting discoveries", () => {
