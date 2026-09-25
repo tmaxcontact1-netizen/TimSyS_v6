@@ -45,6 +45,11 @@ The immutable signal/outcome ledger must contain:
 - holding time.
 
 Missing required fields invalidate that trade for efficacy analysis and are reported as an instrumentation failure.
+The ledger stores both input and output amounts for the first signal and filled entry, so
+`entry_to_first_signal_bps` compares normalized executable prices rather than unlike raw
+token quantities. It also persists the signed estimated-to-measured friction difference
+and signed realized-to-planned loss difference; the pass test uses the positive portion
+of the latter.
 
 ## Interpretation order
 

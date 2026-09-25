@@ -300,10 +300,12 @@ async function main() {
               count(*) FILTER (WHERE lifecycle_state='closed')::text AS closed,
               count(*) FILTER (WHERE lifecycle_state='closed' AND
                 (entry_fill_id IS NULL OR exit_fill_id IS NULL OR exit_reason IS NULL OR
-                 first_signal_output_raw IS NULL OR entry_output_raw IS NULL OR
+                 first_signal_input_raw IS NULL OR first_signal_output_raw IS NULL OR
+                 entry_input_raw IS NULL OR entry_output_raw IS NULL OR
                  entry_to_first_signal_bps IS NULL OR planned_loss_bps IS NULL OR
                  realized_loss_bps IS NULL OR estimated_friction_bps IS NULL OR
-                 measured_round_trip_bps IS NULL OR realized_net_bps IS NULL OR
+                 measured_round_trip_bps IS NULL OR estimated_to_measured_friction_bps IS NULL OR
+                 realized_to_planned_loss_gap_bps IS NULL OR realized_net_bps IS NULL OR
                  holding_seconds IS NULL))::text AS incomplete
          FROM paper_profile_signal_outcomes WHERE wallet=$1 AND profile_id='oscillation_trader'`,
       [wallet],

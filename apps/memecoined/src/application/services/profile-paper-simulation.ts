@@ -811,6 +811,7 @@ async function collectFastMarketObservations(input: {
             mint: event.mint, reason: event.reason, ts: event.ts }));
       }
       const signalEvidence = { ...signal,
+        executableInputAmountRaw: quote.value.inputAmount.toString(),
         executableOutputAmountRaw: quote.value.expectedOutputAmount.toString(),
         adaptiveEntryEligible: adaptiveEntry.eligible,
         adaptiveEntryReason: adaptiveEntry.reason,
@@ -1346,11 +1347,16 @@ async function processPendingEntries(input: {
         await input.pool.query(
           `UPDATE paper_profile_signal_outcomes SET lifecycle_state='entered',entry_fill_id=$2,
                   entered_at=$3,
+                  first_signal_input_raw=(SELECT (metrics_json->>'executableInputAmountRaw')::numeric
+                                            FROM paper_profile_signals WHERE id=$1),
                   first_signal_output_raw=(SELECT (metrics_json->>'executableOutputAmountRaw')::numeric
                                              FROM paper_profile_signals WHERE id=$1),
+                  entry_input_raw=(SELECT settlement_amount_raw FROM paper_profile_fills WHERE id=$2),
                   entry_output_raw=(SELECT token_amount_raw FROM paper_profile_fills WHERE id=$2),
-                  entry_to_first_signal_bps=(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/
-                                               NULLIF(f.token_amount_raw,0))-1)*10000,2)
+                  entry_to_first_signal_bps=(SELECT round((
+                                               ((s.metrics_json->>'executableOutputAmountRaw')::numeric*f.settlement_amount_raw)/
+                                                NULLIF((s.metrics_json->>'executableInputAmountRaw')::numeric*f.token_amount_raw,0)-1
+                                               )*10000,2)
                                                FROM paper_profile_signals s JOIN paper_profile_fills f ON f.id=$2
                                               WHERE s.id=$1),
                   planned_loss_bps=planned_stop_bps,updated_at=$3 WHERE signal_id=$1`,
@@ -1620,7 +1626,11 @@ async function monitorPositions(input: {
               realized_net_bps=round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2),
               realized_friction_bps=round((($9::numeric+$10::numeric)*10000/NULLIF($8::numeric,0)),2),
               measured_round_trip_bps=round((($9::numeric+$10::numeric)*10000/NULLIF($8::numeric,0)),2),
+              estimated_to_measured_friction_bps=round((($9::numeric+$10::numeric)*10000/NULLIF($8::numeric,0)),2)
+                - estimated_friction_bps,
               realized_loss_bps=GREATEST(0,-round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2)),
+              realized_to_planned_loss_gap_bps=GREATEST(0,-round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2))
+                - planned_loss_bps,
               maximum_favorable_excursion_bps=GREATEST(0,round(excursion.favorable_bps,2)),
               maximum_adverse_excursion_bps=GREATEST(0,round(excursion.adverse_bps,2)),
               holding_seconds=GREATEST(0,extract(epoch FROM ($5::timestamptz-$11::timestamptz))::int),
