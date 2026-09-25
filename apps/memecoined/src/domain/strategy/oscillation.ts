@@ -21,6 +21,7 @@ export interface OscillationAssessment {
   readonly turnoverRate: number | null;
   readonly bollingerWidthBps: number;
   readonly smaCrossings: number;
+  readonly returnSignChanges: number;
   readonly lagOneAutocorrelation: number;
   readonly rsiExtremeTransitions: number;
   readonly currentRsi: number;
@@ -35,7 +36,12 @@ export interface OscillationAssessment {
   readonly maximumHoldingMinutes: number;
   readonly maximumRoundTripCostBps: number;
   readonly gates: Readonly<Record<string, boolean>>;
+  readonly regimeQualified: boolean;
+  readonly entryDataReady: boolean;
 }
+
+export const minimumRegimeSamples = 30;
+export const minimumEntrySamples = 20;
 
 const mean = (values: readonly number[]) =>
   values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -89,6 +95,16 @@ function smaCrossings(prices: readonly number[], period = 20): number {
   return crossings;
 }
 
+export function countReturnSignChanges(returns: readonly number[]): number {
+  let changes = 0, previous = 0;
+  for (const value of returns) {
+    const sign = Math.sign(value);
+    if (sign !== 0 && previous !== 0 && sign !== previous) changes += 1;
+    if (sign !== 0) previous = sign;
+  }
+  return changes;
+}
+
 function extremeTransitions(values: readonly number[]): number {
   let transitions = 0, previous: "low" | "middle" | "high" = "middle";
   for (const value of values) {
@@ -99,8 +115,25 @@ function extremeTransitions(values: readonly number[]): number {
   return transitions;
 }
 
+function recentOversoldTransition(prices: readonly number[]): boolean {
+  if (prices.length < 5) return false;
+  const start = Math.max(3, prices.length - 6);
+  for (let rebound = start; rebound < prices.length; rebound += 1) {
+    const prior = prices.slice(rebound - 3, rebound + 1);
+    const decline = prior.slice(1, -1).every((price, index) => price < prior[index]!) &&
+      prior.at(-2)! < prior.at(-3)!;
+    const reboundMove = 10_000 * (prior.at(-1)! / prior.at(-2)! - 1);
+    const declineMove = 10_000 * (prior.at(-2)! / prior[0]! - 1);
+    const retained = prices.at(-1)! >= prior.at(-2)! * .995;
+    if (decline && declineMove <= -20 && reboundMove >= 8 && retained) return true;
+  }
+  return false;
+}
+
 /** Pure, deterministic mean-reversion assessment over fixed-input executable quotes. */
-export function evaluateOscillation(points: readonly OscillationPoint[]): OscillationAssessment {
+export function evaluateOscillation(
+  points: readonly OscillationPoint[], options: { readonly watched?: boolean } = {},
+): OscillationAssessment {
   const ordered = [...points]
     .filter((point) => point.outputAmountRaw > 0n && Number.isFinite(Date.parse(point.observedAt)))
     .sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
@@ -119,6 +152,7 @@ export function evaluateOscillation(points: readonly OscillationPoint[]): Oscill
   const bollingerWidthBps = priceMean === 0 ? 0 : 40_000 * deviation / priceMean;
   const autocorrelation = lagOneAutocorrelation(returns);
   const crossings = smaCrossings(prices);
+  const signChanges = countReturnSignChanges(returns);
   const rsi = rsiSeries(returns);
   const currentRsi = rsi.at(-1) ?? 50;
   const rsiExtremeTransitions = extremeTransitions(rsi);
@@ -145,40 +179,45 @@ export function evaluateOscillation(points: readonly OscillationPoint[]): Oscill
   const maximumHoldingMinutes = Math.max(3, Math.min(8,
     Math.ceil(targetBps / Math.max(1, averageMinuteMove))));
   const gates = Object.freeze({
-    observations: window.length >= 30 && coverageSeconds >= 20 * 60,
+    observations: window.length >= minimumRegimeSamples && coverageSeconds >= 20 * 60,
+    entrySamples: window.filter((point) => latestAt - Date.parse(point.observedAt) <= 20 * 60_000).length >= minimumEntrySamples,
     liquidity: liquidity >= 50_000,
-    volatility: annualizedVolatilityScoreBps >= 150,
+    volatility: meanAbsoluteReturnBps >= 10,
     bollingerWidth: bollingerWidthBps >= 80 && bollingerWidthBps <= 250,
-    crossings: crossings >= 6,
-    autocorrelation: autocorrelation < -.2,
+    signChanges: signChanges >= 3,
     rsiExtremes: rsiExtremeTransitions >= 3,
     turnover: turnoverRate !== null && turnoverRate >= .005,
   });
   const score = (gates.volatility ? 25 : 0) + (gates.turnover ? 15 : 0) +
-    (gates.bollingerWidth ? 15 : 0) + (gates.crossings ? 20 : 0) +
-    (gates.autocorrelation ? 15 : 0) + (gates.rsiExtremes ? 10 : 0);
-  const oversold = (zScore <= -1.8 || currentRsi <= 30) && latestReturnBps > 0 &&
-    consecutiveDownSteps >= 3 && (buyPressure === null || buyPressure >= .48);
+    (gates.bollingerWidth ? 15 : 0) + (gates.signChanges ? 30 : 0) +
+    (gates.rsiExtremes ? 15 : 0);
+  const immediateOversold = (zScore <= -1.8 || currentRsi <= 30) && latestReturnBps > 0 &&
+    consecutiveDownSteps >= 3;
+  const oversold = (immediateOversold || recentOversoldTransition(prices)) &&
+    (buyPressure === null || buyPressure >= .48);
   const previousPrice = prices.at(-2) ?? 0;
   const previousZ = deviation === 0 ? 0 : (previousPrice - priceMean) / deviation;
   const volumeAverage = mean(window.slice(0, -1).map((point) => Number(point.fiveMinuteVolumeUsd ?? "0")));
   const midpoint = Math.abs(zScore) <= .5 && Math.abs(previousZ) >= .8 &&
-    previousZ < 0 && autocorrelation < -.2 && volumeAverage > 0 && volume >= 1.3 * volumeAverage;
+    previousZ < 0 && volumeAverage > 0 && volume >= 1.3 * volumeAverage;
   const signalType = oversold ? "extreme_oversold" : midpoint ? "midpoint_reversion" : null;
-  const structural = gates.observations && gates.liquidity && score >= 60;
-  const eligible = structural && signalType !== null;
+  const regimeQualified = gates.observations && gates.liquidity && gates.signChanges && score >= 60;
+  const structural = (options.watched === true || regimeQualified) && gates.liquidity;
+  const eligible = structural && gates.entrySamples && signalType !== null;
   const reason = !gates.observations ? "The 30-minute window lacks sufficient time coverage"
     : !gates.liquidity ? "Pool liquidity is below $50,000"
       : score < 60 ? `Oscillation score ${score} is below 60`
+        : !gates.entrySamples ? "ELIGIBLE_WITH_INSUFFICIENT_DATA: fewer than 20 observations in the rolling 20-minute entry window"
         : signalType === null ? "Oscillation regime is present but no long-side reversal has begun"
           : `${signalType} signal confirmed`;
   return Object.freeze({
     eligible, reason, signalType, score, observationCount: window.length, coverageSeconds,
     meanAbsoluteReturnBps, annualizedVolatilityScoreBps, turnoverRate, bollingerWidthBps,
-    smaCrossings: crossings, lagOneAutocorrelation: autocorrelation,
+    smaCrossings: crossings, returnSignChanges: signChanges, lagOneAutocorrelation: autocorrelation,
     rsiExtremeTransitions, currentRsi, zScore, latestReturnBps, consecutiveDownSteps,
     buyPressure, q75ExcursionBps, targetBps, hardStopBps,
     trailingStopBps: Math.max(20, Math.round(targetBps / 2)), maximumHoldingMinutes,
     maximumRoundTripCostBps: Math.floor(.6 * targetBps), gates,
+    regimeQualified, entryDataReady: gates.entrySamples,
   });
 }

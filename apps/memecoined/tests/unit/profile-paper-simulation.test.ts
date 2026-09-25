@@ -32,12 +32,12 @@ const score = {
 
 describe("profile paper simulation policy", () => {
   it("reserves most quote capacity for a dense cohort while continuously admitting discoveries", () => {
-    expect(fastObservationCohortSize).toBe(14);
-    expect(fastObservationDiscoverySlots).toBe(2);
+    expect(fastObservationCohortSize).toBe(8);
+    expect(fastObservationDiscoverySlots).toBe(8);
     expect(fastObservationCohortSize + fastObservationDiscoverySlots).toBe(16);
-    expect(fastObservationTrackingUniverseSize).toBe(32);
+    expect(fastObservationTrackingUniverseSize).toBe(64);
     expect(fastObservationTrackingUniverseSize).toBeGreaterThan(fastObservationCohortSize);
-    expect(oscillationObservationCohortSize).toBe(56);
+    expect(oscillationObservationCohortSize).toBe(8);
     expect(oscillationObservationDiscoverySlots).toBe(8);
     expect(oscillationObservationTrackingUniverseSize).toBe(64);
     expect(observationConcurrency).toBe(8);

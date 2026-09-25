@@ -10,7 +10,7 @@ import { asDecimal, asPercentage, asStrategyVersionId, asTimestamp, asUuid,
   type EvidenceId, type SignalId } from "../src/domain/shared/types.js";
 import { asMintAddress } from "../src/domain/token/token.js";
 import { tradingProfileCatalogue } from "../src/domain/strategy/profiles.js";
-import { runProfilePaperSimulationCycle } from "../src/application/services/profile-paper-simulation.js";
+import { profileSignalGateCounter, runProfilePaperSimulationCycle } from "../src/application/services/profile-paper-simulation.js";
 import { LiveCandidateDiscoverySource, discoverCandidate } from "../src/application/services/discovery.js";
 import { evaluateAndPersistCandidate } from "../src/application/services/candidate-pipeline.js";
 import type { CandidateEvaluationInput } from "../src/domain/candidate/evaluator.js";
@@ -104,11 +104,16 @@ const candidateFixtures = new Set<string>([
 
 function price(index: number, step: number): number {
   const profile = profiles[index]!;
-  if (profile.id === "oscillation_trader")
-    return [1.003, .997, 1.003, .997, 1.003, .997, .994, .990, .970, .971][step % 10]!;
+  if (profile.id === "oscillation_trader") {
+    const phase = step % 40;
+    if (phase < 35) return phase % 2 === 0 ? 1.006 : .994;
+    return [1.001, .988, .974, .945, .958][phase - 35]!;
+  }
   if (profile.id === "slow_steady" || profile.id === "trend_detector")
     return step < trendFixture.length ? trendFixture[step]! : trendFixture.at(-1)! + (step - trendFixture.length + 1) * .0003;
-  if (profile.id === "scalper") return 1 + step * .0003 + .005 * Math.sin(.6 * step + 1);
+  // A bounded, liquid micro-range followed by an explicit rebound. The diagnostic
+  // must prove the scalper's intended regime, not force it through a trend fixture.
+  if (profile.id === "scalper") return 1 + .005 * Math.sin(.8 * step + 1.1);
   if (profile.id === "benchmark_rsi_reversal")
     return step < 23 ? 1 - step * .008 : .816 + (step - 23) * .007;
   if (profile.id === "benchmark_bollinger_reversion")
@@ -216,7 +221,8 @@ async function main() {
         trace: { provider: "diagnostic", sourceKey: "disposable" },
       },
     }) };
-    for (cycle = 0; cycle < 100; cycle++) {
+    // Sixty simulated minutes at the production 30-second orchestration cadence.
+    for (cycle = 0; cycle < 120; cycle++) {
       const at = asTimestamp(new Date(initial + cycle * 30_000));
       if (cycle > 0 && cycle % 20 === 0) await evaluateDiscovered(at);
       await runProfilePaperSimulationCycle({ database: pool, swap: swap as never, market: market as never,
@@ -250,7 +256,7 @@ async function main() {
       `SELECT profile_id,token_mint,count(*) FILTER (WHERE eligible)::int AS eligible,
               count(*)::int AS observed
        FROM paper_fast_signal_events WHERE wallet=$1
-         AND profile_id IN ('fast_furious','liquidity_expansion')
+         AND profile_id IN ('fast_furious','scalper','liquidity_expansion')
        GROUP BY profile_id,token_mint ORDER BY profile_id,eligible DESC`, [wallet]);
     const negativeFills = await pool.query<{ token_mint: string; fills: string }>(
       `SELECT token_mint,count(*)::text AS fills FROM paper_profile_fills
@@ -293,10 +299,27 @@ async function main() {
               count(*) FILTER (WHERE lifecycle_state IN ('entered','closed'))::text AS entered,
               count(*) FILTER (WHERE lifecycle_state='closed')::text AS closed,
               count(*) FILTER (WHERE lifecycle_state='closed' AND
-                (entry_fill_id IS NULL OR exit_fill_id IS NULL OR realized_net_bps IS NULL OR holding_seconds IS NULL))::text AS incomplete
+                (entry_fill_id IS NULL OR exit_fill_id IS NULL OR exit_reason IS NULL OR
+                 first_signal_output_raw IS NULL OR entry_output_raw IS NULL OR
+                 entry_to_first_signal_bps IS NULL OR planned_loss_bps IS NULL OR
+                 realized_loss_bps IS NULL OR estimated_friction_bps IS NULL OR
+                 measured_round_trip_bps IS NULL OR realized_net_bps IS NULL OR
+                 holding_seconds IS NULL))::text AS incomplete
          FROM paper_profile_signal_outcomes WHERE wallet=$1 AND profile_id='oscillation_trader'`,
       [wallet],
     );
+    const watches = await pool.query<{ active: string; pinned: string }>(
+      `SELECT count(*) FILTER (WHERE status='active')::text AS active,
+              count(*) FILTER (WHERE status='active' AND pinned)::text AS pinned
+         FROM paper_profile_regime_watches WHERE wallet=$1`, [wallet],
+    );
+    const rejectionTotals = await pool.query<{ profile_id: string; total: string }>(
+      `SELECT profile_id,count(*)::text AS total FROM paper_profile_signals
+        WHERE wallet=$1 AND NOT eligible GROUP BY profile_id ORDER BY profile_id`, [wallet],
+    );
+    const inMemoryRejections = profileSignalGateCounter.totalsByProfile();
+    const rejectionAttributionMismatch = rejectionTotals.rows.filter((row) =>
+      (inMemoryRejections[row.profile_id] ?? 0) !== Number(row.total));
     const dashboard = await readPaperDashboardDetails(pool, wallet);
     const performance = await readPaperPerformanceHistory(pool, wallet, "all");
     const failed = result.rows.filter((row) => Number(row.buys) === 0 || Number(row.sells) === 0);
@@ -311,6 +334,9 @@ async function main() {
         degradedQuoteCount, priceImpactRejections: Number(costRejections.rows[0]?.count ?? 0),
         negativeFills: negativeFills.rows, accountingMismatches: accountingMismatches.rows },
       oscillatorTelemetry: telemetry.rows[0],
+      regimeWatch: watches.rows[0],
+      rejectionTotals: rejectionTotals.rows,
+      rejectionAttributionMismatch,
       dashboard: { displayedFills: dashboard.fills.length, performancePoints: performance.length,
         latestBookEquityRaw: performance.at(-1)?.bookEquityRaw ?? null },
     }, null, 2)}\n`);
@@ -320,6 +346,7 @@ async function main() {
         costRejections.rows[0]?.count === "0" || negativeFills.rows.length !== 0 ||
         accountingMismatches.rows.length !== 0 ||
         Number(telemetry.rows[0]?.closed ?? 0) === 0 || telemetry.rows[0]?.incomplete !== "0" ||
+        Number(watches.rows[0]?.pinned ?? 0) !== 8 || rejectionAttributionMismatch.length !== 0 ||
         dashboard.fills.length === 0 || performance.length < 2)
       process.exitCode = 1;
   } finally {

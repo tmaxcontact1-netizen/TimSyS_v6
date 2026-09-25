@@ -65,22 +65,22 @@ export async function readStrategyFunnel(
                 AND q.evaluated_at>=now()-interval '24 hours'
               ORDER BY q.evaluated_at DESC LIMIT 1) AS latest_execution_blocker,
             (SELECT x.reason FROM (
-               SELECT COALESCE(NULLIF(q.last_entry_error,''),NULLIF(q.reasons_json->>0,'')) AS reason,
+               SELECT NULLIF(q.rejection_reasons_json->>0,'') AS reason,
                       count(*) AS uses
-                 FROM paper_profile_candidate_decisions q
+                 FROM paper_profile_signals q
                 WHERE q.wallet=a.wallet AND q.profile_id=a.profile_id
-                  AND q.evaluated_at>=now()-interval '24 hours'
-                  AND (NOT q.eligible OR q.last_entry_error IS NOT NULL)
+                  AND q.observed_at>=now()-interval '24 hours' AND NOT q.eligible
                 GROUP BY 1 ORDER BY uses DESC LIMIT 1
              ) x) AS main_rejection
        FROM paper_profile_activations a
        LEFT JOIN LATERAL (
          SELECT count(*) AS signals,
                 count(DISTINCT token_mint) AS distinct_tokens,
-                count(*) FILTER (WHERE signal_json->>'pattern' NOT IN ('none','insufficient_history')) AS patterns,
-                count(*) FILTER (WHERE signal_json->>'marketConfirmed'='true') AS market_confirmed,
+                count(*) FILTER (WHERE signal_type IS NOT NULL) AS patterns,
+                count(*) FILTER (WHERE metrics_json->>'marketConfirmed'='true'
+                                      OR metrics_json->'oscillation'->>'regimeQualified'='true') AS market_confirmed,
                 count(DISTINCT token_mint) FILTER (WHERE eligible) AS qualified
-           FROM paper_fast_signal_events e
+           FROM paper_profile_signals e
           WHERE e.wallet=a.wallet AND e.profile_id=a.profile_id
             AND e.observed_at>=now()-interval '24 hours'
        ) s ON true

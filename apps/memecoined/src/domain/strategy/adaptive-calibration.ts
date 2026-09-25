@@ -17,7 +17,10 @@ interface Policy {
   irregularityMax: number; friction: number; validity: number;
 }
 const policies: Partial<Record<TradingProfileId, Policy>> = {
-  scalper: { model: "repeatable range reversal", target:.55,targetMin:60,targetMax:250,stop:.75,stopMin:55,stopMax:180,trail:.32,activate:.55,holdMin:3,holdMax:10,movementMin:45,irregularityMax:4,friction:.22,validity:5 },
+  // The adaptive ceiling must agree with the profile's declared 200 bps hard
+  // stop; the former 180 bps ceiling made a valid portion of its own bounded
+  // operating range unreachable before the execution risk gate ran.
+  scalper: { model: "repeatable range reversal", target:.55,targetMin:60,targetMax:250,stop:.75,stopMin:55,stopMax:200,trail:.32,activate:.55,holdMin:3,holdMax:10,movementMin:45,irregularityMax:4,friction:.22,validity:5 },
   fast_furious: { model: "short momentum and pullback continuation", target:.8,targetMin:100,targetMax:500,stop:.85,stopMin:85,stopMax:350,trail:.38,activate:.6,holdMin:5,holdMax:30,movementMin:45,irregularityMax:6,friction:.3,validity:10 },
   recovery_reversal: { model: "stabilisation and rebound", target:.85,targetMin:100,targetMax:700,stop:.75,stopMin:80,stopMax:400,trail:.4,activate:.65,holdMin:10,holdMax:180,movementMin:75,irregularityMax:4.5,friction:.3,validity:15 },
   breakout_retest: { model: "breakout range and retest depth", target:1,targetMin:125,targetMax:900,stop:.8,stopMin:90,stopMax:500,trail:.4,activate:.65,holdMin:15,holdMax:180,movementMin:90,irregularityMax:5,friction:.3,validity:15 },
@@ -130,7 +133,9 @@ export function evaluateAdaptiveEntry(
     });
   }
   const allowedPatterns: Partial<Record<TradingProfileId, readonly ShortHorizonSignal["pattern"][]>> = {
-    scalper: ["range_rebound", "pullback_rebound"],
+    // Keep this aligned with evaluateShortHorizonSignal: bounded momentum is an
+    // intentional Scalper setup, not a signal to discard at the next gate.
+    scalper: ["range_rebound", "pullback_rebound", "momentum"],
     slow_steady: ["trend"],
     trend_detector: ["trend"],
     liquidity_expansion: ["liquidity_expansion"],

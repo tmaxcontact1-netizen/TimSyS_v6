@@ -33,6 +33,10 @@ import {
 } from "../../domain/strategy/adaptive-calibration.js";
 import { scoreCandidate } from "../../domain/candidate/scoring.js";
 import { evaluateOscillation } from "../../domain/strategy/oscillation.js";
+import { assessFastFuriousRegime } from "../../domain/strategy/fast-furious-regime.js";
+import { SignalGateCounter } from "../../domain/strategy/signal-gate-counter.js";
+
+export const profileSignalGateCounter = new SignalGateCounter();
 
 export interface ProfileScoreBreakdown {
   readonly wallet: number;
@@ -235,11 +239,11 @@ type EntryAttempt =
 
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
-const temporalEngineVersion = "temporal-v16";
-export const fastObservationCohortSize = 14;
-export const fastObservationDiscoverySlots = 2;
-export const fastObservationTrackingUniverseSize = 32;
-export const oscillationObservationCohortSize = 56;
+const temporalEngineVersion = "temporal-v17-regime-watch";
+export const fastObservationCohortSize = 8;
+export const fastObservationDiscoverySlots = 8;
+export const fastObservationTrackingUniverseSize = 64;
+export const oscillationObservationCohortSize = 8;
 export const oscillationObservationDiscoverySlots = 8;
 export const oscillationObservationTrackingUniverseSize = 64;
 export const observationConcurrency = 8;
@@ -484,7 +488,9 @@ async function ensureAccounts(pool: Pool, wallet: WalletAddress, at: Timestamp):
   );
 }
 
-interface FastObservationCandidate extends CandidateRow {}
+interface FastObservationCandidate extends CandidateRow {
+  readonly watched_profiles: readonly TradingProfileId[] | null;
+}
 interface FastObservationRow {
   readonly observed_at: Date | string;
   readonly output_amount_raw: string;
@@ -504,6 +510,66 @@ interface EntryEvidenceRow {
   readonly five_minute_sells: string | null;
 }
 
+async function updateRegimeWatch(input: {
+  pool: Pool;
+  wallet: WalletAddress;
+  profileId: TradingProfileId;
+  mint: MintAddress;
+  at: Timestamp;
+  score: number;
+  qualified: boolean;
+}): Promise<void> {
+  if (input.qualified) {
+    await input.pool.query(
+      `INSERT INTO paper_profile_regime_watches
+         (wallet,profile_id,token_mint,qualified_at,last_evaluated_at,regime_score,
+          consecutive_qualifications,below_floor_cycles,pinned,status,updated_at)
+       VALUES ($1,$2,$3,$4,$4,$5,1,0,false,'active',$4)
+       ON CONFLICT (wallet,profile_id,token_mint) DO UPDATE SET
+         last_evaluated_at=EXCLUDED.last_evaluated_at,regime_score=EXCLUDED.regime_score,
+         consecutive_qualifications=paper_profile_regime_watches.consecutive_qualifications+1,
+         below_floor_cycles=0,status='active',updated_at=EXCLUDED.updated_at,
+         pinned=paper_profile_regime_watches.pinned OR
+                paper_profile_regime_watches.consecutive_qualifications+1>=5`,
+      [input.wallet, input.profileId, input.mint, input.at, Math.max(0, Math.min(100, input.score))],
+    );
+    return;
+  }
+  await input.pool.query(
+    `UPDATE paper_profile_regime_watches SET
+       last_evaluated_at=$4,regime_score=GREATEST(0,regime_score-1),
+       consecutive_qualifications=0,
+       below_floor_cycles=CASE WHEN $5<45 THEN below_floor_cycles+1 ELSE 0 END,
+       status=CASE WHEN $5<45 AND below_floor_cycles+1>=3
+                         AND $4::timestamptz-qualified_at>=interval '10 minutes'
+                   THEN 'removed' ELSE status END,
+       pinned=CASE WHEN $5<45 AND below_floor_cycles+1>=3
+                        AND $4::timestamptz-qualified_at>=interval '10 minutes'
+                   THEN false ELSE pinned END,updated_at=$4
+     WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 AND status='active'`,
+    [input.wallet, input.profileId, input.mint, input.at, Math.max(0, Math.min(100, input.score))],
+  );
+}
+
+async function rebalanceRegimePins(pool: Pool, wallet: WalletAddress, at: Timestamp): Promise<void> {
+  await pool.query(
+    `WITH ranked AS (
+       SELECT wallet,profile_id,token_mint,
+              row_number() OVER (ORDER BY regime_score DESC,consecutive_qualifications DESC,
+                                           qualified_at,profile_id,token_mint) AS pin_rank
+         FROM paper_profile_regime_watches
+        WHERE wallet=$1 AND status='active' AND consecutive_qualifications>=5
+     ) UPDATE paper_profile_regime_watches w
+           SET pinned=COALESCE(r.pin_rank<=8,false),updated_at=$2
+          FROM (SELECT w0.wallet,w0.profile_id,w0.token_mint,r0.pin_rank
+                  FROM paper_profile_regime_watches w0 LEFT JOIN ranked r0
+                    USING (wallet,profile_id,token_mint)
+                 WHERE w0.wallet=$1 AND w0.status='active') r
+         WHERE w.wallet=r.wallet AND w.profile_id=r.profile_id AND w.token_mint=r.token_mint`,
+    [wallet, at],
+  );
+}
+
 async function collectFastMarketObservations(input: {
   pool: Pool;
   swap: Pick<SwapPort, "quote">;
@@ -518,6 +584,11 @@ async function collectFastMarketObservations(input: {
     [input.wallet, [...temporalProfileIds]],
   );
   if (enabled.rows.length === 0) return;
+  await input.pool.query(
+    `UPDATE paper_profile_regime_watches SET status='expired',pinned=false,updated_at=$2
+      WHERE wallet=$1 AND status='active' AND qualified_at<$2::timestamptz-interval '24 hours'`,
+    [input.wallet, input.at],
+  );
   const oscillationEnabled = enabled.rows.some(({ profile_id }) => profile_id === "oscillation_trader");
   const trackingUniverseSize = oscillationEnabled
     ? oscillationObservationTrackingUniverseSize : fastObservationTrackingUniverseSize;
@@ -532,70 +603,53 @@ async function collectFastMarketObservations(input: {
               count(*) FILTER (WHERE observed_at >= $2::timestamptz-interval '15 minutes')::int
                 AS recent_observations
          FROM paper_fast_market_observations WHERE wallet=$1 GROUP BY token_mint
+     ), active_watches AS (
+       SELECT token_mint,array_agg(profile_id ORDER BY profile_id) AS watched_profiles,
+              bool_or(pinned) AS pinned
+         FROM paper_profile_regime_watches
+        WHERE wallet=$1 AND status='active' AND qualified_at >= $2::timestamptz-interval '24 hours'
+          AND profile_id=ANY($8::text[])
+        GROUP BY token_mint
      ), latest AS (
        SELECT DISTINCT ON (c.mint_address) c.id::text AS candidate_id,c.mint_address,
               s.total_score,s.breakdown_json,s.evaluated_at,
               COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
                          WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules,
-              h.last_observed,COALESCE(h.recent_observations,0) AS recent_observations
+              h.last_observed,COALESCE(h.recent_observations,0) AS recent_observations,
+              COALESCE(w.pinned,false) AS pinned,w.watched_profiles
          FROM candidates c JOIN LATERAL
               (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                 WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
               LEFT JOIN observation_history h ON h.token_mint=c.mint_address
-        WHERE s.total_score>=8 AND s.evaluated_at >= $2::timestamptz-interval '15 minutes'
+              LEFT JOIN active_watches w ON w.token_mint=c.mint_address
+        WHERE s.total_score>=8 AND (s.evaluated_at >= $2::timestamptz-interval '15 minutes'
+                                  OR w.token_mint IS NOT NULL)
         ORDER BY c.mint_address,s.evaluated_at DESC
      ), universe AS (
        -- Market points can improve; static authority and holder failures cannot.
        -- Spend bounded quote capacity on fresh, security-verified candidates.
        SELECT * FROM latest
         WHERE NOT (failed_rules && $3::text[])
-     ), tracked_universe AS (
-       -- Keep candidates with a live observation series ahead of newcomers.
-       -- Re-ranking solely by the newest discovery score caused cohort churn:
-       -- tokens were repeatedly replaced after 3-7 samples and could never
-       -- reach the ten executable observations required by calibration.
-       SELECT * FROM universe
+     ), pinned_due AS (
+       SELECT * FROM universe WHERE pinned=true
+         AND (last_observed IS NULL OR last_observed <= $2::timestamptz-interval '15 seconds')
+        ORDER BY last_observed ASC NULLS FIRST,recent_observations DESC,total_score DESC LIMIT $5
+     ), rotating_pool AS (
+       SELECT * FROM universe WHERE pinned=false
         ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
                  recent_observations DESC,total_score DESC,evaluated_at DESC,
-                 abs(hashtextextended(mint_address,
-                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint))
-       LIMIT $4
-     ), incumbents AS (
-       SELECT * FROM tracked_universe
-        WHERE last_observed >= $2::timestamptz-interval '5 minutes'
-          AND last_observed <= $2::timestamptz-interval '30 seconds'
-        ORDER BY recent_observations DESC,last_observed ASC,total_score DESC
-        LIMIT $5
-     ), discoveries AS (
-       -- Stratify new intake independently of the momentum score. Ordering
-       -- newcomers by score caused tokens to be observed because they had just
-       -- pumped and then rewarded the same rise again inside entry indicators.
-       SELECT u.* FROM universe u
-        WHERE (u.last_observed IS NULL OR u.last_observed < $2::timestamptz-interval '5 minutes')
-          AND NOT EXISTS (SELECT 1 FROM incumbents i WHERE i.mint_address=u.mint_address)
-        ORDER BY abs(hashtextextended(u.mint_address,
-                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),
-                 u.evaluated_at DESC
-        LIMIT $6
-     ), selected AS (
-       SELECT * FROM incumbents UNION ALL SELECT * FROM discoveries
-     ), fillers AS (
-       -- If fewer than fourteen incumbents are due, fill the unused capacity
-       -- without displacing the candidates whose history is already maturing.
-       SELECT u.* FROM tracked_universe u
-        WHERE NOT EXISTS (SELECT 1 FROM selected s WHERE s.mint_address=u.mint_address)
-          AND (u.last_observed IS NULL OR u.last_observed <= $2::timestamptz-interval '30 seconds')
-        ORDER BY CASE WHEN u.last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
-                 u.recent_observations DESC,COALESCE(u.last_observed,'epoch'::timestamptz),
-                 abs(hashtextextended(u.mint_address,
-                   floor(extract(epoch FROM $2::timestamptz)/3600)::bigint)),u.evaluated_at DESC
-        LIMIT GREATEST(0,$7::int-(SELECT count(*) FROM selected))
-     ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules
-         FROM (SELECT * FROM selected UNION ALL SELECT * FROM fillers) observation_batch
-        ORDER BY CASE WHEN last_observed >= $2::timestamptz-interval '5 minutes' THEN 0 ELSE 1 END,
-                 last_observed ASC NULLS FIRST,total_score DESC LIMIT $7`,
+                 abs(hashtextextended(mint_address,floor(extract(epoch FROM $2::timestamptz)/3600)::bigint))
+        LIMIT $4
+     ), rotating_due AS (
+       SELECT * FROM rotating_pool
+        WHERE last_observed IS NULL OR last_observed <= $2::timestamptz-interval '30 seconds'
+        ORDER BY last_observed ASC NULLS FIRST,recent_observations DESC,total_score DESC
+        LIMIT ($6+GREATEST(0,$5-(SELECT count(*) FROM pinned_due)))
+     ) SELECT candidate_id,mint_address,total_score,breakdown_json,evaluated_at,failed_rules,watched_profiles
+         FROM (SELECT * FROM pinned_due UNION ALL SELECT * FROM rotating_due) observation_batch
+        ORDER BY pinned DESC,last_observed ASC NULLS FIRST,total_score DESC LIMIT $7`,
     [input.wallet, input.at, observationUniverseBlockingRuleIds, trackingUniverseSize,
-     cohortSize, discoverySlots, batchSize],
+     cohortSize, discoverySlots, batchSize, enabled.rows.map(({ profile_id }) => profile_id)],
   );
   let anyEligibleSignal = false;
   for (let offset = 0; offset < candidates.rows.length; offset += observationConcurrency) {
@@ -683,11 +737,19 @@ async function collectFastMarketObservations(input: {
     for (const activation of enabled.rows) {
       const profile = tradingProfile(activation.profile_id);
       if (!profile) continue;
+      const watched = candidate.watched_profiles?.includes(profile.id) ?? false;
       const oscillation = profile.id === "oscillation_trader"
-        ? evaluateOscillation(points)
+        ? evaluateOscillation(points, { watched })
         : null;
       const shortSignal = oscillation === null
         ? evaluateShortHorizonSignal(profile.id, points) : null;
+      const fastRegime = profile.id === "fast_furious" && shortSignal !== null
+        ? assessFastFuriousRegime(shortSignal) : null;
+      if (oscillation !== null || fastRegime !== null) await updateRegimeWatch({
+        pool: input.pool, wallet: input.wallet, profileId: profile.id, mint, at: input.at,
+        score: oscillation?.score ?? fastRegime!.score,
+        qualified: oscillation?.regimeQualified ?? fastRegime!.qualified,
+      });
       const signal = shortSignal !== null
         ? shortSignal
         : Object.freeze({
@@ -720,9 +782,16 @@ async function collectFastMarketObservations(input: {
             tradeable: oscillation.eligible,
             reason: "Calibrated from non-overlapping executable-price excursions",
           } satisfies AdaptiveTradeCalibration);
-      const adaptiveEntry = oscillation === null
+      const rawAdaptiveEntry = oscillation === null
         ? evaluateAdaptiveEntry(profile.id, shortSignal!, adaptiveCalibration)
         : Object.freeze({ eligible: oscillation.eligible, reason: oscillation.reason });
+      const adaptiveEntry = fastRegime === null ? rawAdaptiveEntry : Object.freeze({
+        eligible: rawAdaptiveEntry.eligible && (watched || fastRegime.qualified) &&
+          fastRegime.sampleCount >= 20,
+        reason: fastRegime.sampleCount < 20
+          ? "The rolling entry window has fewer than 20 observations"
+          : !(watched || fastRegime.qualified) ? fastRegime.reason : rawAdaptiveEntry.reason,
+      });
       const profileDecision = evaluateProfileCandidate(
         profile,
         current.score,
@@ -733,12 +802,21 @@ async function collectFastMarketObservations(input: {
       const reasons = [adaptiveEntry.reason, ...profileDecision.reasons,
         ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
         ...(!current.staticEvidenceFresh ? ["Token-security evidence is older than 15 minutes"] : [])];
+      if (!eligible) {
+        const event = Object.freeze({ profileId: profile.id, mint: candidate.mint_address,
+          reason: reasons[0] ?? "Rejected without a recorded reason", ts: input.at });
+        profileSignalGateCounter.record(event);
+        if (process.env.MEMECOINED_REJECTION_TELEMETRY_STDOUT === "1")
+          console.info(JSON.stringify({ event: "profile_signal_rejected", profile: event.profileId,
+            mint: event.mint, reason: event.reason, ts: event.ts }));
+      }
       const signalEvidence = { ...signal,
         executableOutputAmountRaw: quote.value.expectedOutputAmount.toString(),
         adaptiveEntryEligible: adaptiveEntry.eligible,
         adaptiveEntryReason: adaptiveEntry.reason,
         ...(adaptiveCalibration ? { adaptiveCalibration } : {}),
-        ...(oscillation ? { oscillation } : {}), currentScore: current.score,
+        ...(oscillation ? { oscillation } : {}), ...(fastRegime ? { fastRegime } : {}),
+        regimeWatched: watched,currentScore: current.score,
         currentFailedRules: current.failedRules,
         sourceScoreEvaluatedAt: iso(candidate.evaluated_at) };
       const signalId = uuid([
@@ -865,6 +943,7 @@ async function collectFastMarketObservations(input: {
     anyEligibleSignal ||= producedEligibleSignal;
     }));
   }
+  await rebalanceRegimePins(input.pool, input.wallet, input.at);
   // Entry processing is deliberately serialized after concurrent observation.
   // Concurrent pending-entry consumers can quote the same live intent before
   // either transaction commits, creating avoidable contention and false errors.
@@ -1266,7 +1345,15 @@ async function processPendingEntries(input: {
         );
         await input.pool.query(
           `UPDATE paper_profile_signal_outcomes SET lifecycle_state='entered',entry_fill_id=$2,
-                  entered_at=$3,updated_at=$3 WHERE signal_id=$1`,
+                  entered_at=$3,
+                  first_signal_output_raw=(SELECT (metrics_json->>'executableOutputAmountRaw')::numeric
+                                             FROM paper_profile_signals WHERE id=$1),
+                  entry_output_raw=(SELECT token_amount_raw FROM paper_profile_fills WHERE id=$2),
+                  entry_to_first_signal_bps=(SELECT round((((s.metrics_json->>'executableOutputAmountRaw')::numeric/
+                                               NULLIF(f.token_amount_raw,0))-1)*10000,2)
+                                               FROM paper_profile_signals s JOIN paper_profile_fills f ON f.id=$2
+                                              WHERE s.id=$1),
+                  planned_loss_bps=planned_stop_bps,updated_at=$3 WHERE signal_id=$1`,
           [candidate.signal_id,attempt.fillId,input.at],
         );
       }
@@ -1532,6 +1619,8 @@ async function monitorPositions(input: {
               realized_gross_bps=round((($7::numeric-$8::numeric)*10000/NULLIF($8::numeric,0)),2),
               realized_net_bps=round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2),
               realized_friction_bps=round((($9::numeric+$10::numeric)*10000/NULLIF($8::numeric,0)),2),
+              measured_round_trip_bps=round((($9::numeric+$10::numeric)*10000/NULLIF($8::numeric,0)),2),
+              realized_loss_bps=GREATEST(0,-round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2)),
               maximum_favorable_excursion_bps=GREATEST(0,round(excursion.favorable_bps,2)),
               maximum_adverse_excursion_bps=GREATEST(0,round(excursion.adverse_bps,2)),
               holding_seconds=GREATEST(0,extract(epoch FROM ($5::timestamptz-$11::timestamptz))::int),

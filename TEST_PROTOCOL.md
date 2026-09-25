@@ -23,7 +23,7 @@ reader. Negative paths must demonstrate that unsafe tokens and unacceptable
 executable costs do not fill. Run
 `apps/memecoined/dist/scripts/diagnose-profile-roundtrips.js` with
 `MEMECOINED_VERIFY_ADMIN_URL` against a local PostgreSQL administrator endpoint.
-It creates and drops a uniquely named disposable database, exercises all 19
+It creates and drops a uniquely named disposable database, exercises all 20
 selectable profiles through the actual paper orchestrator and dashboard reader,
 and exits nonzero if any round trip or negative control fails. The release
 bundler runs this after build and runtime-stage verification; it fails closed
