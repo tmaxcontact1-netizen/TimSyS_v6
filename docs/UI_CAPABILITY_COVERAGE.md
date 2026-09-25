@@ -1,6 +1,6 @@
 # UI Capability Coverage
 
-Generated: 2026-09-19T11:52:16.331Z
+Generated: 2026-09-25T04:25:42.822Z
 
 This report is a static connection audit. A route is **referenced** when application frontend source contains a matching endpoint. Reference proves an intended UI connection, not that the resulting workflow is usable; interaction acceptance is a later gate.
 
@@ -93,14 +93,14 @@ Operational gaps: **1**
 
 ## MemeCoined
 
-Declared capabilities: **19**
-Frontend-referenced: **17**
+Declared capabilities: **21**
+Frontend-referenced: **19**
 Not referenced: **2**
 Operational gaps: **1**
 
 | Owner | Declared | Referenced | Unreferenced |
 |---|---:|---:|---:|
-| memecoined | 19 | 17 | 2 |
+| memecoined | 21 | 19 | 2 |
 
 ### Unreferenced capabilities
 
@@ -132,10 +132,10 @@ Operational gaps: **0**
 
 ```json
 {
-  "generatedAt": "2026-09-19T11:52:16.348Z",
+  "generatedAt": "2026-09-25T04:25:42.838Z",
   "totals": {
-    "declared": 662,
-    "referenced": 656,
+    "declared": 664,
+    "referenced": 658,
     "unreferenced": 6
   },
   "applications": {
@@ -148,8 +148,8 @@ Operational gaps: **0**
       "referenced": 30
     },
     "MemeCoined": {
-      "declared": 19,
-      "referenced": 17
+      "declared": 21,
+      "referenced": 19
     },
     "Research'Ed": {
       "declared": 49,

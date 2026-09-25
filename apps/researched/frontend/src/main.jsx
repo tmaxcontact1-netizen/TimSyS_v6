@@ -81,6 +81,8 @@ function App() {
     [runResults, setRunResults] = useState(null),
     [review, setReview] = useState(null),
     [capture, setCapture] = useState(null),
+    [uploadProgress, setUploadProgress] = useState([]),
+    [uploading, setUploading] = useState(false),
     [message, setMessage] = useState(""),
     [dialog, setDialog] = useState(null),
     [tab, setTab] = useState("overview");
@@ -172,6 +174,13 @@ function App() {
     } catch (x) {
       setMessage(x.message);
     }
+  };
+  const createStudy = async (event) => {
+    event.preventDefault(); const form=event.currentTarget,value=Object.fromEntries(new FormData(form)); setMessage("Creating your research workspace…");
+    try{
+      const study=await api("/api/studies",{method:"POST",body:JSON.stringify({title:value.title,researchQuestion:value.question,description:value.description||null,methodology:value.methodology||null,inclusionRules:[],exclusionRules:[]})});
+      form.reset(); await load(); setActive(study.id); setTab("corpus"); setMessage("Study created. Add the documents or webpages you want to analyse.");
+    }catch(error){setMessage(`Study was not created: ${error.message}`);}
   };
   const fetchSource = async (id) => {
     setMessage("Fetching and preserving source…");
@@ -279,9 +288,24 @@ function App() {
   const uploadDocuments=async(event)=>{
     event.preventDefault(); const input=event.currentTarget.elements.files,files=[...input.files];
     if(!files.length) return setMessage("Choose at least one document");
-    setMessage(`Uploading ${files.length} document(s)…`); let completed=0,failed=0;
-    for(const file of files){try{const response=await fetch(`/api/studies/${active}/uploads?filename=${encodeURIComponent(file.name)}`,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file}); if(!response.ok) throw new Error((await response.json()).error); completed++;}catch{failed++;}}
-    setSources((await api(`/api/sources?studyId=${active}`)).items); event.currentTarget.reset(); setMessage(`${completed} uploaded${failed?`; ${failed} failed and were not hidden`:""}`);
+    setUploading(true); setUploadProgress(files.map(file=>({name:file.name,status:"waiting",detail:"Waiting to upload"})));
+    setMessage(`Preparing ${files.length} document(s) for analysis…`); let completed=0,failed=0;
+    for(const file of files){
+      setUploadProgress(items=>items.map(item=>item.name===file.name?{...item,status:"working",detail:"Preserving and extracting text…"}:item));
+      try{
+        const response=await fetch(`/api/studies/${active}/uploads?prepare=true&filename=${encodeURIComponent(file.name)}`,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file});
+        const result=await response.json(); if(!response.ok) throw new Error(result.reason||result.error||"Upload failed");
+        if(!result.preparation?.readyForAnalysis) throw new Error(result.preparation?.warnings?.join("; ")||"No readable text was found");
+        completed++;
+        setUploadProgress(items=>items.map(item=>item.name===file.name?{...item,status:"ready",detail:`Ready for analysis · ${Number(result.extraction?.character_count||0).toLocaleString()} characters${result.preparation.usedOcr?" · OCR used":""}`}:item));
+      }catch(error){failed++;setUploadProgress(items=>items.map(item=>item.name===file.name?{...item,status:"failed",detail:String(error.message||error).replaceAll("_"," ")}:item));}
+    }
+    setSources((await api(`/api/sources?studyId=${active}`)).items); setAnalysis(await api(`/api/analysis?studyId=${active}`)); event.currentTarget.reset(); setUploading(false);
+    setMessage(`${completed} document${completed===1?"":"s"} ready for analysis${failed?`; ${failed} need attention`:""}`);
+  };
+  const beginDocumentAnalysis=()=>{
+    setAnalysisDraft(current=>({...current,name:current.name||`Document review · ${new Date().toLocaleDateString()}`,sourceMode:"all",analysisTypes:current.analysisTypes.length?current.analysisTypes:["syntax","readability"]}));
+    setAnalysisStep(1);setTab("analysis");setMessage("Your documents are ready. Confirm the sources and choose any additional analysis you need.");
   };
   const draftLines=(value)=>String(value||"").split("\n").map(item=>item.trim()).filter(Boolean);
   const updateAnalysisDraft=(key,value)=>setAnalysisDraft(current=>({...current,[key]:value}));
@@ -650,21 +674,7 @@ function App() {
               Define the question and methodological boundaries before
               collecting evidence.
             </p>
-            <form
-              onSubmit={submit((v) =>
-                api("/api/studies", {
-                  method: "POST",
-                  body: JSON.stringify({
-                    title: v.title,
-                    researchQuestion: v.question,
-                    description: v.description || null,
-                    methodology: v.methodology || null,
-                    inclusionRules: [],
-                    exclusionRules: [],
-                  }),
-                }),
-              )}
-            >
+            <form onSubmit={createStudy}>
               <Field label="Study title">
                 <input name="title" required />
               </Field>
@@ -842,9 +852,11 @@ function App() {
                     <h3>Add a batch of links</h3><p>Paste one URL per line. Every failed or duplicate item is reported.</p>
                     <form onSubmit={addBatchSources}><Field label="URLs"><textarea name="urls" rows="6" required placeholder="https://example.org/page\nhttps://example.org/report.pdf" /></Field><Field label="Authority"><select name="authority" defaultValue="unknown"><option value="unknown">Not assessed</option><option value="primary">Primary source</option><option value="secondary">Secondary source</option></select></Field><button>Add batch as pending</button></form>
                   </article>
-                  <article>
-                    <h3>Upload documents</h3><p>PDF, Word, text and HTML files are preserved before extraction. You can select several files.</p>
-                    <form onSubmit={uploadDocuments}><Field label="Documents"><input name="files" type="file" multiple accept=".pdf,.docx,.txt,.html,.htm,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/html" required /></Field><button>Upload selected documents</button></form>
+                  <article className="document-intake">
+                    <small>RECOMMENDED START</small><h3>Add documents</h3><p>Select one or several PDF, Word, text or HTML files. Research'Ed will preserve the originals, include them in this study and prepare their text for analysis. Image-only PDFs are read with local OCR.</p>
+                    <form onSubmit={uploadDocuments}><Field label="Choose documents" hint="Up to 50 MB per file. Your originals remain unchanged."><input name="files" type="file" multiple accept=".pdf,.docx,.txt,.html,.htm,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/html" required /></Field><button disabled={uploading}>{uploading?"Preparing documents…":"Add and prepare documents"}</button></form>
+                    {!!uploadProgress.length&&<div className="upload-progress" aria-live="polite">{uploadProgress.map(item=><div key={item.name} className={item.status}><span>{item.status==="ready"?"✓":item.status==="failed"?"!":"…"}</span><div><b>{item.name}</b><small>{item.detail}</small></div></div>)}</div>}
+                    {uploadProgress.some(item=>item.status==="ready")&&<button type="button" onClick={beginDocumentAnalysis}>Continue to analysis →</button>}
                   </article>
                   <article>
                     <h3>Web capture settings</h3><p>Rendered capture can open expandable sections before preserving the page. Link discovery stays on the same website by default.</p>

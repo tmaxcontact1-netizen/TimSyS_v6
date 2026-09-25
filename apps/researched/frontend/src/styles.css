@@ -232,6 +232,13 @@ button:active {
   border: 1px solid #376151;
   border-radius: 8px;
 }
+.document-intake{border-color:#39786d!important;background:linear-gradient(145deg,#10251f,#0b1519)!important}
+.document-intake>small{color:#77d4c3;font-weight:800;letter-spacing:.12em}
+.upload-progress{display:grid;gap:8px;margin:16px 0}
+.upload-progress>div{display:grid;grid-template-columns:24px 1fr;gap:9px;align-items:center;padding:10px;border:1px solid #30404b;border-radius:8px;background:#0a1117}
+.upload-progress>div>div{display:grid;gap:3px;min-width:0}
+.upload-progress .ready{border-color:#376151}.upload-progress .ready>span{color:#77d4c3}
+.upload-progress .failed{border-color:#714048}.upload-progress .failed>span{color:#ff9da4}
 .empty {
   padding: 32px;
   border: 1px dashed #3b4a55;

@@ -38,7 +38,7 @@ import {
   findBrowserExecutable,
   preserveSource,
 } from "../application/source-acquisition.js";
-import { extractStoredSnapshot } from "../application/source-extraction.js";
+import { extractStoredSnapshot, extractText } from "../application/source-extraction.js";
 import { assembleReport, renderReportHtml } from "../application/reporting.js";
 import { discoverStoredLinks } from "../application/link-discovery.js";
 import { analyseDeterministically } from "../application/deterministic-analysis.js";
@@ -395,7 +395,20 @@ export function createResearchServer(input: {
         const attemptId=randomUUID(); await repo.beginRetrieval(attemptId,sourceId,source.original_url,at);
         const hash=contentHash(bytes),storagePath=await preserveSource(storageRoot,sourceId,snapshotId,bytes,mediaType);
         const outcome=await repo.completeRetrieval({attemptId,sourceId,snapshotId,at,resolvedUrl:source.original_url,status:200,hash,mediaType,byteLength:bytes.length,storagePath,metadata:{uploaded:true,filename},unchanged:false});
-        return json(r,201,{source:{...source,retrieval_status:"available"},outcome});
+        if(url.searchParams.get("prepare")!=="true")
+          return json(r,201,{source:{...source,retrieval_status:"available"},outcome});
+        await repo.decideSource(sourceId,{corpusStatus:"included",reason:null,actor:"local-researcher"},at);
+        let extracted=await extractText(bytes,mediaType);
+        let usedOcr=false;
+        if(sourceType==="pdf"&&extracted.status==="empty"){
+          extracted=await extractText(bytes,mediaType,{ocr:true});
+          usedOcr=true;
+        }
+        const extraction=await repo.saveExtraction(randomUUID(),snapshotId,extracted,at,usedOcr);
+        return json(r,201,{
+          source:{...source,retrieval_status:"available",corpus_status:"included"},outcome,extraction,
+          preparation:{status:extracted.status,usedOcr,readyForAnalysis:extracted.status==="completed",warnings:extracted.warnings},
+        });
       }
       if (path === "/api/research-codes") {
         if (method === "GET")
