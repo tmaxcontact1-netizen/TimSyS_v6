@@ -7,15 +7,23 @@ The evaluation begins only after the verified build is installed and its engine 
 
 ## Current window origin
 
-- Results produced before release `2026.09.25.7` are invalidated and removed by migration `0059`.
-- The new clock begins only after `2026.09.25.7` has installed, MemeCoin'Ed has restarted, and the database reports ready.
-- The exact source commit is recorded in `memecoined-verification-2026.09.25.7.json`; that release artifact is the authoritative build identity.
+- Results produced before release `2026.09.25.8` are diagnostic and are not part of this window.
+- The current epoch began after `2026.09.25.8` was installed, MemeCoin'Ed restarted, and the database reported ready at `2026-09-25T19:54:26+03:00`.
+- The exact source commit is recorded in `memecoined-verification-2026.09.25.8.json`; that release artifact is the authoritative build identity.
 - Data from an earlier release is never concatenated with or averaged into this window.
-- The release gate starts from a newly created database with zero persisted market observations and simulates four hours at the production 30-second orchestration cadence across at least 50 competing tokens. It must demonstrate observation, qualification, eight pin assignments, entry eligibility, completed paper round trips and displayed results.
+- The release gate starts from a newly created database with zero persisted market observations and simulates four hours at the production 15-second dense/30-second rotating cadence across at least 50 competing tokens. It must demonstrate observation, qualification, eight pin assignments, entry eligibility, completed paper round trips and displayed results.
+
+## Declared instrumentation intervention
+
+- The worker process terminated without durable process output at `2026-09-25T21:18:30+03:00`; PostgreSQL remained healthy and the epoch/configuration hash survived unchanged.
+- The resulting inactive segment ended when the worker was reopened at `2026-09-26T06:42:15+03:00`. The `9h 24m 15s` gap is excluded from active scheduler time.
+- At `2026-09-26T06:51:35+03:00`, an instrumentation-only restart was declared and it became active at `2026-09-26T06:56:00+03:00`. The verified `.8` bundle and its database, epoch, profiles, allocations, thresholds, providers, balances and configuration hash remain unchanged. Worker/dashboard stdout and stderr are redirected to durable local files, and Node fatal-error and uncaught-exception diagnostic reports are enabled externally.
+- Windows Event IDs 1000/1001 and existing crash-dump locations contained no evidence for the first termination. Windows rejected LocalDumps registry configuration from the unelevated desktop session, so the Node diagnostic reports are the active crash-capture mechanism.
 
 ## Frozen window
 
-- Duration: 24 consecutive hours on live provider data.
+- Terminal condition: 60 valid closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first.
+- Active scheduler time is derived from `paper_observation_cycles`. It is the sum of elapsed time within continuous run segments; a gap greater than twice the nominal cycle interval ends the current segment and is not counted.
 - All strategy constants, gates, sizing rules, sampling policy, provider configuration, fees and starting balances are frozen.
 - A code, configuration, provider, allocation or parameter change invalidates the window and requires a fresh baseline.
 - Oscillation Trader and Fast & Furious are evaluated independently. Their records must never be pooled.
@@ -23,7 +31,13 @@ The evaluation begins only after the verified build is installed and its engine 
 
 ## Minimum evaluable sample
 
-Each of Oscillation Trader and Fast & Furious requires at least 60 closed trades. A 24-hour window with fewer than 60 closed trades is operational evidence but is not an efficacy verdict; the frozen run continues until the minimum is reached.
+Each evaluated profile requires at least 60 valid closed trades. A shorter active-time window with fewer than 60 closed trades is operational evidence but is not an efficacy verdict; the frozen run continues until either the trade-count target is reached or measured active scheduler time reaches 168 hours.
+
+## Recurrence policy
+
+- One unexplained process termination is retained as environmental noise only because the epoch/configuration hash and persisted evidence remained intact and the inactive interval is excluded.
+- A second unexplained worker termination ends this epoch as `diagnostic`. The crash cause must then be corrected in code, a new verified release and epoch created, and validation restarted.
+- Checkpoints remain read-only: cycle continuity, cohort occupancy, funnel counts, closed-trade evidence and captured process diagnostics. No mid-window strategy or runtime tuning is permitted.
 
 ## Pre-registered pass conditions
 
