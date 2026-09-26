@@ -273,8 +273,17 @@ function focusLauncher() {
 }
 
 async function stopChild(appId) {
-  try { await supervisedApps.stop(appId); } catch {}
-  if (appId === 'memecoined') await postgres.backup().catch(() => {});
+  if (appId !== 'memecoined') {
+    try { await supervisedApps.stop(appId); } catch {}
+    return;
+  }
+  await stopLauncherOwnedRuntime({
+    stopApplications: async () => {
+      try { await supervisedApps.stop(appId); } catch {}
+      await postgres.backup().catch(() => {});
+    },
+    stopDatabase: () => postgres.stop(),
+  });
 }
 
 function bindAppWindowLifecycle(window, appId) {
@@ -385,8 +394,15 @@ ipcMain.handle('launcher:return', async (event) => {
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
   requireSupervisedChild(appId);
-  const status = await supervisedApps.stop(appId);
-  if (appId === 'memecoined') await postgres.backup();
+  if (appId !== 'memecoined') return supervisedApps.stop(appId);
+  let status;
+  await stopLauncherOwnedRuntime({
+    stopApplications: async () => {
+      status = await supervisedApps.stop(appId);
+      await postgres.backup();
+    },
+    stopDatabase: () => postgres.stop(),
+  });
   return status;
 });
 

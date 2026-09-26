@@ -1,4 +1,6 @@
 import { pathToFileURL } from "node:url";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 import type { Pool } from "pg";
 
@@ -40,6 +42,33 @@ const productionFactories: ProductionWorkerFactories = Object.freeze({
   run: runProductionProcess,
 });
 
+export function persistHandledWorkerIncident(
+  error: unknown,
+  environment: NodeJS.ProcessEnv,
+  occurredAt = new Date(),
+) {
+  const message = error instanceof Error ? error.message : "Unknown production worker failure";
+  const incident = Object.freeze({
+    schemaVersion: 1,
+    level: "fatal",
+    kind: "handled_top_level_exception",
+    occurredAt: occurredAt.toISOString(),
+    pid: process.pid,
+    message,
+    stack: error instanceof Error ? (error.stack ?? null) : null,
+  });
+  const logRoot = environment.TIMSYS_CHILD_LOG_ROOT;
+  if (logRoot) {
+    mkdirSync(logRoot, { recursive: true });
+    writeFileSync(
+      join(logRoot, `worker-incident-${incident.occurredAt.replaceAll(":", "-")}.json`),
+      `${JSON.stringify(incident, null, 2)}\n`,
+      { flag: "wx" },
+    );
+  }
+  return incident;
+}
+
 /** Owns the complete worker process lifecycle and closes pools even before process startup. */
 export async function startProductionWorker(
   environment: NodeJS.ProcessEnv,
@@ -70,8 +99,24 @@ export async function startProductionWorker(
 const invokedPath = process.argv[1];
 if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
   startProductionWorker(process.env).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : "Unknown production worker failure";
-    process.stderr.write(`${JSON.stringify({ level: "fatal", message })}\n`);
+    let incident;
+    try {
+      incident = persistHandledWorkerIncident(error, process.env);
+    } catch (captureError) {
+      incident = Object.freeze({
+        schemaVersion: 1,
+        level: "fatal",
+        kind: "handled_top_level_exception",
+        occurredAt: new Date().toISOString(),
+        pid: process.pid,
+        message: error instanceof Error ? error.message : "Unknown production worker failure",
+        stack: error instanceof Error ? (error.stack ?? null) : null,
+      });
+      process.stderr.write(
+        `${JSON.stringify({ level: "error", message: "Failed to persist worker incident", cause: captureError instanceof Error ? captureError.message : "unknown" })}\n`,
+      );
+    }
+    process.stderr.write(`${JSON.stringify(incident)}\n`);
     process.exitCode = 1;
   });
 }

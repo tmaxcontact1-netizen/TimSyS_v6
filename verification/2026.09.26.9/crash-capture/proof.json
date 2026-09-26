@@ -1,0 +1,11 @@
+{
+  "generatedAt": "2026-09-26T05:17:11.212Z",
+  "node": "v24.19.0",
+  "exitCode": 1,
+  "reportPath": "C:\\Users\\tmaxc\\Downloads\\TimSyS\\TimSyS_v6\\verification\\2026.09.26.9\\crash-capture\\report.20260926.081711.8588.0.001.json",
+  "reportEvent": "Exception",
+  "reportTrigger": "Exception",
+  "stack": "[eval]:1",
+  "stderrPath": "C:\\Users\\tmaxc\\Downloads\\TimSyS\\TimSyS_v6\\verification\\2026.09.26.9\\crash-capture\\worker.stderr.log",
+  "marker": "TIMSYS_RELEASE_FORCED_CRASH"
+}

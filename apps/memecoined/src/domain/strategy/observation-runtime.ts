@@ -16,6 +16,7 @@ export interface ProbeCandidate {
 export const observationRuntimePolicy = Object.freeze({
   tickMs: 15_000,
   watchSlots: 4,
+  fastFuriousReservedWatchSlots: 1,
   otProbeSlots: 4,
   rotatingSlots: 8,
   rotatingEveryTicks: 2,
@@ -31,7 +32,7 @@ const cohortPriority: Readonly<Record<ObservationCohort, number>> = Object.freez
   watch: 2,
 });
 
-/** F&F and OT share four watch slots; lowest score and then oldest qualification loses capacity. */
+/** One dense watch slot is reserved for F&F; three remain shared by score and qualification age. */
 /** Two fairness probes preserve breadth; two sparse-volatility probes provide responsiveness. */
 export function allocateOtProbeSlots(
   candidates: readonly ProbeCandidate[],

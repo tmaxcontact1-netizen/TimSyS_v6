@@ -14,6 +14,10 @@ const work = (id: string, cohort: ObservationWork["cohort"], second = 0): Observ
 });
 
 describe("observation runtime policy", () => {
+  test("reserves one dense watch slot for Fast & Furious", () => {
+    expect(observationRuntimePolicy.watchSlots).toBe(4);
+    expect(observationRuntimePolicy.fastFuriousReservedWatchSlots).toBe(1);
+  });
   test("uses two fairness and two sparse-volatility OT probes without overlap", () => {
     const selected = allocateOtProbeSlots(
       Array.from({ length: 8 }, (_, index) => ({
@@ -56,8 +60,7 @@ describe("observation runtime policy", () => {
         retrySuccesses = 0,
         maximumDepth = 0;
       const fails = (value: number, salt: number) => {
-        const mixed =
-          Math.imul(value + 1, 2_654_435_761) ^ Math.imul(salt, 1_597_334_677);
+        const mixed = Math.imul(value + 1, 2_654_435_761) ^ Math.imul(salt, 1_597_334_677);
         return ((mixed >>> 0) % 10_000) / 10_000 < lossRate;
       };
       const fillWorkers = () => {
@@ -77,17 +80,13 @@ describe("observation runtime policy", () => {
           else if (!completed.retryFails) {
             retryAttempts += 1;
             retrySuccesses += 1;
-          }
-          else {
+          } else {
             retryAttempts += 1;
             continue;
           }
           observations += 1;
           if (completed.cohort === "ot_probe") {
-            probes.set(
-              completed.tokenMint,
-              (probes.get(completed.tokenMint) ?? 0) + 1,
-            );
+            probes.set(completed.tokenMint, (probes.get(completed.tokenMint) ?? 0) + 1);
             if (tick <= 120)
               probesFirstThirtyMinutes.set(
                 completed.tokenMint,
@@ -145,9 +144,9 @@ describe("observation runtime policy", () => {
       expect(queue.size).toBe(0);
       expect(report.cadenceDriftPercentage).toBeLessThanOrEqual(50);
       if (lossRate === 0.75)
-        expect(Math.min(...report.probeFirstThirtyMinutes.map(([, count]) => count))).toBeGreaterThanOrEqual(
-          30,
-        );
+        expect(
+          Math.min(...report.probeFirstThirtyMinutes.map(([, count]) => count)),
+        ).toBeGreaterThanOrEqual(30);
     },
   );
 });

@@ -1,0 +1,603 @@
+
+{
+  "header": {
+    "reportVersion": 5,
+    "event": "Exception",
+    "trigger": "Exception",
+    "filename": "report.20260926.081711.8588.0.001.json",
+    "dumpEventTime": "2026-09-26T08:17:11Z",
+    "dumpEventTimeStamp": "1790399831101",
+    "processId": 8588,
+    "threadId": 0,
+    "cwd": "C:\\Users\\tmaxc\\Downloads\\TimSyS\\TimSyS_v6",
+    "commandLine": [
+      "C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+      "--report-on-fatalerror",
+      "--report-uncaught-exception",
+      "--report-directory=C:\\Users\\tmaxc\\Downloads\\TimSyS\\TimSyS_v6\\verification\\2026.09.26.9\\crash-capture",
+      "-e",
+      "throw new Error(\"TIMSYS_RELEASE_FORCED_CRASH\")"
+    ],
+    "nodejsVersion": "v24.19.0",
+    "wordSize": 64,
+    "arch": "x64",
+    "platform": "win32",
+    "componentVersions": {
+      "acorn": "8.17.0",
+      "ada": "3.4.4",
+      "amaro": "1.1.10",
+      "ares": "1.34.6",
+      "brotli": "1.2.0",
+      "cldr": "48.0",
+      "icu": "78.3",
+      "llhttp": "9.4.3",
+      "merve": "1.2.2",
+      "modules": "137",
+      "napi": "10",
+      "nbytes": "0.1.4",
+      "ncrypto": "0.0.1",
+      "nghttp2": "1.69.0",
+      "nghttp3": "",
+      "ngtcp2": "",
+      "node": "24.19.0",
+      "openssl": "3.5.7",
+      "simdjson": "4.6.4",
+      "simdutf": "6.4.0",
+      "sqlite": "3.53.3",
+      "tz": "2026b",
+      "undici": "7.29.0",
+      "unicode": "17.0",
+      "uv": "1.52.1",
+      "uvwasi": "0.0.23",
+      "v8": "13.6.233.17-node.51",
+      "zlib": "1.3.2.1-motley-3246f1b",
+      "zstd": "1.5.7"
+    },
+    "release": {
+      "name": "node",
+      "lts": "Krypton",
+      "headersUrl": "https://nodejs.org/download/release/v24.19.0/node-v24.19.0-headers.tar.gz",
+      "sourceUrl": "https://nodejs.org/download/release/v24.19.0/node-v24.19.0.tar.gz",
+      "libUrl": "https://nodejs.org/download/release/v24.19.0/win-x64/node.lib"
+    },
+    "osName": "Windows_NT",
+    "osRelease": "10.0.26200",
+    "osVersion": "Windows 11 Home",
+    "osMachine": "x86_64",
+    "cpus": [
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 54216406,
+        "nice": 0,
+        "sys": 56197687,
+        "idle": 781568421,
+        "irq": 4862703
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 39390656,
+        "nice": 0,
+        "sys": 20148828,
+        "idle": 832442968,
+        "irq": 768906
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 108087203,
+        "nice": 0,
+        "sys": 45475859,
+        "idle": 738419390,
+        "irq": 1571031
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 79541203,
+        "nice": 0,
+        "sys": 32539015,
+        "idle": 779902234,
+        "irq": 1793890
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 103942703,
+        "nice": 0,
+        "sys": 41455437,
+        "idle": 746584312,
+        "irq": 1523796
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 74852062,
+        "nice": 0,
+        "sys": 27474906,
+        "idle": 789655484,
+        "irq": 1015468
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 93326968,
+        "nice": 0,
+        "sys": 37266515,
+        "idle": 761388968,
+        "irq": 1320703
+      },
+      {
+        "model": "AMD Custom APU 0405",
+        "speed": 2800,
+        "user": 68312609,
+        "nice": 0,
+        "sys": 29465453,
+        "idle": 794204390,
+        "irq": 2237812
+      }
+    ],
+    "networkInterfaces": [
+      {
+        "name": "WiFi",
+        "internal": false,
+        "mac": "14:d4:24:6f:d0:df",
+        "address": "192.168.100.172",
+        "netmask": "255.255.255.0",
+        "family": "IPv4"
+      },
+      {
+        "name": "Loopback Pseudo-Interface 1",
+        "internal": true,
+        "mac": "00:00:00:00:00:00",
+        "address": "::1",
+        "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
+        "family": "IPv6",
+        "scopeid": 0
+      },
+      {
+        "name": "Loopback Pseudo-Interface 1",
+        "internal": true,
+        "mac": "00:00:00:00:00:00",
+        "address": "127.0.0.1",
+        "netmask": "255.0.0.0",
+        "family": "IPv4"
+      }
+    ],
+    "host": "DESKTOP-5BEBAF5"
+  },
+  "javascriptStack": {
+    "message": "[eval]:1",
+    "stack": [
+      "throw new Error(\"TIMSYS_RELEASE_FORCED_CRASH\")",
+      "^",
+      "",
+      "Error: TIMSYS_RELEASE_FORCED_CRASH",
+      "at [eval]:1:7",
+      "at runScriptInThisContext (node:internal/vm:219:10)",
+      "at node:internal/process/execution:451:12",
+      "at [eval]-wrapper:6:24",
+      "at runScriptInContext (node:internal/process/execution:449:60)",
+      "at evalFunction (node:internal/process/execution:283:30)",
+      "at evalTypeScript (node:internal/process/execution:295:3)"
+    ],
+    "errorProperties": {
+    }
+  },
+  "javascriptHeap": {
+    "totalMemory": 6283264,
+    "executableMemory": 262144,
+    "totalCommittedMemory": 6283264,
+    "availableMemory": 2345221112,
+    "totalGlobalHandlesMemory": 12360,
+    "usedGlobalHandlesMemory": 2336,
+    "usedMemory": 4628624,
+    "memoryLimit": 2348810240,
+    "mallocedMemory": 163912,
+    "externalMemory": 1943513,
+    "peakMallocedMemory": 139376,
+    "nativeContextCount": 1,
+    "detachedContextCount": 0,
+    "doesZapGarbage": 0,
+    "heapSpaces": {
+      "read_only_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "new_space": {
+        "memorySize": 1048576,
+        "committedMemory": 1048576,
+        "capacity": 1048512,
+        "used": 422240,
+        "available": 626272
+      },
+      "old_space": {
+        "memorySize": 3284992,
+        "committedMemory": 3284992,
+        "capacity": 3281936,
+        "used": 2932848,
+        "available": 349088
+      },
+      "code_space": {
+        "memorySize": 262144,
+        "committedMemory": 262144,
+        "capacity": 262112,
+        "used": 28224,
+        "available": 233888
+      },
+      "shared_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "trusted_space": {
+        "memorySize": 1421312,
+        "committedMemory": 1421312,
+        "capacity": 1419528,
+        "used": 983152,
+        "available": 436376
+      },
+      "shared_trusted_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "new_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 1048512,
+        "used": 0,
+        "available": 1048512
+      },
+      "large_object_space": {
+        "memorySize": 266240,
+        "committedMemory": 266240,
+        "capacity": 262160,
+        "used": 262160,
+        "available": 0
+      },
+      "code_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "shared_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "shared_trusted_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      },
+      "trusted_large_object_space": {
+        "memorySize": 0,
+        "committedMemory": 0,
+        "capacity": 0,
+        "used": 0,
+        "available": 0
+      }
+    }
+  },
+  "nativeStack": [
+    {
+      "pc": "0x00007ff76304fef7",
+      "symbol": "node::GetAnonymousMainPath+292071"
+    },
+    {
+      "pc": "0x00007ff76304c3cd",
+      "symbol": "node::GetAnonymousMainPath+276925"
+    },
+    {
+      "pc": "0x00007ff7631265ac",
+      "symbol": "node::OnFatalError+6700"
+    },
+    {
+      "pc": "0x00007ff76312749f",
+      "symbol": "node::OnFatalError+10527"
+    },
+    {
+      "pc": "0x00007ff761bd3579",
+      "symbol": "v8::base::CPU::num_virtual_address_bits+2121"
+    },
+    {
+      "pc": "0x00007ff761bd336d",
+      "symbol": "v8::base::CPU::num_virtual_address_bits+1597"
+    },
+    {
+      "pc": "0x00007ff761be20ed",
+      "symbol": "SSL_CTX_set_default_read_buffer_len+15549"
+    },
+    {
+      "pc": "0x00007ff761c023fa",
+      "symbol": "v8::base::OS::ActivationFrameAlignment+3578"
+    },
+    {
+      "pc": "0x00007ff761c01cbc",
+      "symbol": "v8::base::OS::ActivationFrameAlignment+1724"
+    },
+    {
+      "pc": "0x00007ff761d67d0e",
+      "symbol": "v8::Function::Call+606"
+    },
+    {
+      "pc": "0x00007ff761d67f36",
+      "symbol": "v8::Function::Call+70"
+    },
+    {
+      "pc": "0x00007ff763159402",
+      "symbol": "node::GetCurrentEnvironment+114930"
+    },
+    {
+      "pc": "0x00007ff76305f56b",
+      "symbol": "node::GetNodeReport+53195"
+    },
+    {
+      "pc": "0x00007ff763182cc9",
+      "symbol": "node_api_create_buffer_from_arraybuffer+12617"
+    },
+    {
+      "pc": "0x00007ff763182b70",
+      "symbol": "node_api_create_buffer_from_arraybuffer+12272"
+    },
+    {
+      "pc": "0x00007ff76323a483",
+      "symbol": "node::LoadEnvironment+339"
+    },
+    {
+      "pc": "0x00007ff7630b3a99",
+      "symbol": "node::MultiIsolatePlatform::DisposeIsolate+292057"
+    },
+    {
+      "pc": "0x00007ff763187939",
+      "symbol": "node::Start+3897"
+    },
+    {
+      "pc": "0x00007ff763241552",
+      "symbol": "node::AsyncResource::CallbackScope::CallbackScope+610"
+    },
+    {
+      "pc": "0x00007ff7634514f4",
+      "symbol": "node::AsyncResource::CallbackScope::CallbackScope+2163204"
+    },
+    {
+      "pc": "0x00007ffccd09cd87",
+      "symbol": "BaseThreadInitThunk+23"
+    },
+    {
+      "pc": "0x00007ffccee2caec",
+      "symbol": "RtlUserThreadStart+44"
+    }
+  ],
+  "resourceUsage": {
+    "free_memory": 4565852160,
+    "total_memory": 15944105984,
+    "rss": 39710720,
+    "available_memory": 4565667840,
+    "userCpuSeconds": 0.109,
+    "kernelCpuSeconds": 0.031,
+    "cpuConsumptionPercent": 14,
+    "userCpuConsumptionPercent": 10.9,
+    "kernelCpuConsumptionPercent": 3.1,
+    "maxRss": 61497344,
+    "pageFaults": {
+      "IORequired": 15738,
+      "IONotRequired": 0
+    },
+    "fsActivity": {
+      "reads": 0,
+      "writes": 5
+    }
+  },
+  "uvthreadResourceUsage": {
+    "userCpuSeconds": 0.109,
+    "kernelCpuSeconds": 0.031,
+    "cpuConsumptionPercent": 14,
+    "userCpuConsumptionPercent": 10.9,
+    "kernelCpuConsumptionPercent": 3.1,
+    "fsActivity": {
+      "reads": 0,
+      "writes": 0
+    }
+  },
+  "libuv": [
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x0000021da6257860"
+    },
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x00007ff7669d1f68"
+    },
+    {
+      "type": "timer",
+      "is_active": false,
+      "is_referenced": false,
+      "address": "0x0000021de05c2460",
+      "repeat": 0,
+      "firesInMsFromNow": -891982845,
+      "expired": true
+    },
+    {
+      "type": "check",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x0000021de05c2500"
+    },
+    {
+      "type": "idle",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x0000021de05c2578"
+    },
+    {
+      "type": "prepare",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x0000021de05c25f0"
+    },
+    {
+      "type": "check",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x0000021de05c2668"
+    },
+    {
+      "type": "async",
+      "is_active": true,
+      "is_referenced": false,
+      "address": "0x0000021de05c26e0"
+    },
+    {
+      "type": "pipe",
+      "is_active": false,
+      "is_referenced": true,
+      "address": "0x0000021da7d12c68",
+      "localEndpoint": null,
+      "remoteEndpoint": "\\\\?\\pipe\\uv\\1-4484",
+      "writeQueueSize": 0,
+      "readable": false,
+      "writable": true
+    },
+    {
+      "type": "loop",
+      "is_active": false,
+      "address": "0x00007ff7669ac088",
+      "loopIdleTimeSeconds": 0
+    }
+  ],
+  "workers": [
+  ],
+  "environmentVariables": {
+    "ALLUSERSPROFILE": "C:\\ProgramData",
+    "APPDATA": "C:\\Users\\tmaxc\\AppData\\Roaming",
+    "CLASSPATH": "C:\\Program Files\\PDFStudio2022\\lib\\pdfstudio.jar;C:\\Program Files\\PDFStudio2022\\lib\\cmaps.jar",
+    "CODEX_APP_TOOLS_PIPE_PATH": "\\\\.\\pipe\\codex-browser-use-c2ee4230-eb7a-4688-af93-c268e8d5f546",
+    "CODEX_CI": "1",
+    "CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop",
+    "CODEX_MCP_NODE_PATH": "C:\\Users\\tmaxc\\AppData\\Local\\OpenAI\\Codex\\runtimes\\cua_node\\6f12e0ef1c6e5061\\bin\\node.exe",
+    "CODEX_PERMISSION_PROFILE": ":workspace",
+    "CODEX_SAGE_BACKFILL_TRACKER_TAB_REUSE": "1",
+    "CODEX_SANDBOX_NETWORK_DISABLED": "1",
+    "CODEX_SESSION_ID": "019ff787-5fc7-7232-96f0-e6064bc723c6",
+    "CODEX_THREAD_ID": "019ff787-5fc7-7232-96f0-e6064bc723c6",
+    "CODEX_VERSION": "0.154.0-alpha.6.2",
+    "COLORTERM": "",
+    "CommonProgramFiles": "C:\\Program Files\\Common Files",
+    "CommonProgramFiles(x86)": "C:\\Program Files (x86)\\Common Files",
+    "CommonProgramW6432": "C:\\Program Files\\Common Files",
+    "COMPUTERNAME": "DESKTOP-5BEBAF5",
+    "ComSpec": "C:\\WINDOWS\\system32\\cmd.exe",
+    "DriverData": "C:\\Windows\\System32\\Drivers\\DriverData",
+    "GH_PAGER": "cat",
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "safe.directory",
+    "GIT_CONFIG_KEY_1": "safe.directory",
+    "GIT_CONFIG_VALUE_0": "C:\\Users\\tmaxc\\Downloads\\TimSyS\\TimSyS_v6",
+    "GIT_CONFIG_VALUE_1": "C:\\Users\\tmaxc\\Downloads\\TimSyS\\TimSyS_v6/*",
+    "GIT_PAGER": "cat",
+    "HOMEDRIVE": "C:",
+    "HOMEPATH": "\\Users\\tmaxc",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "LC_CTYPE": "C.UTF-8",
+    "LESS": "",
+    "LOCALAPPDATA": "C:\\Users\\tmaxc\\AppData\\Local",
+    "LOGONSERVER": "\\\\DESKTOP-5BEBAF5",
+    "LOG_FORMAT": "json",
+    "NODE_REPL_TRUSTED_BROWSER_CLIENT_SHA256S": "8e172ec9f458f2e636fc69a1b8c68c217f6bb8d10c41f70a05a0878b73863701",
+    "NO_COLOR": "1",
+    "NUMBER_OF_PROCESSORS": "8",
+    "OneDrive": "C:\\Users\\tmaxc\\OneDrive",
+    "OS": "Windows_NT",
+    "PAGER": "cat",
+    "PATH": "C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\tmaxc\\.codex\\tmp\\arg0\\codex-arg03WBAwa;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\libheif\\libheif\\bin;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\jxrlib\\jxrlib\\bin;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\poppler\\Library\\bin;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\override;C:\\WINDOWS\\system32;C:\\WINDOWS;C:\\WINDOWS\\System32\\Wbem;C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\;C:\\WINDOWS\\System32\\OpenSSH\\;C:\\Program Files\\PDFStudio2022\\jre\\bin\\server;C:\\Program Files\\Git\\cmd;C:\\Program Files\\GitHub CLI\\;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell;C:\\Users\\tmaxc\\AppData\\Local\\Microsoft\\WindowsApps;C:\\Users\\tmaxc\\AppData\\Local\\Programs\\Microsoft VS Code\\bin;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin\\fallback;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin;C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\git\\cmd;C:\\Users\\tmaxc\\AppData\\Local\\OpenAI\\Codex\\bin\\4fe45441001f7a41;C:\\Users\\tmaxc\\AppData\\Local\\OpenAI\\Codex\\bin\\12219cbfbcbddde7",
+    "PATHEXT": ".COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL",
+    "PROCESSOR_ARCHITECTURE": "AMD64",
+    "PROCESSOR_IDENTIFIER": "AMD64 Family 23 Model 144 Stepping 2, AuthenticAMD",
+    "PROCESSOR_LEVEL": "23",
+    "PROCESSOR_REVISION": "9002",
+    "ProgramData": "C:\\ProgramData",
+    "ProgramFiles": "C:\\Program Files",
+    "ProgramFiles(x86)": "C:\\Program Files (x86)",
+    "ProgramW6432": "C:\\Program Files",
+    "PSModulePath": "C:\\Users\\tmaxc\\Documents\\PowerShell\\Modules;C:\\Program Files\\PowerShell\\Modules;c:\\users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\Modules;C:\\Program Files\\WindowsPowerShell\\Modules;C:\\WINDOWS\\system32\\WindowsPowerShell\\v1.0\\Modules",
+    "PUBLIC": "C:\\Users\\Public",
+    "RUST_LOG": "warn",
+    "SystemDrive": "C:",
+    "SystemRoot": "C:\\WINDOWS",
+    "TEMP": "C:\\Users\\tmaxc\\AppData\\Local\\Temp",
+    "TERM": "dumb",
+    "TMP": "C:\\Users\\tmaxc\\AppData\\Local\\Temp",
+    "USERDOMAIN": "DESKTOP-5BEBAF5",
+    "USERDOMAIN_ROAMINGPROFILE": "DESKTOP-5BEBAF5",
+    "USERNAME": "tmaxc",
+    "USERPROFILE": "C:\\Users\\tmaxc",
+    "windir": "C:\\WINDOWS"
+  },
+  "sharedObjects": [
+    "C:\\Users\\tmaxc\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe",
+    "C:\\WINDOWS\\SYSTEM32\\ntdll.dll",
+    "C:\\WINDOWS\\System32\\KERNEL32.DLL",
+    "C:\\WINDOWS\\System32\\KERNELBASE.dll",
+    "C:\\WINDOWS\\System32\\CRYPT32.dll",
+    "C:\\WINDOWS\\System32\\ucrtbase.dll",
+    "C:\\WINDOWS\\System32\\WS2_32.dll",
+    "C:\\WINDOWS\\System32\\RPCRT4.dll",
+    "C:\\WINDOWS\\System32\\USER32.dll",
+    "C:\\WINDOWS\\System32\\win32u.dll",
+    "C:\\WINDOWS\\System32\\GDI32.dll",
+    "C:\\WINDOWS\\System32\\gdi32full.dll",
+    "C:\\WINDOWS\\System32\\msvcp_win.dll",
+    "C:\\WINDOWS\\System32\\ADVAPI32.dll",
+    "C:\\WINDOWS\\System32\\msvcrt.dll",
+    "C:\\WINDOWS\\System32\\sechost.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dbghelp.dll",
+    "C:\\WINDOWS\\System32\\SHELL32.dll",
+    "C:\\WINDOWS\\System32\\combase.dll",
+    "C:\\WINDOWS\\System32\\ole32.dll",
+    "C:\\WINDOWS\\SYSTEM32\\IPHLPAPI.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\USERENV.dll",
+    "C:\\WINDOWS\\System32\\OLEAUT32.dll",
+    "C:\\WINDOWS\\SYSTEM32\\WINMM.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dbgcore.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\CRYPTBASE.DLL",
+    "C:\\WINDOWS\\System32\\IMM32.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\powrprof.dll",
+    "C:\\WINDOWS\\SYSTEM32\\UMPDC.dll",
+    "C:\\WINDOWS\\System32\\bcryptprimitives.dll",
+    "C:\\WINDOWS\\system32\\uxtheme.dll",
+    "C:\\WINDOWS\\system32\\mswsock.dll",
+    "C:\\WINDOWS\\SYSTEM32\\CRYPTSP.dll",
+    "C:\\WINDOWS\\system32\\rsaenh.dll",
+    "C:\\WINDOWS\\SYSTEM32\\kernel.appcore.dll",
+    "C:\\WINDOWS\\System32\\NSI.dll",
+    "C:\\WINDOWS\\SYSTEM32\\dhcpcsvc6.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\dhcpcsvc.DLL",
+    "C:\\WINDOWS\\SYSTEM32\\DNSAPI.dll",
+    "C:\\WINDOWS\\SYSTEM32\\DSPARSE.dll",
+    "C:\\WINDOWS\\system32\\napinsp.dll",
+    "C:\\WINDOWS\\System32\\winrnr.dll",
+    "C:\\WINDOWS\\system32\\nlansp_c.dll",
+    "C:\\WINDOWS\\system32\\wshbth.dll"
+  ]
+}

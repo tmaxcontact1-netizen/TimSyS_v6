@@ -42,6 +42,16 @@ export interface JupiterClientResponse {
   readonly receivedAt: Timestamp;
 }
 
+function rejectionDetail(body: unknown): string | null {
+  if (typeof body === "string") return body.slice(0, 240);
+  if (body && typeof body === "object") {
+    const candidate = body as Readonly<Record<string, unknown>>;
+    const value = candidate.error ?? candidate.message ?? candidate.errorCode;
+    if (typeof value === "string" || typeof value === "number") return String(value).slice(0, 240);
+  }
+  return null;
+}
+
 export class JupiterSwapApiClient {
   private readonly headers: Readonly<Record<string, string>>;
 
@@ -77,8 +87,9 @@ export class JupiterSwapApiClient {
         response.status,
         "http_5xx",
       );
+    const detail = rejectionDetail(response.body);
     throw new JupiterClientError(
-      "Jupiter rejected the request",
+      `Jupiter rejected the request${detail ? `: ${detail}` : ""}`,
       "validation",
       false,
       response.receivedAt,

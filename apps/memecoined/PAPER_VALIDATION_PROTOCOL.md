@@ -100,6 +100,19 @@ of the latter.
 - `2026-09-26T07:18:56+03:00` through `2026-09-26T07:56:45+03:00`: launcher-caused PostgreSQL shutdown and inactive scheduler interval.
 - `2026-09-26T07:56:45+03:00` through `2026-09-26T07:57:30+03:00`: launcher-owned recovery worker interference. Cycles were written without overlap, but the interval remains an environmental event under the pre-registered recurrence policy.
 
+### Epoch 4 (`.9`) event ledger
+
+- `2026-09-26T09:15:00+03:00` through `2026-09-26T09:15:45+03:00` — event type: `operational_test`; cause: deliberate stop-lifecycle verification. The 45-second scheduler-cycle gap is excluded from measured active time under the gap-exclusion protocol. The launcher stopped the instrumented worker and dashboard without starting a duplicate, but the PostgreSQL master remained active. MemeCoin'Ed then restarted cleanly against the same database; epoch 4 remained active and its sealed configuration hash `c1c582432f85d60f97a5e628c2abe2dfd2bcf36c2ae46a017346f39b01dd671b` was unchanged.
+- `2026-09-26T09:49:31.610+03:00` — event type: `worker_termination`; cause: entry-consumer concurrency collision. One Oscillation Trader BUY for `CbcyNo…kzpKoU` committed at `09:49:31.465`, while a competing pending-entry consumer reached the same profile/token position and treated the idempotency collision as fatal. Scheduler cadence remained exactly 15 seconds through the final cycle; memory was 118.57 MB and did not indicate exhaustion. The still-open position intersects the outage and is fixed as `environment_interrupted`. Epoch `.9` is terminated as `diagnostic`; completed trades and the interrupted position are preserved in `paper_validation_trade_archive` by migration `0063`.
+
+### Epoch 5 (`.10`) frozen protocol
+
+- Release: `2026.09.26.10`; protocol: `atomic-entry-v1`.
+- Terminal condition remains 60 closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first.
+- Oscillation Trader and Fast & Furious are both evaluated. Of four dense watch slots, at least one is reserved for a Fast & Furious watch; the other three remain score-ranked shared capacity.
+- Entry processing has one owner per simulation cycle. Position, cash, fill, decision, intent and signal outcome are one atomic database commit.
+- The `clean` / `environment_interrupted` classification and gap-exclusion rules apply from the first cycle.
+
 ## Interpretation order
 
 1. Verify build identity, frozen configuration and uninterrupted provider availability.

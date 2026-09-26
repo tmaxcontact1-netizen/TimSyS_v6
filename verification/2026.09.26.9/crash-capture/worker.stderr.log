@@ -1,0 +1,18 @@
+[eval]:1
+throw new Error("TIMSYS_RELEASE_FORCED_CRASH")
+^
+
+Error: TIMSYS_RELEASE_FORCED_CRASH
+    at [eval]:1:7
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:451:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:449:60)
+    at evalFunction (node:internal/process/execution:283:30)
+    at evalTypeScript (node:internal/process/execution:295:3)
+    at node:internal/main/eval_string:71:3
+
+Writing Node.js report to file: report.20260926.081711.8588.0.001.json
+Node.js report completed
+
+Node.js v24.19.0

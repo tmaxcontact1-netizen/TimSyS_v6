@@ -17,6 +17,8 @@ import {
 import { assertPaperEpochConfiguration } from "../application/services/paper-epoch-configuration.js";
 import { ensureAllProfilesPaperTrialPreset } from "../infrastructure/database/paper-profile-activations.js";
 import type { WalletAddress } from "../domain/shared/types.js";
+import { asTimestamp } from "../domain/shared/types.js";
+import { reconcileInterruptedProfileEntries } from "../application/services/profile-paper-simulation.js";
 
 export interface ProductionProcessDependencies {
   readonly config: RuntimeConfig;
@@ -44,6 +46,12 @@ export async function runProductionProcess(
           new Date(),
         );
       await assertPaperEpochConfiguration(dependencies.database, dependencies.config);
+      if (dependencies.config.paper)
+        await reconcileInterruptedProfileEntries(
+          dependencies.database,
+          dependencies.config.paper.walletAddress as WalletAddress,
+          asTimestamp(new Date()),
+        );
     }
     if (dependencies.supervisor.signal.aborted)
       return Object.freeze({

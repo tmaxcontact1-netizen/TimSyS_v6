@@ -1,0 +1,24 @@
+name: TimSyS CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  regression-suite:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+          cache-dependency-path: |
+            platform/package-lock.json
+            apps/*/package-lock.json
+      - name: Install locked workspace dependencies
+        run: node scripts/workspace.mjs install
+      - name: Run tests and production builds
+        run: npm run verify

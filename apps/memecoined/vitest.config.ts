@@ -60,6 +60,8 @@ export default defineConfig({
       "tests/unit/observation-attempt-executor.test.ts",
       "tests/unit/paper-epoch-configuration.test.ts",
       "tests/unit/paper-reset-stale-history.test.ts",
+      "tests/unit/atomic-profile-entry-regression.test.ts",
+      "tests/unit/worker-incident-report.test.ts",
       "tests/integration/observation-cold-start.test.ts",
       "tests/unit/oscillation.test.ts",
       "tests/unit/signal-gate-counter.test.ts",
