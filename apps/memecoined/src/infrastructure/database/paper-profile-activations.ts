@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import type { WalletAddress } from "../../domain/shared/types.js";
 import {
   tradingProfileCatalogue,
+  focusedProfileIdSet,
   tradingProfile,
   validateConcurrentProfileAllocation,
   type PaperProfileMode,
@@ -144,23 +145,29 @@ export async function configurePaperProfile(
   occurredAt: Date,
 ): Promise<PaperProfileActivation> {
   const definition = tradingProfile(profileId);
-  if (!definition) throw new RangeError("This trading profile is no longer available");
+  if (!definition || !focusedProfileIdSet.has(profileId))
+    throw new RangeError("This trading profile is no longer available");
   if (enabled && mode === "automatic_paper" && definition?.evidenceStatus === "awaiting_data")
-    throw new RangeError(definition.evidenceMessage ?? "This profile is waiting for required evidence");
+    throw new RangeError(
+      definition.evidenceMessage ?? "This profile is waiting for required evidence",
+    );
   const current = await listPaperProfileActivations(database, wallet);
   const selected = current.find((item) => item.profileId === profileId);
   if (selected === undefined || selected.version !== expectedVersion)
     throw new ProfileActivationConflictError("Trading profile changed; reload before trying again");
   validateConcurrentProfileAllocation(
-    current.map((item) =>
-      item.profileId === profileId ? { profileId, enabled, mode, allocationBps } : item,
-    ),
+    current
+      .filter((item) => focusedProfileIdSet.has(item.profileId))
+      .map((item) =>
+        item.profileId === profileId ? { profileId, enabled, mode, allocationBps } : item,
+      ),
   );
-  const action = !selected.enabled && enabled
-    ? "profile_enabled"
-    : selected.enabled && !enabled
-      ? "profile_disabled"
-      : "profile_configured";
+  const action =
+    !selected.enabled && enabled
+      ? "profile_enabled"
+      : selected.enabled && !enabled
+        ? "profile_disabled"
+        : "profile_configured";
   const result = await database.query<ActivationRow>(
     `WITH updated AS (
        UPDATE paper_profile_activations SET
@@ -184,7 +191,17 @@ export async function configurePaperProfile(
               jsonb_build_object('enabled',enabled,'mode',mode,'allocationBps',allocation_bps),$7
        FROM changed
      ) SELECT profile_id,enabled,mode,allocation_bps,version,updated_at FROM changed`,
-    [wallet, profileId, enabled, mode, allocationBps, expectedVersion, occurredAt, randomUUID(), action],
+    [
+      wallet,
+      profileId,
+      enabled,
+      mode,
+      allocationBps,
+      expectedVersion,
+      occurredAt,
+      randomUUID(),
+      action,
+    ],
   );
   const row = result.rows[0];
   if (row === undefined)

@@ -11,13 +11,13 @@ const { createRuntimeLayout } = require('./runtime-layout.cjs');
 const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
 const { AiCredentialVault } = require('./ai-credential-vault.cjs');
 const { UpdateManager } = require('./update-manager.cjs');
+const { AppWindowRegistry } = require('./app-window-registry.cjs');
 
 // The launcher UI does not require GPU acceleration; disabling it improves compatibility on headless and older Windows systems.
 app.disableHardwareAcceleration();
 
 let mainWindow;
-let appWindow;
-let appWindowId = null;
+const appWindows = new AppWindowRegistry();
 let quitting = false;
 const sourceRoot = path.resolve(__dirname, '../../..');
 let layout;
@@ -288,10 +288,18 @@ async function stopChild(appId) {
 
 function bindAppWindowLifecycle(window, appId) {
   window.on('closed', () => {
-    if (appWindow === window) { appWindow = null; appWindowId = null; }
-    void stopChild(appId);
+    appWindows.delete(appId, window);
+    if (!window.__timsysStopHandled) void stopChild(appId);
     focusLauncher();
   });
+}
+
+function activeAppWindow(appId) {
+  return appWindows.active(appId);
+}
+
+function appWindowForSender(sender) {
+  return appWindows.forSender(sender);
 }
 
 app.whenReady().then(async () => {
@@ -376,13 +384,14 @@ ipcMain.handle('supervised-app:start', async (_event, appId) => {
 });
 
 ipcMain.handle('launcher:return', async (event) => {
-  if (appWindow && !appWindow.isDestroyed() && event.sender === appWindow.webContents) {
-    const returningApp = appWindowId;
-    const returningWindow = appWindow;
-    await stopChild(returningApp);
+  const owned = appWindowForSender(event.sender);
+  if (owned) {
+    await stopChild(owned.appId);
+    const returningWindow = owned.window;
+    returningWindow.__timsysStopHandled = true;
     if (!returningWindow.isDestroyed()) returningWindow.close();
     focusLauncher();
-    return { returned: true, appId: returningApp };
+    return { returned: true, appId: owned.appId };
   }
   if (mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) {
     await mainWindow.loadURL(new URL('/', platformUrl).href);
@@ -394,15 +403,20 @@ ipcMain.handle('launcher:return', async (event) => {
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
   requireSupervisedChild(appId);
-  if (appId !== 'memecoined') return supervisedApps.stop(appId);
   let status;
-  await stopLauncherOwnedRuntime({
-    stopApplications: async () => {
-      status = await supervisedApps.stop(appId);
-      await postgres.backup();
-    },
-    stopDatabase: () => postgres.stop(),
-  });
+  if (appId !== 'memecoined') status = await supervisedApps.stop(appId);
+  else await stopLauncherOwnedRuntime({
+      stopApplications: async () => {
+        status = await supervisedApps.stop(appId);
+        await postgres.backup();
+      },
+      stopDatabase: () => postgres.stop(),
+    });
+  const window = activeAppWindow(appId);
+  if (window) {
+    window.__timsysStopHandled = true;
+    window.close();
+  }
   return status;
 });
 
@@ -474,44 +488,40 @@ ipcMain.handle('supervised-app:status', async (_event, appId) => {
 ipcMain.handle('supervised-app:open', async (_event, appId) => {
   requireSupervisedChild(appId);
   if (appId === 'memecoined' && memecoinedConfigurationStatus) {
-    if (appWindow && !appWindow.isDestroyed()) {
-      if (appWindowId === appId) { appWindow.focus(); return memecoinedConfigurationStatus; }
-      appWindow.close();
-    }
-    appWindow = new BrowserWindow({ width: 860, height: 680, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    const existing = activeAppWindow(appId);
+    if (existing) { existing.focus(); return memecoinedConfigurationStatus; }
+    const appWindow = new BrowserWindow({ width: 860, height: 680, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
     const fields = memecoinedConfigurationStatus.missing.map((name) => `<li><code>${name}</code></li>`).join('');
     const configFile = memecoinedConfigurationStatus.configFile.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     const html = `<!doctype html><meta charset="utf-8"><title>MemecoinEd setup</title><style>body{font:16px system-ui;background:#101426;color:#e8ecff;padding:48px;line-height:1.55}main{max-width:720px;margin:auto}h1{color:#fff}code{color:#9ed0ff}li{margin:.45rem 0}.safe{color:#8ee6ae}</style><main><p class="safe">SAFE PAPER MODE · LIVE TRADING DISABLED</p><h1>MemecoinEd configuration required</h1><p>The application and its private PostgreSQL database are installed correctly. Add the following values before starting the paper engine:</p><ul>${fields}</ul><p>Configuration file:</p><p><code>${configFile}</code></p><p>Close this window after updating the file, then select <strong>Start and open</strong> again.</p></main>`;
     await appWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    appWindowId = appId;
+    appWindows.set(appId, appWindow);
     bindAppWindowLifecycle(appWindow, appId);
     return memecoinedConfigurationStatus;
   }
   const status = supervisedApps.status(appId);
   if (status.state !== 'running') throw new Error(`${appId} is not running`);
   const dashboardUrl = supervisedApps.dashboardUrl(appId);
-  if (appWindow && !appWindow.isDestroyed()) {
-    if (appWindowId === appId) {
-      const currentUrl = appWindow.webContents.getURL();
-      let currentOrigin = null;
-      try { currentOrigin = currentUrl ? new URL(currentUrl).origin : null; }
-      catch { currentOrigin = null; }
-      if (currentOrigin !== new URL(dashboardUrl).origin) {
-        await appWindow.loadURL(dashboardUrl);
-      }
-      appWindow.focus();
-      return status;
+  const existing = activeAppWindow(appId);
+  if (existing) {
+    const currentUrl = existing.webContents.getURL();
+    let currentOrigin = null;
+    try { currentOrigin = currentUrl ? new URL(currentUrl).origin : null; }
+    catch { currentOrigin = null; }
+    if (currentOrigin !== new URL(dashboardUrl).origin) {
+      await existing.loadURL(dashboardUrl);
     }
-    appWindow.close();
+    existing.focus();
+    return status;
   }
-  appWindow = new BrowserWindow({
+  const appWindow = new BrowserWindow({
     width: 1440,
     height: 900,
     minWidth: 1024,
     minHeight: 768,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') },
   });
-  appWindowId = appId;
+  appWindows.set(appId, appWindow);
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   appWindow.webContents.on('will-navigate', (event, url) => {
     if (new URL(url).origin !== new URL(supervisedApps.dashboardUrl(appId)).origin) event.preventDefault();
@@ -520,7 +530,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     await appWindow.loadURL(dashboardUrl);
   } catch (error) {
     appWindow.destroy();
-    appWindow = null;
+    appWindows.delete(appId);
     throw new Error(`Unable to open ${appId}: ${error.message}`);
   }
   bindAppWindowLifecycle(appWindow, appId);
@@ -528,7 +538,9 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
 });
 
 function requireResearchedWindow(event) {
-  if (!appWindow || appWindow.isDestroyed() || event.sender !== appWindow.webContents || appWindowId !== 'researched') throw new Error('AI provider settings are only available from Research’Ed');
+  const window = activeAppWindow('researched');
+  if (!window || event.sender !== window.webContents) throw new Error('AI provider settings are only available from Research’Ed');
+  return window;
 }
 
 ipcMain.handle('researched-ai:list-profiles', async (event) => { requireResearchedWindow(event); return aiCredentialVault.list(); });
@@ -536,12 +548,12 @@ ipcMain.handle('researched-ai:save-profile', async (event, value) => { requireRe
 ipcMain.handle('researched-ai:activate-profile', async (event, id) => { requireResearchedWindow(event); return aiCredentialVault.activate(id); });
 ipcMain.handle('researched-ai:remove-profile', async (event, id) => { requireResearchedWindow(event); return aiCredentialVault.remove(id); });
 ipcMain.handle('researched-ai:apply', async (event) => {
-  requireResearchedWindow(event);
+  const researchedWindow = requireResearchedWindow(event);
   applyingResearchedProfile = true;
   try {
     await supervisedApps.stop('researched');
     const status = await startResearched();
-    await appWindow.loadURL(supervisedApps.dashboardUrl('researched'));
+    await researchedWindow.loadURL(supervisedApps.dashboardUrl('researched'));
     return status;
   } finally {
     applyingResearchedProfile = false;
@@ -549,9 +561,6 @@ ipcMain.handle('researched-ai:apply', async (event) => {
 });
 
 function forwardStatus(status) {
-  if (status.id === appWindowId && ['failed', 'stopped'].includes(status.state) && appWindow && !appWindow.isDestroyed() && !(applyingResearchedProfile && status.id === 'researched')) {
-    appWindow.close();
-  }
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('supervised-app:status-changed', status);
   }

@@ -5,7 +5,7 @@ import {
   transitionNeedsReason,
   type LifecycleKind,
 } from "../domain/lifecycle.js";
-import {buildAnalysisJobs} from "../application/analysis-jobs.js";
+import { buildAnalysisJobs } from "../application/analysis-jobs.js";
 export class ResearchRepository {
   constructor(
     private readonly db: Pick<Pool, "query"> & Partial<Pick<Pool, "connect">>,
@@ -444,7 +444,7 @@ export class ResearchRepository {
         kind: string;
         content: string;
         hash: string;
-        locator: Readonly<Record<string,string|number>>;
+        locator: Readonly<Record<string, string | number>>;
       }[];
     },
     at: string,
@@ -1207,22 +1207,79 @@ export class ResearchRepository {
       await this.db.query(
         `INSERT INTO researched.analysis_plans(id,study_id,name,analysis_types,source_ids,custom_questions,expected_fields,options,created_by,created_at,updated_at)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) RETURNING *`,
-        [id,value.studyId,value.name,JSON.stringify(value.analysisTypes),JSON.stringify(value.sourceIds),JSON.stringify(value.customQuestions),JSON.stringify(value.expectedFields),JSON.stringify(value.options),value.actor,at],
+        [
+          id,
+          value.studyId,
+          value.name,
+          JSON.stringify(value.analysisTypes),
+          JSON.stringify(value.sourceIds),
+          JSON.stringify(value.customQuestions),
+          JSON.stringify(value.expectedFields),
+          JSON.stringify(value.options),
+          value.actor,
+          at,
+        ],
       )
     ).rows[0];
   }
   async analysisPlans(studyId: string) {
-    return (await this.db.query("SELECT * FROM researched.analysis_plans WHERE study_id=$1 ORDER BY created_at DESC",[studyId])).rows;
+    return (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_plans WHERE study_id=$1 ORDER BY created_at DESC",
+        [studyId],
+      )
+    ).rows;
   }
   async analysisPlan(id: string) {
-    return (await this.db.query("SELECT * FROM researched.analysis_plans WHERE id=$1",[id])).rows[0] ?? null;
+    return (
+      (
+        await this.db.query(
+          "SELECT * FROM researched.analysis_plans WHERE id=$1",
+          [id],
+        )
+      ).rows[0] ?? null
+    );
   }
-  async analysisTemplates(){return(await this.db.query("SELECT * FROM researched.analysis_templates ORDER BY lower(name)",[])).rows;}
-  async createAnalysisTemplate(id:string,value:any,at:string){return(await this.db.query(`INSERT INTO researched.analysis_templates(id,name,description,analysis_types,custom_questions,expected_fields,options,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) ON CONFLICT(name) DO UPDATE SET description=excluded.description,analysis_types=excluded.analysis_types,custom_questions=excluded.custom_questions,expected_fields=excluded.expected_fields,options=excluded.options,updated_at=excluded.updated_at RETURNING *`,[id,value.name,value.description??null,JSON.stringify(value.analysisTypes),JSON.stringify(value.customQuestions),JSON.stringify(value.expectedFields),JSON.stringify(value.options),value.actor,at])).rows[0];}
-  async deleteAnalysisTemplate(id:string){return(await this.db.query("DELETE FROM researched.analysis_templates WHERE id=$1 RETURNING id",[id])).rows[0]??null;}
+  async analysisTemplates() {
+    return (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_templates ORDER BY lower(name)",
+        [],
+      )
+    ).rows;
+  }
+  async createAnalysisTemplate(id: string, value: any, at: string) {
+    return (
+      await this.db.query(
+        `INSERT INTO researched.analysis_templates(id,name,description,analysis_types,custom_questions,expected_fields,options,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$9) ON CONFLICT(name) DO UPDATE SET description=excluded.description,analysis_types=excluded.analysis_types,custom_questions=excluded.custom_questions,expected_fields=excluded.expected_fields,options=excluded.options,updated_at=excluded.updated_at RETURNING *`,
+        [
+          id,
+          value.name,
+          value.description ?? null,
+          JSON.stringify(value.analysisTypes),
+          JSON.stringify(value.customQuestions),
+          JSON.stringify(value.expectedFields),
+          JSON.stringify(value.options),
+          value.actor,
+          at,
+        ],
+      )
+    ).rows[0];
+  }
+  async deleteAnalysisTemplate(id: string) {
+    return (
+      (
+        await this.db.query(
+          "DELETE FROM researched.analysis_templates WHERE id=$1 RETURNING id",
+          [id],
+        )
+      ).rows[0] ?? null
+    );
+  }
   async analysisInputs(studyId: string, sourceIds: readonly string[]) {
-    return (await this.db.query(
-      `SELECT s.id AS source_id,s.label,s.entity_id,x.id AS snapshot_id,e.id AS extraction_id,e.text_content,
+    return (
+      await this.db.query(
+        `SELECT s.id AS source_id,s.label,s.entity_id,x.id AS snapshot_id,e.id AS extraction_id,e.text_content,
         COALESCE(jsonb_agg(g.id ORDER BY g.ordinal) FILTER(WHERE g.id IS NOT NULL),'[]') AS segment_ids,
         COALESCE(jsonb_agg(jsonb_build_object('segmentId',g.id,'sourceId',s.id,'content',g.content) ORDER BY g.ordinal) FILTER(WHERE g.id IS NOT NULL),'[]') AS evidence_segments
        FROM researched.sources s
@@ -1230,72 +1287,347 @@ export class ResearchRepository {
        JOIN researched.source_extractions e ON e.snapshot_id=x.id AND e.status='completed'
        LEFT JOIN researched.extracted_segments g ON g.extraction_id=e.id
        WHERE s.study_id=$1 AND s.corpus_status='included' AND (cardinality($2::uuid[])=0 OR s.id=ANY($2::uuid[]))
-       GROUP BY s.id,s.label,x.id,e.id,e.text_content ORDER BY s.label`,[studyId,sourceIds]
-    )).rows;
+       GROUP BY s.id,s.label,x.id,e.id,e.text_content ORDER BY s.label`,
+        [studyId, sourceIds],
+      )
+    ).rows;
   }
-  async beginAnalysisRun(id: string, plan: any, actor: string, inputs: readonly any[], maximumAttempts: number, at: string) {
+  async beginAnalysisRun(
+    id: string,
+    plan: any,
+    actor: string,
+    inputs: readonly any[],
+    maximumAttempts: number,
+    at: string,
+  ) {
     await this.assertStudyWritable(plan.study_id);
-    const jobs=buildAnalysisJobs(inputs,plan.analysis_types as string[],maximumAttempts,at,randomUUID),total=jobs.length,client=this.db.connect?await this.db.connect():null,query=client?client.query.bind(client):this.db.query.bind(this.db);
-    if(client)await query("BEGIN");
-    try{
-      const run=(await query(`INSERT INTO researched.analysis_runs(id,plan_id,study_id,status,progress_total,rules_version,requested_by,maximum_attempts,created_at)
-       VALUES($1,$2,$3,'queued',$4,'deterministic-v1',$5,$6,$7) RETURNING *`,[id,plan.id,plan.study_id,total,actor,maximumAttempts,at])).rows[0];
-      if(jobs.length)await query(`INSERT INTO researched.analysis_run_items(id,run_id,source_id,analysis_type,scope_type,scope_key,source_ids,maximum_attempts,next_attempt_at,created_at) SELECT job.id,$1,job."sourceId",job."analysisType",job."scopeType",job."scopeKey",job."sourceIds",job."maximumAttempts",job."nextAttemptAt",job."createdAt" FROM jsonb_to_recordset($2::jsonb) AS job(id uuid,"sourceId" uuid,"analysisType" text,"scopeType" text,"scopeKey" text,"sourceIds" jsonb,"maximumAttempts" integer,"nextAttemptAt" timestamptz,"createdAt" timestamptz)`,[id,JSON.stringify(jobs)]);
-      if(client)await query("COMMIT");return run;
-    }catch(error){if(client)await query("ROLLBACK");throw error;}finally{client?.release();}
+    const jobs = buildAnalysisJobs(
+        inputs,
+        plan.analysis_types as string[],
+        maximumAttempts,
+        at,
+        randomUUID,
+      ),
+      total = jobs.length,
+      client = this.db.connect ? await this.db.connect() : null,
+      query = client ? client.query.bind(client) : this.db.query.bind(this.db);
+    if (client) await query("BEGIN");
+    try {
+      const run = (
+        await query(
+          `INSERT INTO researched.analysis_runs(id,plan_id,study_id,status,progress_total,rules_version,requested_by,maximum_attempts,created_at)
+       VALUES($1,$2,$3,'queued',$4,'deterministic-v1',$5,$6,$7) RETURNING *`,
+          [id, plan.id, plan.study_id, total, actor, maximumAttempts, at],
+        )
+      ).rows[0];
+      if (jobs.length)
+        await query(
+          `INSERT INTO researched.analysis_run_items(id,run_id,source_id,analysis_type,scope_type,scope_key,source_ids,maximum_attempts,next_attempt_at,created_at) SELECT job.id,$1,job."sourceId",job."analysisType",job."scopeType",job."scopeKey",job."sourceIds",job."maximumAttempts",job."nextAttemptAt",job."createdAt" FROM jsonb_to_recordset($2::jsonb) AS job(id uuid,"sourceId" uuid,"analysisType" text,"scopeType" text,"scopeKey" text,"sourceIds" jsonb,"maximumAttempts" integer,"nextAttemptAt" timestamptz,"createdAt" timestamptz)`,
+          [id, JSON.stringify(jobs)],
+        );
+      if (client) await query("COMMIT");
+      return run;
+    } catch (error) {
+      if (client) await query("ROLLBACK");
+      throw error;
+    } finally {
+      client?.release();
+    }
   }
-  async saveAnalysisResult(run: any, sourceId: string|null, analysisType: string, method: string, value: unknown, segmentIds: readonly string[], at: string, metadata:{confidence?:number;ruleVersion?:string|null;model?:Record<string,unknown>|null}={}) {
-    const result=(await this.db.query(
-      `INSERT INTO researched.analysis_results(id,run_id,study_id,source_id,analysis_type,method,value,confidence,evidence_segment_ids,rule_version,model_metadata,created_at)
+  async saveAnalysisResult(
+    run: any,
+    sourceId: string | null,
+    analysisType: string,
+    method: string,
+    value: unknown,
+    segmentIds: readonly string[],
+    at: string,
+    metadata: {
+      confidence?: number;
+      ruleVersion?: string | null;
+      model?: Record<string, unknown> | null;
+    } = {},
+  ) {
+    const result = (
+      await this.db.query(
+        `INSERT INTO researched.analysis_results(id,run_id,study_id,source_id,analysis_type,method,value,confidence,evidence_segment_ids,rule_version,model_metadata,created_at)
        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT DO NOTHING RETURNING *`,
-      [randomUUID(),run.id,run.study_id,sourceId,analysisType,method,JSON.stringify(value),metadata.confidence??1,JSON.stringify(segmentIds),metadata.ruleVersion===undefined?"deterministic-v1":metadata.ruleVersion,metadata.model?JSON.stringify(metadata.model):null,at]
-    )).rows[0];
+        [
+          randomUUID(),
+          run.id,
+          run.study_id,
+          sourceId,
+          analysisType,
+          method,
+          JSON.stringify(value),
+          metadata.confidence ?? 1,
+          JSON.stringify(segmentIds),
+          metadata.ruleVersion === undefined
+            ? "deterministic-v1"
+            : metadata.ruleVersion,
+          metadata.model ? JSON.stringify(metadata.model) : null,
+          at,
+        ],
+      )
+    ).rows[0];
     return result;
   }
-  async finishAnalysisRun(id: string, status: "completed"|"partial"|"failed", at: string, error: string|null = null) {
-    return (await this.db.query("UPDATE researched.analysis_runs SET status=$2,completed_at=$3,error_summary=$4 WHERE id=$1 RETURNING *",[id,status,at,error])).rows[0];
+  async finishAnalysisRun(
+    id: string,
+    status: "completed" | "partial" | "failed",
+    at: string,
+    error: string | null = null,
+  ) {
+    return (
+      await this.db.query(
+        "UPDATE researched.analysis_runs SET status=$2,completed_at=$3,error_summary=$4 WHERE id=$1 RETURNING *",
+        [id, status, at, error],
+      )
+    ).rows[0];
   }
   async analysisRuns(studyId: string) {
-    return (await this.db.query("SELECT * FROM researched.analysis_runs WHERE study_id=$1 ORDER BY created_at DESC",[studyId])).rows;
+    return (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_runs WHERE study_id=$1 ORDER BY created_at DESC",
+        [studyId],
+      )
+    ).rows;
   }
   async analysisRun(id: string) {
-    const run=(await this.db.query("SELECT * FROM researched.analysis_runs WHERE id=$1",[id])).rows[0];
-    if(!run) return null;
-    const results=(await this.db.query("SELECT * FROM researched.analysis_results WHERE run_id=$1 ORDER BY analysis_type,created_at",[id])).rows;
-    const items=(await this.db.query("SELECT * FROM researched.analysis_run_items WHERE run_id=$1 ORDER BY created_at,analysis_type",[id])).rows;
-    return {...run,results,items};
+    const run = (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_runs WHERE id=$1",
+        [id],
+      )
+    ).rows[0];
+    if (!run) return null;
+    const results = (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_results WHERE run_id=$1 ORDER BY analysis_type,created_at",
+        [id],
+      )
+    ).rows;
+    const items = (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_run_items WHERE run_id=$1 ORDER BY created_at,analysis_type",
+        [id],
+      )
+    ).rows;
+    return { ...run, results, items };
   }
-  async recoverAnalysisJobs(at:string){
-    await this.db.query("UPDATE researched.analysis_run_items SET status='queued',next_attempt_at=$1,started_at=NULL,last_error=COALESCE(last_error,'Recovered after application restart') WHERE status='running'",[at]);
-    await this.db.query("UPDATE researched.analysis_runs SET status='queued',started_at=NULL WHERE status='running'",[]);
+  async recoverAnalysisJobs(at: string) {
+    await this.db.query(
+      "UPDATE researched.analysis_run_items SET status='queued',next_attempt_at=$1,started_at=NULL,last_error=COALESCE(last_error,'Recovered after application restart') WHERE status='running'",
+      [at],
+    );
+    await this.db.query(
+      "UPDATE researched.analysis_runs SET status='queued',started_at=NULL WHERE status='running'",
+      [],
+    );
   }
-  async claimAnalysisItem(at:string){
-    const client=this.db.connect?await this.db.connect():null,query=client?client.query.bind(client):this.db.query.bind(this.db);if(client)await query("BEGIN");
-    try{const item=(await query(`SELECT i.*,r.study_id,r.plan_id,r.requested_by FROM researched.analysis_run_items i JOIN researched.analysis_runs r ON r.id=i.run_id WHERE i.status='queued' AND i.next_attempt_at<=$1 AND r.status IN('queued','running') ORDER BY i.created_at FOR UPDATE OF i,r SKIP LOCKED LIMIT 1`,[at])).rows[0];if(!item){if(client)await query("COMMIT");return null;}await query("UPDATE researched.analysis_run_items SET status='running',attempts=attempts+1,started_at=$2 WHERE id=$1",[item.id,at]);await query("UPDATE researched.analysis_runs SET status='running',started_at=COALESCE(started_at,$2) WHERE id=$1",[item.run_id,at]);if(client)await query("COMMIT");return{...item,status:'running',attempts:item.attempts+1};}catch(error){if(client)await query("ROLLBACK");throw error;}finally{client?.release();}
+  async claimAnalysisItem(at: string) {
+    const client = this.db.connect ? await this.db.connect() : null,
+      query = client ? client.query.bind(client) : this.db.query.bind(this.db);
+    if (client) await query("BEGIN");
+    try {
+      const item = (
+        await query(
+          `SELECT i.*,r.study_id,r.plan_id,r.requested_by FROM researched.analysis_run_items i JOIN researched.analysis_runs r ON r.id=i.run_id WHERE i.status='queued' AND i.next_attempt_at<=$1 AND r.status IN('queued','running') ORDER BY i.created_at FOR UPDATE OF i,r SKIP LOCKED LIMIT 1`,
+          [at],
+        )
+      ).rows[0];
+      if (!item) {
+        if (client) await query("COMMIT");
+        return null;
+      }
+      await query(
+        "UPDATE researched.analysis_run_items SET status='running',attempts=attempts+1,started_at=$2 WHERE id=$1",
+        [item.id, at],
+      );
+      await query(
+        "UPDATE researched.analysis_runs SET status='running',started_at=COALESCE(started_at,$2) WHERE id=$1",
+        [item.run_id, at],
+      );
+      if (client) await query("COMMIT");
+      return { ...item, status: "running", attempts: item.attempts + 1 };
+    } catch (error) {
+      if (client) await query("ROLLBACK");
+      throw error;
+    } finally {
+      client?.release();
+    }
   }
-  async analysisJobContext(item:any){
-    const plan=await this.analysisPlan(item.plan_id),inputs=await this.analysisInputs(item.study_id,item.scope_type==='corpus'?item.source_ids:[item.source_id]);if(!plan||!inputs.length)return null;const hierarchy=await this.analysisHierarchy(item.study_id),paths=new Map(hierarchy.map((entity:any)=>[entity.id,entity.path]));for(const source of inputs)source.entity_path=source.entity_id?paths.get(source.entity_id)??[]:[];return{plan,source:inputs[0],sources:inputs,hierarchy,run:{id:item.run_id,study_id:item.study_id}};
+  async analysisJobContext(item: any) {
+    const plan = await this.analysisPlan(item.plan_id),
+      inputs = await this.analysisInputs(
+        item.study_id,
+        item.scope_type === "corpus" ? item.source_ids : [item.source_id],
+      );
+    if (!plan || !inputs.length) return null;
+    const hierarchy = await this.analysisHierarchy(item.study_id),
+      paths = new Map(hierarchy.map((entity: any) => [entity.id, entity.path]));
+    for (const source of inputs)
+      source.entity_path = source.entity_id
+        ? (paths.get(source.entity_id) ?? [])
+        : [];
+    return {
+      plan,
+      source: inputs[0],
+      sources: inputs,
+      hierarchy,
+      run: { id: item.run_id, study_id: item.study_id },
+    };
   }
-  async analysisHierarchy(studyId:string){return(await this.db.query(`WITH RECURSIVE tree AS (SELECT e.id,e.parent_id,e.label,t.name AS entity_type,ARRAY[e.label]::text[] AS path,0 AS depth FROM researched.entities e JOIN researched.entity_types t ON t.id=e.entity_type_id WHERE e.study_id=$1 AND e.parent_id IS NULL UNION ALL SELECT child.id,child.parent_id,child.label,t.name,tree.path||child.label,tree.depth+1 FROM researched.entities child JOIN tree ON tree.id=child.parent_id JOIN researched.entity_types t ON t.id=child.entity_type_id) SELECT * FROM tree ORDER BY path`,[studyId])).rows;}
-  async analysisRunStatus(id:string){return(await this.db.query("SELECT status FROM researched.analysis_runs WHERE id=$1",[id])).rows[0]?.status??null;}
-  async completeAnalysisItem(item:any,at:string){await this.db.query("UPDATE researched.analysis_run_items SET status='succeeded',completed_at=$2,last_error=NULL WHERE id=$1 AND status='running'",[item.id,at]);await this.refreshAnalysisRun(item.run_id,at);}
-  async cancelAnalysisItem(item:any,at:string){await this.db.query("UPDATE researched.analysis_run_items SET status='cancelled',completed_at=$2 WHERE id=$1 AND status='running'",[item.id,at]);}
-  async failAnalysisItem(item:any,error:string,nextAttemptAt:string,at:string,forceTerminal=false){const retry=!forceTerminal&&item.attempts<item.maximum_attempts;await this.db.query("UPDATE researched.analysis_run_items SET status=$2,next_attempt_at=$3,last_error=$4,completed_at=CASE WHEN $2='failed' THEN $5::timestamptz ELSE NULL END WHERE id=$1 AND status='running'",[item.id,retry?'queued':'failed',nextAttemptAt,error,at]);await this.refreshAnalysisRun(item.run_id,at);return retry;}
-  async refreshAnalysisRun(id:string,at:string){const counts=(await this.db.query("SELECT count(*)::int total,count(*) FILTER(WHERE status='succeeded')::int succeeded,count(*) FILTER(WHERE status='failed')::int failed,count(*) FILTER(WHERE status IN('queued','running'))::int pending FROM researched.analysis_run_items WHERE run_id=$1",[id])).rows[0];await this.db.query("UPDATE researched.analysis_runs SET progress_completed=$2,error_summary=CASE WHEN $3::int>0 THEN $3::text||' analysis item(s) failed' ELSE NULL END,status=CASE WHEN status IN('paused','cancelled') THEN status WHEN $4::int>0 THEN status WHEN $3::int>0 AND $2::int>0 THEN 'partial' WHEN $3::int>0 THEN 'failed' ELSE 'completed' END,completed_at=CASE WHEN $4::int=0 THEN $5::timestamptz ELSE NULL END WHERE id=$1",[id,counts.succeeded+counts.failed,counts.failed,counts.pending,at]);}
-  async controlAnalysisRun(id:string,action:'pause'|'resume'|'cancel'|'retry',at:string){if(action==='retry'){const run=(await this.db.query("UPDATE researched.analysis_runs SET status='queued',completed_at=NULL,error_summary=NULL WHERE id=$1 AND status IN('failed','partial') RETURNING *",[id])).rows[0];if(!run)return null;await this.db.query("UPDATE researched.analysis_run_items SET status='queued',attempts=0,next_attempt_at=$2,last_error=NULL,completed_at=NULL WHERE run_id=$1 AND status='failed'",[id,at]);await this.refreshAnalysisRun(id,at);return run;}const states={pause:["paused","paused_at",["queued","running"]],resume:["queued",null,["paused"]],cancel:["cancelled","cancelled_at",["queued","running","paused"]]} as const,target=states[action],run=(await this.db.query(`UPDATE researched.analysis_runs SET status=$2,paused_at=CASE WHEN $3='paused_at' THEN $4::timestamptz ELSE paused_at END,cancelled_at=CASE WHEN $3='cancelled_at' THEN $4::timestamptz ELSE cancelled_at END,completed_at=CASE WHEN $2='cancelled' THEN $4::timestamptz ELSE completed_at END WHERE id=$1 AND status=ANY($5::text[]) RETURNING *`,[id,target[0],target[1],at,target[2]])).rows[0];if(!run)return null;if(action==='cancel')await this.db.query("UPDATE researched.analysis_run_items SET status='cancelled',completed_at=$2 WHERE run_id=$1 AND status='queued'",[id,at]);if(action==='resume')await this.refreshAnalysisRun(id,at);return run;}
+  async analysisHierarchy(studyId: string) {
+    return (
+      await this.db.query(
+        `WITH RECURSIVE tree AS (SELECT e.id,e.parent_id,e.label,t.name AS entity_type,ARRAY[e.label]::text[] AS path,0 AS depth FROM researched.entities e JOIN researched.entity_types t ON t.id=e.entity_type_id WHERE e.study_id=$1 AND e.parent_id IS NULL UNION ALL SELECT child.id,child.parent_id,child.label,t.name,tree.path||child.label,tree.depth+1 FROM researched.entities child JOIN tree ON tree.id=child.parent_id JOIN researched.entity_types t ON t.id=child.entity_type_id) SELECT * FROM tree ORDER BY path`,
+        [studyId],
+      )
+    ).rows;
+  }
+  async analysisRunStatus(id: string) {
+    return (
+      (
+        await this.db.query(
+          "SELECT status FROM researched.analysis_runs WHERE id=$1",
+          [id],
+        )
+      ).rows[0]?.status ?? null
+    );
+  }
+  async completeAnalysisItem(item: any, at: string) {
+    await this.db.query(
+      "UPDATE researched.analysis_run_items SET status='succeeded',completed_at=$2,last_error=NULL WHERE id=$1 AND status='running'",
+      [item.id, at],
+    );
+    await this.refreshAnalysisRun(item.run_id, at);
+  }
+  async cancelAnalysisItem(item: any, at: string) {
+    await this.db.query(
+      "UPDATE researched.analysis_run_items SET status='cancelled',completed_at=$2 WHERE id=$1 AND status='running'",
+      [item.id, at],
+    );
+  }
+  async failAnalysisItem(
+    item: any,
+    error: string,
+    nextAttemptAt: string,
+    at: string,
+    forceTerminal = false,
+  ) {
+    const retry = !forceTerminal && item.attempts < item.maximum_attempts;
+    await this.db.query(
+      "UPDATE researched.analysis_run_items SET status=$2,next_attempt_at=$3,last_error=$4,completed_at=CASE WHEN $2='failed' THEN $5::timestamptz ELSE NULL END WHERE id=$1 AND status='running'",
+      [item.id, retry ? "queued" : "failed", nextAttemptAt, error, at],
+    );
+    await this.refreshAnalysisRun(item.run_id, at);
+    return retry;
+  }
+  async refreshAnalysisRun(id: string, at: string) {
+    const counts = (
+      await this.db.query(
+        "SELECT count(*)::int total,count(*) FILTER(WHERE status='succeeded')::int succeeded,count(*) FILTER(WHERE status='failed')::int failed,count(*) FILTER(WHERE status IN('queued','running'))::int pending FROM researched.analysis_run_items WHERE run_id=$1",
+        [id],
+      )
+    ).rows[0];
+    await this.db.query(
+      "UPDATE researched.analysis_runs SET progress_completed=$2,error_summary=CASE WHEN $3::int>0 THEN $3::text||' analysis item(s) failed' ELSE NULL END,status=CASE WHEN status IN('paused','cancelled') THEN status WHEN $4::int>0 THEN status WHEN $3::int>0 AND $2::int>0 THEN 'partial' WHEN $3::int>0 THEN 'failed' ELSE 'completed' END,completed_at=CASE WHEN $4::int=0 THEN $5::timestamptz ELSE NULL END WHERE id=$1",
+      [id, counts.succeeded + counts.failed, counts.failed, counts.pending, at],
+    );
+  }
+  async controlAnalysisRun(
+    id: string,
+    action: "pause" | "resume" | "cancel" | "retry",
+    at: string,
+  ) {
+    if (action === "retry") {
+      const run = (
+        await this.db.query(
+          "UPDATE researched.analysis_runs SET status='queued',completed_at=NULL,error_summary=NULL WHERE id=$1 AND status IN('failed','partial') RETURNING *",
+          [id],
+        )
+      ).rows[0];
+      if (!run) return null;
+      await this.db.query(
+        "UPDATE researched.analysis_run_items SET status='queued',attempts=0,next_attempt_at=$2,last_error=NULL,completed_at=NULL WHERE run_id=$1 AND status='failed'",
+        [id, at],
+      );
+      await this.refreshAnalysisRun(id, at);
+      return run;
+    }
+    const states = {
+        pause: ["paused", "paused_at", ["queued", "running"]],
+        resume: ["queued", null, ["paused"]],
+        cancel: ["cancelled", "cancelled_at", ["queued", "running", "paused"]],
+      } as const,
+      target = states[action],
+      run = (
+        await this.db.query(
+          `UPDATE researched.analysis_runs SET status=$2,paused_at=CASE WHEN $3='paused_at' THEN $4::timestamptz ELSE paused_at END,cancelled_at=CASE WHEN $3='cancelled_at' THEN $4::timestamptz ELSE cancelled_at END,completed_at=CASE WHEN $2='cancelled' THEN $4::timestamptz ELSE completed_at END WHERE id=$1 AND status=ANY($5::text[]) RETURNING *`,
+          [id, target[0], target[1], at, target[2]],
+        )
+      ).rows[0];
+    if (!run) return null;
+    if (action === "cancel")
+      await this.db.query(
+        "UPDATE researched.analysis_run_items SET status='cancelled',completed_at=$2 WHERE run_id=$1 AND status='queued'",
+        [id, at],
+      );
+    if (action === "resume") await this.refreshAnalysisRun(id, at);
+    return run;
+  }
   async decideAnalysisResult(id: string, value: any, at: string) {
-    const before=(await this.db.query("SELECT * FROM researched.analysis_results WHERE id=$1",[id])).rows[0];
-    if(!before) return null;
+    const before = (
+      await this.db.query(
+        "SELECT * FROM researched.analysis_results WHERE id=$1",
+        [id],
+      )
+    ).rows[0];
+    if (!before) return null;
     await this.assertStudyWritable(before.study_id);
-    const after=(await this.db.query(
-      `UPDATE researched.analysis_results SET status=$2,value=CASE WHEN $2='amended' THEN $3::jsonb ELSE value END,review_reason=$4,reviewed_by=$5,reviewed_at=$6 WHERE id=$1 RETURNING *`,
-      [id,value.status,JSON.stringify(value.amendedValue ?? before.value),value.reason,value.actor,at]
-    )).rows[0];
-    await this.db.query("INSERT INTO researched.audit_events(id,study_id,entity_kind,entity_id,action,actor,occurred_at,before_value,after_value,reason) VALUES($1,$2,'analysis_result',$3,'reviewed',$4,$5,$6,$7,$8)",[randomUUID(),before.study_id,id,value.actor,at,JSON.stringify(before),JSON.stringify(after),value.reason]);
+    const after = (
+      await this.db.query(
+        `UPDATE researched.analysis_results SET status=$2,value=CASE WHEN $2='amended' THEN $3::jsonb ELSE value END,review_reason=$4,reviewed_by=$5,reviewed_at=$6 WHERE id=$1 RETURNING *`,
+        [
+          id,
+          value.status,
+          JSON.stringify(value.amendedValue ?? before.value),
+          value.reason,
+          value.actor,
+          at,
+        ],
+      )
+    ).rows[0];
+    await this.db.query(
+      "INSERT INTO researched.audit_events(id,study_id,entity_kind,entity_id,action,actor,occurred_at,before_value,after_value,reason) VALUES($1,$2,'analysis_result',$3,'reviewed',$4,$5,$6,$7,$8)",
+      [
+        randomUUID(),
+        before.study_id,
+        id,
+        value.actor,
+        at,
+        JSON.stringify(before),
+        JSON.stringify(after),
+        value.reason,
+      ],
+    );
     return after;
   }
-  async analysisResult(id:string){return(await this.db.query("SELECT * FROM researched.analysis_results WHERE id=$1",[id])).rows[0]??null;}
-  async researchInsightMetrics(studyId:string){return(await this.db.query(`SELECT
+  async analysisResult(id: string) {
+    return (
+      (
+        await this.db.query(
+          "SELECT * FROM researched.analysis_results WHERE id=$1",
+          [id],
+        )
+      ).rows[0] ?? null
+    );
+  }
+  async researchInsightMetrics(studyId: string) {
+    return (
+      await this.db.query(
+        `SELECT
     (SELECT count(*) FROM researched.sources WHERE study_id=$1 AND corpus_status='pending')::int AS "pendingSources",
     (SELECT count(*) FROM researched.sources s WHERE s.study_id=$1 AND s.corpus_status='included' AND NOT EXISTS(SELECT 1 FROM researched.source_snapshots x JOIN researched.source_extractions e ON e.snapshot_id=x.id AND e.status='completed' WHERE x.source_id=s.id))::int AS "unextractedSources",
     (SELECT count(*) FROM researched.analysis_run_items i JOIN researched.analysis_runs r ON r.id=i.run_id WHERE r.study_id=$1 AND i.status='failed')::int AS "failedTasks",
@@ -1304,9 +1636,14 @@ export class ResearchRepository {
     (SELECT COALESCE(sum(jsonb_array_length(COALESCE(value->'interpretation'->'contradictions',value->'contradictions','[]'::jsonb))),0) FROM researched.analysis_results WHERE study_id=$1 AND analysis_type='contradictions' AND status<>'rejected')::int AS "potentialContradictions",
     (SELECT COALESCE(sum(jsonb_array_length(COALESCE(value->'interpretation'->'missing',value->'missing','[]'::jsonb))),0) FROM researched.analysis_results WHERE study_id=$1 AND analysis_type='completeness' AND status<>'rejected')::int AS "missingExpectedFields",
     (SELECT count(*) FROM researched.findings WHERE study_id=$1 AND status='confirmed')::int AS "confirmedFindings",
-    (SELECT count(*) FROM researched.analysis_results WHERE study_id=$1 AND status<>'rejected')::int AS "completedResults"`,[studyId])).rows[0];}
+    (SELECT count(*) FROM researched.analysis_results WHERE study_id=$1 AND status<>'rejected')::int AS "completedResults"`,
+        [studyId],
+      )
+    ).rows[0];
+  }
   async programmeWorkflows() {
-    return (await this.db.query(`SELECT s.id,s.title,s.created_at,s.updated_at,
+    return (
+      await this.db.query(`SELECT s.id,s.title,s.created_at,s.updated_at,
       count(DISTINCT c.id)::int AS candidate_count,
       count(DISTINCT c.id) FILTER(WHERE c.decision='included')::int AS included_count,
       count(DISTINCT r.id)::int AS completed_count,
@@ -1317,78 +1654,252 @@ export class ResearchRepository {
       LEFT JOIN researched.programme_capture_jobs j ON j.candidate_id=c.id
       LEFT JOIN researched.programme_records r ON r.candidate_id=c.id
       WHERE s.methodology LIKE 'Extract programme links%'
-      GROUP BY s.id ORDER BY s.created_at DESC`)).rows;
+      GROUP BY s.id ORDER BY s.created_at DESC`)
+    ).rows;
   }
-  async programmeWorkflow(studyId:string) {
-    const study=(await this.db.query("SELECT * FROM researched.studies WHERE id=$1",[studyId])).rows[0];
-    if(!study)return null;
-    const [documents,candidates,records]=await Promise.all([
-      this.db.query("SELECT s.id,s.label,s.created_at,e.status AS extraction_status FROM researched.sources s LEFT JOIN researched.source_snapshots x ON x.id=(SELECT id FROM researched.source_snapshots WHERE source_id=s.id ORDER BY sequence DESC LIMIT 1) LEFT JOIN researched.source_extractions e ON e.snapshot_id=x.id WHERE s.study_id=$1 AND s.original_url LIKE 'upload://%' ORDER BY s.created_at",[studyId]),
-      this.db.query(`SELECT c.*,j.status AS capture_status,j.attempts,j.last_error,j.source_id
-        FROM researched.programme_link_candidates c LEFT JOIN researched.programme_capture_jobs j ON j.candidate_id=c.id
-        WHERE c.study_id=$1 ORDER BY c.ordinal`,[studyId]),
-      this.db.query("SELECT * FROM researched.programme_records WHERE study_id=$1 ORDER BY institution,programme_name",[studyId]),
+  async programmeWorkflow(studyId: string) {
+    const study = (
+      await this.db.query("SELECT * FROM researched.studies WHERE id=$1", [
+        studyId,
+      ])
+    ).rows[0];
+    if (!study) return null;
+    const [documents, candidates, records] = await Promise.all([
+      this.db.query(
+        "SELECT s.id,s.label,s.created_at,e.status AS extraction_status FROM researched.sources s LEFT JOIN researched.source_snapshots x ON x.id=(SELECT id FROM researched.source_snapshots WHERE source_id=s.id ORDER BY sequence DESC LIMIT 1) LEFT JOIN researched.source_extractions e ON e.snapshot_id=x.id WHERE s.study_id=$1 AND s.original_url LIKE 'upload://%' ORDER BY s.created_at",
+        [studyId],
+      ),
+      this.db.query(
+        `SELECT c.*,
+          CASE WHEN j.status='succeeded' AND r.id IS NULL THEN 'failed' ELSE j.status END AS capture_status,
+          j.attempts,j.maximum_attempts,
+          j.last_error,j.source_id,j.next_attempt_at,j.started_at,j.completed_at,j.updated_at AS job_updated_at
+        FROM researched.programme_link_candidates c
+        LEFT JOIN researched.programme_capture_jobs j ON j.candidate_id=c.id
+        LEFT JOIN researched.programme_records r ON r.candidate_id=c.id
+        WHERE c.study_id=$1 ORDER BY c.ordinal`,
+        [studyId],
+      ),
+      this.db.query(
+        "SELECT * FROM researched.programme_records WHERE study_id=$1 ORDER BY institution,programme_name",
+        [studyId],
+      ),
     ]);
-    return {...study,documents:documents.rows,candidates:candidates.rows,records:records.rows};
+    return {
+      ...study,
+      documents: documents.rows,
+      candidates: candidates.rows,
+      records: records.rows,
+    };
   }
-  async replaceProgrammeCandidates(studyId:string,sourceDocumentId:string,candidates:readonly any[],at:string){
+  async replaceProgrammeCandidates(
+    studyId: string,
+    sourceDocumentId: string,
+    candidates: readonly any[],
+    at: string,
+  ) {
     await this.assertStudyWritable(studyId);
-    const client=this.db.connect?await this.db.connect():null,query=client?client.query.bind(client):this.db.query.bind(this.db);
-    if(client)await query("BEGIN");
-    try{
-      await query("DELETE FROM researched.programme_link_candidates WHERE study_id=$1",[studyId]);
-      for(const candidate of candidates)await query(`INSERT INTO researched.programme_link_candidates(id,study_id,source_document_id,institution,programme_name,qualification_level,original_url,canonical_url,ordinal,created_at,updated_at)
-        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) ON CONFLICT(study_id,canonical_url) DO UPDATE SET institution=excluded.institution,programme_name=excluded.programme_name,qualification_level=excluded.qualification_level,original_url=excluded.original_url,ordinal=excluded.ordinal,updated_at=excluded.updated_at`,[randomUUID(),studyId,sourceDocumentId,candidate.institution,candidate.programmeName,candidate.qualificationLevel,candidate.originalUrl,candidate.canonicalUrl,candidate.ordinal,at]);
-      if(client)await query("COMMIT");
-    }catch(error){if(client)await query("ROLLBACK");throw error;}finally{client?.release();}
+    const client = this.db.connect ? await this.db.connect() : null,
+      query = client ? client.query.bind(client) : this.db.query.bind(this.db);
+    if (client) await query("BEGIN");
+    try {
+      await query(
+        "DELETE FROM researched.programme_link_candidates WHERE study_id=$1",
+        [studyId],
+      );
+      for (const candidate of candidates)
+        await query(
+          `INSERT INTO researched.programme_link_candidates(id,study_id,source_document_id,institution,programme_name,qualification_level,original_url,canonical_url,ordinal,created_at,updated_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) ON CONFLICT(study_id,canonical_url) DO UPDATE SET institution=excluded.institution,programme_name=excluded.programme_name,qualification_level=excluded.qualification_level,original_url=excluded.original_url,ordinal=excluded.ordinal,updated_at=excluded.updated_at`,
+          [
+            randomUUID(),
+            studyId,
+            sourceDocumentId,
+            candidate.institution,
+            candidate.programmeName,
+            candidate.qualificationLevel,
+            candidate.originalUrl,
+            candidate.canonicalUrl,
+            candidate.ordinal,
+            at,
+          ],
+        );
+      if (client) await query("COMMIT");
+    } catch (error) {
+      if (client) await query("ROLLBACK");
+      throw error;
+    } finally {
+      client?.release();
+    }
     return this.programmeWorkflow(studyId);
   }
-  async decideProgrammeCandidate(id:string,value:any,at:string){
-    const row=(await this.db.query(`UPDATE researched.programme_link_candidates SET decision=$2,decision_reason=$3,institution=COALESCE($4,institution),programme_name=COALESCE($5,programme_name),qualification_level=COALESCE($6,qualification_level),original_url=COALESCE($7,original_url),updated_at=$8 WHERE id=$1 RETURNING *`,[id,value.decision,value.reason??null,value.institution??null,value.programmeName??null,value.qualificationLevel??null,value.originalUrl??null,at])).rows[0];
-    return row??null;
+  async decideProgrammeCandidate(id: string, value: any, at: string) {
+    const row = (
+      await this.db.query(
+        `UPDATE researched.programme_link_candidates SET decision=$2,decision_reason=$3,institution=COALESCE($4,institution),programme_name=COALESCE($5,programme_name),qualification_level=COALESCE($6,qualification_level),original_url=COALESCE($7,original_url),updated_at=$8 WHERE id=$1 RETURNING *`,
+        [
+          id,
+          value.decision,
+          value.reason ?? null,
+          value.institution ?? null,
+          value.programmeName ?? null,
+          value.qualificationLevel ?? null,
+          value.originalUrl ?? null,
+          at,
+        ],
+      )
+    ).rows[0];
+    return row ?? null;
   }
-  async queueProgrammeCaptures(studyId:string,at:string){
+  async queueProgrammeCaptures(studyId: string, at: string) {
     await this.assertStudyWritable(studyId);
-    const candidates=(await this.db.query("SELECT * FROM researched.programme_link_candidates WHERE study_id=$1 AND decision='included' ORDER BY ordinal",[studyId])).rows;
-    let queued=0;
-    for(const candidate of candidates){
-      let job=(await this.db.query("SELECT * FROM researched.programme_capture_jobs WHERE candidate_id=$1",[candidate.id])).rows[0];
-      if(!job){
-        const sourceId=randomUUID();
-        await this.createSource(sourceId,{studyId,label:`${candidate.institution} — ${candidate.programme_name}`,originalUrl:candidate.canonical_url,sourceType:"webpage",authority:"primary",corpusStatus:"included",completeness:"unassessed",notes:"Programme page captured by the focused workflow"},at);
-        job=(await this.db.query(`INSERT INTO researched.programme_capture_jobs(id,candidate_id,study_id,source_id,status,next_attempt_at,created_at,updated_at) VALUES($1,$2,$3,$4,'queued',$5,$5,$5) RETURNING *`,[randomUUID(),candidate.id,studyId,sourceId,at])).rows[0];
+    const candidates = (
+      await this.db.query(
+        "SELECT * FROM researched.programme_link_candidates WHERE study_id=$1 AND decision='included' ORDER BY ordinal",
+        [studyId],
+      )
+    ).rows;
+    let queued = 0;
+    for (const candidate of candidates) {
+      let job = (
+        await this.db.query(
+          "SELECT * FROM researched.programme_capture_jobs WHERE candidate_id=$1",
+          [candidate.id],
+        )
+      ).rows[0];
+      if (!job) {
+        const sourceId = randomUUID();
+        await this.createSource(
+          sourceId,
+          {
+            studyId,
+            label: `${candidate.institution} — ${candidate.programme_name}`,
+            originalUrl: candidate.canonical_url,
+            sourceType: "webpage",
+            authority: "primary",
+            corpusStatus: "included",
+            completeness: "unassessed",
+            notes: "Programme page captured by the focused workflow",
+          },
+          at,
+        );
+        job = (
+          await this.db.query(
+            `INSERT INTO researched.programme_capture_jobs(id,candidate_id,study_id,source_id,status,next_attempt_at,created_at,updated_at) VALUES($1,$2,$3,$4,'queued',$5,$5,$5) RETURNING *`,
+            [randomUUID(), candidate.id, studyId, sourceId, at],
+          )
+        ).rows[0];
         queued++;
-      }else if(job.status==='failed'){
-        await this.db.query("UPDATE researched.programme_capture_jobs SET status='queued',attempts=0,next_attempt_at=$2,last_error=NULL,completed_at=NULL,updated_at=$2 WHERE id=$1",[job.id,at]);queued++;
+      } else if (job.status === "failed" || job.status === "cancelled") {
+        await this.db.query(
+          "UPDATE researched.programme_capture_jobs SET status='queued',attempts=0,next_attempt_at=$2,last_error=NULL,completed_at=NULL,updated_at=$2 WHERE id=$1",
+          [job.id, at],
+        );
+        queued++;
       }
     }
-    return {requested:candidates.length,queued};
+    return { requested: candidates.length, queued };
   }
-  async claimProgrammeCapture(at:string){
-    return (await this.db.query(`WITH next AS (SELECT j.id FROM researched.programme_capture_jobs j WHERE j.status IN('queued','failed') AND j.attempts<j.maximum_attempts AND j.next_attempt_at<=$1 ORDER BY j.next_attempt_at,j.created_at FOR UPDATE SKIP LOCKED LIMIT 1)
-      UPDATE researched.programme_capture_jobs j SET status='running',attempts=attempts+1,started_at=$1,last_error=NULL,updated_at=$1 FROM next WHERE j.id=next.id RETURNING j.*`,[at])).rows[0]??null;
+  async claimProgrammeCapture(at: string) {
+    return (
+      (
+        await this.db.query(
+          `WITH next AS (SELECT j.id FROM researched.programme_capture_jobs j WHERE j.status IN('queued','failed') AND j.attempts<j.maximum_attempts AND j.next_attempt_at<=$1 ORDER BY j.next_attempt_at,j.created_at FOR UPDATE SKIP LOCKED LIMIT 1)
+      UPDATE researched.programme_capture_jobs j SET status='running',attempts=attempts+1,started_at=$1,last_error=NULL,updated_at=$1 FROM next WHERE j.id=next.id RETURNING j.*`,
+          [at],
+        )
+      ).rows[0] ?? null
+    );
   }
-  async recoverProgrammeCaptures(at:string){
-    await this.db.query("UPDATE researched.programme_capture_jobs SET status='queued',started_at=NULL,next_attempt_at=$1,last_error=COALESCE(last_error,'Recovered after application restart'),updated_at=$1 WHERE status='running'",[at]);
+  async recoverProgrammeCaptures(at: string) {
+    await this.db.query(
+      "UPDATE researched.programme_capture_jobs SET status='queued',started_at=NULL,next_attempt_at=$1,last_error=COALESCE(last_error,'Recovered after application restart'),updated_at=$1 WHERE status='running'",
+      [at],
+    );
   }
-  async programmeCaptureContext(jobId:string){
-    return (await this.db.query(`SELECT j.*,c.institution,c.programme_name,c.qualification_level,c.original_url,c.canonical_url,c.ordinal,s.label,s.original_url AS source_url
-      FROM researched.programme_capture_jobs j JOIN researched.programme_link_candidates c ON c.id=j.candidate_id JOIN researched.sources s ON s.id=j.source_id WHERE j.id=$1`,[jobId])).rows[0]??null;
+  async cancelProgrammeCaptures(studyId: string, at: string) {
+    const result = await this.db.query(
+      `UPDATE researched.programme_capture_jobs
+      SET status='cancelled',completed_at=$2,updated_at=$2,last_error=NULL
+      WHERE study_id=$1 AND status IN('queued','running','failed') RETURNING id`,
+      [studyId, at],
+    );
+    return { cancelled: result.rowCount ?? result.rows.length };
   }
-  async completeProgrammeCapture(job:any,record:any,at:string){
-    const client=this.db.connect?await this.db.connect():null,query=client?client.query.bind(client):this.db.query.bind(this.db);
-    if(client)await query("BEGIN");
-    try{
-    await query(`INSERT INTO researched.programme_records(id,candidate_id,study_id,source_id,institution,programme_name,qualification_level,award,delivery_modes,duration,credit_requirement,curriculum,concentrations,admission_requirements,professional_outcomes,summary,evidence,confidence,warnings,captured_at,extractor_version)
+  async programmeCaptureContext(jobId: string) {
+    return (
+      (
+        await this.db.query(
+          `SELECT j.*,c.institution,c.programme_name,c.qualification_level,c.original_url,c.canonical_url,c.ordinal,s.label,s.original_url AS source_url
+      FROM researched.programme_capture_jobs j JOIN researched.programme_link_candidates c ON c.id=j.candidate_id JOIN researched.sources s ON s.id=j.source_id WHERE j.id=$1`,
+          [jobId],
+        )
+      ).rows[0] ?? null
+    );
+  }
+  async completeProgrammeCapture(job: any, record: any, at: string) {
+    const client = this.db.connect ? await this.db.connect() : null,
+      query = client ? client.query.bind(client) : this.db.query.bind(this.db);
+    if (client) await query("BEGIN");
+    try {
+      const current = (
+        await query(
+          "SELECT status FROM researched.programme_capture_jobs WHERE id=$1 FOR UPDATE",
+          [job.id],
+        )
+      ).rows[0];
+      if (!current || current.status !== "running") {
+        if (client) await query("ROLLBACK");
+        return false;
+      }
+      await query(
+        `INSERT INTO researched.programme_records(id,candidate_id,study_id,source_id,institution,programme_name,qualification_level,award,delivery_modes,duration,credit_requirement,curriculum,concentrations,admission_requirements,professional_outcomes,summary,evidence,confidence,warnings,captured_at,extractor_version)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
-      ON CONFLICT(candidate_id) DO UPDATE SET source_id=excluded.source_id,institution=excluded.institution,programme_name=excluded.programme_name,qualification_level=excluded.qualification_level,award=excluded.award,delivery_modes=excluded.delivery_modes,duration=excluded.duration,credit_requirement=excluded.credit_requirement,curriculum=excluded.curriculum,concentrations=excluded.concentrations,admission_requirements=excluded.admission_requirements,professional_outcomes=excluded.professional_outcomes,summary=excluded.summary,evidence=excluded.evidence,confidence=excluded.confidence,warnings=excluded.warnings,captured_at=excluded.captured_at,extractor_version=excluded.extractor_version`,[randomUUID(),job.candidate_id,job.study_id,job.source_id,record.institution,record.programmeName,record.qualificationLevel,record.award,JSON.stringify(record.deliveryModes),record.duration,record.creditRequirement,JSON.stringify(record.curriculum),JSON.stringify(record.concentrations),JSON.stringify(record.admissionRequirements),JSON.stringify(record.professionalOutcomes),record.summary,JSON.stringify(record.evidence),record.confidence,JSON.stringify(record.warnings),at,record.extractorVersion]);
-    await query("UPDATE researched.programme_capture_jobs SET status='succeeded',completed_at=$2,updated_at=$2 WHERE id=$1",[job.id,at]);
-    if(client)await query("COMMIT");
-    }catch(error){if(client)await query("ROLLBACK");throw error;}finally{client?.release();}
+      ON CONFLICT(candidate_id) DO UPDATE SET source_id=excluded.source_id,institution=excluded.institution,programme_name=excluded.programme_name,qualification_level=excluded.qualification_level,award=excluded.award,delivery_modes=excluded.delivery_modes,duration=excluded.duration,credit_requirement=excluded.credit_requirement,curriculum=excluded.curriculum,concentrations=excluded.concentrations,admission_requirements=excluded.admission_requirements,professional_outcomes=excluded.professional_outcomes,summary=excluded.summary,evidence=excluded.evidence,confidence=excluded.confidence,warnings=excluded.warnings,captured_at=excluded.captured_at,extractor_version=excluded.extractor_version`,
+        [
+          randomUUID(),
+          job.candidate_id,
+          job.study_id,
+          job.source_id,
+          record.institution,
+          record.programmeName,
+          record.qualificationLevel,
+          record.award,
+          JSON.stringify(record.deliveryModes),
+          record.duration,
+          record.creditRequirement,
+          JSON.stringify(record.curriculum),
+          JSON.stringify(record.concentrations),
+          JSON.stringify(record.admissionRequirements),
+          JSON.stringify(record.professionalOutcomes),
+          record.summary,
+          JSON.stringify(record.evidence),
+          record.confidence,
+          JSON.stringify(record.warnings),
+          at,
+          record.extractorVersion,
+        ],
+      );
+      await query(
+        "UPDATE researched.programme_capture_jobs SET status='succeeded',completed_at=$2,updated_at=$2 WHERE id=$1",
+        [job.id, at],
+      );
+      if (client) await query("COMMIT");
+      return true;
+    } catch (error) {
+      if (client) await query("ROLLBACK");
+      throw error;
+    } finally {
+      client?.release();
+    }
   }
-  async failProgrammeCapture(job:any,error:string,at:string){
-    const terminal=job.attempts>=job.maximum_attempts,minutes=Math.min(60,2**Math.max(0,job.attempts-1));
-    await this.db.query("UPDATE researched.programme_capture_jobs SET status='failed',last_error=$2,next_attempt_at=$3::timestamptz+($4||' minutes')::interval,completed_at=CASE WHEN $5 THEN $3::timestamptz ELSE NULL END,updated_at=$3 WHERE id=$1",[job.id,error,at,minutes,terminal]);
+  async failProgrammeCapture(job: any, error: string, at: string) {
+    const terminal = job.attempts >= job.maximum_attempts,
+      minutes = Math.min(60, 2 ** Math.max(0, job.attempts - 1));
+    await this.db.query(
+      "UPDATE researched.programme_capture_jobs SET status='failed',last_error=$2,next_attempt_at=$3::timestamptz+($4||' minutes')::interval,completed_at=CASE WHEN $5 THEN $3::timestamptz ELSE NULL END,updated_at=$3 WHERE id=$1 AND status='running'",
+      [job.id, error, at, minutes, terminal],
+    );
   }
   async counts() {
     const r = await this.db.query(

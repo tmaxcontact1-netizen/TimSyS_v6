@@ -10,6 +10,103 @@ export interface PaperDashboardDetails {
   readonly events: readonly Record<string, unknown>[];
 }
 
+export interface FocusedPaperDashboard {
+  readonly profiles: readonly Record<string, unknown>[];
+  readonly evaluations: readonly Record<string, unknown>[];
+  readonly trades: readonly Record<string, unknown>[];
+  readonly rejectionReasons: readonly Record<string, unknown>[];
+}
+
+/** The focused operator view: two strategies, their actual decisions and their
+ * actual trade outcomes. Values are returned as stored, without invented scores. */
+export async function readFocusedPaperDashboard(
+  database: Pick<Pool, "query">,
+  wallet: WalletAddress,
+): Promise<FocusedPaperDashboard> {
+  const profileIds = ["fast_furious", "oscillation_trader"];
+  const [profiles, evaluations, trades, rejectionReasons] = await Promise.all([
+    database.query(
+      `SELECT a.profile_id,a.enabled,a.mode,a.allocation_bps,a.version,a.updated_at,
+              COALESCE(ac.initial_cash_raw,0)::text AS initial_cash_raw,
+              COALESCE(ac.cash_raw,0)::text AS cash_raw,
+              COALESCE(ac.realized_pnl_raw,0)::text AS realized_pnl_raw,
+              COALESCE(p.open_positions,0)::int AS open_positions,
+              COALESCE(p.open_cost_raw,0)::text AS open_cost_raw,
+              COALESCE(o.closed,0)::int AS closed_trades,
+              COALESCE(o.wins,0)::int AS winning_trades,
+              COALESCE(o.losses,0)::int AS losing_trades,
+              COALESCE(o.net_bps,0)::text AS cumulative_net_bps,
+              COALESCE(s.evaluated,0)::int AS evaluated,
+              COALESCE(s.accepted,0)::int AS accepted,
+              COALESCE(s.rejected,0)::int AS rejected,
+              s.last_evaluated_at
+         FROM paper_profile_activations a
+         LEFT JOIN paper_profile_accounts ac USING(wallet,profile_id)
+         LEFT JOIN LATERAL (
+           SELECT count(*)::int AS open_positions,COALESCE(sum(cost_raw),0) AS open_cost_raw
+             FROM paper_profile_positions p
+            WHERE p.wallet=a.wallet AND p.profile_id=a.profile_id
+         ) p ON true
+         LEFT JOIN LATERAL (
+           SELECT count(*) FILTER (WHERE lifecycle_state='closed')::int AS closed,
+                  count(*) FILTER (WHERE lifecycle_state='closed' AND realized_net_bps>0)::int AS wins,
+                  count(*) FILTER (WHERE lifecycle_state='closed' AND realized_net_bps<=0)::int AS losses,
+                  COALESCE(sum(realized_net_bps) FILTER (WHERE lifecycle_state='closed'),0) AS net_bps
+             FROM paper_profile_signal_outcomes o
+            WHERE o.wallet=a.wallet AND o.profile_id=a.profile_id
+         ) o ON true
+         LEFT JOIN LATERAL (
+           SELECT count(*)::int AS evaluated,count(*) FILTER (WHERE eligible)::int AS accepted,
+                  count(*) FILTER (WHERE NOT eligible)::int AS rejected,max(observed_at) AS last_evaluated_at
+             FROM paper_profile_signals s
+            WHERE s.wallet=a.wallet AND s.profile_id=a.profile_id
+         ) s ON true
+        WHERE a.wallet=$1 AND a.profile_id=ANY($2::text[]) ORDER BY a.profile_id`,
+      [wallet, profileIds],
+    ),
+    database.query(
+      `SELECT s.id::text,s.observed_at,s.profile_id,s.token_mint,s.signal_type,s.eligible,
+              s.score,s.rejection_reasons_json,s.gates_json,s.metrics_json,
+              COALESCE(o.lifecycle_state,CASE WHEN s.eligible THEN 'accepted' ELSE 'rejected' END) AS outcome
+         FROM paper_profile_signals s
+         LEFT JOIN paper_profile_signal_outcomes o ON o.signal_id=s.id
+        WHERE s.wallet=$1 AND s.profile_id=ANY($2::text[])
+        ORDER BY s.observed_at DESC,s.id DESC LIMIT 500`,
+      [wallet, profileIds],
+    ),
+    database.query(
+      `SELECT o.signal_id::text,o.profile_id,o.token_mint,o.lifecycle_state,o.entered_at,o.exited_at,
+              o.exit_reason,o.planned_target_bps,o.planned_stop_bps,o.estimated_friction_bps,
+              o.realized_gross_bps::text,o.realized_net_bps::text,o.realized_friction_bps::text,
+              o.maximum_favorable_excursion_bps::text,o.maximum_adverse_excursion_bps::text,
+              o.holding_seconds,entry.settlement_amount_raw::text AS entry_cost_raw,
+              exit.settlement_amount_raw::text AS exit_value_raw
+         FROM paper_profile_signal_outcomes o
+         LEFT JOIN paper_profile_fills entry ON entry.id=o.entry_fill_id
+         LEFT JOIN paper_profile_fills exit ON exit.id=o.exit_fill_id
+        WHERE o.wallet=$1 AND o.profile_id=ANY($2::text[])
+          AND o.lifecycle_state IN ('entered','closed')
+        ORDER BY COALESCE(o.exited_at,o.entered_at) DESC,o.signal_id DESC LIMIT 500`,
+      [wallet, profileIds],
+    ),
+    database.query(
+      `SELECT s.profile_id,reason.value AS reason,count(*)::int AS occurrences,
+              count(DISTINCT s.token_mint)::int AS tokens,max(s.observed_at) AS last_seen_at
+         FROM paper_profile_signals s
+         CROSS JOIN LATERAL jsonb_array_elements_text(s.rejection_reasons_json) reason(value)
+        WHERE s.wallet=$1 AND s.profile_id=ANY($2::text[]) AND NOT s.eligible
+        GROUP BY s.profile_id,reason.value ORDER BY occurrences DESC,reason.value LIMIT 100`,
+      [wallet, profileIds],
+    ),
+  ]);
+  return Object.freeze({
+    profiles: rows(profiles.rows, "focused profiles"),
+    evaluations: rows(evaluations.rows, "focused evaluations"),
+    trades: rows(trades.rows, "focused trades"),
+    rejectionReasons: rows(rejectionReasons.rows, "focused rejection reasons"),
+  });
+}
+
 interface DashboardRow {
   readonly positions: unknown;
   readonly pending_entries: unknown;

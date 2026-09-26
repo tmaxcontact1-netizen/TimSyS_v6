@@ -20,6 +20,7 @@ import {
   readAcquisitionPipelineStatus,
   readStrategyFunnel,
   readPaperOpportunityAudit,
+  readFocusedPaperDashboard,
 } from "../infrastructure/database/paper-dashboard.js";
 import {
   addDashboardWatchlistToken,
@@ -53,6 +54,7 @@ import {
 } from "../infrastructure/database/paper-profile-activations.js";
 import {
   profileIds,
+  focusedProfileIdSet,
   tradingProfile,
   tradingProfileCatalogue,
   type PaperProfileMode,
@@ -192,26 +194,40 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
       }
       try {
         await dependencies.database.query("SELECT 1 AS ready");
-        sendJson(response, 200, createApplicationHealth({
-          application: "memecoined",
-          status: "healthy",
-          observedAt: now().toISOString(),
-          components: [
-            { id: "database", status: "healthy", message: "Database is ready" },
-            { id: "paper-runtime", status: "healthy", message: "Paper-safe runtime is available" },
-          ],
-          mode: "paper",
-          database: "ready",
-        }));
+        sendJson(
+          response,
+          200,
+          createApplicationHealth({
+            application: "memecoined",
+            status: "healthy",
+            observedAt: now().toISOString(),
+            components: [
+              { id: "database", status: "healthy", message: "Database is ready" },
+              {
+                id: "paper-runtime",
+                status: "healthy",
+                message: "Paper-safe runtime is available",
+              },
+            ],
+            mode: "paper",
+            database: "ready",
+          }),
+        );
       } catch {
-        sendJson(response, 503, createApplicationHealth({
-          application: "memecoined",
-          status: "unavailable",
-          observedAt: now().toISOString(),
-          components: [{ id: "database", status: "unavailable", message: "Database is unavailable" }],
-          mode: "paper",
-          database: "unavailable",
-        }));
+        sendJson(
+          response,
+          503,
+          createApplicationHealth({
+            application: "memecoined",
+            status: "unavailable",
+            observedAt: now().toISOString(),
+            components: [
+              { id: "database", status: "unavailable", message: "Database is unavailable" },
+            ],
+            mode: "paper",
+            database: "unavailable",
+          }),
+        );
       }
       return;
     }
@@ -226,14 +242,11 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         mode: "paper",
         functions: [
           "market-acquisition",
-          "token-watchlists",
-          "paper-trading",
-          "portfolio-monitoring",
-          "risk-controls",
-          "performance-analysis",
-          "operator-controls",
-          "audit-history",
-          "operational-insights",
+          "fast-furious-paper-trading",
+          "oscillation-trader-paper-trading",
+          "evaluation-telemetry",
+          "trade-history",
+          "profit-and-loss",
         ],
       });
       return;
@@ -261,6 +274,22 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         sendJson(response, 200, { mode: "paper", period: "24h", rows });
       } catch {
         sendJson(response, 503, { error: "strategy_funnel_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/focused-dashboard") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const dashboard = await readFocusedPaperDashboard(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), dashboard });
+      } catch {
+        sendJson(response, 503, { error: "focused_dashboard_unavailable" });
       }
       return;
     }
@@ -389,7 +418,10 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     }
     if (pathname === "/api/trading-profiles" && method === "GET") {
       try {
-        const activations = await listPaperProfileActivations(dependencies.database, dependencies.wallet);
+        const activations = await listPaperProfileActivations(
+          dependencies.database,
+          dependencies.wallet,
+        );
         if (profilePerformanceCache === null || Date.now() - profilePerformanceReadAt >= 300_000) {
           profilePerformanceCache = await readProfilePaperPerformance(
             dependencies.database,
@@ -399,11 +431,16 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         }
         const performance = profilePerformanceCache;
         sendJson(response, 200, {
-          profiles: tradingProfileCatalogue.map((definition) => ({
-            ...definition,
-            ...activations.find((item) => item.profileId === definition.id),
-            performance: performance.find((item: Record<string, unknown>) => item.profile_id === definition.id) ?? null,
-          })),
+          profiles: tradingProfileCatalogue
+            .filter((definition) => focusedProfileIdSet.has(definition.id))
+            .map((definition) => ({
+              ...definition,
+              ...activations.find((item) => item.profileId === definition.id),
+              performance:
+                performance.find(
+                  (item: Record<string, unknown>) => item.profile_id === definition.id,
+                ) ?? null,
+            })),
           policy: {
             operatorAccess: dependencies.trustedLocalMutations ? "desktop_session" : "token",
             maximumCombinedAllocationBps: 10_000,
@@ -431,6 +468,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
         const profileId = profileMatch[1] ?? "";
         if (!validProfileId(profileId) || tradingProfile(profileId) === null)
           throw new Error("invalid_profile_id");
+        if (!focusedProfileIdSet.has(profileId)) throw new Error("invalid_profile_id");
         const body = await readJson(request);
         if (
           typeof body.enabled !== "boolean" ||
@@ -439,7 +477,8 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
           !validInteger(body.allocationBps, 0, 10_000) ||
           !Number.isSafeInteger(body.expectedVersion) ||
           Number(body.expectedVersion) < 0
-        ) throw new Error("invalid_profile_configuration");
+        )
+          throw new Error("invalid_profile_configuration");
         const profile = await configurePaperProfile(
           dependencies.database,
           dependencies.wallet,
@@ -467,7 +506,13 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
           });
         } else if (
           error instanceof Error &&
-          ["content_type", "body_too_large", "invalid_body", "invalid_profile_id", "invalid_profile_configuration"].includes(error.message)
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_profile_id",
+            "invalid_profile_configuration",
+          ].includes(error.message)
         ) {
           sendJson(response, 400, { error: error.message });
         } else {

@@ -1,140 +1,64 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-
 const root = new URL("../../", import.meta.url);
-
-describe("dashboard UI standards", () => {
-  it("provides consistent application navigation and app-owned dialogs", async () => {
+describe("focused dashboard UI standards", () => {
+  it("contains only the three operator tasks and a launcher exit", async () => {
     const html = await readFile(new URL("frontend/index.html", root), "utf8");
-    expect(html).toContain('id="app-back"');
+    expect(html).toContain('data-page="dashboard"');
+    expect(html).toContain('data-page="evaluations"');
+    expect(html).toContain('data-page="trades"');
     expect(html).toContain('id="return-launcher"');
-    expect(html).toContain('id="action-dialog"');
-    expect(html.indexOf('id="return-launcher"')).toBeGreaterThan(
-      html.indexOf('id="sidebar-collapse"'),
-    );
-    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
-    expect(css).toContain("overflow-y: auto");
-    expect(css).toContain("margin: auto 0 12px");
+    expect(html).not.toContain("Watchlists");
+    expect(html).not.toContain("Strategy benchmarks");
   });
-
-  it("uses one numbered 50-row paginator and no browser prompt dialogs", async () => {
+  it("shows only the two supported profiles", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    expect(html).toContain("Fast &amp; Furious");
+    expect(html).toContain("Oscillation Trader");
+    expect(html).not.toContain("Slow &amp; Steady");
+    expect(html).not.toContain("Whale Watch");
+  });
+  it("exposes calibration evidence", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    for (const id of [
+      "reason-rows",
+      "evaluation-rows",
+      "evaluation-profile",
+      "evaluation-result",
+      "evaluation-search",
+    ])
+      expect(html).toContain(`id="${id}"`);
+    expect(html).toContain("Top rejection reasons");
+    expect(html).toContain("Why");
+  });
+  it("shows meaningful trade and performance fields", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    expect(html).toContain('id="trade-rows"');
+    expect(html).toContain("Best / worst");
+    expect(html).toContain("Exit");
+    expect(html).toContain("Held");
+    expect(html).not.toContain("Token amount");
+  });
+  it("provides feedback and avoids browser dialogs", async () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    expect(javascript).toContain("const pageSize = 50");
-    expect(javascript).toContain("function renderPagination");
-    expect(javascript).toContain('number.className = "row-number"');
+    expect(javascript).toContain("function notify");
+    expect(javascript).toContain("The profile setting was not saved");
     expect(javascript).not.toMatch(/\bprompt\s*\(/);
     expect(javascript).not.toMatch(/\bconfirm\s*\(/);
   });
-
-  it("presents fills as understandable trades instead of unlabeled token base units", async () => {
-    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+  it("loads real focused evidence and refreshes it", async () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    expect(html).toContain(">Strategy</button>");
-    expect(html).toContain("SOL value");
-    expect(html).toContain('data-sort="reason"');
-    expect(html).not.toContain("Token amount");
-    expect(javascript).toContain('hard_stop: "Loss limit reached"');
-    expect(javascript).toContain("raw token quantity");
+    expect(javascript).toContain('fetch("/api/focused-dashboard"');
+    expect(javascript).toContain('fetch("/api/trading-profiles"');
+    expect(javascript).toContain("setInterval(load, 30000)");
+    expect(javascript).toContain("rejection_reasons_json");
+    expect(javascript).toContain("realized_net_bps");
   });
-
-  it("shows measurable evidence across every operator page", async () => {
-    const html = await readFile(new URL("frontend/index.html", root), "utf8");
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    for (const id of [
-      "overview-assessed",
-      "overview-completed",
-      "overview-best-strategy",
-      "performance-win-rate",
-      "strategy-performance-rows",
-      "closed-trade-rows",
-      "pipeline-qualification-rate",
-      "pipeline-buys",
-      "pipeline-quote-failures",
-    ]) {
-      expect(html).toContain(`id="${id}"`);
-    }
-    expect(html).toContain("Current value");
-    expect(html).toContain("Last trade");
-    expect(javascript).toContain("function renderOperationalEvidence");
-    expect(javascript).toContain("function renderPerformanceInsights");
-    expect(javascript).toContain("qualification");
-  });
-
-  it("defines safe calibration rendering before profile cards use it", async () => {
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    const declaration = javascript.indexOf("const escapeHtml =");
-    const calibrationUse = javascript.indexOf("escapeHtml(calibration.reason)");
-    expect(declaration).toBeGreaterThanOrEqual(0);
-    expect(calibrationUse).toBeGreaterThan(declaration);
-  });
-
-  it("keeps the overview concise and suppresses empty operational furniture", async () => {
-    const html = await readFile(new URL("frontend/index.html", root), "utf8");
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+  it("uses a restrained responsive layout", async () => {
     const css = await readFile(new URL("frontend/styles.css", root), "utf8");
-    expect(html).toContain('data-pages="operations"');
-    expect(html).not.toContain('data-pages="overview operations"');
-    expect(html).toContain('data-pages="watchlist"');
-    expect(javascript).toContain('document.getElementById("alerts-panel").hidden = alerts.length === 0');
-    expect(javascript).toContain('document.getElementById("pending-entry-panel").hidden = pendingEntries.length === 0');
-    expect(javascript).toContain('currentPage === "positions"');
-    expect(css).toContain("[hidden]");
-  });
-
-  it("keeps profile diagnostics readable and operational tables inside their panels", async () => {
-    const html = await readFile(new URL("frontend/index.html", root), "utf8");
-    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
-    expect(css).toContain(".detail-grid > .wide");
-    expect(css).toContain(".table-wrap {");
-    expect(css).toContain(".strategy-funnel-table table");
-    expect(css).toContain("grid-template-columns: repeat(2, minmax(0, 1fr))");
-    expect(html).toContain('class="table-wrap strategy-funnel-table"');
-    expect(html).toContain('<td colspan="10">Loading strategy activity…</td>');
-    expect(html).toContain('id="opportunity-audit-run"');
-    expect(html).toContain('id="opportunity-audit-rows"');
-  });
-
-  it("guards configuration edits from accidental refresh loss", async () => {
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    expect(javascript).toContain('window.addEventListener("beforeunload"');
-    expect(javascript).toContain("configurationDirty");
-    expect(javascript).toContain("configurationDraftKey");
-    expect(javascript).toContain("localStorage.setItem(configurationDraftKey");
-  });
-
-  it("uses task-level pages and displays the explicit health contract", async () => {
-    const html = await readFile(new URL("frontend/index.html", root), "utf8");
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    expect(html).toContain('id="page-title"');
-    expect(html).toContain('data-pages="positions"');
-    expect(html).toContain('id="database-health"');
-    expect(javascript).toContain('fetch("/api/health"');
-    expect(javascript).toContain("function updateNavigationState");
-    expect(javascript).toContain('"#benchmarks": "benchmarks"');
-  });
-
-  it("keeps dedicated pages visible regardless of Overview display preferences", async () => {
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    const css = await readFile(new URL("frontend/styles.css", root), "utf8");
-    expect(javascript).toContain(
-      'panel.hidden = page === "overview" && Boolean(id && preferences.hiddenPanels.includes(id))',
-    );
-    expect(javascript).toContain(
-      'panel.hidden = currentPage === "overview" && preferences.hiddenPanels.includes(id)',
-    );
-    expect(css).toContain('body[data-density="compact"][data-page="overview"] .optional-detail');
-    expect(css).not.toContain('body[data-density="compact"] .optional-detail');
-  });
-
-  it("registers every named dashboard element used by refresh rendering", async () => {
-    const html = await readFile(new URL("frontend/index.html", root), "utf8");
-    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
-    const registry = javascript.match(/const ids = \[([\s\S]*?)\];/)?.[1] ?? "";
-    const registered = new Set([...registry.matchAll(/"([^"]+)"/g)].map((match) => match[1]));
-    const htmlIds = new Set([...html.matchAll(/id="([^"]+)"/g)].map((match) => match[1]));
-    const used = [...javascript.matchAll(/elements\["([^"]+)"\]/g)].map((match) => match[1]);
-
-    expect([...new Set(used)].filter((id) => !registered.has(id))).toEqual([]);
-    expect([...registered].filter((id) => !htmlIds.has(id))).toEqual([]);
+    expect(css).toContain(".profile-grid");
+    expect(css).toContain(".table-wrap");
+    expect(css).toContain("overflow: auto");
+    expect(css).toContain("@media (max-width: 900px)");
   });
 });

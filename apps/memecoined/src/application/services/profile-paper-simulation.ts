@@ -294,28 +294,9 @@ export function confirmedEntryLag(
   const moveBps = Number((firstOutput * 10_000n) / latestOutput - 10_000n);
   return Object.freeze({ eligible: moveBps <= Math.max(50, targetBps * 0.5), moveBps });
 }
-const temporalProfileIds = new Set<TradingProfileId>([
-  "fast_furious",
-  "slow_steady",
-  "scalper",
-  "oscillation_trader",
-  "trend_detector",
-  "capital_preservation",
-  "signal_consensus",
-  "breakout_retest",
-  "liquidity_expansion",
-  "recovery_reversal",
-  "launch_transition",
-  "benchmark_buy_hold",
-  "benchmark_momentum",
-  "benchmark_ema_cross",
-  "benchmark_rsi_reversal",
-  "benchmark_macd_trend",
-  "benchmark_bollinger_reversion",
-  "benchmark_donchian_breakout",
-  "benchmark_volume_breakout",
-  "benchmark_atr_trend",
-]);
+// MemeCoined intentionally executes only the two strategies under active
+// calibration. Other IDs remain readable so old evidence is never destroyed.
+const temporalProfileIds = new Set<TradingProfileId>(["fast_furious", "oscillation_trader"]);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
 
 /** Refresh volatile score components and their matching gates from one live market reading. */
@@ -1995,8 +1976,9 @@ async function evaluateNewCandidates(input: {
   feeRaw: bigint;
 }): Promise<void> {
   const activations = await input.pool.query<ActivationRow>(
-    `SELECT profile_id,mode,allocation_bps FROM paper_profile_activations WHERE wallet=$1 AND enabled=true ORDER BY profile_id`,
-    [input.wallet],
+    `SELECT profile_id,mode,allocation_bps FROM paper_profile_activations
+      WHERE wallet=$1 AND enabled=true AND profile_id=ANY($2::text[]) ORDER BY profile_id`,
+    [input.wallet, [...temporalProfileIds]],
   );
   const candidates = await input.pool.query<CandidateRow>(
     `SELECT c.id::text AS candidate_id,c.mint_address,s.total_score,s.breakdown_json,
@@ -2007,12 +1989,14 @@ async function evaluateNewCandidates(input: {
        FROM candidates c JOIN LATERAL
             (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
               WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
-      WHERE EXISTS (SELECT 1 FROM paper_profile_activations a WHERE a.wallet=$1 AND a.enabled=true)
+      WHERE EXISTS (SELECT 1 FROM paper_profile_activations a WHERE a.wallet=$1 AND a.enabled=true
+                    AND a.profile_id=ANY($2::text[]))
         AND EXISTS (SELECT 1 FROM paper_profile_activations a WHERE a.wallet=$1 AND a.enabled=true
+                    AND a.profile_id=ANY($2::text[])
                     AND NOT EXISTS (SELECT 1 FROM paper_profile_candidate_decisions d
                                     WHERE d.wallet=$1 AND d.profile_id=a.profile_id AND d.candidate_id=c.id))
       ORDER BY s.evaluated_at,c.id LIMIT 30`,
-    [input.wallet],
+    [input.wallet, [...temporalProfileIds]],
   );
   for (const candidate of candidates.rows) {
     for (const activation of activations.rows) {

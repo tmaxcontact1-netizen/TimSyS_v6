@@ -38,16 +38,45 @@ import {
   findBrowserExecutable,
   preserveSource,
 } from "../application/source-acquisition.js";
-import { extractStoredSnapshot, extractText } from "../application/source-extraction.js";
+import {
+  extractStoredSnapshot,
+  extractText,
+} from "../application/source-extraction.js";
 import { assembleReport, renderReportHtml } from "../application/reporting.js";
 import { discoverStoredLinks } from "../application/link-discovery.js";
-import { ANALYSIS_RESULT_CONTRACT_VERSION, analysisResultJsonSchemas, parseStoredAnalysisResult } from "../domain/analysis-results.js";
-import { analysisRunArchive, analysisRunCsv, analysisRunMarkdown } from "../application/analysis-export.js";
+import {
+  ANALYSIS_RESULT_CONTRACT_VERSION,
+  analysisResultJsonSchemas,
+  parseStoredAnalysisResult,
+} from "../domain/analysis-results.js";
+import {
+  analysisRunArchive,
+  analysisRunCsv,
+  analysisRunMarkdown,
+} from "../application/analysis-export.js";
 import { buildResearchInsights } from "../application/research-insights.js";
-import { extractProgrammeCandidates, extractProgrammeRecord } from "../application/programme-workflow.js";
+import {
+  extractProgrammeCandidates,
+  extractProgrammeRecord,
+} from "../application/programme-workflow.js";
 import type { AnalysisTypeId } from "../domain/analysis.js";
-import { ANALYSIS_CATALOG, analysisPlanInput, analysisTemplateInput, analysisRunInput, analysisRunControlInput, analysisFindingDecisionInput,aiConnectionInput,aiDiscoveryInput } from "../domain/analysis.js";
-import { AI_PROVIDER_PROTOCOLS, createAiAnalysisProvider, inspectAiConnection, type AiAnalysisProvider, type AiProviderConfiguration } from "../application/ai-analysis.js";
+import {
+  ANALYSIS_CATALOG,
+  analysisPlanInput,
+  analysisTemplateInput,
+  analysisRunInput,
+  analysisRunControlInput,
+  analysisFindingDecisionInput,
+  aiConnectionInput,
+  aiDiscoveryInput,
+} from "../domain/analysis.js";
+import {
+  AI_PROVIDER_PROTOCOLS,
+  createAiAnalysisProvider,
+  inspectAiConnection,
+  type AiAnalysisProvider,
+  type AiProviderConfiguration,
+} from "../application/ai-analysis.js";
 function secure(r: ServerResponse) {
   r.setHeader("Cache-Control", "no-store");
   r.setHeader(
@@ -89,10 +118,16 @@ async function readBody(q: IncomingMessage) {
     throw new Error("invalid_json");
   }
 }
-async function readBinaryBody(q: IncomingMessage, maximumBytes=50_000_000){
-  const chunks:Buffer[]=[]; let size=0;
-  for await(const chunk of q){const value=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk); size+=value.length; if(size>maximumBytes) throw new Error("request_too_large"); chunks.push(value);}
-  if(size===0) throw new Error("empty_upload");
+async function readBinaryBody(q: IncomingMessage, maximumBytes = 50_000_000) {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of q) {
+    const value = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += value.length;
+    if (size > maximumBytes) throw new Error("request_too_large");
+    chunks.push(value);
+  }
+  if (size === 0) throw new Error("empty_upload");
   return Buffer.concat(chunks);
 }
 function staticPath(root: string, path: string) {
@@ -111,15 +146,23 @@ export function createResearchServer(input: {
   acquire?: typeof acquireSource;
   acquireRendered?: typeof acquireRenderedSource;
   backgroundQueue?: boolean;
-  aiProvider?:AiAnalysisProvider|null;
+  aiProvider?: AiAnalysisProvider | null;
 }) {
   const repo = new ResearchRepository(input.database),
     now = input.now ?? (() => new Date()),
     storageRoot = input.storageRoot ?? "storage",
     acquire = input.acquire ?? acquireSource;
   const renderedAcquire = input.acquireRendered ?? acquireRenderedSource;
-  let aiProvider=input.aiProvider??null,aiConfiguration:AiProviderConfiguration|null=null;
-  const aiUsage={requests:0,succeeded:0,failed:0,totalLatencyMs:0,lastUsedAt:null as string|null,lastError:null as string|null};
+  let aiProvider = input.aiProvider ?? null,
+    aiConfiguration: AiProviderConfiguration | null = null;
+  const aiUsage = {
+    requests: 0,
+    succeeded: 0,
+    failed: 0,
+    totalLatencyMs: 0,
+    lastUsedAt: null as string | null,
+    lastError: null as string | null,
+  };
   const fetchAndPreserve = async (source: any, acquisition = acquire) => {
     const attemptId = randomUUID();
     await repo.beginRetrieval(
@@ -197,26 +240,54 @@ export function createResearchServer(input: {
     }
     return results;
   };
-  const processProgrammeCapture=async()=>{
-    const job=await repo.claimProgrammeCapture(now().toISOString());
-    if(!job)return null;
-    try{
-      const context=await repo.programmeCaptureContext(job.id);
-      if(!context)throw new Error("programme_capture_context_missing");
-      const source=await repo.source(job.source_id);
-      if(!source)throw new Error("source_not_found");
-      await fetchAndPreserve(source,(url)=>renderedAcquire(url,{expandInteractiveContent:true,maximumInteractions:60,timeoutMs:60_000}));
-      const snapshot=(await repo.snapshots(source.id))[0];
-      if(!snapshot)throw new Error("snapshot_not_found");
-      const extracted=await extractStoredSnapshot(storageRoot,snapshot.storage_path,snapshot.media_type);
-      await repo.saveExtraction(randomUUID(),snapshot.id,extracted,now().toISOString(),true);
-      const record=extractProgrammeRecord(extracted.text,{institution:context.institution,programmeName:context.programme_name,qualificationLevel:context.qualification_level,originalUrl:context.original_url,canonicalUrl:context.canonical_url,ordinal:context.ordinal});
-      await repo.completeProgrammeCapture(job,record,now().toISOString());
-      return {id:job.id,status:"succeeded"};
-    }catch(error){
-      const reason=error instanceof Error?error.message:"programme_capture_failed";
-      await repo.failProgrammeCapture(job,reason,now().toISOString());
-      return {id:job.id,status:"failed",reason};
+  const processProgrammeCapture = async () => {
+    const job = await repo.claimProgrammeCapture(now().toISOString());
+    if (!job) return null;
+    try {
+      const context = await repo.programmeCaptureContext(job.id);
+      if (!context) throw new Error("programme_capture_context_missing");
+      const source = await repo.source(job.source_id);
+      if (!source) throw new Error("source_not_found");
+      await fetchAndPreserve(source, (url) =>
+        renderedAcquire(url, {
+          expandInteractiveContent: true,
+          maximumInteractions: 60,
+          timeoutMs: 60_000,
+        }),
+      );
+      const snapshot = (await repo.snapshots(source.id))[0];
+      if (!snapshot) throw new Error("snapshot_not_found");
+      const extracted = await extractStoredSnapshot(
+        storageRoot,
+        snapshot.storage_path,
+        snapshot.media_type,
+      );
+      await repo.saveExtraction(
+        randomUUID(),
+        snapshot.id,
+        extracted,
+        now().toISOString(),
+        true,
+      );
+      const record = extractProgrammeRecord(extracted.text, {
+        institution: context.institution,
+        programmeName: context.programme_name,
+        qualificationLevel: context.qualification_level,
+        originalUrl: context.original_url,
+        canonicalUrl: context.canonical_url,
+        ordinal: context.ordinal,
+      });
+      const completed = await repo.completeProgrammeCapture(
+        job,
+        record,
+        now().toISOString(),
+      );
+      return { id: job.id, status: completed ? "succeeded" : "cancelled" };
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : "programme_capture_failed";
+      await repo.failProgrammeCapture(job, reason, now().toISOString());
+      return { id: job.id, status: "failed", reason };
     }
   };
   let queueWorkerError: string | null = null;
@@ -265,64 +336,245 @@ export function createResearchServer(input: {
           );
         }
       }
-      if(path==="/api/programme-workflows"){
-        if(method==="GET")return json(r,200,{items:await repo.programmeWorkflows()});
-        if(method==="POST"){
-          const body=await readBody(q),at=now().toISOString();
-          const study=await repo.createStudy(randomUUID(),{title:String(body.title??"Programme website analysis").trim()||"Programme website analysis",researchQuestion:"What does each university programme contain?",description:"Focused document-to-programme analysis",methodology:"Extract programme links from an uploaded document, capture the rendered primary pages, and produce comparable evidence-backed programme records.",inclusionRules:["University programme pages listed in the uploaded document"],exclusionRules:["Accreditation links, navigation, advertising, and unrelated pages"]},at);
-          return json(r,201,study);
+      if (path === "/api/programme-workflows") {
+        if (method === "GET")
+          return json(r, 200, { items: await repo.programmeWorkflows() });
+        if (method === "POST") {
+          const body = await readBody(q),
+            at = now().toISOString();
+          const study = await repo.createStudy(
+            randomUUID(),
+            {
+              title:
+                String(body.title ?? "Programme website analysis").trim() ||
+                "Programme website analysis",
+              researchQuestion: "What does each university programme contain?",
+              description: "Focused document-to-programme analysis",
+              methodology:
+                "Extract programme links from an uploaded document, capture the rendered primary pages, and produce comparable evidence-backed programme records.",
+              inclusionRules: [
+                "University programme pages listed in the uploaded document",
+              ],
+              exclusionRules: [
+                "Accreditation links, navigation, advertising, and unrelated pages",
+              ],
+            },
+            at,
+          );
+          return json(r, 201, study);
         }
-        return json(r,405,{error:"method_not_allowed"});
+        return json(r, 405, { error: "method_not_allowed" });
       }
-      const programmeWorkflowMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})$/i.exec(path);
-      if(programmeWorkflowMatch){
-        if(method!=="GET")return json(r,405,{error:"method_not_allowed"});
-        const workflow=await repo.programmeWorkflow(programmeWorkflowMatch[1]!);
-        return workflow?json(r,200,workflow):json(r,404,{error:"workflow_not_found"});
+      const programmeWorkflowMatch =
+        /^\/api\/programme-workflows\/([0-9a-f-]{36})$/i.exec(path);
+      if (programmeWorkflowMatch) {
+        if (method !== "GET")
+          return json(r, 405, { error: "method_not_allowed" });
+        const workflow = await repo.programmeWorkflow(
+          programmeWorkflowMatch[1]!,
+        );
+        return workflow
+          ? json(r, 200, workflow)
+          : json(r, 404, { error: "workflow_not_found" });
       }
-      const programmeUploadMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})\/document$/i.exec(path);
-      if(programmeUploadMatch){
-        if(method!=="POST")return json(r,405,{error:"method_not_allowed"});
-        const filename=decodeURIComponent(String(url.searchParams.get("filename")??"")).trim(),extension=filename.toLowerCase().split(".").at(-1),mediaType=String(q.headers["content-type"]??"application/octet-stream").split(";")[0]!.toLowerCase();
-        if(!filename||filename.length>500)return json(r,400,{error:"invalid_filename"});
-        if(!(mediaType==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"||mediaType==="application/pdf"||["docx","pdf"].includes(extension??"")))return json(r,415,{error:"upload_a_word_or_pdf_document"});
-        const bytes=await readBinaryBody(q),sourceId=randomUUID(),snapshotId=randomUUID(),attemptId=randomUUID(),at=now().toISOString(),sourceType=extension==="pdf"||mediaType==="application/pdf"?"pdf":"document";
-        const source=await repo.createSource(sourceId,{studyId:programmeUploadMatch[1]!,label:filename,originalUrl:`upload://${sourceId}/${encodeURIComponent(filename)}`,sourceType,authority:"primary",corpusStatus:"included",completeness:"unassessed",notes:"Source list for programme website analysis"},at);
-        await repo.beginRetrieval(attemptId,sourceId,source.original_url,at);
-        const storagePath=await preserveSource(storageRoot,sourceId,snapshotId,bytes,mediaType),hash=contentHash(bytes);
-        await repo.completeRetrieval({attemptId,sourceId,snapshotId,at,resolvedUrl:source.original_url,status:200,hash,mediaType,byteLength:bytes.length,storagePath,metadata:{uploaded:true,filename},unchanged:false});
-        let extracted=await extractText(bytes,mediaType),usedOcr=false;
-        if(sourceType==="pdf"&&extracted.status==="empty"){extracted=await extractText(bytes,mediaType,{ocr:true});usedOcr=true;}
-        await repo.saveExtraction(randomUUID(),snapshotId,extracted,at,usedOcr);
-        const candidates=extractProgrammeCandidates(extracted.text);
-        const workflow=await repo.replaceProgrammeCandidates(programmeUploadMatch[1]!,sourceId,candidates,at);
-        return json(r,201,{...workflow,upload:{filename,candidatesFound:candidates.length,warnings:extracted.warnings}});
-      }
-      const programmeCandidateMatch=/^\/api\/programme-candidates\/([0-9a-f-]{36})$/i.exec(path);
-      if(programmeCandidateMatch){
-        if(method!=="PATCH")return json(r,405,{error:"method_not_allowed"});
-        const value=await readBody(q);
-        if(!["included","excluded"].includes(value.decision))return json(r,400,{error:"invalid_candidate_decision"});
-        const saved=await repo.decideProgrammeCandidate(programmeCandidateMatch[1]!,value,now().toISOString());
-        return saved?json(r,200,saved):json(r,404,{error:"candidate_not_found"});
-      }
-      const programmeStartMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})\/start$/i.exec(path);
-      if(programmeStartMatch){
-        if(method!=="POST")return json(r,405,{error:"method_not_allowed"});
-        return json(r,202,await repo.queueProgrammeCaptures(programmeStartMatch[1]!,now().toISOString()));
-      }
-      const programmeExportMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})\/export$/i.exec(path);
-      if(programmeExportMatch){
-        if(method!=="GET")return json(r,405,{error:"method_not_allowed"});
-        const workflow=await repo.programmeWorkflow(programmeExportMatch[1]!);if(!workflow)return json(r,404,{error:"workflow_not_found"});
-        const format=url.searchParams.get("format")??"json";
-        if(format==="json")return documentResponse(r,"application/json",`programme-analysis-${workflow.id}.json`,JSON.stringify({title:workflow.title,exportedAt:now().toISOString(),records:workflow.records},null,2));
-        if(format==="csv"){
-          const quote=(value:unknown)=>`"${String(value??"").replaceAll('"','""')}"`,rows=["Institution,Programme,Level,Award,Delivery,Duration,Credits,Summary,Confidence,URL"];
-          for(const record of workflow.records){const candidate=workflow.candidates.find((item:any)=>item.id===record.candidate_id);rows.push([record.institution,record.programme_name,record.qualification_level,record.award,(record.delivery_modes??[]).join("; "),record.duration,record.credit_requirement,record.summary,record.confidence,candidate?.canonical_url].map(quote).join(","));}
-          return documentResponse(r,"text/csv",`programme-analysis-${workflow.id}.csv`,rows.join("\r\n"));
+      const programmeUploadMatch =
+        /^\/api\/programme-workflows\/([0-9a-f-]{36})\/document$/i.exec(path);
+      if (programmeUploadMatch) {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        const filename = decodeURIComponent(
+            String(url.searchParams.get("filename") ?? ""),
+          ).trim(),
+          extension = filename.toLowerCase().split(".").at(-1),
+          mediaType = String(
+            q.headers["content-type"] ?? "application/octet-stream",
+          )
+            .split(";")[0]!
+            .toLowerCase();
+        if (!filename || filename.length > 500)
+          return json(r, 400, { error: "invalid_filename" });
+        if (!(
+          mediaType ===
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+          mediaType === "application/pdf" ||
+          ["docx", "pdf"].includes(extension ?? "")
+        ))
+          return json(r, 415, { error: "upload_a_word_or_pdf_document" });
+        const bytes = await readBinaryBody(q),
+          sourceId = randomUUID(),
+          snapshotId = randomUUID(),
+          attemptId = randomUUID(),
+          at = now().toISOString(),
+          sourceType =
+            extension === "pdf" || mediaType === "application/pdf"
+              ? "pdf"
+              : "document";
+        const source = await repo.createSource(
+          sourceId,
+          {
+            studyId: programmeUploadMatch[1]!,
+            label: filename,
+            originalUrl: `upload://${sourceId}/${encodeURIComponent(filename)}`,
+            sourceType,
+            authority: "primary",
+            corpusStatus: "included",
+            completeness: "unassessed",
+            notes: "Source list for programme website analysis",
+          },
+          at,
+        );
+        await repo.beginRetrieval(attemptId, sourceId, source.original_url, at);
+        const storagePath = await preserveSource(
+            storageRoot,
+            sourceId,
+            snapshotId,
+            bytes,
+            mediaType,
+          ),
+          hash = contentHash(bytes);
+        await repo.completeRetrieval({
+          attemptId,
+          sourceId,
+          snapshotId,
+          at,
+          resolvedUrl: source.original_url,
+          status: 200,
+          hash,
+          mediaType,
+          byteLength: bytes.length,
+          storagePath,
+          metadata: { uploaded: true, filename },
+          unchanged: false,
+        });
+        let extracted = await extractText(bytes, mediaType),
+          usedOcr = false;
+        if (sourceType === "pdf" && extracted.status === "empty") {
+          extracted = await extractText(bytes, mediaType, { ocr: true });
+          usedOcr = true;
         }
-        return json(r,400,{error:"unsupported_export_format"});
+        await repo.saveExtraction(
+          randomUUID(),
+          snapshotId,
+          extracted,
+          at,
+          usedOcr,
+        );
+        const candidates = extractProgrammeCandidates(extracted.text);
+        const workflow = await repo.replaceProgrammeCandidates(
+          programmeUploadMatch[1]!,
+          sourceId,
+          candidates,
+          at,
+        );
+        return json(r, 201, {
+          ...workflow,
+          upload: {
+            filename,
+            candidatesFound: candidates.length,
+            warnings: extracted.warnings,
+          },
+        });
+      }
+      const programmeCandidateMatch =
+        /^\/api\/programme-candidates\/([0-9a-f-]{36})$/i.exec(path);
+      if (programmeCandidateMatch) {
+        if (method !== "PATCH")
+          return json(r, 405, { error: "method_not_allowed" });
+        const value = await readBody(q);
+        if (!["included", "excluded"].includes(value.decision))
+          return json(r, 400, { error: "invalid_candidate_decision" });
+        const saved = await repo.decideProgrammeCandidate(
+          programmeCandidateMatch[1]!,
+          value,
+          now().toISOString(),
+        );
+        return saved
+          ? json(r, 200, saved)
+          : json(r, 404, { error: "candidate_not_found" });
+      }
+      const programmeStartMatch =
+        /^\/api\/programme-workflows\/([0-9a-f-]{36})\/start$/i.exec(path);
+      if (programmeStartMatch) {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        return json(
+          r,
+          202,
+          await repo.queueProgrammeCaptures(
+            programmeStartMatch[1]!,
+            now().toISOString(),
+          ),
+        );
+      }
+      const programmeCancelMatch =
+        /^\/api\/programme-workflows\/([0-9a-f-]{36})\/cancel$/i.exec(path);
+      if (programmeCancelMatch) {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        const result = await repo.cancelProgrammeCaptures(
+          programmeCancelMatch[1]!,
+          now().toISOString(),
+        );
+        return json(r, 200, result);
+      }
+      const programmeExportMatch =
+        /^\/api\/programme-workflows\/([0-9a-f-]{36})\/export$/i.exec(path);
+      if (programmeExportMatch) {
+        if (method !== "GET")
+          return json(r, 405, { error: "method_not_allowed" });
+        const workflow = await repo.programmeWorkflow(programmeExportMatch[1]!);
+        if (!workflow) return json(r, 404, { error: "workflow_not_found" });
+        const format = url.searchParams.get("format") ?? "json";
+        if (format === "json")
+          return documentResponse(
+            r,
+            "application/json",
+            `programme-analysis-${workflow.id}.json`,
+            JSON.stringify(
+              {
+                title: workflow.title,
+                exportedAt: now().toISOString(),
+                records: workflow.records,
+              },
+              null,
+              2,
+            ),
+          );
+        if (format === "csv") {
+          const quote = (value: unknown) =>
+              `"${String(value ?? "").replaceAll('"', '""')}"`,
+            rows = [
+              "Institution,Programme,Level,Award,Delivery,Duration,Credits,Summary,Confidence,URL",
+            ];
+          for (const record of workflow.records) {
+            const candidate = workflow.candidates.find(
+              (item: any) => item.id === record.candidate_id,
+            );
+            rows.push(
+              [
+                record.institution,
+                record.programme_name,
+                record.qualification_level,
+                record.award,
+                (record.delivery_modes ?? []).join("; "),
+                record.duration,
+                record.credit_requirement,
+                record.summary,
+                record.confidence,
+                candidate?.canonical_url,
+              ]
+                .map(quote)
+                .join(","),
+            );
+          }
+          return documentResponse(
+            r,
+            "text/csv",
+            `programme-analysis-${workflow.id}.csv`,
+            rows.join("\r\n"),
+          );
+        }
+        return json(r, 400, { error: "unsupported_export_format" });
       }
       if (path === "/api/application" && method === "GET")
         return json(r, 200, {
@@ -349,100 +601,431 @@ export function createResearchServer(input: {
             available: Boolean(input.backgroundQueue),
             intervalSeconds: 15,
           },
-          aiAnalysis:{available:Boolean(aiProvider),provider:aiProvider?.id??null,model:aiProvider?.model??null,usage:{...aiUsage,averageLatencyMs:aiUsage.requests?Math.round(aiUsage.totalLatencyMs/aiUsage.requests):null}},
+          aiAnalysis: {
+            available: Boolean(aiProvider),
+            provider: aiProvider?.id ?? null,
+            model: aiProvider?.model ?? null,
+            usage: {
+              ...aiUsage,
+              averageLatencyMs: aiUsage.requests
+                ? Math.round(aiUsage.totalLatencyMs / aiUsage.requests)
+                : null,
+            },
+          },
         });
-      if(path.startsWith("/api/"))return json(r,404,{error:"not_available_in_focused_workflow"});
+      if (path.startsWith("/api/"))
+        return json(r, 404, { error: "not_available_in_focused_workflow" });
       if (path === "/api/analysis-types" && method === "GET")
-        return json(r,200,{items:ANALYSIS_CATALOG});
-      const analysisContractMatch=/^\/api\/analysis-types\/([a-z-]+)\/contract$/i.exec(path);
-      if(analysisContractMatch&&method==="GET"){
-        const type=analysisContractMatch[1] as AnalysisTypeId;if(!analysisResultJsonSchemas[type])return json(r,404,{error:"analysis_type_not_found"});
-        return json(r,200,{contractVersion:ANALYSIS_RESULT_CONTRACT_VERSION,analysisType:type,schema:analysisResultJsonSchemas[type]});
+        return json(r, 200, { items: ANALYSIS_CATALOG });
+      const analysisContractMatch =
+        /^\/api\/analysis-types\/([a-z-]+)\/contract$/i.exec(path);
+      if (analysisContractMatch && method === "GET") {
+        const type = analysisContractMatch[1] as AnalysisTypeId;
+        if (!analysisResultJsonSchemas[type])
+          return json(r, 404, { error: "analysis_type_not_found" });
+        return json(r, 200, {
+          contractVersion: ANALYSIS_RESULT_CONTRACT_VERSION,
+          analysisType: type,
+          schema: analysisResultJsonSchemas[type],
+        });
       }
-      if(path==="/api/ai/providers"&&method==="GET") return json(r,200,{items:AI_PROVIDER_PROTOCOLS,configured:aiProvider?{protocol:aiProvider.id,model:aiProvider.model}:null,configuration:{protocol:"RESEARCHED_AI_PROTOCOL",model:"RESEARCHED_AI_MODEL",baseUrl:"RESEARCHED_AI_BASE_URL",apiKey:"RESEARCHED_AI_API_KEY"}});
-      if(path==="/api/ai/connection"){
-        if(method==="POST"){const value=aiConnectionInput.parse(await readBody(q));aiConfiguration={protocol:value.protocol,model:value.model,baseUrl:value.baseUrl,...(value.apiKey?{apiKey:value.apiKey}:{})};aiProvider=createAiAnalysisProvider(aiConfiguration);return json(r,200,{configured:true,protocol:aiProvider.id,model:aiProvider.model,persistence:"memory-only"});}
-        if(method==="DELETE"){aiProvider=null;aiConfiguration=null;return json(r,200,{configured:false});}
-        return json(r,405,{error:"method_not_allowed"});
+      if (path === "/api/ai/providers" && method === "GET")
+        return json(r, 200, {
+          items: AI_PROVIDER_PROTOCOLS,
+          configured: aiProvider
+            ? { protocol: aiProvider.id, model: aiProvider.model }
+            : null,
+          configuration: {
+            protocol: "RESEARCHED_AI_PROTOCOL",
+            model: "RESEARCHED_AI_MODEL",
+            baseUrl: "RESEARCHED_AI_BASE_URL",
+            apiKey: "RESEARCHED_AI_API_KEY",
+          },
+        });
+      if (path === "/api/ai/connection") {
+        if (method === "POST") {
+          const value = aiConnectionInput.parse(await readBody(q));
+          aiConfiguration = {
+            protocol: value.protocol,
+            model: value.model,
+            baseUrl: value.baseUrl,
+            ...(value.apiKey ? { apiKey: value.apiKey } : {}),
+          };
+          aiProvider = createAiAnalysisProvider(aiConfiguration);
+          return json(r, 200, {
+            configured: true,
+            protocol: aiProvider.id,
+            model: aiProvider.model,
+            persistence: "memory-only",
+          });
+        }
+        if (method === "DELETE") {
+          aiProvider = null;
+          aiConfiguration = null;
+          return json(r, 200, { configured: false });
+        }
+        return json(r, 405, { error: "method_not_allowed" });
       }
-      if(path==="/api/ai/inspect"&&method==="POST"){
-        const value=aiDiscoveryInput.parse(await readBody(q)),configuration:AiProviderConfiguration={protocol:value.protocol,model:value.model,baseUrl:value.baseUrl,...(value.apiKey?{apiKey:value.apiKey}:{})};
-        const diagnostic=await inspectAiConnection(configuration);
-        return json(r,diagnostic.status==="unavailable"?422:200,diagnostic);
+      if (path === "/api/ai/inspect" && method === "POST") {
+        const value = aiDiscoveryInput.parse(await readBody(q)),
+          configuration: AiProviderConfiguration = {
+            protocol: value.protocol,
+            model: value.model,
+            baseUrl: value.baseUrl,
+            ...(value.apiKey ? { apiKey: value.apiKey } : {}),
+          };
+        const diagnostic = await inspectAiConnection(configuration);
+        return json(
+          r,
+          diagnostic.status === "unavailable" ? 422 : 200,
+          diagnostic,
+        );
       }
-      if(path==="/api/ai/usage"&&method==="GET")return json(r,200,{provider:aiProvider?.id??null,model:aiProvider?.model??null,...aiUsage,averageLatencyMs:aiUsage.requests?Math.round(aiUsage.totalLatencyMs/aiUsage.requests):null});
+      if (path === "/api/ai/usage" && method === "GET")
+        return json(r, 200, {
+          provider: aiProvider?.id ?? null,
+          model: aiProvider?.model ?? null,
+          ...aiUsage,
+          averageLatencyMs: aiUsage.requests
+            ? Math.round(aiUsage.totalLatencyMs / aiUsage.requests)
+            : null,
+        });
       if (path === "/api/analysis-plans") {
-        if(method === "GET") return json(r,200,{items:await repo.analysisPlans(String(url.searchParams.get("studyId")??""))});
-        if(method === "POST") return json(r,201,await repo.createAnalysisPlan(randomUUID(),analysisPlanInput.parse(await readBody(q)),now().toISOString()));
-        return json(r,405,{error:"method_not_allowed"});
+        if (method === "GET")
+          return json(r, 200, {
+            items: await repo.analysisPlans(
+              String(url.searchParams.get("studyId") ?? ""),
+            ),
+          });
+        if (method === "POST")
+          return json(
+            r,
+            201,
+            await repo.createAnalysisPlan(
+              randomUUID(),
+              analysisPlanInput.parse(await readBody(q)),
+              now().toISOString(),
+            ),
+          );
+        return json(r, 405, { error: "method_not_allowed" });
       }
-      if(path==="/api/analysis-templates"){
-        if(method==="GET")return json(r,200,{items:await repo.analysisTemplates()});
-        if(method==="POST")return json(r,201,await repo.createAnalysisTemplate(randomUUID(),analysisTemplateInput.parse(await readBody(q)),now().toISOString()));
-        return json(r,405,{error:"method_not_allowed"});
+      if (path === "/api/analysis-templates") {
+        if (method === "GET")
+          return json(r, 200, { items: await repo.analysisTemplates() });
+        if (method === "POST")
+          return json(
+            r,
+            201,
+            await repo.createAnalysisTemplate(
+              randomUUID(),
+              analysisTemplateInput.parse(await readBody(q)),
+              now().toISOString(),
+            ),
+          );
+        return json(r, 405, { error: "method_not_allowed" });
       }
-      const analysisTemplateMatch=/^\/api\/analysis-templates\/([0-9a-f-]{36})$/i.exec(path);
-      if(analysisTemplateMatch){if(method!=="DELETE")return json(r,405,{error:"method_not_allowed"});return(await repo.deleteAnalysisTemplate(analysisTemplateMatch[1]!))?json(r,200,{deleted:true}):json(r,404,{error:"analysis_template_not_found"});}
+      const analysisTemplateMatch =
+        /^\/api\/analysis-templates\/([0-9a-f-]{36})$/i.exec(path);
+      if (analysisTemplateMatch) {
+        if (method !== "DELETE")
+          return json(r, 405, { error: "method_not_allowed" });
+        return (await repo.deleteAnalysisTemplate(analysisTemplateMatch[1]!))
+          ? json(r, 200, { deleted: true })
+          : json(r, 404, { error: "analysis_template_not_found" });
+      }
       if (path === "/api/analysis-runs" && method === "GET")
-        return json(r,200,{items:await repo.analysisRuns(String(url.searchParams.get("studyId")??""))});
-      const analysisPlanRunMatch=/^\/api\/analysis-plans\/([0-9a-f-]{36})\/run$/i.exec(path);
-      if(analysisPlanRunMatch){
-        if(method!=="POST") return json(r,405,{error:"method_not_allowed"});
-        const request=analysisRunInput.parse(await readBody(q)),plan=await repo.analysisPlan(analysisPlanRunMatch[1]!);
-        if(!plan) return json(r,404,{error:"analysis_plan_not_found"});
-        const inputs=await repo.analysisInputs(plan.study_id,plan.source_ids);if(!inputs.length)return json(r,409,{error:"analysis_has_no_extracted_sources"});if((plan.analysis_types as string[]).some(type=>["themes","comparison","contradictions"].includes(type))&&inputs.length<2)return json(r,409,{error:"cross_source_analysis_requires_two_sources"});
-        const run=await repo.beginAnalysisRun(randomUUID(),plan,request.actor,inputs,request.maximumAttempts,now().toISOString());
-        return json(r,202,{...run,execution:"background",message:"Analysis queued. You may leave this screen while it runs."});
+        return json(r, 200, {
+          items: await repo.analysisRuns(
+            String(url.searchParams.get("studyId") ?? ""),
+          ),
+        });
+      const analysisPlanRunMatch =
+        /^\/api\/analysis-plans\/([0-9a-f-]{36})\/run$/i.exec(path);
+      if (analysisPlanRunMatch) {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        const request = analysisRunInput.parse(await readBody(q)),
+          plan = await repo.analysisPlan(analysisPlanRunMatch[1]!);
+        if (!plan) return json(r, 404, { error: "analysis_plan_not_found" });
+        const inputs = await repo.analysisInputs(
+          plan.study_id,
+          plan.source_ids,
+        );
+        if (!inputs.length)
+          return json(r, 409, { error: "analysis_has_no_extracted_sources" });
+        if (
+          (plan.analysis_types as string[]).some((type) =>
+            ["themes", "comparison", "contradictions"].includes(type),
+          ) &&
+          inputs.length < 2
+        )
+          return json(r, 409, {
+            error: "cross_source_analysis_requires_two_sources",
+          });
+        const run = await repo.beginAnalysisRun(
+          randomUUID(),
+          plan,
+          request.actor,
+          inputs,
+          request.maximumAttempts,
+          now().toISOString(),
+        );
+        return json(r, 202, {
+          ...run,
+          execution: "background",
+          message: "Analysis queued. You may leave this screen while it runs.",
+        });
       }
-      const analysisRunMatch=/^\/api\/analysis-runs\/([0-9a-f-]{36})$/i.exec(path);
-      if(analysisRunMatch){if(method!=="GET") return json(r,405,{error:"method_not_allowed"}); const result=await repo.analysisRun(analysisRunMatch[1]!); return result?json(r,200,result):json(r,404,{error:"analysis_run_not_found"});}
-      const analysisExportMatch=/^\/api\/analysis-runs\/([0-9a-f-]{36})\/export$/i.exec(path);
-      if(analysisExportMatch){if(method!=="GET")return json(r,405,{error:"method_not_allowed"});const run=await repo.analysisRun(analysisExportMatch[1]!);if(!run)return json(r,404,{error:"analysis_run_not_found"});const format=url.searchParams.get("format")??"json";if(format==="csv")return documentResponse(r,"text/csv",`analysis-${run.id}.csv`,analysisRunCsv(run));if(format==="markdown")return documentResponse(r,"text/markdown",`analysis-${run.id}.md`,analysisRunMarkdown(run));if(format==="json")return documentResponse(r,"application/json",`analysis-${run.id}.json`,analysisRunArchive(run));return json(r,400,{error:"unsupported_export_format"});}
-      const analysisControlMatch=/^\/api\/analysis-runs\/([0-9a-f-]{36})\/(pause|resume|cancel|retry)$/i.exec(path);
-      if(analysisControlMatch){if(method!=="POST")return json(r,405,{error:"method_not_allowed"});analysisRunControlInput.parse(await readBody(q));const result=await repo.controlAnalysisRun(analysisControlMatch[1]!,analysisControlMatch[2]!.toLowerCase() as "pause"|"resume"|"cancel"|"retry",now().toISOString());return result?json(r,200,result):json(r,409,{error:"invalid_analysis_run_transition"});}
-      const analysisResultMatch=/^\/api\/analysis-results\/([0-9a-f-]{36})$/i.exec(path);
-      if(analysisResultMatch){if(method!=="PATCH") return json(r,405,{error:"method_not_allowed"});const decision=analysisFindingDecisionInput.parse(await readBody(q)),existing=await repo.analysisResult(analysisResultMatch[1]!);if(!existing)return json(r,404,{error:"analysis_result_not_found"});if(decision.status==="amended")decision.amendedValue=parseStoredAnalysisResult(existing.analysis_type as AnalysisTypeId,existing.method,decision.amendedValue);const result=await repo.decideAnalysisResult(analysisResultMatch[1]!,decision,now().toISOString());return json(r,200,result);}
+      const analysisRunMatch = /^\/api\/analysis-runs\/([0-9a-f-]{36})$/i.exec(
+        path,
+      );
+      if (analysisRunMatch) {
+        if (method !== "GET")
+          return json(r, 405, { error: "method_not_allowed" });
+        const result = await repo.analysisRun(analysisRunMatch[1]!);
+        return result
+          ? json(r, 200, result)
+          : json(r, 404, { error: "analysis_run_not_found" });
+      }
+      const analysisExportMatch =
+        /^\/api\/analysis-runs\/([0-9a-f-]{36})\/export$/i.exec(path);
+      if (analysisExportMatch) {
+        if (method !== "GET")
+          return json(r, 405, { error: "method_not_allowed" });
+        const run = await repo.analysisRun(analysisExportMatch[1]!);
+        if (!run) return json(r, 404, { error: "analysis_run_not_found" });
+        const format = url.searchParams.get("format") ?? "json";
+        if (format === "csv")
+          return documentResponse(
+            r,
+            "text/csv",
+            `analysis-${run.id}.csv`,
+            analysisRunCsv(run),
+          );
+        if (format === "markdown")
+          return documentResponse(
+            r,
+            "text/markdown",
+            `analysis-${run.id}.md`,
+            analysisRunMarkdown(run),
+          );
+        if (format === "json")
+          return documentResponse(
+            r,
+            "application/json",
+            `analysis-${run.id}.json`,
+            analysisRunArchive(run),
+          );
+        return json(r, 400, { error: "unsupported_export_format" });
+      }
+      const analysisControlMatch =
+        /^\/api\/analysis-runs\/([0-9a-f-]{36})\/(pause|resume|cancel|retry)$/i.exec(
+          path,
+        );
+      if (analysisControlMatch) {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        analysisRunControlInput.parse(await readBody(q));
+        const result = await repo.controlAnalysisRun(
+          analysisControlMatch[1]!,
+          analysisControlMatch[2]!.toLowerCase() as
+            "pause" | "resume" | "cancel" | "retry",
+          now().toISOString(),
+        );
+        return result
+          ? json(r, 200, result)
+          : json(r, 409, { error: "invalid_analysis_run_transition" });
+      }
+      const analysisResultMatch =
+        /^\/api\/analysis-results\/([0-9a-f-]{36})$/i.exec(path);
+      if (analysisResultMatch) {
+        if (method !== "PATCH")
+          return json(r, 405, { error: "method_not_allowed" });
+        const decision = analysisFindingDecisionInput.parse(await readBody(q)),
+          existing = await repo.analysisResult(analysisResultMatch[1]!);
+        if (!existing)
+          return json(r, 404, { error: "analysis_result_not_found" });
+        if (decision.status === "amended")
+          decision.amendedValue = parseStoredAnalysisResult(
+            existing.analysis_type as AnalysisTypeId,
+            existing.method,
+            decision.amendedValue,
+          );
+        const result = await repo.decideAnalysisResult(
+          analysisResultMatch[1]!,
+          decision,
+          now().toISOString(),
+        );
+        return json(r, 200, result);
+      }
       if (path === "/api/dashboard" && method === "GET")
         return json(r, 200, await repo.counts());
-      if(path==="/api/insights"&&method==="GET"){const studyId=String(url.searchParams.get("studyId")??"");if(!studyId)return json(r,400,{error:"study_id_required"});return json(r,200,buildResearchInsights(await repo.researchInsightMetrics(studyId)));}
-      if(path==="/api/sources/batch"){
-        if(method!=="POST") return json(r,405,{error:"method_not_allowed"});
-        const value=batchSourceInput.parse(await readBody(q)),items=[] as any[],failures=[] as any[];
-        for(const originalUrl of [...new Set(value.urls)]){
-          try{
-            const parsed=new URL(originalUrl),pathname=parsed.pathname.toLowerCase(),sourceType=pathname.endsWith(".pdf")?"pdf":pathname.endsWith(".docx")||pathname.endsWith(".doc")?"document":"webpage";
-            items.push(await repo.createSource(randomUUID(),{studyId:value.studyId,label:decodeURIComponent(parsed.pathname.split("/").filter(Boolean).at(-1)??parsed.hostname),originalUrl,sourceType,authority:value.authority,corpusStatus:value.corpusStatus,completeness:"unassessed"},now().toISOString()));
-          }catch(error){failures.push({url:originalUrl,error:error instanceof Error?error.message:"source_add_failed"});}
-        }
-        return json(r,failures.length?207:201,{created:items,failures,requested:value.urls.length});
+      if (path === "/api/insights" && method === "GET") {
+        const studyId = String(url.searchParams.get("studyId") ?? "");
+        if (!studyId) return json(r, 400, { error: "study_id_required" });
+        return json(
+          r,
+          200,
+          buildResearchInsights(await repo.researchInsightMetrics(studyId)),
+        );
       }
-      const uploadMatch=/^\/api\/studies\/([0-9a-f-]{36})\/uploads$/i.exec(path);
-      if(uploadMatch){
-        if(method!=="POST") return json(r,405,{error:"method_not_allowed"});
-        const filename=decodeURIComponent(String(url.searchParams.get("filename")??"")).trim();
-        if(!filename||filename.length>500) return json(r,400,{error:"invalid_filename"});
-        const mediaType=String(q.headers["content-type"]??"application/octet-stream").split(";")[0]!.toLowerCase();
-        const extension=filename.toLowerCase().split(".").at(-1), supported=mediaType==="application/pdf"||mediaType==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"||mediaType.startsWith("text/")||["pdf","docx","txt","html","htm"].includes(extension??"");
-        if(!supported) return json(r,415,{error:"unsupported_upload_type"});
-        const bytes=await readBinaryBody(q),sourceId=randomUUID(),snapshotId=randomUUID(),at=now().toISOString();
-        const sourceType=mediaType==="application/pdf"||extension==="pdf"?"pdf":extension==="docx"||mediaType.includes("wordprocessingml")?"document":"other";
-        const source=await repo.createSource(sourceId,{studyId:uploadMatch[1]!,label:filename,originalUrl:`upload://${sourceId}/${encodeURIComponent(filename)}`,sourceType,authority:"unknown",corpusStatus:"pending",completeness:"unassessed",notes:"Uploaded local document"},at);
-        const attemptId=randomUUID(); await repo.beginRetrieval(attemptId,sourceId,source.original_url,at);
-        const hash=contentHash(bytes),storagePath=await preserveSource(storageRoot,sourceId,snapshotId,bytes,mediaType);
-        const outcome=await repo.completeRetrieval({attemptId,sourceId,snapshotId,at,resolvedUrl:source.original_url,status:200,hash,mediaType,byteLength:bytes.length,storagePath,metadata:{uploaded:true,filename},unchanged:false});
-        if(url.searchParams.get("prepare")!=="true")
-          return json(r,201,{source:{...source,retrieval_status:"available"},outcome});
-        await repo.decideSource(sourceId,{corpusStatus:"included",reason:null,actor:"local-researcher"},at);
-        let extracted=await extractText(bytes,mediaType);
-        let usedOcr=false;
-        if(sourceType==="pdf"&&extracted.status==="empty"){
-          extracted=await extractText(bytes,mediaType,{ocr:true});
-          usedOcr=true;
+      if (path === "/api/sources/batch") {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        const value = batchSourceInput.parse(await readBody(q)),
+          items = [] as any[],
+          failures = [] as any[];
+        for (const originalUrl of [...new Set(value.urls)]) {
+          try {
+            const parsed = new URL(originalUrl),
+              pathname = parsed.pathname.toLowerCase(),
+              sourceType = pathname.endsWith(".pdf")
+                ? "pdf"
+                : pathname.endsWith(".docx") || pathname.endsWith(".doc")
+                  ? "document"
+                  : "webpage";
+            items.push(
+              await repo.createSource(
+                randomUUID(),
+                {
+                  studyId: value.studyId,
+                  label: decodeURIComponent(
+                    parsed.pathname.split("/").filter(Boolean).at(-1) ??
+                      parsed.hostname,
+                  ),
+                  originalUrl,
+                  sourceType,
+                  authority: value.authority,
+                  corpusStatus: value.corpusStatus,
+                  completeness: "unassessed",
+                },
+                now().toISOString(),
+              ),
+            );
+          } catch (error) {
+            failures.push({
+              url: originalUrl,
+              error:
+                error instanceof Error ? error.message : "source_add_failed",
+            });
+          }
         }
-        const extraction=await repo.saveExtraction(randomUUID(),snapshotId,extracted,at,usedOcr);
-        return json(r,201,{
-          source:{...source,retrieval_status:"available",corpus_status:"included"},outcome,extraction,
-          preparation:{status:extracted.status,usedOcr,readyForAnalysis:extracted.status==="completed",warnings:extracted.warnings},
+        return json(r, failures.length ? 207 : 201, {
+          created: items,
+          failures,
+          requested: value.urls.length,
+        });
+      }
+      const uploadMatch = /^\/api\/studies\/([0-9a-f-]{36})\/uploads$/i.exec(
+        path,
+      );
+      if (uploadMatch) {
+        if (method !== "POST")
+          return json(r, 405, { error: "method_not_allowed" });
+        const filename = decodeURIComponent(
+          String(url.searchParams.get("filename") ?? ""),
+        ).trim();
+        if (!filename || filename.length > 500)
+          return json(r, 400, { error: "invalid_filename" });
+        const mediaType = String(
+          q.headers["content-type"] ?? "application/octet-stream",
+        )
+          .split(";")[0]!
+          .toLowerCase();
+        const extension = filename.toLowerCase().split(".").at(-1),
+          supported =
+            mediaType === "application/pdf" ||
+            mediaType ===
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+            mediaType.startsWith("text/") ||
+            ["pdf", "docx", "txt", "html", "htm"].includes(extension ?? "");
+        if (!supported)
+          return json(r, 415, { error: "unsupported_upload_type" });
+        const bytes = await readBinaryBody(q),
+          sourceId = randomUUID(),
+          snapshotId = randomUUID(),
+          at = now().toISOString();
+        const sourceType =
+          mediaType === "application/pdf" || extension === "pdf"
+            ? "pdf"
+            : extension === "docx" || mediaType.includes("wordprocessingml")
+              ? "document"
+              : "other";
+        const source = await repo.createSource(
+          sourceId,
+          {
+            studyId: uploadMatch[1]!,
+            label: filename,
+            originalUrl: `upload://${sourceId}/${encodeURIComponent(filename)}`,
+            sourceType,
+            authority: "unknown",
+            corpusStatus: "pending",
+            completeness: "unassessed",
+            notes: "Uploaded local document",
+          },
+          at,
+        );
+        const attemptId = randomUUID();
+        await repo.beginRetrieval(attemptId, sourceId, source.original_url, at);
+        const hash = contentHash(bytes),
+          storagePath = await preserveSource(
+            storageRoot,
+            sourceId,
+            snapshotId,
+            bytes,
+            mediaType,
+          );
+        const outcome = await repo.completeRetrieval({
+          attemptId,
+          sourceId,
+          snapshotId,
+          at,
+          resolvedUrl: source.original_url,
+          status: 200,
+          hash,
+          mediaType,
+          byteLength: bytes.length,
+          storagePath,
+          metadata: { uploaded: true, filename },
+          unchanged: false,
+        });
+        if (url.searchParams.get("prepare") !== "true")
+          return json(r, 201, {
+            source: { ...source, retrieval_status: "available" },
+            outcome,
+          });
+        await repo.decideSource(
+          sourceId,
+          { corpusStatus: "included", reason: null, actor: "local-researcher" },
+          at,
+        );
+        let extracted = await extractText(bytes, mediaType);
+        let usedOcr = false;
+        if (sourceType === "pdf" && extracted.status === "empty") {
+          extracted = await extractText(bytes, mediaType, { ocr: true });
+          usedOcr = true;
+        }
+        const extraction = await repo.saveExtraction(
+          randomUUID(),
+          snapshotId,
+          extracted,
+          at,
+          usedOcr,
+        );
+        return json(r, 201, {
+          source: {
+            ...source,
+            retrieval_status: "available",
+            corpus_status: "included",
+          },
+          outcome,
+          extraction,
+          preparation: {
+            status: extracted.status,
+            usedOcr,
+            readyForAnalysis: extracted.status === "completed",
+            warnings: extracted.warnings,
+          },
         });
       }
       if (path === "/api/research-codes") {
@@ -818,8 +1401,13 @@ export function createResearchServer(input: {
         const source = await repo.source(renderedFetchMatch[1]!);
         if (!source) return json(r, 404, { error: "source_not_found" });
         try {
-          const options=renderedFetchInput.parse(await readBody(q));
-          const outcome = await fetchAndPreserve(source,(requestedUrl)=>renderedAcquire(requestedUrl,{expandInteractiveContent:options.expandInteractiveContent,maximumInteractions:options.maximumInteractions}));
+          const options = renderedFetchInput.parse(await readBody(q));
+          const outcome = await fetchAndPreserve(source, (requestedUrl) =>
+            renderedAcquire(requestedUrl, {
+              expandInteractiveContent: options.expandInteractiveContent,
+              maximumInteractions: options.maximumInteractions,
+            }),
+          );
           return json(r, outcome.outcome === "unchanged" ? 200 : 201, outcome);
         } catch (error) {
           return json(r, 422, {
@@ -1007,9 +1595,30 @@ export function createResearchServer(input: {
     });
     stream.pipe(r);
   });
-  void repo.recoverProgrammeCaptures(now().toISOString()).catch((error)=>{queueWorkerError=error instanceof Error?error.message:"programme_recovery_failed";});
-  let programmeWorkerBusy=false;
-  const programmeTimer=input.backgroundQueue?setInterval(()=>{if(programmeWorkerBusy)return;programmeWorkerBusy=true;Promise.all([processProgrammeCapture(),processProgrammeCapture()]).then(()=>{queueWorkerError=null;}).catch((error)=>{queueWorkerError=error instanceof Error?error.message:"programme_worker_failed";}).finally(()=>{programmeWorkerBusy=false;});},2_000):null;
+  void repo.recoverProgrammeCaptures(now().toISOString()).catch((error) => {
+    queueWorkerError =
+      error instanceof Error ? error.message : "programme_recovery_failed";
+  });
+  let programmeWorkerBusy = false;
+  const programmeTimer = input.backgroundQueue
+    ? setInterval(() => {
+        if (programmeWorkerBusy) return;
+        programmeWorkerBusy = true;
+        Promise.all([processProgrammeCapture(), processProgrammeCapture()])
+          .then(() => {
+            queueWorkerError = null;
+          })
+          .catch((error) => {
+            queueWorkerError =
+              error instanceof Error
+                ? error.message
+                : "programme_worker_failed";
+          })
+          .finally(() => {
+            programmeWorkerBusy = false;
+          });
+      }, 2_000)
+    : null;
   programmeTimer?.unref();
   server.once("close", () => {
     if (programmeTimer) clearInterval(programmeTimer);
@@ -1024,7 +1633,7 @@ export async function startResearchApi(env: NodeJS.ProcessEnv) {
       publicDirectory: join(c.appRoot, "dist/frontend"),
       storageRoot: c.storageRoot,
       backgroundQueue: true,
-      aiProvider:c.ai?createAiAnalysisProvider(c.ai):null,
+      aiProvider: c.ai ? createAiAnalysisProvider(c.ai) : null,
     });
   server.on("close", () => void database.end());
   server.listen(c.port, "127.0.0.1", () =>

@@ -81,47 +81,40 @@ describe("paper dashboard", () => {
     expect(page.status).toBe(200);
     expect(page.body).toContain("MemeCoined");
     expect(page.body).toContain('id="page-title"');
-    expect(page.body).toContain("Portfolio allocation");
-    expect(page.body).toContain("Token watchlist");
-    expect(page.body).toContain('id="watchlist-select"');
-    expect(page.body).toContain('id="watchlist-create"');
-    expect(page.body).toContain('id="watchlist-rename"');
-    expect(page.body).toContain('id="watchlist-delete"');
-    expect(page.body).toContain('id="watchlist-import"');
-    expect(page.body).toContain('id="configuration-form"');
-    expect(page.body).toContain('id="configuration-select"');
-    expect(page.body).toContain('id="configuration-delete"');
-    expect(page.body).toContain('id="pending-entry-rows"');
-    expect(page.body).toContain('id="paper-control-message"');
-    expect(page.body).toContain("Only available, unleased paper entries can be cancelled.");
-    expect(page.body).toContain("Profiles can observe, recommend, or trade with simulated funds");
-    expect(page.body).toContain('id="profile-list"');
-    expect(page.body).toContain('type="password"');
-    expect(page.body).toContain('data-sort="cost_raw"');
-    expect(page.body).toContain('id="preferences-dialog"');
-    expect(page.body).toContain('name="density" value="compact"');
-    expect(page.body).toContain('id="sidebar-collapse"');
-    expect(page.body).toContain('id="panel-preferences"');
-    expect(page.body).toContain('id="theme-preference"');
-    expect(page.body).toContain('id="high-contrast"');
-    expect(page.body).toContain('id="reduce-motion"');
-    expect(page.body).toContain('id="preferences-export"');
-    expect(page.body).toContain('id="preferences-import"');
-    expect(page.body).toContain('data-dashboard-panel="overview"');
-    expect(page.body).toContain('data-dashboard-panel="trading"');
-    expect(page.body).toContain('id="pipeline-state"');
-    expect(page.body).toContain('id="operator-status"');
-    expect(page.body).toContain('id="entry-lock-state"');
+    expect(page.body).toContain("Fast &amp; Furious");
+    expect(page.body).toContain("Oscillation Trader");
+    expect(page.body).toContain("Evaluated coins");
+    expect(page.body).toContain("Trading history");
+    expect(page.body).toContain('id="profiles"');
+    expect(page.body).toContain('id="evaluation-rows"');
+    expect(page.body).toContain('id="trade-rows"');
+    expect(page.body).toContain('id="reason-rows"');
+    expect(page.body).toContain('id="return-launcher"');
+    expect(page.body).not.toContain("Token watchlist");
+    expect(page.body).not.toContain("Strategy benchmarks");
     expect(page.headers["content-security-policy"]).toContain("frame-ancestors 'none'");
     expect((await get(address.port, "/api/paper/snapshot", "POST")).status).toBe(405);
     const health = await get(address.port, "/api/health");
     expect(health.status).toBe(200);
-    expect(JSON.parse(health.body)).toMatchObject({ protocol: "timsys.application.v1", application: "memecoined", status: "healthy", mode: "paper", database: "ready" });
+    expect(JSON.parse(health.body)).toMatchObject({
+      protocol: "timsys.application.v1",
+      application: "memecoined",
+      status: "healthy",
+      mode: "paper",
+      database: "ready",
+    });
     expect((await get(address.port, "/api/health", "POST")).status).toBe(405);
     const application = await get(address.port, "/api/application");
     expect(application.status).toBe(200);
     expect(JSON.parse(application.body)).toMatchObject({ id: "memecoined", mode: "paper" });
-    expect(JSON.parse(application.body).functions).toContain("risk-controls");
+    expect(JSON.parse(application.body).functions).toEqual([
+      "market-acquisition",
+      "fast-furious-paper-trading",
+      "oscillation-trader-paper-trading",
+      "evaluation-telemetry",
+      "trade-history",
+      "profit-and-loss",
+    ]);
     expect((await get(address.port, "/api/application", "POST")).status).toBe(405);
   });
 
@@ -242,9 +235,19 @@ describe("paper dashboard", () => {
   it("reports the bounded strategy funnel and rejects mutations", async () => {
     const database = {
       query: async () => ({
-        rows: [{ profile_id: "fast_furious", mode: "automatic_paper", signals: 12,
-          patterns: 4, market_confirmed: 2, qualified: 1, quote_failures: 0,
-          buys: 1, main_rejection: "Price pattern not confirmed" }],
+        rows: [
+          {
+            profile_id: "fast_furious",
+            mode: "automatic_paper",
+            signals: 12,
+            patterns: 4,
+            market_confirmed: 2,
+            qualified: 1,
+            quote_failures: 0,
+            buys: 1,
+            main_rejection: "Price pattern not confirmed",
+          },
+        ],
       }),
       end: async () => undefined,
     };
@@ -261,15 +264,26 @@ describe("paper dashboard", () => {
     const response = await get(address.port, "/api/paper/strategy-funnel");
     expect(response.status).toBe(200);
     expect(JSON.parse(response.body)).toMatchObject({
-      mode: "paper", period: "24h", rows: [{ profile_id: "fast_furious", buys: 1 }],
+      mode: "paper",
+      period: "24h",
+      rows: [{ profile_id: "fast_furious", buys: 1 }],
     });
     expect((await get(address.port, "/api/paper/strategy-funnel", "POST")).status).toBe(405);
   });
 
   it("provides a read-only gross-price gate audit on request", async () => {
     const database = {
-      query: async () => ({ rows: [{ profile_id: "scalper", stage: "all_gates", windows: 3,
-        matched: 3, average_gross_bps: 80 }] }),
+      query: async () => ({
+        rows: [
+          {
+            profile_id: "scalper",
+            stage: "all_gates",
+            windows: 3,
+            matched: 3,
+            average_gross_bps: 80,
+          },
+        ],
+      }),
       end: async () => undefined,
     };
     const server = createPaperDashboardServer({
@@ -285,7 +299,9 @@ describe("paper dashboard", () => {
     const response = await get(address.port, "/api/paper/opportunity-audit");
     expect(response.status).toBe(200);
     expect(JSON.parse(response.body)).toMatchObject({
-      mode: "paper", period: "24h", priceHorizonMinutes: 5,
+      mode: "paper",
+      period: "24h",
+      priceHorizonMinutes: 5,
       rows: [{ profile_id: "scalper", stage: "all_gates", average_gross_bps: 80 }],
     });
     expect((await get(address.port, "/api/paper/opportunity-audit", "POST")).status).toBe(405);
@@ -553,14 +569,16 @@ describe("paper dashboard", () => {
     const server = createPaperDashboardServer({
       database: {
         query: async () => ({
-          rows: [{
-            id,
-            name: "Desktop list",
-            version: 1,
-            created_at: "2026-09-14T12:00:00Z",
-            updated_at: "2026-09-14T12:00:00Z",
-            tokens: [],
-          }],
+          rows: [
+            {
+              id,
+              name: "Desktop list",
+              version: 1,
+              created_at: "2026-09-14T12:00:00Z",
+              updated_at: "2026-09-14T12:00:00Z",
+              tokens: [],
+            },
+          ],
         }),
         end: async () => undefined,
       } as never,

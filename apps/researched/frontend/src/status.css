@@ -1,0 +1,73 @@
+.run-state {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 300px;
+  padding: 10px 13px;
+  border: 1px solid #33434d;
+  border-radius: 10px;
+  background: #111c23;
+}
+.run-state i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #788a94;
+  flex: 0 0 auto;
+}
+.run-state > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.run-state small {
+  color: #8fa1ab;
+}
+.run-state.running i,
+.run-state.waiting i {
+  background: #57ddc0;
+  box-shadow: 0 0 0 5px #57ddc022;
+  animation: pulse 1.3s infinite;
+}
+.run-state.complete i {
+  background: #57ddc0;
+}
+.run-state.attention i {
+  background: #f1c879;
+}
+.run-state.cancelled i {
+  background: #ff8f98;
+}
+.capture-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.danger {
+  border: 1px solid #a94c58;
+  background: #482027;
+  color: #ffd9dd;
+  border-radius: 9px;
+  padding: 9px 13px;
+  font-weight: 750;
+}
+.danger:hover {
+  background: #5d2730;
+}
+.danger:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+.capture-status.cancelled {
+  background: #35242a;
+  color: #ef9da6;
+}
+.job-error {
+  display: block;
+  color: #e7a6ad;
+  margin-top: 5px;
+}
+.working {
+  display: none;
+}

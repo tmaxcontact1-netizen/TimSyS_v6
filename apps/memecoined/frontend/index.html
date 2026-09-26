@@ -2,954 +2,147 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
-    <title>Memecoined · Paper Desk</title>
-    <link rel="stylesheet" href="/styles.css?v=5" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>MemeCoined · Paper Trading</title>
+    <link rel="stylesheet" href="/styles.css?v=6" />
   </head>
   <body>
-    <button
-      id="menu-toggle"
-      class="menu-toggle"
-      type="button"
-      aria-controls="sidebar"
-      aria-expanded="false"
-    >
-      <span aria-hidden="true">☰</span><span>Menu</span>
-    </button>
-    <button
-      id="sidebar-backdrop"
-      class="sidebar-backdrop"
-      type="button"
-      aria-label="Close navigation"
-    ></button>
-    <header id="sidebar" class="masthead">
+    <aside class="sidebar">
       <div>
-        <p class="eyebrow">TIMSYS</p>
+        <p class="kicker">TIMSYS</p>
         <h1>MemeCoined</h1>
-        <p class="app-context">Personal trading laboratory</p>
+        <p class="muted">Two-strategy paper laboratory</p>
       </div>
-      <nav aria-label="Dashboard sections">
-        <a href="#overview" data-short="OV"><strong>Overview</strong><small>Portfolio and next actions</small></a>
-        <a href="#positions" data-short="PO"><strong>Positions</strong><small>Open paper holdings</small></a>
-        <a href="#performance" data-short="PF"><strong>Performance</strong><small>Results and allocation</small></a>
-        <a href="#history" data-short="HI"><strong>History</strong><small>Fills and decisions</small></a>
-        <a href="#watchlist" data-short="WA"><strong>Watchlists</strong><small>Tokens under observation</small></a>
-        <a href="#configurations" data-short="PF"><strong>Trading profiles</strong><small>Choose how paper trading behaves</small></a>
-        <a href="#benchmarks" data-short="BM"><strong>Strategy benchmarks</strong><small>Compare with established rules</small></a>
-        <a href="#alerts" data-short="AT"><strong>Operations</strong><small>Connections, updates and alerts</small></a>
+      <nav aria-label="Sections">
+        <button class="nav active" data-page="dashboard">Dashboard</button
+        ><button class="nav" data-page="evaluations">Evaluated coins</button
+        ><button class="nav" data-page="trades">Trading history</button>
       </nav>
-      <div class="operator-access">
-        <label><span>Operator access</span><input id="watchlist-token" type="password" autocomplete="off" placeholder="Session token" /></label>
-        <button id="watchlist-connect" type="button">Enable changes</button>
-        <button id="watchlist-import" type="button" hidden>Import local list</button>
-        <small>Held in memory for this session only.</small>
+      <div class="sidebar-bottom">
+        <div id="connection" class="connection"><span></span><strong>Connecting…</strong></div>
+        <button id="return-launcher" class="secondary">← Return to Launcher</button>
       </div>
-      <div class="sidebar-actions">
-        <button id="app-back" type="button" data-short="←">Back</button>
-        <button id="preferences-open" type="button" data-short="DP">Display preferences</button>
-        <button id="sidebar-collapse" type="button" aria-pressed="false" data-short="⇤">
-          Collapse sidebar
-        </button>
-        <button id="return-launcher" class="return-launcher" type="button" data-short="↩">
-          Return to Launcher
-        </button>
-      </div>
-      <div class="status" id="status" data-state="loading">
-        <span class="status-dot"></span><span id="status-label">Connecting</span>
-      </div>
-    </header>
+    </aside>
     <main>
-      <header class="page-header">
+      <header class="topbar">
         <div>
-          <p class="eyebrow">PAPER TRADING</p>
-          <h2 id="page-title">Overview</h2>
-          <p id="page-description">Portfolio state, operational attention and the next useful actions.</p>
+          <p class="kicker">PAPER TRADING ONLY</p>
+          <h2 id="page-title">Dashboard</h2>
+          <p id="page-help">What is running and whether it is making money.</p>
         </div>
-        <span class="mode-chip">PAPER ONLY</span>
+        <div class="top-actions">
+          <small id="last-updated">Waiting for data</small
+          ><button id="refresh" class="secondary">Refresh</button>
+        </div>
       </header>
-      <section
-        id="overview"
-        class="hero-grid"
-        aria-label="Portfolio summary"
-        data-dashboard-panel="overview"
-        data-pages="overview"
-        data-panel-title="Portfolio summary"
-      >
-        <article class="metric metric-primary">
-          <span>Simulated equity</span><strong id="equity">—</strong
-          ><small id="equity-change">Waiting for current figures</small>
-        </article>
-        <article class="metric">
-          <span>Available cash</span><strong id="cash">—</strong><small>Settlement liquidity</small>
-        </article>
-        <article class="metric">
-          <span>Open cost</span><strong id="open-cost">—</strong
-          ><small id="open-positions">— positions</small>
-        </article>
-        <article class="metric">
-          <span>Realised result</span><strong id="pnl">—</strong
-          ><small>From completed paper trades</small>
-        </article>
-      </section>
-      <section class="overview-evidence-grid" data-pages="overview" aria-label="Trading evidence">
-        <article class="panel evidence-panel">
-          <div class="panel-heading"><div><p class="eyebrow">WHAT THE SYSTEM HAS DONE</p><h2>Trading evidence</h2></div></div>
-          <div class="operational-facts evidence-facts">
-            <div><span>Active strategies</span><strong id="overview-active-profiles">—</strong></div>
-            <div><span>Strategy assessments</span><strong id="overview-assessed">—</strong></div>
-            <div><span>Passed strategy rules</span><strong id="overview-qualified">—</strong></div>
-            <div><span>Completed positions</span><strong id="overview-completed">—</strong></div>
-            <div><span>Profitable positions</span><strong id="overview-winners">—</strong></div>
-            <div><span>Win rate</span><strong id="overview-open">—</strong></div>
-          </div>
-        </article>
-        <article class="panel evidence-panel">
-          <div class="panel-heading"><div><p class="eyebrow">CURRENT INTERPRETATION</p><h2>What the results say</h2></div></div>
-          <dl class="result-interpretation">
-            <div><dt>Best result so far</dt><dd id="overview-best-strategy">—</dd></div>
-            <div><dt>Most recent trade</dt><dd id="overview-last-trade">—</dd></div>
-            <div id="overview-current-position-row"><dt>Current position</dt><dd id="overview-current-position">—</dd></div>
-          </dl>
-        </article>
-      </section>
-      <section id="benchmarks" class="panel configuration-panel" data-dashboard-panel="benchmarks" data-pages="benchmarks" data-panel-title="Strategy benchmarks">
-        <div class="panel-heading"><div><p class="eyebrow">FAIR COMPARISON</p><h2>Established strategy benchmarks</h2></div></div>
-        <p class="panel-note">Each benchmark receives its own simulated 10 SOL account and sees the same candidates, executable quotes, costs and non-negotiable safety gates. It cannot consume the TimSyS profiles’ funds. This makes the comparison meaningful: a positive result shows what the published rule achieved under the same conditions, not what it might have achieved in theory.</p>
-        <div class="profile-summary" aria-live="polite"><strong id="benchmark-active-count">0 active</strong><span>Independent 10 SOL accounts</span><span>Paper trading only</span></div>
-        <div id="benchmark-list" class="profile-grid" aria-label="Strategy benchmark profiles"><p class="empty">Loading strategy benchmarks…</p></div>
-        <output id="benchmark-message" class="preference-message" aria-live="polite"></output>
-      </section>
-      <section
-        id="configurations"
-        class="panel configuration-panel"
-        data-dashboard-panel="configurations"
-        data-pages="configurations"
-        data-panel-title="Trading configurations"
-      >
-        <div class="panel-heading">
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section class="page active" data-page-panel="dashboard">
+        <div id="totals" class="metric-grid"></div>
+        <div class="section-head">
           <div>
-            <p class="eyebrow">CONCURRENT PAPER STRATEGIES</p>
-            <h2>Trading profiles</h2>
+            <p class="kicker">PROFILES</p>
+            <h3>Trading strategies</h3>
           </div>
+          <p>Each profile makes and records its own decisions.</p>
         </div>
-        <p class="panel-note">
-          Profiles can observe, recommend, or trade with simulated funds. They run independently but share one portfolio risk limit, so enabling several profiles never multiplies the money available.
-        </p>
-        <div class="profile-summary" aria-live="polite">
-          <strong id="profile-active-count">0 active</strong>
-          <span id="profile-allocation-summary">0% of paper funds allocated</span>
-          <span>Combined open exposure remains capped at 10%</span>
-        </div>
-        <div id="profile-list" class="profile-grid" aria-label="Available trading profiles">
-          <p class="empty">Loading trading profiles…</p>
-        </div>
-        <output id="configuration-message" class="preference-message" aria-live="polite"></output>
-        <details class="advanced-configurations">
-          <summary>Advanced configuration records <span id="configuration-count" class="count-chip">0</span></summary>
-          <p class="panel-note">Legacy technical drafts are retained for audit and compatibility. Profiles above are the supported operator workflow.</p>
-          <div class="configuration-toolbar">
-            <label><span>Draft</span><select id="configuration-select"><option value="">New draft</option></select></label>
-            <button id="configuration-new" type="button">New</button><button id="configuration-delete" type="button">Delete</button>
+        <div id="profiles" class="profile-grid"></div>
+        <div class="section-head">
+          <div>
+            <p class="kicker">CALIBRATION</p>
+            <h3>Top rejection reasons</h3>
           </div>
-          <form id="configuration-form" class="configuration-form">
-            <label><span>Name</span><input id="configuration-name" required maxlength="80" /></label>
-            <label><span>Strategy version</span><input id="configuration-strategy" required pattern="strategy-v[0-9]+\.[0-9]+\.[0-9]+" placeholder="strategy-v1.0.0" /></label>
-            <label><span>Maximum concurrent positions</span><input id="configuration-positions" type="number" required min="1" max="3" /></label>
-            <label><span>Risk per trade (basis points)</span><input id="configuration-risk" type="number" required min="1" max="50" /></label>
-            <label><span>Maximum position equity (basis points)</span><input id="configuration-position-equity" type="number" required min="1" max="500" /></label>
-            <label><span>Maximum open exposure (basis points)</span><input id="configuration-exposure" type="number" required min="1" max="1000" /></label>
-            <label><span>Minimum cash reserve (basis points)</span><input id="configuration-reserve" type="number" required min="5000" max="10000" /></label>
-            <label><span>Entry slippage (basis points)</span><input id="configuration-slippage" type="number" required min="1" max="150" /></label>
-            <div class="configuration-actions"><button id="configuration-save" type="submit">Create draft</button></div>
-          </form>
-        </details>
+          <p>The most common reasons potential trades did not proceed.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Profile</th>
+                <th>Reason</th>
+                <th>Rejections</th>
+                <th>Coins</th>
+                <th>Last seen</th>
+              </tr>
+            </thead>
+            <tbody id="reason-rows"></tbody>
+          </table>
+        </div>
       </section>
-      <section
-        class="detail-grid optional-detail"
-        aria-label="Portfolio focus"
-        data-dashboard-panel="portfolio"
-        data-pages="performance watchlist"
-        data-panel-title="Allocation and watchlist"
-      >
-        <article id="allocation" class="panel allocation-panel" data-pages="performance">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">OPEN COST MIX</p>
-              <h2>Portfolio allocation</h2>
-            </div>
-            <span id="allocation-total" class="count-chip">—</span>
-          </div>
-          <div id="allocation-chart" class="allocation-chart">
-            <span class="empty">Awaiting open positions</span>
-          </div>
-        </article>
-        <article id="watchlist" class="panel table-panel" data-pages="watchlist">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">PERSISTENT OBSERVATION</p>
-              <h2>Token watchlist</h2>
-            </div>
-            <span id="watchlist-count" class="count-chip">0</span>
-          </div>
-          <p class="panel-note">
-            Create a list and add token addresses you want to check again later. Watching a token does not permit a trade.
-          </p>
-          <div class="watchlist-controls">
-            <label
-              ><span>List</span
-              ><select id="watchlist-select">
-                <option value="">No persistent lists</option>
-              </select></label
-            >
-            <button id="watchlist-create" type="button">New</button>
-            <button id="watchlist-rename" type="button">Rename</button>
-            <button id="watchlist-delete" type="button">Delete</button>
-          </div>
-          <output id="watchlist-message" class="preference-message" aria-live="polite"></output>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Invested</th>
-                  <th>Current value</th>
-                  <th>Last trade</th>
-                  <th>Status</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="watchlist-rows">
-                <tr>
-                  <td colspan="6" class="empty">No watched tokens</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-      <section
-        id="alerts"
-        class="detail-grid optional-detail"
-        aria-label="Operational health detail"
-        data-dashboard-panel="alerts"
-        data-pages="operations"
-        data-panel-title="Alerts and connection"
-      >
-        <article id="alerts-panel" class="panel table-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">PROCESSING PROBLEMS</p>
-              <h2>App alerts</h2>
-            </div>
-            <span id="alert-count" class="count-chip">—</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Error</th>
-                  <th>Retry</th>
-                  <th>Last checked</th>
-                </tr>
-              </thead>
-              <tbody id="alert-rows">
-                <tr>
-                  <td colspan="4" class="empty">Waiting for current data</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <article id="connection-panel" class="panel connection-panel technical-detail">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">DASHBOARD CONNECTION</p>
-              <h2>Refresh history</h2>
-            </div>
-            <button id="refresh-now" type="button">Refresh now</button>
-          </div>
-          <label class="refresh-control"
-            ><span>Automatic refresh</span
-            ><select id="refresh-rate">
-              <option value="10000">Every 10 seconds</option>
-              <option value="30000">Every 30 seconds</option>
-              <option value="60000">Every 60 seconds</option>
-              <option value="0">Paused</option>
+      <section class="page" data-page-panel="evaluations">
+        <div class="toolbar">
+          <label
+            >Profile<select id="evaluation-profile">
+              <option value="all">Both profiles</option>
+              <option value="fast_furious">Fast &amp; Furious</option>
+              <option value="oscillation_trader">Oscillation Trader</option>
             </select></label
-          >
-          <ol id="connection-history" class="connection-history" aria-live="polite">
-            <li>Connecting…</li>
-          </ol>
-        </article>
-        <article class="panel connection-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">MARKET UPDATES</p>
-              <h2>Discovery and evaluation</h2>
-            </div>
-            <span id="pipeline-state" class="count-chip">—</span>
-          </div>
-          <p id="pipeline-summary" class="panel-copy">Waiting for market update status</p>
-          <ol id="pipeline-work" class="connection-history" aria-live="polite">
-            <li>No queued work reported</li>
-          </ol>
-        </article>
-        <article class="panel evidence-panel wide">
-          <div class="panel-heading"><div><p class="eyebrow">PIPELINE CONVERSION</p><h2>From assessment to trade</h2></div></div>
-          <div class="operational-facts evidence-facts pipeline-facts">
-            <div><span>Current-engine assessment runs</span><strong id="pipeline-assessed">—</strong></div>
-            <div><span>Qualified</span><strong id="pipeline-qualified">—</strong></div>
-            <div><span>Qualification rate</span><strong id="pipeline-qualification-rate">—</strong></div>
-            <div><span>Buy fills</span><strong id="pipeline-buys">—</strong></div>
-            <div><span>Completed positions</span><strong id="pipeline-completed">—</strong></div>
-            <div><span>Quote failures</span><strong id="pipeline-quote-failures">—</strong></div>
-          </div>
-          <p id="pipeline-interpretation" class="operator-action">Waiting for strategy evidence.</p>
-        </article>
-        <article class="panel wide">
-          <div class="panel-heading"><div><p class="eyebrow">LAST 24 HOURS</p><h2>Where each strategy stops</h2></div></div>
-          <p class="panel-copy">A price pattern is only a possible opportunity. The last column now shows execution blockers too. An expensive buy-and-sell route is a reason to avoid a trade, not a reason to relax the cost limit.</p>
-          <div class="table-wrap strategy-funnel-table"><table><thead><tr><th>Strategy</th><th>Different tokens seen</th><th>Repeat price checks</th><th>Patterns</th><th>Market confirmed</th><th>Tokens qualified</th><th>Cost / quote blocks</th><th>Paper buys</th><th>Main screening reason</th><th>Latest execution blocker</th></tr></thead><tbody id="strategy-funnel-rows"><tr><td colspan="10">Loading strategy activity…</td></tr></tbody></table></div>
-        </article>
-        <article class="panel wide">
-          <div class="panel-heading"><div><p class="eyebrow">PAPER RESEARCH</p><h2>What happened after each gate?</h2></div><button id="opportunity-audit-run" type="button">Review missed moves</button></div>
-          <p class="panel-copy">Each row tests one condition independently; the counts are not a step-by-step funnel. One sample per token and strategy in each ten-minute window. Shows the observed price change about five minutes later, before fees and without claiming a trade could have filled. Use this to compare conditions, not as a profit backtest.</p>
-          <p id="opportunity-audit-status" class="operator-action">Run the review after the bot has collected several hours of observations.</p>
-          <div class="table-wrap strategy-funnel-table"><table><thead><tr><th>Strategy</th><th>Condition met</th><th>Sample windows</th><th>Different tokens</th><th>Five-minute matches</th><th>Average gross move</th><th>Up at least 2%</th><th>Down at least 2%</th></tr></thead><tbody id="opportunity-audit-rows"><tr><td colspan="8">No review run yet</td></tr></tbody></table></div>
-        </article>
-      </section>
-      <section
-        class="hero-grid performance-kpis"
-        aria-label="Performance summary"
-        data-pages="performance"
-      >
-        <article class="metric metric-primary">
-          <span>Net portfolio result</span><strong id="performance-net">—</strong>
-          <small id="performance-net-context">Cash plus latest quoted positions, versus starting funds</small>
-        </article>
-        <article class="metric">
-          <span>Portfolio return</span><strong id="performance-return">—</strong>
-          <small>Current marked value versus starting funds</small>
-        </article>
-        <article class="metric">
-          <span>Completed trades</span><strong id="performance-closed">—</strong>
-          <small id="performance-trade-context">In the selected period</small>
-        </article>
-        <article class="metric">
-          <span>Win rate</span><strong id="performance-win-rate">—</strong>
-          <small id="performance-win-context">Profitable completed trades</small>
-        </article>
-        <article class="metric">
-          <span>Average result</span><strong id="performance-average">—</strong>
-          <small>Per completed trade in this period</small>
-        </article>
-        <article class="metric">
-          <span>Largest drawdown</span><strong id="performance-drawdown">—</strong>
-          <small>Largest fall from a previous equity high</small>
-        </article>
-      </section>
-      <section
-        id="performance"
-        class="panel chart-panel"
-        aria-labelledby="performance-title"
-        data-dashboard-panel="performance"
-        data-pages="performance"
-        data-panel-title="Performance chart"
-      >
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">PORTFOLIO PERFORMANCE</p>
-            <h2 id="performance-title">Book equity history</h2>
-          </div>
-          <div class="range-controls" aria-label="Performance time range">
-            <button type="button" data-range="24h">24H</button>
-            <button type="button" data-range="7d" class="active">7D</button>
-            <button type="button" data-range="30d">30D</button>
-            <button type="button" data-range="all">ALL</button>
-          </div>
-        </div>
-        <p class="chart-note">
-          Starting capital plus the result of each completed trade. Open-position value is reported above.
-        </p>
-        <div
-          id="performance-chart"
-          class="chart"
-          role="img"
-          aria-label="Book equity and realized profit history"
-        >
-          <span class="empty">Waiting for performance data</span>
-        </div>
-        <div class="chart-legend">
-          <span><i class="equity-key"></i>Book equity</span
-          ><span><i class="pnl-key"></i>Realised result</span
-          ><strong id="chart-range-label">Last 7 days</strong>
-        </div>
-      </section>
-      <section class="performance-detail-grid" data-pages="performance" aria-label="Performance evidence">
-        <article class="panel table-panel wide">
-          <div class="panel-heading"><div><p class="eyebrow">AFTER THE EXIT</p><h2>Did stopped trades recover?</h2></div></div>
-          <p class="panel-copy" id="post-exit-summary">New exits are followed for three hours so an early entry can be distinguished from a genuinely bad opportunity.</p>
-          <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Token</th><th>Exit</th><th>Best rebound</th><th>5 min</th><th>15 min</th><th>30 min</th><th>60 min</th><th>180 min</th><th>Interpretation</th></tr></thead>
-            <tbody id="post-exit-rows"><tr><td colspan="10" class="empty">Waiting for post-exit observations</td></tr></tbody>
-          </table></div>
-        </article>
-        <article class="panel table-panel">
-          <div class="panel-heading"><div><p class="eyebrow">STRATEGY ATTRIBUTION</p><h2>Results by strategy</h2></div></div>
-          <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Net result</th><th>Return</th><th>Fills</th><th>Open</th></tr></thead>
-            <tbody id="strategy-performance-rows"><tr><td colspan="5" class="empty">Waiting for strategy results</td></tr></tbody>
-          </table></div>
-        </article>
-        <article class="panel table-panel">
-          <div class="panel-heading"><div><p class="eyebrow">EXIT OUTCOMES</p><h2>Why positions closed</h2></div></div>
-          <div class="table-scroll"><table><thead><tr><th>Reason</th><th>Trades</th><th>Profitable</th><th>Net result</th></tr></thead>
-            <tbody id="exit-reason-rows"><tr><td colspan="4" class="empty">Waiting for completed trades</td></tr></tbody>
-          </table></div>
-        </article>
-        <article class="panel table-panel wide">
-          <div class="panel-heading"><div><p class="eyebrow">COMPLETED POSITIONS</p><h2>Trade outcomes</h2></div></div>
-          <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Token</th><th>Spent</th><th>Received</th><th>Result</th><th>Return</th><th>Held</th><th>Exit</th></tr></thead>
-            <tbody id="closed-trade-rows"><tr><td colspan="8" class="empty">Waiting for completed trades</td></tr></tbody>
-          </table></div>
-        </article>
-      </section>
-      <section
-        class="operations optional-detail"
-        data-dashboard-panel="operations"
-        data-pages="operations"
-        data-panel-title="Trading operations"
-      >
-        <article id="operator-status" class="panel operator-status-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">SUPERVISED AUTHORITY</p>
-              <h2>Operator status</h2>
-            </div>
-            <span id="entry-lock-state" class="count-chip">CHECKING</span>
-          </div>
-          <p id="entry-lock-reason" class="panel-note">Checking whether new trades are allowed.</p>
-          <div class="operational-facts">
-            <div><span>Pending approvals</span><strong id="approval-pending">—</strong></div>
-            <div><span>Approved, awaiting use</span><strong id="approval-approved">—</strong></div>
-            <div><span>Expiring within 5 min</span><strong id="approval-expiring">—</strong></div>
-            <div><span>Entry plans queued</span><strong id="entry-queued">—</strong></div>
-            <div><span>Submitted entries</span><strong id="entry-submitted">—</strong></div>
-            <div>
-              <span>Reconciliation backlog</span><strong id="reconciliation-backlog">—</strong>
-            </div>
-            <div><span>Failed work</span><strong id="failed-work">—</strong></div>
-            <div><span>Telegram operator</span><strong id="telegram-state">—</strong></div>
-          </div>
-          <p id="operator-action" class="operator-action" aria-live="polite"></p>
-        </article>
-        <article id="activity-panel" class="panel activity-panel">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">EXECUTION FLOW</p>
-              <h2>Recent activity</h2>
-            </div>
-            <span class="mode-chip">PAPER ONLY</span>
-          </div>
-          <div class="flow">
-            <div><span>Fills recorded</span><strong id="fills">—</strong></div>
-            <div><span>Entries pending</span><strong id="entries">—</strong></div>
-            <div><span>Positions due</span><strong id="positions-due">—</strong></div>
-          </div>
-        </article>
-        <article id="integrity-panel" class="panel integrity-panel">
-          <p class="eyebrow">SYSTEM INTEGRITY</p>
-          <h2 id="integrity-title">Checking app and trading records</h2>
-          <p id="integrity-copy">Waiting for the first database-backed snapshot.</p>
-          <dl>
-            <div>
-              <dt>Processing errors</dt>
-              <dd id="errors">—</dd>
-            </div>
-            <div>
-              <dt>Wallet</dt>
-              <dd id="wallet">—</dd>
-            </div>
-            <div>
-              <dt>Snapshot</dt>
-              <dd id="observed">—</dd>
-            </div>
-            <div>
-              <dt>Database</dt>
-              <dd id="database-health">Checking</dd>
-            </div>
-            <div>
-              <dt>Execution mode</dt>
-              <dd id="execution-mode">Paper</dd>
-            </div>
-          </dl>
-        </article>
-      </section>
-      <section
-        id="positions-history-toolbar"
-        class="toolbar optional-detail"
-        aria-label="Table controls"
-        data-dashboard-panel="filters"
-        data-pages="positions history"
-        data-panel-title="Table filters"
-      >
-        <label
-          ><span>Search token</span
-          ><input id="token-search" type="search" placeholder="Mint address" autocomplete="off"
-        /></label>
-        <label
-          ><span>Fill side</span
-          ><select id="side-filter">
-            <option value="all">All sides</option>
-            <option value="buy">Buy</option>
-            <option value="sell">Sell</option>
-          </select></label
-        >
-        <button id="clear-filters" type="button">Clear filters</button>
-        <span id="filter-status" aria-live="polite">Showing all records</span>
-      </section>
-      <section
-        class="detail-grid"
-        aria-label="Trading detail"
-        data-dashboard-panel="trading"
-        data-pages="positions history"
-        data-panel-title="Trading detail"
-      >
-        <article id="positions" class="panel table-panel wide" data-pages="positions">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">INVENTORY</p>
-              <h2>Open positions</h2>
-            </div>
-            <span id="position-count" class="count-chip">—</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Strategy</th>
-                  <th>
-                    <button class="sort-button" data-table="positions" data-sort="token_mint">
-                      Token
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="positions"
-                      data-sort="cost_raw"
-                      data-kind="bigint"
-                    >
-                      Invested
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="positions"
-                      data-sort="current_value_raw"
-                      data-kind="bigint"
-                    >
-                      Current value
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="positions"
-                      data-sort="unrealized_raw"
-                      data-kind="bigint"
-                    >
-                      Unrealized result
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="positions"
-                      data-sort="opened_at"
-                      data-kind="date"
-                    >
-                      Opened
-                    </button>
-                  </th>
-                  <th>Paper control</th>
-                </tr>
-              </thead>
-              <tbody id="position-rows">
-                <tr>
-                  <td colspan="7" class="empty">Waiting for current data</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <article id="pending-entry-panel" class="panel table-panel" data-pages="positions">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">SIMULATED ENTRIES</p>
-              <h2>Cancellable paper orders</h2>
-            </div>
-            <span id="pending-entry-count" class="count-chip">—</span>
-          </div>
-          <p class="panel-note">Only available, unleased paper entries can be cancelled.</p>
-          <output id="paper-control-message" class="preference-message" aria-live="polite"></output>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Amount</th>
-                  <th>Created</th>
-                  <th>Paper control</th>
-                </tr>
-              </thead>
-              <tbody id="pending-entry-rows">
-                <tr>
-                  <td colspan="4" class="empty">Waiting for current data</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <article id="history" class="panel table-panel" data-pages="history">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">EXECUTION</p>
-              <h2>Recent fills</h2>
-            </div>
-            <span id="fill-count" class="count-chip">—</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    <button class="sort-button" data-table="fills" data-sort="profile_id">Strategy</button>
-                  </th>
-                  <th>
-                    <button class="sort-button" data-table="fills" data-sort="side">Trade</button>
-                  </th>
-                  <th>
-                    <button class="sort-button" data-table="fills" data-sort="token_mint">
-                      Token
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="fills"
-                      data-sort="settlement_amount_raw"
-                      data-kind="bigint"
-                    >
-                      SOL value
-                    </button>
-                  </th>
-                  <th>Gain / loss</th>
-                  <th>
-                    <button class="sort-button" data-table="fills" data-sort="reason">Reason</button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="fills"
-                      data-sort="filled_at"
-                      data-kind="date"
-                    >
-                      Filled
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="fill-rows">
-                <tr>
-                  <td colspan="7" class="empty">Waiting for current data</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <article class="panel table-panel" data-pages="history">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">REALIZED RESULTS</p>
-              <h2>Performance history</h2>
-            </div>
-            <span id="performance-count" class="count-chip">—</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    <button class="sort-button" data-table="performance" data-sort="token_mint">
-                      Token
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="performance"
-                      data-sort="proceeds_raw"
-                      data-kind="bigint"
-                    >
-                      Proceeds
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="performance"
-                      data-sort="released_cost_raw"
-                      data-kind="bigint"
-                    >
-                      Cost released
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="performance"
-                      data-sort="realized_pnl_raw"
-                      data-kind="bigint"
-                    >
-                      Result
-                    </button>
-                  </th>
-                  <th>Gain / loss</th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="performance"
-                      data-sort="realized_at"
-                      data-kind="date"
-                    >
-                      Realized
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="performance-rows">
-                <tr>
-                  <td colspan="6" class="empty">Waiting for current data</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-        <article id="events" class="panel table-panel wide" data-pages="history">
-          <div class="panel-heading">
-            <div>
-              <p class="eyebrow">DECISION LOG</p>
-              <h2>Operational events</h2>
-            </div>
-            <span id="event-count" class="count-chip">—</span>
-          </div>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>
-                    <button class="sort-button" data-table="events" data-sort="action">
-                      Action
-                    </button>
-                  </th>
-                  <th>
-                    <button class="sort-button" data-table="events" data-sort="rule_id">
-                      Rule
-                    </button>
-                  </th>
-                  <th>
-                    <button class="sort-button" data-table="events" data-sort="token_mint">
-                      Token
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="events"
-                      data-sort="open_amount_raw"
-                      data-kind="bigint"
-                    >
-                      Open amount
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="events"
-                      data-sort="requested_amount_raw"
-                      data-kind="bigint"
-                    >
-                      Requested
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="events"
-                      data-sort="executable_value_sol"
-                      data-kind="number"
-                    >
-                      Value
-                    </button>
-                  </th>
-                  <th>
-                    <button
-                      class="sort-button"
-                      data-table="events"
-                      data-sort="evaluated_at"
-                      data-kind="date"
-                    >
-                      Evaluated
-                    </button>
-                  </th>
-                </tr>
-              </thead>
-              <tbody id="event-rows">
-                <tr>
-                  <td colspan="7" class="empty">Waiting for current data</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-    </main>
-    <dialog id="preferences-dialog" class="preferences-dialog">
-      <div class="dialog-heading">
-        <div>
-          <p class="eyebrow">LOCAL DISPLAY</p>
-          <h2>Dashboard preferences</h2>
-        </div>
-        <button id="preferences-close" type="button" aria-label="Close preferences">×</button>
-      </div>
-      <fieldset>
-        <legend>Information density</legend>
-        <label><input type="radio" name="density" value="detailed" checked /> Detailed</label>
-        <label><input type="radio" name="density" value="compact" /> Compact</label>
-      </fieldset>
-      <fieldset>
-        <legend>Theme and accessibility</legend>
-        <label
-          ><span>Theme</span
-          ><select id="theme-preference">
-            <option value="system">Use system setting</option>
-            <option value="dark">Dark</option>
-            <option value="light">Light</option>
-          </select></label
-        >
-        <label><input id="high-contrast" type="checkbox" /> Higher contrast</label>
-        <label><input id="large-text" type="checkbox" /> Larger interface text</label>
-        <label><input id="reduce-motion" type="checkbox" /> Reduce interface motion</label>
-      </fieldset>
-      <fieldset>
-        <legend>Overview panels</legend>
-        <p class="panel-note">Choose visible panels and use the buttons to set their order.</p>
-        <div id="panel-preferences" class="panel-preferences"></div>
-      </fieldset>
-      <p class="panel-note">
-        Compact mode reduces spacing and hides secondary explanatory panels. Preferences stay in
-        this browser.
-      </p>
-      <fieldset>
-        <legend>Preference file</legend>
-        <p class="panel-note">
-          Export this browser's display settings or import a Memecoined preference file.
-        </p>
-        <div class="preference-transfer">
-          <button id="preferences-export" type="button">Export preferences</button>
-          <label class="file-button"
-            >Import preferences<input
-              id="preferences-import"
-              type="file"
-              accept="application/json,.json"
+          ><label
+            >Decision<select id="evaluation-result">
+              <option value="all">Accepted and rejected</option>
+              <option value="accepted">Accepted</option>
+              <option value="rejected">Rejected</option>
+            </select></label
+          ><label class="search"
+            >Coin<input id="evaluation-search" type="search" placeholder="Search mint address"
           /></label>
         </div>
-        <output id="preferences-message" class="preference-message" aria-live="polite"></output>
-      </fieldset>
-      <div class="preference-actions">
-        <button id="preferences-reset" type="button">Reset defaults</button>
-        <button id="preferences-done" type="button">Done</button>
-      </div>
-    </dialog>
-    <dialog id="action-dialog" class="action-dialog" aria-labelledby="action-dialog-title">
-      <form id="action-dialog-form" method="dialog">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">CONFIRM ACTION</p>
-            <h2 id="action-dialog-title">Confirm</h2>
-          </div>
-          <button id="action-dialog-close" type="button" aria-label="Close">×</button>
+        <div class="summary-line" id="evaluation-summary"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Profile</th>
+                <th>Coin</th>
+                <th>Decision</th>
+                <th>Score</th>
+                <th>Why</th>
+                <th>Outcome</th>
+              </tr>
+            </thead>
+            <tbody id="evaluation-rows"></tbody>
+          </table>
         </div>
-        <p id="action-dialog-message" class="panel-note"></p>
-        <label id="action-dialog-input-label"
-          ><span id="action-dialog-label">Value</span
-          ><input id="action-dialog-input" autocomplete="off"
-        /></label>
-        <div class="preference-actions">
-          <button id="action-dialog-cancel" type="button">Cancel</button>
-          <button id="action-dialog-confirm" type="submit">Continue</button>
+      </section>
+      <section class="page" data-page-panel="trades">
+        <div class="toolbar">
+          <label
+            >Profile<select id="trade-profile">
+              <option value="all">Both profiles</option>
+              <option value="fast_furious">Fast &amp; Furious</option>
+              <option value="oscillation_trader">Oscillation Trader</option>
+            </select></label
+          ><label
+            >Status<select id="trade-status">
+              <option value="all">Open and closed</option>
+              <option value="entered">Open</option>
+              <option value="closed">Closed</option>
+            </select></label
+          ><label class="search"
+            >Coin<input id="trade-search" type="search" placeholder="Search mint address"
+          /></label>
         </div>
-      </form>
-    </dialog>
-    <dialog id="token-dialog" aria-labelledby="token-title">
-      <div class="dialog-heading">
-        <div>
-          <p class="eyebrow">TOKEN LIFECYCLE</p>
-          <h2 id="token-title">Token detail</h2>
+        <div class="summary-line" id="trade-summary"></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Profile</th>
+                <th>Coin</th>
+                <th>Opened</th>
+                <th>Closed</th>
+                <th>Result</th>
+                <th>Best / worst</th>
+                <th>Exit</th>
+                <th>Held</th>
+              </tr>
+            </thead>
+            <tbody id="trade-rows"></tbody>
+          </table>
         </div>
-        <button id="close-token" type="button" aria-label="Close token detail">×</button>
-      </div>
-      <p id="token-address" class="token-address">—</p>
-      <button id="toggle-watchlist" class="watch-button" type="button" disabled>
-        Enable watchlist changes
-      </button>
-      <div class="token-metrics">
-        <div><span>Open amount</span><strong id="token-amount">—</strong></div>
-        <div><span>Open cost</span><strong id="token-cost">—</strong></div>
-        <div><span>Realised result</span><strong id="token-pnl">—</strong></div>
-        <div><span>Lots</span><strong id="token-lots">—</strong></div>
-      </div>
-      <div class="dialog-grid">
-        <section>
-          <h3>Position lots</h3>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Current</th>
-                  <th>Initial</th>
-                  <th>Cost remaining</th>
-                  <th>Opened</th>
-                </tr>
-              </thead>
-              <tbody id="token-lot-rows"></tbody>
-            </table>
-          </div>
-        </section>
-        <section>
-          <h3>Fill history</h3>
-          <div class="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Side</th>
-                  <th>Amount</th>
-                  <th>Settlement</th>
-                  <th>Filled</th>
-                </tr>
-              </thead>
-              <tbody id="token-fill-rows"></tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-    </dialog>
-    <footer>
-      <span>Paper observation with guarded simulated controls</span
-      ><span id="refresh-label">Auto-refresh · 10 seconds</span>
-    </footer>
+      </section>
+    </main>
     <script src="/app.js?v=6" defer></script>
   </body>
 </html>
