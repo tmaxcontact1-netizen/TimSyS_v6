@@ -1305,6 +1305,91 @@ export class ResearchRepository {
     (SELECT COALESCE(sum(jsonb_array_length(COALESCE(value->'interpretation'->'missing',value->'missing','[]'::jsonb))),0) FROM researched.analysis_results WHERE study_id=$1 AND analysis_type='completeness' AND status<>'rejected')::int AS "missingExpectedFields",
     (SELECT count(*) FROM researched.findings WHERE study_id=$1 AND status='confirmed')::int AS "confirmedFindings",
     (SELECT count(*) FROM researched.analysis_results WHERE study_id=$1 AND status<>'rejected')::int AS "completedResults"`,[studyId])).rows[0];}
+  async programmeWorkflows() {
+    return (await this.db.query(`SELECT s.id,s.title,s.created_at,s.updated_at,
+      count(DISTINCT c.id)::int AS candidate_count,
+      count(DISTINCT c.id) FILTER(WHERE c.decision='included')::int AS included_count,
+      count(DISTINCT r.id)::int AS completed_count,
+      count(DISTINCT j.id) FILTER(WHERE j.status IN('queued','running'))::int AS active_count,
+      count(DISTINCT j.id) FILTER(WHERE j.status='failed')::int AS failed_count
+      FROM researched.studies s
+      LEFT JOIN researched.programme_link_candidates c ON c.study_id=s.id
+      LEFT JOIN researched.programme_capture_jobs j ON j.candidate_id=c.id
+      LEFT JOIN researched.programme_records r ON r.candidate_id=c.id
+      WHERE s.methodology LIKE 'Extract programme links%'
+      GROUP BY s.id ORDER BY s.created_at DESC`)).rows;
+  }
+  async programmeWorkflow(studyId:string) {
+    const study=(await this.db.query("SELECT * FROM researched.studies WHERE id=$1",[studyId])).rows[0];
+    if(!study)return null;
+    const [documents,candidates,records]=await Promise.all([
+      this.db.query("SELECT s.id,s.label,s.created_at,e.status AS extraction_status FROM researched.sources s LEFT JOIN researched.source_snapshots x ON x.id=(SELECT id FROM researched.source_snapshots WHERE source_id=s.id ORDER BY sequence DESC LIMIT 1) LEFT JOIN researched.source_extractions e ON e.snapshot_id=x.id WHERE s.study_id=$1 AND s.original_url LIKE 'upload://%' ORDER BY s.created_at",[studyId]),
+      this.db.query(`SELECT c.*,j.status AS capture_status,j.attempts,j.last_error,j.source_id
+        FROM researched.programme_link_candidates c LEFT JOIN researched.programme_capture_jobs j ON j.candidate_id=c.id
+        WHERE c.study_id=$1 ORDER BY c.ordinal`,[studyId]),
+      this.db.query("SELECT * FROM researched.programme_records WHERE study_id=$1 ORDER BY institution,programme_name",[studyId]),
+    ]);
+    return {...study,documents:documents.rows,candidates:candidates.rows,records:records.rows};
+  }
+  async replaceProgrammeCandidates(studyId:string,sourceDocumentId:string,candidates:readonly any[],at:string){
+    await this.assertStudyWritable(studyId);
+    const client=this.db.connect?await this.db.connect():null,query=client?client.query.bind(client):this.db.query.bind(this.db);
+    if(client)await query("BEGIN");
+    try{
+      await query("DELETE FROM researched.programme_link_candidates WHERE study_id=$1",[studyId]);
+      for(const candidate of candidates)await query(`INSERT INTO researched.programme_link_candidates(id,study_id,source_document_id,institution,programme_name,qualification_level,original_url,canonical_url,ordinal,created_at,updated_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10) ON CONFLICT(study_id,canonical_url) DO UPDATE SET institution=excluded.institution,programme_name=excluded.programme_name,qualification_level=excluded.qualification_level,original_url=excluded.original_url,ordinal=excluded.ordinal,updated_at=excluded.updated_at`,[randomUUID(),studyId,sourceDocumentId,candidate.institution,candidate.programmeName,candidate.qualificationLevel,candidate.originalUrl,candidate.canonicalUrl,candidate.ordinal,at]);
+      if(client)await query("COMMIT");
+    }catch(error){if(client)await query("ROLLBACK");throw error;}finally{client?.release();}
+    return this.programmeWorkflow(studyId);
+  }
+  async decideProgrammeCandidate(id:string,value:any,at:string){
+    const row=(await this.db.query(`UPDATE researched.programme_link_candidates SET decision=$2,decision_reason=$3,institution=COALESCE($4,institution),programme_name=COALESCE($5,programme_name),qualification_level=COALESCE($6,qualification_level),original_url=COALESCE($7,original_url),updated_at=$8 WHERE id=$1 RETURNING *`,[id,value.decision,value.reason??null,value.institution??null,value.programmeName??null,value.qualificationLevel??null,value.originalUrl??null,at])).rows[0];
+    return row??null;
+  }
+  async queueProgrammeCaptures(studyId:string,at:string){
+    await this.assertStudyWritable(studyId);
+    const candidates=(await this.db.query("SELECT * FROM researched.programme_link_candidates WHERE study_id=$1 AND decision='included' ORDER BY ordinal",[studyId])).rows;
+    let queued=0;
+    for(const candidate of candidates){
+      let job=(await this.db.query("SELECT * FROM researched.programme_capture_jobs WHERE candidate_id=$1",[candidate.id])).rows[0];
+      if(!job){
+        const sourceId=randomUUID();
+        await this.createSource(sourceId,{studyId,label:`${candidate.institution} — ${candidate.programme_name}`,originalUrl:candidate.canonical_url,sourceType:"webpage",authority:"primary",corpusStatus:"included",completeness:"unassessed",notes:"Programme page captured by the focused workflow"},at);
+        job=(await this.db.query(`INSERT INTO researched.programme_capture_jobs(id,candidate_id,study_id,source_id,status,next_attempt_at,created_at,updated_at) VALUES($1,$2,$3,$4,'queued',$5,$5,$5) RETURNING *`,[randomUUID(),candidate.id,studyId,sourceId,at])).rows[0];
+        queued++;
+      }else if(job.status==='failed'){
+        await this.db.query("UPDATE researched.programme_capture_jobs SET status='queued',attempts=0,next_attempt_at=$2,last_error=NULL,completed_at=NULL,updated_at=$2 WHERE id=$1",[job.id,at]);queued++;
+      }
+    }
+    return {requested:candidates.length,queued};
+  }
+  async claimProgrammeCapture(at:string){
+    return (await this.db.query(`WITH next AS (SELECT j.id FROM researched.programme_capture_jobs j WHERE j.status IN('queued','failed') AND j.attempts<j.maximum_attempts AND j.next_attempt_at<=$1 ORDER BY j.next_attempt_at,j.created_at FOR UPDATE SKIP LOCKED LIMIT 1)
+      UPDATE researched.programme_capture_jobs j SET status='running',attempts=attempts+1,started_at=$1,last_error=NULL,updated_at=$1 FROM next WHERE j.id=next.id RETURNING j.*`,[at])).rows[0]??null;
+  }
+  async recoverProgrammeCaptures(at:string){
+    await this.db.query("UPDATE researched.programme_capture_jobs SET status='queued',started_at=NULL,next_attempt_at=$1,last_error=COALESCE(last_error,'Recovered after application restart'),updated_at=$1 WHERE status='running'",[at]);
+  }
+  async programmeCaptureContext(jobId:string){
+    return (await this.db.query(`SELECT j.*,c.institution,c.programme_name,c.qualification_level,c.original_url,c.canonical_url,c.ordinal,s.label,s.original_url AS source_url
+      FROM researched.programme_capture_jobs j JOIN researched.programme_link_candidates c ON c.id=j.candidate_id JOIN researched.sources s ON s.id=j.source_id WHERE j.id=$1`,[jobId])).rows[0]??null;
+  }
+  async completeProgrammeCapture(job:any,record:any,at:string){
+    const client=this.db.connect?await this.db.connect():null,query=client?client.query.bind(client):this.db.query.bind(this.db);
+    if(client)await query("BEGIN");
+    try{
+    await query(`INSERT INTO researched.programme_records(id,candidate_id,study_id,source_id,institution,programme_name,qualification_level,award,delivery_modes,duration,credit_requirement,curriculum,concentrations,admission_requirements,professional_outcomes,summary,evidence,confidence,warnings,captured_at,extractor_version)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+      ON CONFLICT(candidate_id) DO UPDATE SET source_id=excluded.source_id,institution=excluded.institution,programme_name=excluded.programme_name,qualification_level=excluded.qualification_level,award=excluded.award,delivery_modes=excluded.delivery_modes,duration=excluded.duration,credit_requirement=excluded.credit_requirement,curriculum=excluded.curriculum,concentrations=excluded.concentrations,admission_requirements=excluded.admission_requirements,professional_outcomes=excluded.professional_outcomes,summary=excluded.summary,evidence=excluded.evidence,confidence=excluded.confidence,warnings=excluded.warnings,captured_at=excluded.captured_at,extractor_version=excluded.extractor_version`,[randomUUID(),job.candidate_id,job.study_id,job.source_id,record.institution,record.programmeName,record.qualificationLevel,record.award,JSON.stringify(record.deliveryModes),record.duration,record.creditRequirement,JSON.stringify(record.curriculum),JSON.stringify(record.concentrations),JSON.stringify(record.admissionRequirements),JSON.stringify(record.professionalOutcomes),record.summary,JSON.stringify(record.evidence),record.confidence,JSON.stringify(record.warnings),at,record.extractorVersion]);
+    await query("UPDATE researched.programme_capture_jobs SET status='succeeded',completed_at=$2,updated_at=$2 WHERE id=$1",[job.id,at]);
+    if(client)await query("COMMIT");
+    }catch(error){if(client)await query("ROLLBACK");throw error;}finally{client?.release();}
+  }
+  async failProgrammeCapture(job:any,error:string,at:string){
+    const terminal=job.attempts>=job.maximum_attempts,minutes=Math.min(60,2**Math.max(0,job.attempts-1));
+    await this.db.query("UPDATE researched.programme_capture_jobs SET status='failed',last_error=$2,next_attempt_at=$3::timestamptz+($4||' minutes')::interval,completed_at=CASE WHEN $5 THEN $3::timestamptz ELSE NULL END,updated_at=$3 WHERE id=$1",[job.id,error,at,minutes,terminal]);
+  }
   async counts() {
     const r = await this.db.query(
       `SELECT (SELECT count(*)::int FROM researched.studies) studies,(SELECT count(*)::int FROM researched.sources) sources,(SELECT count(*)::int FROM researched.source_snapshots) snapshots,(SELECT count(*)::int FROM researched.source_extractions WHERE status='completed') extractions,(SELECT count(*)::int FROM researched.evidence_items WHERE status='active') evidence,(SELECT count(*)::int FROM researched.findings WHERE status<>'withdrawn') findings,(SELECT count(*)::int FROM researched.report_runs) reports,(SELECT count(*)::int FROM researched.entities) entities`,

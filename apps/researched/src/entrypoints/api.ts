@@ -41,15 +41,13 @@ import {
 import { extractStoredSnapshot, extractText } from "../application/source-extraction.js";
 import { assembleReport, renderReportHtml } from "../application/reporting.js";
 import { discoverStoredLinks } from "../application/link-discovery.js";
-import { analyseDeterministically } from "../application/deterministic-analysis.js";
-import { analysisRetry } from "../application/analysis-jobs.js";
-import { ANALYSIS_RESULT_CONTRACT_VERSION, analysisResultJsonSchemas, jsonSchemaForAnalysis, parseAnalysisValue, parseStoredAnalysisResult, validateAnalysisSourceRelationships } from "../domain/analysis-results.js";
-import { balancedCorpusEvidence, corpusInstructions } from "../application/cross-source-analysis.js";
+import { ANALYSIS_RESULT_CONTRACT_VERSION, analysisResultJsonSchemas, parseStoredAnalysisResult } from "../domain/analysis-results.js";
 import { analysisRunArchive, analysisRunCsv, analysisRunMarkdown } from "../application/analysis-export.js";
 import { buildResearchInsights } from "../application/research-insights.js";
+import { extractProgrammeCandidates, extractProgrammeRecord } from "../application/programme-workflow.js";
 import type { AnalysisTypeId } from "../domain/analysis.js";
 import { ANALYSIS_CATALOG, analysisPlanInput, analysisTemplateInput, analysisRunInput, analysisRunControlInput, analysisFindingDecisionInput,aiConnectionInput,aiDiscoveryInput } from "../domain/analysis.js";
-import { AI_PROVIDER_PROTOCOLS, createAiAnalysisProvider, inspectAiConnection, runGroundedAiAnalysis, type AiAnalysisProvider, type AiProviderConfiguration } from "../application/ai-analysis.js";
+import { AI_PROVIDER_PROTOCOLS, createAiAnalysisProvider, inspectAiConnection, type AiAnalysisProvider, type AiProviderConfiguration } from "../application/ai-analysis.js";
 function secure(r: ServerResponse) {
   r.setHeader("Cache-Control", "no-store");
   r.setHeader(
@@ -199,29 +197,27 @@ export function createResearchServer(input: {
     }
     return results;
   };
-  const processAnalysisItem=async()=>{
-    const item=await repo.claimAnalysisItem(now().toISOString());if(!item)return null;
+  const processProgrammeCapture=async()=>{
+    const job=await repo.claimProgrammeCapture(now().toISOString());
+    if(!job)return null;
     try{
-      const context=await repo.analysisJobContext(item);if(!context)throw new Error("analysis_input_unavailable");
-      const {plan,source,sources,run}=context,type=item.analysis_type as string,isCorpus=item.scope_type==="corpus",ruleOnly=new Set(["syntax","readability"]),hybrid=new Set(["terminology","entities","sentiment","claims","comparison","contradictions","bias-framing","completeness","custom-extraction"]),output=analyseDeterministically(source.text_content,plan.expected_fields);
-      const deterministicValue=type==="syntax"?output.syntax:type==="readability"?output.readability:type==="terminology"?{terms:output.terminology,facts:output.facts}:type==="completeness"?output.completeness:null;
-      if(ruleOnly.has(type))await repo.saveAnalysisResult(run,source.source_id,type,"rules",parseAnalysisValue(type as AnalysisTypeId,deterministicValue),source.segment_ids,now().toISOString());
-      else{
-        if(!aiProvider)throw new Error("ai_provider_not_configured");
-        let remaining=100_000;const evidence=isCorpus?balancedCorpusEvidence(sources):((source.evidence_segments as {segmentId:string;sourceId:string;content:string}[]).flatMap(item=>{if(remaining<=0)return[];const content=item.content.slice(0,remaining);remaining-=content.length;return content?[{...item,content}]:[]}));
-        const instructions=`Perform ${type} analysis. Return a concise structured result. ${isCorpus?corpusInstructions(type,sources):""} ${plan.custom_questions.length?`Address these user questions when relevant: ${plan.custom_questions.join(" | ")}.`:""} ${plan.expected_fields.length?`Expected information: ${plan.expected_fields.join(", ")}.`:""} ${deterministicValue===null?"":`Deterministic observations to interpret, not override: ${JSON.stringify(deterministicValue)}`}`;
-        const started=Date.now();aiUsage.requests++;aiUsage.lastUsedAt=now().toISOString();let result;
-        try{result=await runGroundedAiAnalysis(aiProvider,{requestId:randomUUID(),analysisType:type,instructions,evidence,outputSchema:jsonSchemaForAnalysis(type as AnalysisTypeId,plan.expected_fields)});aiUsage.succeeded++;aiUsage.lastError=null;}
-        catch(error){aiUsage.failed++;aiUsage.lastError=error instanceof Error?error.message:"analysis_failed";throw error;}
-        finally{aiUsage.totalLatencyMs+=Date.now()-started;}
-        if(await repo.analysisRunStatus(item.run_id)==="cancelled"){await repo.cancelAnalysisItem(item,now().toISOString());return{runId:item.run_id,itemId:item.id,status:"cancelled"};}
-        const parsed=isCorpus?validateAnalysisSourceRelationships(type as AnalysisTypeId,result.value,sources.map((item:any)=>item.source_id)):parseAnalysisValue(type as AnalysisTypeId,result.value),method=hybrid.has(type)?"hybrid":"ai",payload=parseStoredAnalysisResult(type as AnalysisTypeId,method,deterministicValue===null?{interpretation:parsed,limitations:result.limitations}:{deterministic:deterministicValue,interpretation:parsed,limitations:result.limitations});
-        await repo.saveAnalysisResult(run,isCorpus?null:source.source_id,type,method,payload,result.evidenceSegmentIds,now().toISOString(),{confidence:result.confidence,ruleVersion:deterministicValue===null?null:"deterministic-v1",model:{provider:aiProvider.id,model:aiProvider.model,promptVersion:"researched-grounded-v1",contractVersion:ANALYSIS_RESULT_CONTRACT_VERSION,scope:isCorpus?"corpus":"source",sourceIds:sources.map((item:any)=>item.source_id),hierarchy:context.hierarchy}});
-      }
-      if(await repo.analysisRunStatus(item.run_id)==="cancelled"){await repo.cancelAnalysisItem(item,now().toISOString());return{runId:item.run_id,itemId:item.id,status:"cancelled"};}
-      await repo.completeAnalysisItem(item,now().toISOString());
-      return{runId:item.run_id,itemId:item.id,status:"succeeded"};
-    }catch(error){const reason=error instanceof Error?error.message:"analysis_failed",decision=analysisRetry(item.attempts,item.maximum_attempts,reason,now());await repo.failAnalysisItem(item,reason,decision.nextAttemptAt,now().toISOString(),!decision.retry);return{runId:item.run_id,itemId:item.id,status:decision.retry?"retrying":"failed",reason};}
+      const context=await repo.programmeCaptureContext(job.id);
+      if(!context)throw new Error("programme_capture_context_missing");
+      const source=await repo.source(job.source_id);
+      if(!source)throw new Error("source_not_found");
+      await fetchAndPreserve(source,(url)=>renderedAcquire(url,{expandInteractiveContent:true,maximumInteractions:60,timeoutMs:60_000}));
+      const snapshot=(await repo.snapshots(source.id))[0];
+      if(!snapshot)throw new Error("snapshot_not_found");
+      const extracted=await extractStoredSnapshot(storageRoot,snapshot.storage_path,snapshot.media_type);
+      await repo.saveExtraction(randomUUID(),snapshot.id,extracted,now().toISOString(),true);
+      const record=extractProgrammeRecord(extracted.text,{institution:context.institution,programmeName:context.programme_name,qualificationLevel:context.qualification_level,originalUrl:context.original_url,canonicalUrl:context.canonical_url,ordinal:context.ordinal});
+      await repo.completeProgrammeCapture(job,record,now().toISOString());
+      return {id:job.id,status:"succeeded"};
+    }catch(error){
+      const reason=error instanceof Error?error.message:"programme_capture_failed";
+      await repo.failProgrammeCapture(job,reason,now().toISOString());
+      return {id:job.id,status:"failed",reason};
+    }
   };
   let queueWorkerError: string | null = null;
   const server = createServer(async (q, r) => {
@@ -269,39 +265,77 @@ export function createResearchServer(input: {
           );
         }
       }
+      if(path==="/api/programme-workflows"){
+        if(method==="GET")return json(r,200,{items:await repo.programmeWorkflows()});
+        if(method==="POST"){
+          const body=await readBody(q),at=now().toISOString();
+          const study=await repo.createStudy(randomUUID(),{title:String(body.title??"Programme website analysis").trim()||"Programme website analysis",researchQuestion:"What does each university programme contain?",description:"Focused document-to-programme analysis",methodology:"Extract programme links from an uploaded document, capture the rendered primary pages, and produce comparable evidence-backed programme records.",inclusionRules:["University programme pages listed in the uploaded document"],exclusionRules:["Accreditation links, navigation, advertising, and unrelated pages"]},at);
+          return json(r,201,study);
+        }
+        return json(r,405,{error:"method_not_allowed"});
+      }
+      const programmeWorkflowMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})$/i.exec(path);
+      if(programmeWorkflowMatch){
+        if(method!=="GET")return json(r,405,{error:"method_not_allowed"});
+        const workflow=await repo.programmeWorkflow(programmeWorkflowMatch[1]!);
+        return workflow?json(r,200,workflow):json(r,404,{error:"workflow_not_found"});
+      }
+      const programmeUploadMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})\/document$/i.exec(path);
+      if(programmeUploadMatch){
+        if(method!=="POST")return json(r,405,{error:"method_not_allowed"});
+        const filename=decodeURIComponent(String(url.searchParams.get("filename")??"")).trim(),extension=filename.toLowerCase().split(".").at(-1),mediaType=String(q.headers["content-type"]??"application/octet-stream").split(";")[0]!.toLowerCase();
+        if(!filename||filename.length>500)return json(r,400,{error:"invalid_filename"});
+        if(!(mediaType==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"||mediaType==="application/pdf"||["docx","pdf"].includes(extension??"")))return json(r,415,{error:"upload_a_word_or_pdf_document"});
+        const bytes=await readBinaryBody(q),sourceId=randomUUID(),snapshotId=randomUUID(),attemptId=randomUUID(),at=now().toISOString(),sourceType=extension==="pdf"||mediaType==="application/pdf"?"pdf":"document";
+        const source=await repo.createSource(sourceId,{studyId:programmeUploadMatch[1]!,label:filename,originalUrl:`upload://${sourceId}/${encodeURIComponent(filename)}`,sourceType,authority:"primary",corpusStatus:"included",completeness:"unassessed",notes:"Source list for programme website analysis"},at);
+        await repo.beginRetrieval(attemptId,sourceId,source.original_url,at);
+        const storagePath=await preserveSource(storageRoot,sourceId,snapshotId,bytes,mediaType),hash=contentHash(bytes);
+        await repo.completeRetrieval({attemptId,sourceId,snapshotId,at,resolvedUrl:source.original_url,status:200,hash,mediaType,byteLength:bytes.length,storagePath,metadata:{uploaded:true,filename},unchanged:false});
+        let extracted=await extractText(bytes,mediaType),usedOcr=false;
+        if(sourceType==="pdf"&&extracted.status==="empty"){extracted=await extractText(bytes,mediaType,{ocr:true});usedOcr=true;}
+        await repo.saveExtraction(randomUUID(),snapshotId,extracted,at,usedOcr);
+        const candidates=extractProgrammeCandidates(extracted.text);
+        const workflow=await repo.replaceProgrammeCandidates(programmeUploadMatch[1]!,sourceId,candidates,at);
+        return json(r,201,{...workflow,upload:{filename,candidatesFound:candidates.length,warnings:extracted.warnings}});
+      }
+      const programmeCandidateMatch=/^\/api\/programme-candidates\/([0-9a-f-]{36})$/i.exec(path);
+      if(programmeCandidateMatch){
+        if(method!=="PATCH")return json(r,405,{error:"method_not_allowed"});
+        const value=await readBody(q);
+        if(!["included","excluded"].includes(value.decision))return json(r,400,{error:"invalid_candidate_decision"});
+        const saved=await repo.decideProgrammeCandidate(programmeCandidateMatch[1]!,value,now().toISOString());
+        return saved?json(r,200,saved):json(r,404,{error:"candidate_not_found"});
+      }
+      const programmeStartMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})\/start$/i.exec(path);
+      if(programmeStartMatch){
+        if(method!=="POST")return json(r,405,{error:"method_not_allowed"});
+        return json(r,202,await repo.queueProgrammeCaptures(programmeStartMatch[1]!,now().toISOString()));
+      }
+      const programmeExportMatch=/^\/api\/programme-workflows\/([0-9a-f-]{36})\/export$/i.exec(path);
+      if(programmeExportMatch){
+        if(method!=="GET")return json(r,405,{error:"method_not_allowed"});
+        const workflow=await repo.programmeWorkflow(programmeExportMatch[1]!);if(!workflow)return json(r,404,{error:"workflow_not_found"});
+        const format=url.searchParams.get("format")??"json";
+        if(format==="json")return documentResponse(r,"application/json",`programme-analysis-${workflow.id}.json`,JSON.stringify({title:workflow.title,exportedAt:now().toISOString(),records:workflow.records},null,2));
+        if(format==="csv"){
+          const quote=(value:unknown)=>`"${String(value??"").replaceAll('"','""')}"`,rows=["Institution,Programme,Level,Award,Delivery,Duration,Credits,Summary,Confidence,URL"];
+          for(const record of workflow.records){const candidate=workflow.candidates.find((item:any)=>item.id===record.candidate_id);rows.push([record.institution,record.programme_name,record.qualification_level,record.award,(record.delivery_modes??[]).join("; "),record.duration,record.credit_requirement,record.summary,record.confidence,candidate?.canonical_url].map(quote).join(","));}
+          return documentResponse(r,"text/csv",`programme-analysis-${workflow.id}.csv`,rows.join("\r\n"));
+        }
+        return json(r,400,{error:"unsupported_export_format"});
+      }
       if (path === "/api/application" && method === "GET")
         return json(r, 200, {
           id: "researched",
           name: "Research'Ed",
           foundation: "research-core",
           functions: [
-            "study-designer",
-            "corpus-manager",
-            "entity-modelling",
-            "source-archive",
-            "source-extraction",
-            "evidence-capture",
-            "cross-source-analysis",
-            "findings",
-            "reporting",
-            "research-lifecycle",
-            "audit-history",
-            "evidence-search",
-            "source-discovery",
-            "acquisition-queue",
-            "browser-rendering",
-            "pdf-ocr",
-            "analysis-planner",
-            "deterministic-analysis",
-            "human-analysis-review",
-            "background-analysis-jobs",
-            "guided-analysis-setup",
-            "analysis-templates",
-            "analysis-result-export",
-            "research-insights",
-            "batch-source-intake",
-            "document-upload",
+            "programme-document-intake",
+            "programme-link-review",
+            "rendered-programme-capture",
             "interactive-content-expansion",
+            "programme-structure-extraction",
+            "evidence-backed-programme-export",
           ],
         });
       if (path === "/api/capabilities" && method === "GET")
@@ -317,6 +351,7 @@ export function createResearchServer(input: {
           },
           aiAnalysis:{available:Boolean(aiProvider),provider:aiProvider?.id??null,model:aiProvider?.model??null,usage:{...aiUsage,averageLatencyMs:aiUsage.requests?Math.round(aiUsage.totalLatencyMs/aiUsage.requests):null}},
         });
+      if(path.startsWith("/api/"))return json(r,404,{error:"not_available_in_focused_workflow"});
       if (path === "/api/analysis-types" && method === "GET")
         return json(r,200,{items:ANALYSIS_CATALOG});
       const analysisContractMatch=/^\/api\/analysis-types\/([a-z-]+)\/contract$/i.exec(path);
@@ -972,28 +1007,12 @@ export function createResearchServer(input: {
     });
     stream.pipe(r);
   });
-  void repo.recoverAnalysisJobs(now().toISOString()).catch((error)=>{queueWorkerError=error instanceof Error?error.message:"analysis_recovery_failed";});
-  let analysisWorkerBusy=false;
-  const analysisTimer=input.backgroundQueue?setInterval(()=>{if(analysisWorkerBusy)return;analysisWorkerBusy=true;Promise.all([processAnalysisItem(),processAnalysisItem()]).then(()=>{queueWorkerError=null;}).catch((error)=>{queueWorkerError=error instanceof Error?error.message:"analysis_worker_failed";}).finally(()=>{analysisWorkerBusy=false;});},1_000):null;
-  analysisTimer?.unref();
-  const timer = input.backgroundQueue
-    ? setInterval(() => {
-        void repo
-          .queuedStudyIds()
-          .then(async (studyIds) => {
-            for (const studyId of studyIds) await processQueue(studyId, 2);
-            queueWorkerError = null;
-          })
-          .catch((error) => {
-            queueWorkerError =
-              error instanceof Error ? error.message : "queue_worker_failed";
-          });
-      }, 15_000)
-    : null;
-  timer?.unref();
+  void repo.recoverProgrammeCaptures(now().toISOString()).catch((error)=>{queueWorkerError=error instanceof Error?error.message:"programme_recovery_failed";});
+  let programmeWorkerBusy=false;
+  const programmeTimer=input.backgroundQueue?setInterval(()=>{if(programmeWorkerBusy)return;programmeWorkerBusy=true;Promise.all([processProgrammeCapture(),processProgrammeCapture()]).then(()=>{queueWorkerError=null;}).catch((error)=>{queueWorkerError=error instanceof Error?error.message:"programme_worker_failed";}).finally(()=>{programmeWorkerBusy=false;});},2_000):null;
+  programmeTimer?.unref();
   server.once("close", () => {
-    if (timer) clearInterval(timer);
-    if (analysisTimer) clearInterval(analysisTimer);
+    if (programmeTimer) clearInterval(programmeTimer);
   });
   return server;
 }

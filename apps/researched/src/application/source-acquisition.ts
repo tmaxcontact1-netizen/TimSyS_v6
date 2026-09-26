@@ -252,7 +252,7 @@ export async function acquireRenderedSource(
         interactions.push({kind:"details",label:(await item.locator("summary").textContent().catch(()=>null))?.trim().slice(0,160)||"Expandable section"});
       }
       const remaining=Math.max(0,(options.maximumInteractions??40)-interactions.length);
-      const controls=page.locator('[aria-expanded="false"], button').filter({hasText:/\b(read|show|view|load)\s+more\b|\bexpand\b/i});
+      const controls=page.locator('[aria-expanded="false"], [data-toggle="collapse"], [data-bs-toggle="collapse"], button').filter({hasText:/\b(read|show|view|load)\s+more\b|\bexpand\b|\b(curriculum|courses?|requirements?|programme|program|admissions?|overview|degree)\b/i});
       for(let index=0;index<Math.min(await controls.count(),remaining);index++){
         const control=controls.nth(index);
         if(!(await control.isVisible().catch(()=>false))) continue;

@@ -44,37 +44,14 @@ describe("Research'Ed application contract", () => {
     });
     const application = await (await fetch(`${base}/api/application`)).json();
     expect(application.functions).toEqual([
-      "study-designer",
-      "corpus-manager",
-      "entity-modelling",
-      "source-archive",
-      "source-extraction",
-      "evidence-capture",
-      "cross-source-analysis",
-      "findings",
-      "reporting",
-      "research-lifecycle",
-      "audit-history",
-      "evidence-search",
-      "source-discovery",
-      "acquisition-queue",
-      "browser-rendering",
-      "pdf-ocr",
-      "analysis-planner",
-      "deterministic-analysis",
-      "human-analysis-review",
-      "background-analysis-jobs",
-      "guided-analysis-setup",
-      "analysis-templates",
-      "analysis-result-export",
-      "research-insights",
-      "batch-source-intake",
-      "document-upload",
+      "programme-document-intake",
+      "programme-link-review",
+      "rendered-programme-capture",
       "interactive-content-expansion",
+      "programme-structure-extraction",
+      "evidence-backed-programme-export",
     ]);
-    const connected=await fetch(`${base}/api/ai/connection`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({protocol:"openai-chat",model:"local-model",baseUrl:"http://127.0.0.1:11434"})});
-    expect(await connected.json()).toMatchObject({configured:true,protocol:"openai-chat",persistence:"memory-only"});
-    expect(await (await fetch(`${base}/api/capabilities`)).json()).toMatchObject({aiAnalysis:{available:true,provider:"openai-chat",model:"local-model"}});
-    expect((await fetch(`${base}/api/ai/connection`,{method:"DELETE"})).status).toBe(200);
+    expect(await (await fetch(`${base}/api/capabilities`)).json()).toMatchObject({browserRendering:{available:expect.any(Boolean)}});
+    expect((await fetch(`${base}/api/analysis-types`)).status).toBe(404);
   });
 });
