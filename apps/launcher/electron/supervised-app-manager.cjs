@@ -1,7 +1,9 @@
 const { EventEmitter } = require("node:events");
 const { readFile } = require("node:fs/promises");
+const { appendFileSync, mkdirSync } = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
+const { execFileSync } = require("node:child_process");
 
 const TERMINAL_STATES = new Set(["failed", "stopped"]);
 const ACTIVE_STATES = new Set(["starting", "running", "degraded"]);
@@ -88,6 +90,7 @@ class SupervisedAppManager extends EventEmitter {
       environment: null,
       healthTimer: null,
       healthFailures: 0,
+      resourceTimer: null,
     };
     this.applications.set(manifest.id, record);
     return this.snapshot(record);
@@ -134,6 +137,7 @@ class SupervisedAppManager extends EventEmitter {
         this.observeChild(record, name, child);
       }
       record.startedAt = this.now();
+      this.beginResourceLedger(record);
       await this.waitUntilHealthy(record, environment);
       this.transition(record, "running");
       this.beginRuntimeHealthMonitoring(record);
@@ -169,18 +173,21 @@ class SupervisedAppManager extends EventEmitter {
   }
 
   observeChild(record, name, child) {
+    const logRoot = record.environment?.TIMSYS_CHILD_LOG_ROOT;
+    if (logRoot) mkdirSync(logRoot, { recursive: true });
     for (const [stream, level] of [
       [child.stdout, "info"],
       [child.stderr, "error"],
     ]) {
-      stream?.on?.("data", (chunk) =>
+      stream?.on?.("data", (chunk) => {
+        if (logRoot) appendFileSync(path.join(logRoot, `${name}.${level === "info" ? "stdout" : "stderr"}.log`), chunk);
         this.emit("log", {
           appId: record.id,
           process: name,
           level,
           message: String(chunk).trimEnd(),
-        }),
-      );
+        });
+      });
     }
     child.once("error", (error) => {
       if (ACTIVE_STATES.has(record.state)) {
@@ -232,6 +239,31 @@ class SupervisedAppManager extends EventEmitter {
     record.healthFailures = 0;
   }
 
+  beginResourceLedger(record) {
+    const root = record.environment?.TIMSYS_CHILD_LOG_ROOT;
+    if (!root || process.platform !== 'win32') return;
+    const ledger = path.join(root, 'resource-usage.csv');
+    appendFileSync(ledger, 'timestamp,process,pid,working_set_bytes,private_bytes,handles,cpu_seconds,event\n');
+    const sample = () => {
+      for (const [name, child] of record.processes) {
+        try {
+          const encoded = execFileSync('powershell.exe', ['-NoProfile', '-Command', `$p=Get-Process -Id ${Number(child.pid)} -ErrorAction Stop; "$($p.WorkingSet64),$($p.PrivateMemorySize64),$($p.Handles),$($p.CPU)"`], { encoding: 'utf8', windowsHide: true }).trim();
+          appendFileSync(ledger, `${this.now()},${name},${child.pid},${encoded},sample\n`);
+        } catch {
+          appendFileSync(ledger, `${this.now()},${name},${child.pid},0,0,0,0,process_unavailable\n`);
+        }
+      }
+    };
+    sample();
+    record.resourceTimer = setInterval(sample, 30_000);
+    record.resourceTimer.unref?.();
+  }
+
+  clearResourceLedger(record) {
+    if (record.resourceTimer) clearInterval(record.resourceTimer);
+    record.resourceTimer = null;
+  }
+
   async stop(appId) {
     const record = this.requireRecord(appId);
     if (record.stopPromise) return record.stopPromise;
@@ -244,6 +276,7 @@ class SupervisedAppManager extends EventEmitter {
 
   async stopProcesses(record) {
     this.clearRuntimeHealthMonitoring(record);
+    this.clearResourceLedger(record);
     const preserveFailure = record.state === "failed";
     if (!preserveFailure) this.transition(record, "stopping");
     const signal = record.manifest.shutdown?.signal || "SIGTERM";

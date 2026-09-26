@@ -20,6 +20,7 @@ import {
   asSolanaSlot,
   type Timestamp,
 } from "../../../domain/shared/types.js";
+import { BoundedMap } from "../../bounded-map.js";
 import { createExecutableQuote, type ExecutableQuote } from "../../../domain/trading/quote.js";
 import { JupiterClientError, JupiterSwapApiClient } from "./client.js";
 
@@ -165,13 +166,23 @@ function validBase64(value: string): boolean {
 }
 
 export class JupiterSwapAdapter implements SwapPort {
-  private readonly acceptedQuotes = new Map<string, z.infer<typeof quoteSchema>>();
+  public static readonly DEFAULT_ACCEPTED_QUOTE_CAPACITY = 1_024;
+  private readonly acceptedQuotes: BoundedMap<string, z.infer<typeof quoteSchema>>;
 
   public constructor(
     private readonly client: JupiterSwapApiClient,
     private readonly simulation: TransactionSimulationClient,
     private readonly identities: ObservationIdentityFactory,
-  ) {}
+    acceptedQuoteCapacity = JupiterSwapAdapter.DEFAULT_ACCEPTED_QUOTE_CAPACITY,
+  ) {
+    if (!Number.isSafeInteger(acceptedQuoteCapacity) || acceptedQuoteCapacity < 1)
+      throw new RangeError("Accepted quote capacity must be a positive integer");
+    this.acceptedQuotes = new BoundedMap(acceptedQuoteCapacity);
+  }
+
+  public retainedAcceptedQuoteCount(): number {
+    return this.acceptedQuotes.size;
+  }
 
   private clientFailure(error: unknown, fallbackAt: Timestamp): SwapResult<never> {
     if (error instanceof JupiterClientError)
@@ -285,6 +296,7 @@ export class JupiterSwapAdapter implements SwapPort {
         "Construction requires the exact accepted quote",
         false,
       );
+    this.acceptedQuotes.delete(request.quote.fingerprint);
     const body = {
       quoteResponse: accepted,
       userPublicKey: request.wallet,

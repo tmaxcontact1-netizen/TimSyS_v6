@@ -492,6 +492,21 @@ export function trailingStopActivated(input: {
   );
 }
 
+export function evaluateExitState(input: {
+  readonly value: bigint; readonly cost: bigint; readonly high: bigint;
+  readonly stopBps: number; readonly targetBps: number; readonly trailingBps: number;
+  readonly trailingActivationBps: number; readonly thesisMature: boolean;
+  readonly oscillationProfile: boolean; readonly timedOut: boolean;
+}): Readonly<{ reason: "hard_stop" | "profit_target" | "trailing_stop" | "breakeven_stop" | "time_limit" | null; breakevenArmed: boolean }> {
+  const stop = input.value * 10_000n <= input.cost * BigInt(10_000 - input.stopBps);
+  const target = input.thesisMature && input.value * 10_000n >= input.cost * BigInt(10_000 + input.targetBps);
+  const trailing = input.thesisMature && input.high * 10_000n >= input.cost * BigInt(10_000 + input.trailingActivationBps) && input.value * 10_000n <= input.high * BigInt(10_000 - input.trailingBps);
+  const breakevenArmed = input.oscillationProfile && input.high * 10_000n >= input.cost * BigInt(10_000 + Math.round(input.targetBps / 2));
+  const breakeven = breakevenArmed && input.value <= input.cost;
+  const reason = stop ? "hard_stop" : target ? "profit_target" : trailing ? "trailing_stop" : breakeven ? "breakeven_stop" : input.timedOut ? "time_limit" : null;
+  return Object.freeze({ reason, breakevenArmed });
+}
+
 const uuid = (parts: readonly string[]) => {
   const hex = createHash("sha256").update(parts.join("\0")).digest("hex");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
@@ -2000,36 +2015,22 @@ async function monitorPositions(input: {
             Math.max(Math.round(observedVolatility), Math.round(profile.trailingStopBps / 2)),
           )
         : profile.trailingStopBps;
-    const stop = value * 10000n <= cost * BigInt(10000 - adaptiveStopBps);
     const thesisMature = ageMinutes >= minimumThesisMaturityMinutes(profile.id);
-    const target = thesisMature && value * 10000n >= cost * BigInt(10000 + adaptiveTargetBps);
     const trailingActivationBps = calibration?.trailingActivationBps ?? adaptiveTrailingBps;
-    const trailing =
-      thesisMature &&
-      high * 10_000n >= cost * BigInt(10_000 + trailingActivationBps) &&
-      value * 10_000n <= high * BigInt(10_000 - adaptiveTrailingBps);
-    const breakeven =
-      profile.id === "oscillation_trader" &&
-      high * 10_000n >= cost * BigInt(10_000 + Math.round(adaptiveTargetBps / 2)) &&
-      value <= cost;
-    const timeout =
-      ageMinutes >= (calibration?.maximumHoldingMinutes ?? profile.maximumHoldingMinutes);
-    if (!stop && !target && !trailing && !breakeven && !timeout) {
+    const exit = evaluateExitState({ value, cost, high, stopBps: adaptiveStopBps,
+      targetBps: adaptiveTargetBps, trailingBps: adaptiveTrailingBps,
+      trailingActivationBps, thesisMature,
+      oscillationProfile: profile.id === "oscillation_trader",
+      timedOut: ageMinutes >= (calibration?.maximumHoldingMinutes ?? profile.maximumHoldingMinutes) });
+    if (exit.reason === null) {
       await input.pool.query(
         `UPDATE paper_profile_positions SET current_value_raw=$4,high_water_raw=GREATEST(high_water_raw,$4),updated_at=$5 WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3`,
         [input.wallet, profile.id, position.token_mint, value.toString(), input.at],
       );
       continue;
     }
-    const reason = stop
-      ? "hard_stop"
-      : target
-        ? "profit_target"
-        : trailing
-          ? "trailing_stop"
-          : breakeven
-            ? "breakeven_stop"
-            : "time_limit";
+    const reason = exit.reason;
+    const trackedHigh = high > value ? high : value;
     // As with entries, the quote is received after the cycle timestamp. Keep
     // the fill audit chronologically valid when an exit condition fires.
     const filledAt = q.receivedAt;
@@ -2118,7 +2119,9 @@ async function monitorPositions(input: {
               realized_loss_bps=GREATEST(0,-round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2)),
               realized_to_planned_loss_gap_bps=GREATEST(0,-round((($7::numeric-$8::numeric-$9::numeric-$10::numeric)*10000/NULLIF($8::numeric,0)),2))
                 - planned_loss_bps,
-              maximum_favorable_excursion_bps=GREATEST(0,round(excursion.favorable_bps,2)),
+               high_water_raw=$12::numeric,
+               breakeven_armed=$13::boolean,
+               maximum_favorable_excursion_bps=GREATEST(0,round(excursion.favorable_bps,2),round((($12::numeric-$8::numeric)*10000/NULLIF($8::numeric,0)),2)),
               maximum_adverse_excursion_bps=GREATEST(0,round(excursion.adverse_bps,2)),
               holding_seconds=GREATEST(0,extract(epoch FROM ($5::timestamptz-$11::timestamptz))::int),
               target_hit=($6='profit_target'),stop_hit=($6='hard_stop'),updated_at=$5
@@ -2135,6 +2138,8 @@ async function monitorPositions(input: {
           input.feeRaw.toString(),
           position.entry_fee_raw,
           iso(position.opened_at),
+          trackedHigh.toString(),
+          exit.breakevenArmed,
         ],
       );
     });

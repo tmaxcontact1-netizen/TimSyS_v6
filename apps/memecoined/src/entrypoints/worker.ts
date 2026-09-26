@@ -27,6 +27,7 @@ const productionFactories: ProductionWorkerFactories = Object.freeze({
       connectionString: config.databaseUrl,
       production: config.environment === "production",
       managedLocal: config.managedDatabase,
+      maximumConnections: config.managedDatabase ? 6 : 10,
     }),
   compose: (input: {
     readonly config: RuntimeConfig;

@@ -4,6 +4,7 @@ import {
   confirmedEntryLag,
   entryConfirmationPolicy,
   evaluateExecutableEntryEvidence,
+  evaluateExitState,
   evaluateProfileCandidate,
   maximumPositionBps,
   minimumThesisMaturityMinutes,
@@ -351,5 +352,29 @@ describe("profile paper simulation policy", () => {
     expect(
       trailingStopActivated({ value: 1_020n, cost: 1_000n, high: 1_050n, trailingBps: 250 }),
     ).toBe(true);
+  });
+
+  it("records a trailing exit before the breakeven arm", () => {
+    expect(evaluateExitState({ value: 990n, cost: 1_000n, high: 1_060n, stopBps: 900,
+      targetBps: 1_500, trailingBps: 500, trailingActivationBps: 500,
+      thesisMature: true, oscillationProfile: true, timedOut: false })).toEqual({
+      reason: "trailing_stop", breakevenArmed: false,
+    });
+  });
+
+  it("retains the breakeven-armed fact when a trailing stop has precedence", () => {
+    expect(evaluateExitState({ value: 999n, cost: 1_000n, high: 1_080n, stopBps: 900,
+      targetBps: 1_500, trailingBps: 750, trailingActivationBps: 750,
+      thesisMature: true, oscillationProfile: true, timedOut: false })).toEqual({
+      reason: "trailing_stop", breakevenArmed: true,
+    });
+  });
+
+  it("records a breakeven stop when the trail has not drawn down far enough", () => {
+    expect(evaluateExitState({ value: 1_000n, cost: 1_000n, high: 1_080n, stopBps: 900,
+      targetBps: 1_500, trailingBps: 900, trailingActivationBps: 750,
+      thesisMature: true, oscillationProfile: true, timedOut: false })).toEqual({
+      reason: "breakeven_stop", breakevenArmed: true,
+    });
   });
 });

@@ -13,4 +13,13 @@ describe("profile-scoped signal rejection telemetry", () => {
     expect(counters.totalsByProfile()).toEqual({ fast_furious: 2, oscillation_trader: 1 });
     expect(counters.events()).toHaveLength(3);
   });
+
+  it("retains only the configured high-volume event window while preserving totals", () => {
+    const counters = new SignalGateCounter(32);
+    for (let index = 0; index < 10_000; index += 1)
+      counters.record({ profileId: "fast_furious", mint: `mint-${index}`, reason: "gate", ts: new Date(index * 1_000).toISOString() });
+    expect(counters.retainedEventCount()).toBe(32);
+    expect(counters.events()[0]?.mint).toBe("mint-9968");
+    expect(counters.count("fast_furious", "gate")).toBe(10_000);
+  });
 });

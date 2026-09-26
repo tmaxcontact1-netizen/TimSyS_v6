@@ -190,7 +190,7 @@ for (const [id, source] of Object.entries(sources)) {
 const manifest = {
   schemaVersion: 1,
   releaseVersion,
-  minimumLauncherVersion: '1.0.14',
+  minimumLauncherVersion: '1.0.17',
   publishedAt: new Date().toISOString(),
   notes: 'Verified TimSyS application update.',
   bundles,

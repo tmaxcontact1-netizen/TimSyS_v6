@@ -779,6 +779,7 @@ export async function startPaperDashboard(environment: NodeJS.ProcessEnv): Promi
     connectionString: config.databaseUrl,
     production: config.environment === "production",
     managedLocal: config.managedDatabase,
+    maximumConnections: config.managedDatabase ? 6 : 10,
   });
   await verifyRuntimeDatabase(database, "paper", true);
   const mutationToken = environment.PAPER_DASHBOARD_MUTATION_TOKEN;

@@ -5,6 +5,7 @@ const fsp = require('node:fs/promises');
 const path = require('path');
 const { spawn } = require('node:child_process');
 const { SupervisedAppManager } = require('./supervised-app-manager.cjs');
+const { claimMemecoinedRuntime, stopLauncherOwnedRuntime } = require('./memecoined-runtime-ownership.cjs');
 const { LocalPostgresManager, availablePort } = require('./local-postgres-manager.cjs');
 const { createRuntimeLayout } = require('./runtime-layout.cjs');
 const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
@@ -150,9 +151,13 @@ async function startPlatform() {
 
 async function startMemecoined() {
   await ensureNodeModulesLink(layout.memecoinedRoot);
-  const database = await postgres.start();
+  const database = await claimMemecoinedRuntime({ probeHealth: fetch, startDatabase: () => postgres.start() });
   try {
     const environment = await memecoinedEnvironment(database);
+    const instrumentationRoot = path.join(layout.memecoinedData, 'instrumentation', new Date().toISOString().replaceAll(':', '-'));
+    await fsp.mkdir(instrumentationRoot, { recursive: true });
+    environment.TIMSYS_CHILD_LOG_ROOT = instrumentationRoot;
+    environment.NODE_OPTIONS = packagedNodeOptions(`${environment.NODE_OPTIONS || ''} --report-on-fatalerror --report-uncaught-exception --report-directory=${JSON.stringify(instrumentationRoot)}`);
     const missing = paperConfigurationFields.filter((name) => !environment[name]);
     if (environment.MEMECOINED_MODE === 'paper' && missing.length > 0) {
       await postgres.stop();
@@ -326,10 +331,12 @@ app.on('before-quit', (event) => {
   if (quitting) return;
   event.preventDefault();
   quitting = true;
-  Promise.resolve(supervisedApps?.stopAll())
+  Promise.resolve(stopLauncherOwnedRuntime({
+    stopApplications: () => supervisedApps?.stopAll(),
+    stopDatabase: () => postgres?.stop(),
+  }))
     .then(() => backupPlatformDatabase(layout.dataRoot))
     .then(() => postgres?.state ? postgres.backup() : undefined)
-    .then(() => postgres?.stop())
     .finally(() => app.quit());
 });
 
@@ -353,6 +360,7 @@ ipcMain.handle('supervised-app:start', async (_event, appId) => {
   requireSupervisedChild(appId);
   try { return await (appId === 'memecoined' ? startMemecoined() : appId === 'dressed' ? startDressed() : startResearched()); }
   catch (error) {
+    if (String(error?.message).includes('already owned outside launcher supervision')) throw error;
     if (await updateManager.rollbackBundle(appId)) { app.relaunch(); app.exit(1); }
     throw error;
   }

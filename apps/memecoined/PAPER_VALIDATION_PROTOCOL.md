@@ -7,9 +7,10 @@ The evaluation begins only after the verified build is installed and its engine 
 
 ## Current window origin
 
-- Results produced before release `2026.09.25.8` are diagnostic and are not part of this window.
-- The current epoch began after `2026.09.25.8` was installed, MemeCoin'Ed restarted, and the database reported ready at `2026-09-25T19:54:26+03:00`.
-- The exact source commit is recorded in `memecoined-verification-2026.09.25.8.json`; that release artifact is the authoritative build identity.
+- Epoch 3 / release `2026.09.25.8` terminated as diagnostic and is not part of the current efficacy window.
+- The next validation window begins only after release `2026.09.26.9` is installed, migration `0062_epoch_9_clean_baseline.sql` creates the active epoch, the configuration hash is sealed, and the launcher-owned database, worker, dashboard, diagnostic capture, and resource ledger all report ready.
+- Release tag `2026.09.26.9` and its published source commit are the authoritative build identity; the installed verification artifact records the exact commit.
+- The exact source commit is recorded in the release verification artifact; that artifact is the authoritative build identity.
 - Data from an earlier release is never concatenated with or averaged into this window.
 - The release gate starts from a newly created database with zero persisted market observations and simulates four hours at the production 15-second dense/30-second rotating cadence across at least 50 competing tokens. It must demonstrate observation, qualification, eight pin assignments, entry eligibility, completed paper round trips and displayed results.
 
@@ -25,6 +26,7 @@ The evaluation begins only after the verified build is installed and its engine 
 - Terminal condition: 60 valid closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first.
 - Active scheduler time is derived from `paper_observation_cycles`. It is the sum of elapsed time within continuous run segments; a gap greater than twice the nominal cycle interval ends the current segment and is not counted.
 - All strategy constants, gates, sizing rules, sampling policy, provider configuration, fees and starting balances are frozen.
+- The epoch `.9` profile set, allocations, parameters, providers and balances carry forward unchanged from epoch `.8`; only runtime evidence is reset by epoch isolation.
 - A code, configuration, provider, allocation or parameter change invalidates the window and requires a fresh baseline.
 - Oscillation Trader and Fast & Furious are evaluated independently. Their records must never be pooled.
 - Breakout & Retest and Recovery & Reversal share a detector and are reported both separately for execution and together as the `shared_pullback` evaluation family. The family aggregate is the primary detector-level result.
@@ -37,7 +39,15 @@ Each evaluated profile requires at least 60 valid closed trades. A shorter activ
 
 - One unexplained process termination is retained as environmental noise only because the epoch/configuration hash and persisted evidence remained intact and the inactive interval is excluded.
 - A second unexplained worker termination ends this epoch as `diagnostic`. The crash cause must then be corrected in code, a new verified release and epoch created, and validation restarted.
+- Launcher/runtime ownership interference follows the same bounded rule. A repeated launcher-spawned worker or externally commanded database stop ends the epoch as `diagnostic`, because systematic gaps bias the sampled market conditions even when writes do not overlap.
 - Checkpoints remain read-only: cycle continuity, cohort occupancy, funnel counts, closed-trade evidence and captured process diagnostics. No mid-window strategy or runtime tuning is permitted.
+
+## Epoch 3 termination
+
+- At `2026-09-26T07:18:56+03:00`, the launcher-owned database lifecycle issued a fast PostgreSQL shutdown while the externally instrumented `.8` worker was active. Cycles were continuous at 15-second cadence through `07:18:45`, with zero overlap detections and a maximum scheduler lag of 22 ms.
+- During the attempted infrastructure recovery, a launcher-owned PostgreSQL instance and worker started on a temporary port before launcher supervision was neutralized. That worker stamped four additional epoch-3 cycles at `07:56:45`, `07:57:00`, `07:57:15`, and `07:57:30`. No overlaps were recorded, but this violated the precondition that no cycles be written during the inactive segment and constituted repeated supervision interference.
+- The installed launcher has no per-application supervision-disable switch. For recovery investigation it was neutralized by stopping the launcher process family; PostgreSQL was then returned to the same data directory and port `53318` under external ownership. No strategy, profile, allocation, balance, provider, schema, or configuration-hash change was made.
+- Epoch 3 (`2026.09.25.8`, configuration hash `c1c582432f85d60f97a5e628c2abe2dfd2bcf36c2ae46a017346f39b01dd671b`) therefore terminates as `diagnostic`. Its evidence must not be treated as an efficacy result or concatenated into a later validation epoch.
 
 ## Pre-registered pass conditions
 
@@ -72,6 +82,23 @@ The ledger stores both input and output amounts for the first signal and filled 
 token quantities. It also persists the signed estimated-to-measured friction difference
 and signed realized-to-planned loss difference; the pass test uses the positive portion
 of the latter.
+
+## Environment-interrupted trade classification
+
+- An `interruption event` is any timestamped event recorded in this protocol's event ledger: worker-process termination, launcher-caused runtime interference, database shutdown, or an interval in which `paper_observation_cycles` contains a gap greater than twice the nominal cadence.
+- A closed trade is `environment_interrupted` when its inclusive open interval, from entry-fill timestamp through exit-fill timestamp, intersects an interruption event's inclusive start-to-recovery interval. Every other closed trade is `clean`.
+- This classification is report-level for epoch 3; it does not alter the frozen runtime schema. It is derived from immutable fills, cycle gaps, and this protocol's event ledger and must be reproducible by the validation report.
+- Every closed trade counts toward the 60-trade terminal condition for its profile, regardless of classification. Excluding a trade from primary efficacy metrics cannot extend the window.
+- Win rate, expectancy, and exit-reason distribution are reported separately for the `clean` and `environment_interrupted` partitions. Both partitions remain visible and neither is deleted.
+- The `clean` partition is the primary efficacy basis. The `environment_interrupted` partition is reported as platform-reliability evidence.
+- This rule is fixed before evaluation and applies unchanged regardless of either partition's result. Trades cannot be reclassified post hoc.
+
+### Epoch 3 interruption ledger
+
+- `2026-09-25T21:18:30+03:00` through `2026-09-26T06:42:15+03:00`: unexplained worker-process termination and inactive scheduler interval.
+- `2026-09-26T06:54:00+03:00` through `2026-09-26T06:56:15+03:00`: instrumentation-only restart interval, represented by a cycle gap greater than twice nominal cadence.
+- `2026-09-26T07:18:56+03:00` through `2026-09-26T07:56:45+03:00`: launcher-caused PostgreSQL shutdown and inactive scheduler interval.
+- `2026-09-26T07:56:45+03:00` through `2026-09-26T07:57:30+03:00`: launcher-owned recovery worker interference. Cycles were written without overlap, but the interval remains an environmental event under the pre-registered recurrence policy.
 
 ## Interpretation order
 
