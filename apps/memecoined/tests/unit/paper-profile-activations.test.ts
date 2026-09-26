@@ -10,7 +10,10 @@ describe("paper profile activations", () => {
   it("supplies safe disabled defaults when no choices have been saved", async () => {
     const database = { query: async () => ({ rows: [] }) };
     const profiles = await listPaperProfileActivations(database as never, "wallet" as never);
-    expect(profiles).toHaveLength(20);
+    expect(profiles.map((profile) => profile.profileId)).toEqual([
+      "fast_furious",
+      "oscillation_trader",
+    ]);
     expect(profiles.every((profile) => !profile.enabled && profile.version === 0)).toBe(true);
   });
 
@@ -43,13 +46,12 @@ describe("paper profile activations", () => {
         values = parameters;
         expect(sql).toContain("'automatic_paper'");
         expect(sql).not.toContain("'whale_tracker'");
-        expect(sql).toContain("'fast_furious',true,'automatic_paper',3000");
-        expect(sql).toContain("'trend_detector',true,'automatic_paper',2000");
-        expect(sql).toContain("'scalper',false,'observe',0");
-        expect(sql).toContain("'oscillation_trader',false,'observe',1250");
+        expect(sql).toContain("'fast_furious',true,'automatic_paper',5000");
+        expect(sql).toContain("'oscillation_trader',true,'automatic_paper',5000");
+        expect(sql).not.toContain("'trend_detector'");
         expect(sql).toContain("WHERE NOT EXISTS");
         expect(sql).toContain("paper_profile_activation_audit");
-        return { rows: [{ inserted_count: "20" }] };
+        return { rows: [{ inserted_count: "2" }] };
       },
     };
     await expect(
@@ -59,7 +61,7 @@ describe("paper profile activations", () => {
         new Date("2026-09-12T12:00:00Z"),
       ),
     ).resolves.toBe(true);
-    expect(values).toHaveLength(22);
+    expect(values).toHaveLength(4);
   });
 
   it("blocks reactivating a retired profile", async () => {

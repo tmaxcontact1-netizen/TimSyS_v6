@@ -41,32 +41,15 @@ export async function ensureAllProfilesPaperTrialPreset(
   wallet: WalletAddress,
   occurredAt: Date,
 ): Promise<boolean> {
-  // The legacy whale/social rows remain disabled in old schemas for audit
-  // compatibility; only currently supported profiles are seeded on new wallets.
-  const auditIds = tradingProfileCatalogue.map(() => randomUUID());
+  const supportedProfiles = tradingProfileCatalogue.filter((profile) =>
+    focusedProfileIdSet.has(profile.id),
+  );
+  const auditIds = supportedProfiles.map(() => randomUUID());
   const result = await database.query<{ inserted_count: string | number }>(
     `WITH presets(profile_id,enabled,mode,allocation_bps,audit_id) AS (
        VALUES
-         ('fast_furious',true,'automatic_paper',3000,$3::uuid),
-         ('slow_steady',true,'automatic_paper',2000,$4::uuid),
-         ('trend_detector',true,'automatic_paper',2000,$5::uuid),
-         ('capital_preservation',true,'automatic_paper',1500,$6::uuid),
-         ('signal_consensus',true,'automatic_paper',1500,$7::uuid),
-         ('breakout_retest',false,'observe',0,$8::uuid),
-         ('liquidity_expansion',false,'observe',0,$9::uuid),
-         ('recovery_reversal',false,'observe',0,$10::uuid),
-         ('launch_transition',false,'observe',0,$11::uuid),
-         ('scalper',false,'observe',0,$12::uuid),
-         ('oscillation_trader',false,'observe',1250,$13::uuid),
-         ('benchmark_buy_hold',false,'observe',10000,$14::uuid),
-         ('benchmark_momentum',false,'observe',10000,$15::uuid),
-         ('benchmark_ema_cross',false,'observe',10000,$16::uuid),
-         ('benchmark_rsi_reversal',false,'observe',10000,$17::uuid),
-         ('benchmark_macd_trend',false,'observe',10000,$18::uuid),
-         ('benchmark_bollinger_reversion',false,'observe',10000,$19::uuid),
-         ('benchmark_donchian_breakout',false,'observe',10000,$20::uuid),
-         ('benchmark_volume_breakout',false,'observe',10000,$21::uuid),
-         ('benchmark_atr_trend',false,'observe',10000,$22::uuid)
+         ('fast_furious',true,'automatic_paper',5000,$3::uuid),
+         ('oscillation_trader',true,'automatic_paper',5000,$4::uuid)
      ), inserted AS (
        INSERT INTO paper_profile_activations
          (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)
@@ -87,7 +70,7 @@ export async function ensureAllProfilesPaperTrialPreset(
      ) SELECT count(*)::text AS inserted_count FROM inserted`,
     [wallet, occurredAt, ...auditIds],
   );
-  return Number(result.rows[0]?.inserted_count ?? 0) === tradingProfileCatalogue.length;
+  return Number(result.rows[0]?.inserted_count ?? 0) === supportedProfiles.length;
 }
 
 const defaults = new Map(
@@ -119,18 +102,20 @@ export async function listPaperProfileActivations(
   );
   const stored = new Map(result.rows.map((row) => [row.profile_id, activation(row)]));
   return Object.freeze(
-    tradingProfileCatalogue.map(
-      (profile) =>
-        stored.get(profile.id) ??
-        Object.freeze({
-          profileId: profile.id,
-          enabled: false,
-          mode: "observe" as const,
-          allocationBps: defaults.get(profile.id) ?? 0,
-          version: 0,
-          updatedAt: null,
-        }),
-    ),
+    tradingProfileCatalogue
+      .filter((profile) => focusedProfileIdSet.has(profile.id))
+      .map(
+        (profile) =>
+          stored.get(profile.id) ??
+          Object.freeze({
+            profileId: profile.id,
+            enabled: false,
+            mode: "observe" as const,
+            allocationBps: defaults.get(profile.id) ?? 0,
+            version: 0,
+            updatedAt: null,
+          }),
+      ),
   );
 }
 
