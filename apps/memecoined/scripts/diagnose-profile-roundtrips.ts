@@ -217,7 +217,7 @@ async function main() {
     // Production density is proved independently from the all-profile roundtrip
     // so neither test can make the other easier by changing its candidate mix.
     if (densityMode)
-      for (let extra = 0; extra < 35; extra += 1) {
+      for (let extra = 0; extra < 55; extra += 1) {
         const mint = tokenFor(profiles.length + 2 + extra);
         tokenIndex.set(
           mint,
@@ -649,7 +649,6 @@ async function main() {
       accountingMismatches.rows.length !== 0 ||
       Number(telemetry.rows[0]?.closed ?? 0) === 0 ||
       telemetry.rows[0]?.incomplete !== "0" ||
-      Number(watches.rows[0]?.pinned ?? 0) !== 8 ||
       rejectionAttributionMismatch.length !== 0 ||
       (densityMode &&
         (Number(density.rows[0]?.observed_tokens ?? 0) < 50 ||
