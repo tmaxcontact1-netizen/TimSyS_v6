@@ -43,6 +43,9 @@ describe("focused dashboard UI standards", () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain("function notify");
     expect(javascript).toContain("The profile setting was not saved");
+    expect(javascript).toContain("async function returnToLauncher");
+    expect(javascript).toContain("await window.electronAPI.returnToLauncher()");
+    expect(javascript).toContain("Could not return to the launcher");
     expect(javascript).not.toMatch(/\bprompt\s*\(/);
     expect(javascript).not.toMatch(/\bconfirm\s*\(/);
   });

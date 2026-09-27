@@ -113,6 +113,25 @@ of the latter.
 - Entry processing has one owner per simulation cycle. Position, cash, fill, decision, intent and signal outcome are one atomic database commit.
 - The `clean` / `environment_interrupted` classification and gap-exclusion rules apply from the first cycle.
 
+### Epoch 5 (`.10`) termination
+
+- Epoch 5 terminated as `diagnostic` at `2026-09-27T06:11:31.570339+03:00` without creating a successor epoch.
+- Primary cause: Oscillation Trader entry-state misclassification. The `extreme_oversold` transition could remain admissible after the current executable state had moved to neutral or overbought. Four of five rapid hard-stop entries filled within 1.38 bps of their stored signal while current-state RSI ranged from 55 to 78 and Z-score from +0.24 to +2.60.
+- Evidence artifact: `docs/epoch-5-entry-state-diagnostic.md`.
+- Confirmed telemetry defects: close-out MFE/MAE used fixed-size `paper_fast_market_observations` rather than position-sized `paper_profile_position_quote_paths`; this produced false zero adverse excursions and a false +352.38-bps favorable excursion.
+- Calibration constraint: executable-price discontinuities produced realized stop/trail gaps of approximately 120–265 bps. This is recorded as a limit of the calibration/execution model, not as a failed exit predicate.
+- The epoch contained eight closed trades and no open position at termination. The three cycle-gap intervals did not intersect any trade. All eight trades are archived as `clean`; no epoch-5 trade is `environment_interrupted`.
+
+### Epoch 7 (`.11`) frozen baseline
+
+- Epoch 7 was created at `2026-09-27T16:57:48.076515+03:00` under protocol `epoch-11-frozen-v1`. Its release label was corrected from the inherited `.10` configuration label to the actually installed release `2026.09.26.13`, bundle `6874d86a1f7aad13db054232`, source commit `7f04c47abd9cbe97e47a31368c21586a42b291ff`.
+- The sealed configuration hash is `c13679fc9fed901063ba8edd1cd505bb6c934776a34e2b04f6dda6c832952291`, exactly matching terminated epoch 5.
+- Enabled profiles remain unchanged: Fast & Furious version 8 at 5,000 allocation bps and Oscillation Trader version 2 at 5,000 allocation bps, both in `automatic_paper` mode.
+- The first confirmed observation cycle was scheduled at `2026-09-27T17:00:15+03:00`. The first ten cycles were exactly 15 seconds apart, with maximum scheduler lag of 268 ms.
+- The epoch began with zero positions and zero pending entry intents. Four Oscillation Trader probe tokens were active; dense watch slots remain qualification-driven and were empty at the initial checkpoint.
+- Terminal conditions remain 60 valid closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first. Environment-interruption classification applies from the first cycle.
+- At `2026-09-27T17:06:22.880+03:00`, the worker terminated with a captured `pg-pool` connection-acquisition timeout. The last completed/partial cycle was scheduled at `17:05:30`; later running-cycle rows did not complete. No position or entry intent existed, so no trade required environment-interruption classification. Active-time accumulation stops at the last completed segment until a corrected worker resumes.
+
 ## Interpretation order
 
 1. Verify build identity, frozen configuration and uninterrupted provider availability.

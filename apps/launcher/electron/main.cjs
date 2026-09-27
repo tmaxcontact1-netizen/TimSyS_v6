@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, Menu } = require('electron');
 const { randomBytes } = require('node:crypto');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -298,6 +298,28 @@ function activeAppWindow(appId) {
   return appWindows.active(appId);
 }
 
+function returnAppWindowToLauncher(appId, window) {
+  window.__timsysStopHandled = true;
+  if (!window.isDestroyed()) window.close();
+  focusLauncher();
+  return { returned: true, appId };
+}
+
+function installAppWindowMenu(window, appId) {
+  window.setMenu(Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Exit to Launcher',
+          accelerator: 'Alt+Left',
+          click: () => returnAppWindowToLauncher(appId, window),
+        },
+      ],
+    },
+  ]));
+}
+
 function appWindowForSender(sender) {
   return appWindows.forSender(sender);
 }
@@ -386,12 +408,7 @@ ipcMain.handle('supervised-app:start', async (_event, appId) => {
 ipcMain.handle('launcher:return', async (event) => {
   const owned = appWindowForSender(event.sender);
   if (owned) {
-    await stopChild(owned.appId);
-    const returningWindow = owned.window;
-    returningWindow.__timsysStopHandled = true;
-    if (!returningWindow.isDestroyed()) returningWindow.close();
-    focusLauncher();
-    return { returned: true, appId: owned.appId };
+    return returnAppWindowToLauncher(owned.appId, owned.window);
   }
   if (mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents) {
     await mainWindow.loadURL(new URL('/', platformUrl).href);
@@ -491,6 +508,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     const existing = activeAppWindow(appId);
     if (existing) { existing.focus(); return memecoinedConfigurationStatus; }
     const appWindow = new BrowserWindow({ width: 860, height: 680, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
+    installAppWindowMenu(appWindow, appId);
     const fields = memecoinedConfigurationStatus.missing.map((name) => `<li><code>${name}</code></li>`).join('');
     const configFile = memecoinedConfigurationStatus.configFile.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
     const html = `<!doctype html><meta charset="utf-8"><title>MemecoinEd setup</title><style>body{font:16px system-ui;background:#101426;color:#e8ecff;padding:48px;line-height:1.55}main{max-width:720px;margin:auto}h1{color:#fff}code{color:#9ed0ff}li{margin:.45rem 0}.safe{color:#8ee6ae}</style><main><p class="safe">SAFE PAPER MODE · LIVE TRADING DISABLED</p><h1>MemecoinEd configuration required</h1><p>The application and its private PostgreSQL database are installed correctly. Add the following values before starting the paper engine:</p><ul>${fields}</ul><p>Configuration file:</p><p><code>${configFile}</code></p><p>Close this window after updating the file, then select <strong>Start and open</strong> again.</p></main>`;
@@ -521,6 +539,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     minHeight: 768,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') },
   });
+  installAppWindowMenu(appWindow, appId);
   appWindows.set(appId, appWindow);
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   appWindow.webContents.on('will-navigate', (event, url) => {

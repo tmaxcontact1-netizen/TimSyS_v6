@@ -247,10 +247,18 @@ document
   $(id).addEventListener(id.includes("search") ? "input" : "change", renderTrades),
 );
 $("refresh").addEventListener("click", load);
-$("return-launcher").addEventListener(
-  "click",
-  () => window.electronAPI?.returnToLauncher?.() ?? window.close(),
-);
+async function returnToLauncher() {
+  try {
+    if (window.electronAPI?.returnToLauncher) {
+      await window.electronAPI.returnToLauncher();
+      return;
+    }
+    window.close();
+  } catch (error) {
+    notify(error?.message || "Could not return to the launcher.", true);
+  }
+}
+$("return-launcher").addEventListener("click", returnToLauncher);
 installActionFeedback();
 load();
 setInterval(load, 30000);
