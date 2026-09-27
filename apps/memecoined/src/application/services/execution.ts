@@ -16,6 +16,7 @@ import type {
 import type { SwapFailure, SwapPort } from "../ports/swap.js";
 import type { EvidenceReference } from "../../domain/shared/evidence.js";
 import { InvariantViolationError } from "../../domain/shared/errors.js";
+import { BoundedMap } from "../../infrastructure/bounded-map.js";
 import {
   asBasisPoints,
   asNonNegativeDecimal,
@@ -333,13 +334,13 @@ export class ObservedPositionRuntimeStepSource implements PositionRuntimeStepSou
 
 /** Executes only durable submit actions. Submission acknowledgement never implies confirmation. */
 export class DurablePositionActionDispatcher implements PositionRuntimeActionDispatcher {
-  private readonly completed = new Map<
+  private readonly completed = new BoundedMap<
     string,
     {
       fingerprint: string;
       receipt: Awaited<ReturnType<PositionActionDispatcherDependencies["submission"]["submit"]>>;
     }
-  >();
+  >(2_048);
 
   public constructor(private readonly dependencies: PositionActionDispatcherDependencies) {}
 

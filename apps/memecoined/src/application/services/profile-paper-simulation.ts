@@ -1525,6 +1525,33 @@ async function enterPosition(input: {
   );
   if (amount <= 0n)
     return Object.freeze({ outcome: "retry", reason: "Profile cash is currently unavailable" });
+  if (input.profile.id === "oscillation_trader" &&
+      input.candidate.signal_json?.oscillation?.signalType === "extreme_oversold") {
+    const currentHistory = await input.pool.query<FastObservationRow>(
+      `SELECT observed_at,output_amount_raw::text,liquidity_usd::text,
+              five_minute_volume_usd::text,five_minute_buys::text,five_minute_sells::text
+         FROM paper_fast_market_observations
+        WHERE wallet=$1 AND token_mint=$2
+          AND observed_at >= $3::timestamptz-interval '30 minutes'
+        ORDER BY observed_at`,
+      [input.wallet, input.candidate.mint_address, input.at],
+    );
+    const currentPoints: ExecutableMarketPoint[] = currentHistory.rows.map((item) => ({
+      observedAt: iso(item.observed_at),
+      outputAmountRaw: BigInt(item.output_amount_raw),
+      liquidityUsd: item.liquidity_usd,
+      fiveMinuteVolumeUsd: item.five_minute_volume_usd,
+      fiveMinuteBuys: item.five_minute_buys === null ? null : BigInt(item.five_minute_buys),
+      fiveMinuteSells: item.five_minute_sells === null ? null : BigInt(item.five_minute_sells),
+    }));
+    const currentOscillation = evaluateOscillation(currentPoints, { watched: true });
+    if (currentOscillation.signalType !== "extreme_oversold" ||
+        !currentOscillation.transitionOccurred || !currentOscillation.currentStateValid)
+      return Object.freeze({
+        outcome: "failed",
+        reason: `Extreme-oversold transition is stale at admission (RSI ${currentOscillation.currentRsi.toFixed(2)}, z ${currentOscillation.zScore.toFixed(2)})`,
+      });
+  }
   const quoted = await input.swap.quote({
     inputMint: WRAPPED_SOL_MINT,
     outputMint: input.candidate.mint_address as MintAddress,
@@ -2204,11 +2231,12 @@ async function monitorPositions(input: {
             WHERE wallet=$1 AND profile_id=$2 AND candidate_id=$3 AND signal_id IS NOT NULL
          ), changes AS (
            SELECT linked.signal_id,
-                  (((s.metrics_json->>'executableOutputAmountRaw')::numeric/x.output_amount_raw)-1)*10000 AS change_bps
+                  x.return_bps::numeric AS change_bps
              FROM linked JOIN paper_profile_signals s ON s.id=linked.signal_id
-             JOIN paper_fast_market_observations x ON x.wallet=s.wallet AND x.token_mint=s.token_mint
+             JOIN paper_profile_position_quote_paths x
+               ON x.epoch_id=s.epoch_id AND x.wallet=s.wallet
+              AND x.profile_id=s.profile_id AND x.token_mint=s.token_mint
               AND x.observed_at BETWEEN $11::timestamptz AND $5::timestamptz
-            WHERE s.metrics_json->>'executableOutputAmountRaw' IS NOT NULL
          ), excursion AS (
            SELECT signal_id,max(change_bps) FILTER (WHERE change_bps>0) AS favorable_bps,
                   abs(min(change_bps) FILTER (WHERE change_bps<0)) AS adverse_bps

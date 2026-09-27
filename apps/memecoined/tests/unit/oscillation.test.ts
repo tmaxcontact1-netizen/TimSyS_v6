@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   evaluateOscillation,
+  currentOversoldStateIsValid,
   countReturnSignChanges,
   lagOneAutocorrelation,
   type OscillationPoint,
@@ -49,11 +50,26 @@ describe("oscillation strategy", () => {
     expect(result.maximumRoundTripCostBps).toBe(Math.floor(result.targetBps * .6));
   });
 
-  it("retains a qualified reversal transition across subsequent observation samples", () => {
+  it("rejects a stale reversal after current state has left the oversold band", () => {
     const prefix = Array.from({ length: 35 }, (_, index) => index % 2 ? 99.4 : 100.6);
     const series = [...prefix, 100.1, 98.8, 97.4, 94.5, 95.8, 96.1];
     const result = evaluateOscillation(points(series.map((price) => 10_000 / price)), { watched: true });
-    expect(result.signalType).toBe("extreme_oversold");
-    expect(result.eligible).toBe(true);
+    expect(result.transitionOccurred).toBe(true);
+    expect(result.currentStateValid).toBe(false);
+    expect(result.signalType).toBeNull();
+  });
+
+  it("replays the epoch .10 admission evidence without retaining late stop-outs", () => {
+    const rapidStops = [
+      { currentRsi: 55, zScore: .24 }, { currentRsi: 63, zScore: 1.1 },
+      { currentRsi: 71, zScore: 2.6 }, { currentRsi: 78, zScore: .8 },
+      { currentRsi: 59, zScore: -.2 },
+    ];
+    expect(rapidStops.filter((item) => !currentOversoldStateIsValid({
+      ...item, latestReturnBps: 8, buyPressure: .52,
+    }))).toHaveLength(5);
+    expect(currentOversoldStateIsValid({
+      currentRsi: 18.8, zScore: -1.63, latestReturnBps: 8, buyPressure: .52,
+    })).toBe(true);
   });
 });

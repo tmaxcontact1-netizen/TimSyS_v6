@@ -26,6 +26,10 @@ export interface OscillationAssessment {
   readonly rsiExtremeTransitions: number;
   readonly currentRsi: number;
   readonly zScore: number;
+  readonly transitionOccurred: boolean;
+  readonly currentStateValid: boolean;
+  readonly reversalOnsetObservedAt: string | null;
+  readonly reversalOnsetOutputAmountRaw: string | null;
   readonly latestReturnBps: number;
   readonly consecutiveDownSteps: number;
   readonly buyPressure: number | null;
@@ -42,6 +46,13 @@ export interface OscillationAssessment {
 
 export const minimumRegimeSamples = 30;
 export const minimumEntrySamples = 20;
+
+export function currentOversoldStateIsValid(input: Readonly<{
+  currentRsi: number; zScore: number; latestReturnBps: number; buyPressure: number | null;
+}>): boolean {
+  return input.currentRsi <= 35 && input.zScore <= -1 && input.latestReturnBps > 0 &&
+    (input.buyPressure === null || input.buyPressure >= .48);
+}
 
 const mean = (values: readonly number[]) =>
   values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -115,8 +126,8 @@ function extremeTransitions(values: readonly number[]): number {
   return transitions;
 }
 
-function recentOversoldTransition(prices: readonly number[]): boolean {
-  if (prices.length < 5) return false;
+function recentOversoldTransitionIndex(prices: readonly number[]): number | null {
+  if (prices.length < 5) return null;
   const start = Math.max(3, prices.length - 6);
   for (let rebound = start; rebound < prices.length; rebound += 1) {
     const prior = prices.slice(rebound - 3, rebound + 1);
@@ -125,9 +136,9 @@ function recentOversoldTransition(prices: readonly number[]): boolean {
     const reboundMove = 10_000 * (prior.at(-1)! / prior.at(-2)! - 1);
     const declineMove = 10_000 * (prior.at(-2)! / prior[0]! - 1);
     const retained = prices.at(-1)! >= prior.at(-2)! * .995;
-    if (decline && declineMove <= -20 && reboundMove >= 8 && retained) return true;
+    if (decline && declineMove <= -20 && reboundMove >= 8 && retained) return rebound;
   }
-  return false;
+  return null;
 }
 
 /** Pure, deterministic mean-reversion assessment over fixed-input executable quotes. */
@@ -193,8 +204,15 @@ export function evaluateOscillation(
     (gates.rsiExtremes ? 15 : 0);
   const immediateOversold = (zScore <= -1.8 || currentRsi <= 30) && latestReturnBps > 0 &&
     consecutiveDownSteps >= 3;
-  const oversold = (immediateOversold || recentOversoldTransition(prices)) &&
-    (buyPressure === null || buyPressure >= .48);
+  const recentTransitionIndex = recentOversoldTransitionIndex(prices);
+  const transitionOccurred = immediateOversold || recentTransitionIndex !== null;
+  const currentStateValid = currentOversoldStateIsValid({
+    currentRsi, zScore, latestReturnBps, buyPressure,
+  });
+  const flowValid = buyPressure === null || buyPressure >= .48;
+  const oversold = transitionOccurred && currentStateValid && flowValid;
+  const onsetIndex = immediateOversold ? prices.length - 1 : recentTransitionIndex;
+  const reversalOnsetPoint = onsetIndex === null ? null : window[onsetIndex] ?? null;
   const previousPrice = prices.at(-2) ?? 0;
   const previousZ = deviation === 0 ? 0 : (previousPrice - priceMean) / deviation;
   const volumeAverage = mean(window.slice(0, -1).map((point) => Number(point.fiveMinuteVolumeUsd ?? "0")));
@@ -214,7 +232,10 @@ export function evaluateOscillation(
     eligible, reason, signalType, score, observationCount: window.length, coverageSeconds,
     meanAbsoluteReturnBps, annualizedVolatilityScoreBps, turnoverRate, bollingerWidthBps,
     smaCrossings: crossings, returnSignChanges: signChanges, lagOneAutocorrelation: autocorrelation,
-    rsiExtremeTransitions, currentRsi, zScore, latestReturnBps, consecutiveDownSteps,
+    rsiExtremeTransitions, currentRsi, zScore, transitionOccurred, currentStateValid,
+    reversalOnsetObservedAt: reversalOnsetPoint?.observedAt ?? null,
+    reversalOnsetOutputAmountRaw: reversalOnsetPoint?.outputAmountRaw.toString() ?? null,
+    latestReturnBps, consecutiveDownSteps,
     buyPressure, q75ExcursionBps, targetBps, hardStopBps,
     trailingStopBps: Math.max(20, Math.round(targetBps / 2)), maximumHoldingMinutes,
     maximumRoundTripCostBps: Math.floor(.6 * targetBps), gates,

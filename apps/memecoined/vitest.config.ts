@@ -64,6 +64,7 @@ export default defineConfig({
       "tests/unit/worker-incident-report.test.ts",
       "tests/integration/observation-cold-start.test.ts",
       "tests/unit/oscillation.test.ts",
+      "tests/unit/database-pool-retry.test.ts",
       "tests/unit/signal-gate-counter.test.ts",
       "tests/unit/bounded-map.test.ts",
       "tests/unit/regime-watch.test.ts",

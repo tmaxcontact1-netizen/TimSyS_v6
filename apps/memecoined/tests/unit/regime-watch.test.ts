@@ -43,7 +43,7 @@ describe("persistent regime watch and observation density", () => {
         const sample = history.length, phase = sample % 20;
         const price = index < 10
           ? phase < 15 ? (phase % 2 === 0 ? 1.006 : .994)
-            : [1.001, .988, .974, .945, .958][phase - 15]!
+            : [1.001, .988, .974, .940, .941][phase - 15]!
           : 1 + .00001 * sample;
         history.push({ observedAt: now, outputAmountRaw: BigInt(Math.round(1e15 / price)),
           liquidityUsd: "250000", fiveMinuteVolumeUsd: "40000",
