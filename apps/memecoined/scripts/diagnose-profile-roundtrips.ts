@@ -166,7 +166,9 @@ function price(index: number, step: number): number {
   if (profile.id === "oscillation_trader") {
     const phase = step % 40;
     if (phase < 35) return phase % 2 === 0 ? 1.006 : 0.994;
-    return [1.001, 0.988, 0.974, 0.945, 0.958][phase - 35]!;
+    // End with a genuine but still-oversold reversal. The prior fixture rebounded
+    // so far that it correctly failed the current-state admission rule.
+    return [1.001, 0.988, 0.974, 0.940, 0.941][phase - 35]!;
   }
   if (
     profile.id === "slow_steady" ||
