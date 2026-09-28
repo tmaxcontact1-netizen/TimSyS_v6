@@ -74,7 +74,6 @@ tokenIndex.set(unsafeToken, 0);
 tokenIndex.set(costlyToken, 0);
 let cycle = 0;
 const exitBoost = new Set<string>();
-const costlyObservationInstants = new Set<string>();
 let degradedQuoteCount = 0;
 
 function candidateFacts(
@@ -313,21 +312,28 @@ async function main() {
           request.inputMint === WRAPPED_SOL_MINT ? request.outputMint : request.inputMint;
         const index = tokenIndex.get(mint);
         if (index === undefined) throw new Error(`Unknown diagnostic token ${mint}`);
-        const firstCostlyObservationAtInstant =
-          request.inputMint === WRAPPED_SOL_MINT &&
-          mint === costlyToken &&
-          BigInt(request.inputAmount) === 10_000_000n &&
-          !costlyObservationInstants.has(request.requestedAt);
-        if (firstCostlyObservationAtInstant) costlyObservationInstants.add(request.requestedAt);
         const uneconomicEntry =
           request.inputMint === WRAPPED_SOL_MINT &&
-          mint === costlyToken &&
-          !firstCostlyObservationAtInstant;
-        if (uneconomicEntry) degradedQuoteCount += 1;
+          mint === costlyToken;
+        if (uneconomicEntry) {
+          degradedQuoteCount += 1;
+          return {
+            ok: false as const,
+            error: {
+              code: "validation" as const,
+              provider: "jupiter" as const,
+              occurredAt: request.requestedAt,
+              retryable: false,
+              reason: `The token ${mint} is not tradable`,
+              httpStatus: 400,
+              failureKind: "http_4xx" as const,
+            },
+          };
+        }
         const quotedPrice =
           request.inputMint !== WRAPPED_SOL_MINT && exitBoost.has(mint)
             ? 1.7
-            : price(index, cycle) * (uneconomicEntry ? 2 : 1);
+            : price(index, cycle);
         const scaledPrice = BigInt(Math.round(quotedPrice * 1_000_000));
         const amount = BigInt(request.inputAmount);
         const output =
@@ -441,12 +447,10 @@ async function main() {
        WHERE wallet=$1 AND token_mint=$2`,
       [wallet, unsafeToken],
     );
-    const costRejections = await pool.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM paper_profile_candidate_decisions d
-       JOIN candidates c ON c.id=d.candidate_id
-       WHERE d.wallet=$1 AND c.mint_address=$2
-         AND d.last_entry_error LIKE 'Position-size price impact%'`,
-      [wallet, costlyToken],
+    const unsupportedMintExclusions = await pool.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM paper_untradable_mints
+       WHERE token_mint=$1`,
+      [costlyToken],
     );
     const accountingMismatches = await pool.query<{ profile_id: string }>(
       `WITH buys AS (
@@ -616,7 +620,7 @@ async function main() {
           negativeControls: {
             unsafeObservations: Number(unsafeObservations.rows[0]?.count ?? 0),
             degradedQuoteCount,
-            priceImpactRejections: Number(costRejections.rows[0]?.count ?? 0),
+            unsupportedMintExclusions: Number(unsupportedMintExclusions.rows[0]?.count ?? 0),
             negativeFills: negativeFills.rows,
             accountingMismatches: accountingMismatches.rows,
           },
@@ -646,7 +650,7 @@ async function main() {
       (!densityMode &&
         (unsafeObservations.rows[0]?.count !== "0" ||
           degradedQuoteCount === 0 ||
-          costRejections.rows[0]?.count === "0")) ||
+          unsupportedMintExclusions.rows[0]?.count === "0")) ||
       negativeFills.rows.length !== 0 ||
       accountingMismatches.rows.length !== 0 ||
       Number(telemetry.rows[0]?.closed ?? 0) === 0 ||

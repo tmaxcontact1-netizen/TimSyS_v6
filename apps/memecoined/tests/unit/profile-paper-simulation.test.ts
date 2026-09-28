@@ -92,7 +92,7 @@ describe("profile paper simulation policy", () => {
     expect(minimumThesisMaturityMinutes("liquidity_expansion")).toBe(15);
     expect(minimumThesisMaturityMinutes("slow_steady")).toBe(30);
   });
-  it("uses current market momentum without bypassing live liquidity or holder gates", () => {
+  it("uses current market data while simplified profiles defer liquidity to their pattern gate", () => {
     const market = {
       liquidityUsd: { gte: (n: number) => n <= 150_000, lt: (n: number) => n > 150_000 },
       fiveMinutePriceChangePercentage: {
@@ -131,7 +131,7 @@ describe("profile paper simulation policy", () => {
         refreshed.score,
         refreshed.failedRules,
       ).eligible,
-    ).toBe(false);
+    ).toBe(true);
     expect(refreshed.staticEvidenceFresh).toBe(true);
     const stale = refreshTemporalCandidateEvidence({
       previousScore: score,
@@ -219,14 +219,12 @@ describe("profile paper simulation policy", () => {
         adaptiveEntryConfirmed: true,
       }).eligible,
     ).toBe(true);
-    expect(
-      evaluateProfileCandidate(tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], {
-        adaptiveEntryConfirmed: true,
-      }).eligible,
-    ).toBe(false);
+    expect(evaluateProfileCandidate(tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], {
+      adaptiveEntryConfirmed: true,
+    }).eligible).toBe(true);
   });
 
-  it("lets the aggressive profile relax market-cap range without relaxing liquidity or ownership safety", () => {
+  it("removes legacy liquidity, concentration and market-range codes from simplified admission", () => {
     const aggressive = {
       wallet: 0,
       liquidity: 0,
@@ -244,13 +242,16 @@ describe("profile paper simulation policy", () => {
     ).toBe(true);
     expect(
       evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-005"]).eligible,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-010"]).eligible,
+    ).toBe(true);
+    expect(
+      evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-011"]).eligible,
     ).toBe(false);
   });
 
-  it("does not let an aggressive profile ignore concentration or adverse transaction flow", () => {
+  it("removes legacy concentration and adverse-flow codes from simplified admission", () => {
     const aggressive = {
       wallet: 0,
       liquidity: 0,
@@ -261,10 +262,10 @@ describe("profile paper simulation policy", () => {
     };
     expect(
       evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-008"]).eligible,
-    ).toBe(false);
+    ).toBe(true);
     expect(
       evaluateProfileCandidate(tradingProfile("fast_furious")!, aggressive, ["SEC-012"]).eligible,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("requires every signal family for the consensus profile", () => {
@@ -282,7 +283,7 @@ describe("profile paper simulation policy", () => {
   });
 
   it("caps short-horizon exposure independently of an assumed stop fill", () => {
-    expect(maximumPositionBps("fast_furious")).toBe(150n);
+    expect(maximumPositionBps("fast_furious")).toBe(125n);
     expect(maximumPositionBps("scalper")).toBe(100n);
     expect(maximumPositionBps("whale_tracker")).toBe(250n);
   });

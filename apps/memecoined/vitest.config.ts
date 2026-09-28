@@ -69,6 +69,7 @@ export default defineConfig({
       "tests/unit/bounded-map.test.ts",
       "tests/unit/regime-watch.test.ts",
       "tests/unit/short-horizon.test.ts",
+      "tests/unit/simple-patterns.test.ts",
       "tests/unit/adaptive-calibration.test.ts",
       "tests/unit/technical-analysis.test.ts",
       "tests/unit/platform-contract.test.ts",

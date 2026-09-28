@@ -21,24 +21,41 @@ import {
   type TradingProfileDefinition,
   type TradingProfileId,
 } from "../../domain/strategy/profiles.js";
-import {
-  evaluateShortHorizonSignal,
-  type ExecutableMarketPoint,
-} from "../../domain/strategy/short-horizon.js";
+import type { ExecutableMarketPoint } from "../../domain/strategy/short-horizon.js";
 import type { TechnicalAnalysis } from "../../domain/strategy/technical-analysis.js";
-import {
-  calibrateProfile,
-  evaluateAdaptiveEntry,
-  type AdaptiveTradeCalibration,
-} from "../../domain/strategy/adaptive-calibration.js";
 import { scoreCandidate } from "../../domain/candidate/scoring.js";
-import { evaluateOscillation } from "../../domain/strategy/oscillation.js";
-import { assessFastFuriousRegime } from "../../domain/strategy/fast-furious-regime.js";
+import {
+  evaluateSimpleFastFurious,
+  evaluateSimpleOscillation,
+} from "../../domain/strategy/simple-patterns.js";
 import { SignalGateCounter } from "../../domain/strategy/signal-gate-counter.js";
 import { ObservationAttemptExecutor } from "../../workers/observation-attempt-executor.js";
 
 export const profileSignalGateCounter = new SignalGateCounter();
 export const observationWatchSlotOrderSql = "watch_score DESC,qualified_at DESC,mint_address";
+
+interface FixedTradePlan {
+  readonly version: "fixed-v1";
+  readonly profileId: TradingProfileId;
+  readonly model: string;
+  readonly regime: "fixed";
+  readonly sampleCount: number;
+  readonly confidencePercentage: number;
+  readonly typicalMoveBps: number;
+  readonly upperMoveBps: number;
+  readonly targetBps: number;
+  readonly hardStopBps: number;
+  readonly observedDownsideBps: number;
+  readonly trailingStopBps: number;
+  readonly trailingActivationBps: number;
+  readonly maximumHoldingMinutes: number;
+  readonly maximumRoundTripCostBps: number;
+  readonly riskSupported: boolean;
+  readonly calculatedAt: string;
+  readonly validUntil: string;
+  readonly tradeable: boolean;
+  readonly reason: string;
+}
 
 export interface ProfileScoreBreakdown {
   readonly wallet: number;
@@ -100,14 +117,7 @@ const strictPaperRuleIds = Object.freeze([
 
 function requiredPaperRules(profile: TradingProfileDefinition): ReadonlySet<string> {
   if (profile.id === "fast_furious" || profile.id === "oscillation_trader")
-    return new Set([
-      ...nonNegotiablePaperRuleIds,
-      "SEC-005",
-      "SEC-006",
-      "SEC-008",
-      "SEC-010",
-      "SEC-012",
-    ]);
+    return new Set([...nonNegotiablePaperRuleIds, "SEC-011"]);
   if (profile.id === "scalper")
     return new Set([
       ...nonNegotiablePaperRuleIds,
@@ -147,18 +157,13 @@ export function evaluateProfileCandidate(
   const applicableFailures = failedSafetyRules.filter((ruleId) => requiredRules.has(ruleId));
   if (applicableFailures.length)
     reasons.push(`Required gates failed: ${applicableFailures.join(", ")}`);
-  if (!options.adaptiveEntryConfirmed && score.total < profile.minimumCandidateScore)
+  if (profile.id !== "fast_furious" && profile.id !== "oscillation_trader" &&
+      !options.adaptiveEntryConfirmed && score.total < profile.minimumCandidateScore)
     reasons.push(
       `Score ${score.total} is below this profile's ${profile.minimumCandidateScore}-point threshold`,
     );
   if (profile.requiresWhaleConfirmation && score.wallet === 0)
     reasons.push("No qualifying tracked-wallet confirmation");
-  if (
-    !options.adaptiveEntryConfirmed &&
-    profile.id === "fast_furious" &&
-    (score.momentum < 12 || score.volumeQuality < 5)
-  )
-    reasons.push("Short-term momentum and transaction quality do not agree");
   if (
     !options.adaptiveEntryConfirmed &&
     profile.id === "trend_detector" &&
@@ -211,13 +216,13 @@ interface CandidateRow {
     readonly observedVolatilityBps?: number;
     readonly pattern?: string;
     readonly executableOutputAmountRaw?: string;
-    readonly adaptiveCalibration?: AdaptiveTradeCalibration;
+    readonly adaptiveCalibration?: FixedTradePlan;
     readonly adaptiveEntryEligible?: boolean;
     readonly currentScore?: ProfileScoreBreakdown;
     readonly currentFailedRules?: readonly string[];
     readonly sourceScoreEvaluatedAt?: string;
     readonly technical?: TechnicalAnalysis;
-    readonly oscillation?: ReturnType<typeof evaluateOscillation>;
+    readonly oscillation?: unknown;
   } | null;
 }
 interface ActivationRow {
@@ -236,7 +241,7 @@ interface PositionRow {
   readonly opened_at: Date | string;
   readonly entry_signal_json: {
     readonly observedVolatilityBps?: number;
-    readonly adaptiveCalibration?: AdaptiveTradeCalibration;
+    readonly adaptiveCalibration?: FixedTradePlan;
   } | null;
   readonly engine_version: string;
 }
@@ -379,7 +384,7 @@ const shortHorizonProfiles = new Set<TradingProfileId>([
  * disappears between monitoring cycles.
  */
 export function maximumPositionBps(profileId: TradingProfileId): bigint {
-  if (profileId === "oscillation_trader") return 125n;
+  if (profileId === "fast_furious" || profileId === "oscillation_trader") return 125n;
   if (profileId === "scalper" || profileId === "recovery_reversal") return 100n;
   if (shortHorizonProfiles.has(profileId)) return 150n;
   if (profileId.startsWith("benchmark_")) return 200n;
@@ -405,6 +410,15 @@ export function evaluateExecutableEntryEvidence(input: {
   const ageMilliseconds = Date.parse(input.at) - Date.parse(evidence.observedAt);
   if (!Number.isFinite(ageMilliseconds) || ageMilliseconds < 0 || ageMilliseconds > 120_000)
     reasons.push("Executable-market evidence is more than two minutes old");
+
+  if (temporalProfileIds.has(input.profile.id)) {
+    if (evidence.liquidityUsd === null || evidence.liquidityUsd < 25_000)
+      reasons.push("Pool liquidity is below $25,000");
+    if (evidence.inputAmountRaw <= 0n || evidence.outputAmountRaw <= 0n ||
+        input.proposedInputRaw <= 0n || input.proposedOutputRaw <= 0n)
+      reasons.push("Executable quote evidence is incomplete");
+    return Object.freeze({ eligible: reasons.length === 0, reasons: Object.freeze(reasons) });
+  }
 
   const minimumLiquidityUsd =
     input.profile.id === "fast_furious" || input.profile.id === "scalper"
@@ -491,7 +505,7 @@ export function evaluateExitState(input: {
   const target =
     input.thesisMature && input.value * 10_000n >= input.cost * BigInt(10_000 + input.targetBps);
   const trailing =
-    input.thesisMature &&
+    input.thesisMature && input.trailingBps > 0 && input.trailingActivationBps > 0 &&
     input.high * 10_000n >= input.cost * BigInt(10_000 + input.trailingActivationBps) &&
     input.value * 10_000n <= input.high * BigInt(10_000 - input.trailingBps);
   const breakevenArmed =
@@ -828,6 +842,7 @@ export async function collectFastMarketObservations(input: {
         ORDER BY c.mint_address,s.evaluated_at DESC
      ), universe AS (
        SELECT * FROM latest WHERE NOT(failed_rules&&$3::text[])
+         AND NOT EXISTS(SELECT 1 FROM paper_untradable_mints u WHERE u.token_mint=latest.mint_address)
          AND NOT EXISTS(SELECT 1 FROM paper_profile_regime_watches w
                          WHERE w.wallet=$1 AND w.token_mint=latest.mint_address AND w.status='active')
          AND NOT EXISTS(SELECT 1 FROM paper_observation_probe_assignments p
@@ -879,6 +894,7 @@ export async function collectFastMarketObservations(input: {
        -- Spend bounded quote capacity on fresh, security-verified candidates.
        SELECT * FROM latest
         WHERE NOT (failed_rules && $3::text[])
+          AND NOT EXISTS(SELECT 1 FROM paper_untradable_mints u WHERE u.token_mint=latest.mint_address)
      ), ff_reserved_watch AS (
        SELECT * FROM universe WHERE watched_profiles @> ARRAY['fast_furious']::text[]
          AND (last_observed IS NULL OR last_observed <= $2::timestamptz-interval '15 seconds')
@@ -1019,6 +1035,20 @@ export async function collectFastMarketObservations(input: {
             }),
           ]);
           if (!quote.ok || !market.ok) {
+            if (!quote.ok && quote.error.httpStatus === 400)
+              await input.pool.query(
+                `INSERT INTO paper_untradable_mints(token_mint,first_rejected_at,last_rejected_at,rejection_count,reason)
+                 SELECT $1,min(c.started_at),$2,count(*)::int,$3
+                   FROM paper_observation_provider_calls c
+                   JOIN paper_observation_attempts a ON a.id=c.observation_attempt_id
+                  WHERE a.token_mint=$1 AND c.provider='jupiter' AND c.http_status=400
+                 HAVING count(*)>=3
+                 ON CONFLICT(token_mint) DO UPDATE SET
+                   last_rejected_at=EXCLUDED.last_rejected_at,
+                   rejection_count=EXCLUDED.rejection_count,
+                   reason=EXCLUDED.reason`,
+                [candidate.mint_address, input.at, quote.error.reason ?? "Jupiter HTTP 400"],
+              );
             const outcome =
               !quote.ok && !market.ok
                 ? "both_failed"
@@ -1129,29 +1159,25 @@ export async function collectFastMarketObservations(input: {
             const profile = tradingProfile(activation.profile_id);
             if (!profile) continue;
             const watched = candidate.watched_profiles?.includes(profile.id) ?? false;
-            const oscillation =
-              profile.id === "oscillation_trader" ? evaluateOscillation(points, { watched }) : null;
-            const shortSignal =
-              oscillation === null ? evaluateShortHorizonSignal(profile.id, points) : null;
-            const fastRegime =
-              profile.id === "fast_furious" && shortSignal !== null
-                ? assessFastFuriousRegime(shortSignal)
-                : null;
-            if (oscillation !== null || fastRegime !== null)
-              await updateRegimeWatch({
-                pool: input.pool,
-                wallet: input.wallet,
-                profileId: profile.id,
-                mint,
-                at: input.at,
-                score: oscillation?.score ?? fastRegime!.score,
-                qualified: oscillation?.regimeQualified ?? fastRegime!.qualified,
-                evaluable: oscillation?.gates.observations ?? fastRegime!.sampleCount >= 30,
-              });
-            if (oscillation !== null || fastRegime !== null) {
-              const evaluable = oscillation?.gates.observations ?? fastRegime!.sampleCount >= 30;
-              const qualified = oscillation?.regimeQualified ?? fastRegime!.qualified;
-              await input.pool.query(
+            const simplePattern = profile.id === "fast_furious"
+              ? evaluateSimpleFastFurious(points)
+              : evaluateSimpleOscillation(points);
+            const simpleEvaluable = profile.id === "fast_furious" ? points.length >= 2 : points.length >= 20;
+            const simpleQualified = simplePattern.liquidityUsd >= 25_000 &&
+              (profile.id === "fast_furious"
+                ? (simplePattern.buyPressure ?? 0) >= .45
+                : simplePattern.smaCrossings >= 3);
+            await updateRegimeWatch({
+              pool: input.pool,
+              wallet: input.wallet,
+              profileId: profile.id,
+              mint,
+              at: input.at,
+              score: simpleQualified ? 100 : 0,
+              qualified: simpleQualified,
+              evaluable: simpleEvaluable,
+            });
+            await input.pool.query(
                 `INSERT INTO paper_profile_evaluation_watermarks
              (epoch_id,wallet,profile_id,token_mint,last_observation_at,last_observation_fingerprint,
               last_evaluated_at,evaluation_result,engine_version)
@@ -1169,80 +1195,43 @@ export async function collectFastMarketObservations(input: {
                   quote.value.receivedAt,
                   quote.value.fingerprint,
                   input.at,
-                  !evaluable ? "insufficient" : qualified ? "qualified" : "failed_market",
+                  !simpleEvaluable ? "insufficient" : simpleQualified ? "qualified" : "failed_market",
                   temporalEngineVersion,
                 ],
               );
-            }
-            const signal =
-              shortSignal !== null
-                ? shortSignal
-                : Object.freeze({
-                    eligible: oscillation!.eligible,
-                    pattern: oscillation!.signalType ?? "none",
-                    reason: oscillation!.reason,
-                    observedVolatilityBps: oscillation!.meanAbsoluteReturnBps,
-                  });
-            const adaptiveCalibration =
-              oscillation === null
-                ? calibrateProfile(profile.id, points, input.at)
-                : Object.freeze({
-                    version: "adaptive-v2" as const,
-                    profileId: profile.id,
-                    model: "executable oscillation mean reversion",
-                    regime: "moderate" as const,
-                    targetBps: oscillation.targetBps,
-                    hardStopBps: oscillation.hardStopBps,
-                    observedDownsideBps: oscillation.q75ExcursionBps,
-                    trailingStopBps: oscillation.trailingStopBps,
-                    trailingActivationBps: Math.max(25, Math.round(oscillation.targetBps / 2)),
-                    maximumHoldingMinutes: oscillation.maximumHoldingMinutes,
-                    maximumRoundTripCostBps: oscillation.maximumRoundTripCostBps,
-                    sampleCount: oscillation.observationCount,
-                    confidencePercentage: Math.min(95, 50 + oscillation.score / 2),
-                    typicalMoveBps: oscillation.meanAbsoluteReturnBps,
-                    upperMoveBps: oscillation.q75ExcursionBps,
-                    riskSupported: true,
-                    calculatedAt: input.at,
-                    validUntil: new Date(Date.parse(input.at) + 2 * 60_000).toISOString(),
-                    tradeable: oscillation.eligible,
-                    reason: "Calibrated from non-overlapping executable-price excursions",
-                  } satisfies AdaptiveTradeCalibration);
-            const rawAdaptiveEntry =
-              oscillation === null
-                ? evaluateAdaptiveEntry(profile.id, shortSignal!, adaptiveCalibration)
-                : Object.freeze({ eligible: oscillation.eligible, reason: oscillation.reason });
-            const adaptiveEntry =
-              fastRegime === null
-                ? rawAdaptiveEntry
-                : Object.freeze({
-                    eligible:
-                      rawAdaptiveEntry.eligible &&
-                      (watched || fastRegime.qualified) &&
-                      fastRegime.sampleCount >= 20,
-                    reason:
-                      fastRegime.sampleCount < 20
-                        ? "The rolling entry window has fewer than 20 observations"
-                        : !(watched || fastRegime.qualified)
-                          ? fastRegime.reason
-                          : rawAdaptiveEntry.reason,
-                  });
-            const profileDecision = evaluateProfileCandidate(
-              profile,
-              current.score,
-              current.failedRules,
-              { adaptiveEntryConfirmed: adaptiveEntry.eligible },
-            );
-            const eligible =
-              adaptiveEntry.eligible && profileDecision.eligible && current.staticEvidenceFresh;
-            const reasons = [
-              adaptiveEntry.reason,
-              ...profileDecision.reasons,
-              ...(adaptiveCalibration ? [adaptiveCalibration.reason] : []),
-              ...(!current.staticEvidenceFresh
-                ? ["Token-security evidence is older than 15 minutes"]
-                : []),
-            ];
+            const signal = Object.freeze({
+                  eligible: simplePattern.eligible,
+                  pattern: simplePattern.eligible
+                    ? (profile.id === "fast_furious" ? "pullback_rebound" : "extreme_oversold")
+                    : "none",
+                  reason: simplePattern.rule,
+                  observedVolatilityBps: 0,
+                });
+            const adaptiveCalibration = Object.freeze({
+                  version: "fixed-v1" as const,
+                  profileId: profile.id,
+                  model: profile.id === "fast_furious" ? "simple short pullback" : "simple oscillation mean reversion",
+                  regime: "fixed" as const,
+                  targetBps: profile.id === "fast_furious" ? 100 : 80,
+                  hardStopBps: 50,
+                  observedDownsideBps: 0,
+                  trailingStopBps: 0,
+                  trailingActivationBps: 0,
+                  maximumHoldingMinutes: profile.id === "fast_furious" ? 5 : 10,
+                  maximumRoundTripCostBps: 10_000,
+                  sampleCount: points.length,
+                  confidencePercentage: 0,
+                  typicalMoveBps: 0,
+                  upperMoveBps: 0,
+                  riskSupported: true,
+                  calculatedAt: input.at,
+                  validUntil: new Date(Date.parse(input.at) + 2 * 60_000).toISOString(),
+                  tradeable: simplePattern.eligible,
+                  reason: simplePattern.rule,
+                } satisfies FixedTradePlan);
+            const adaptiveEntry = Object.freeze({ eligible: simplePattern.eligible, reason: simplePattern.rule });
+            const eligible = simplePattern.eligible;
+            const reasons = [simplePattern.rule];
             if (!eligible) {
               const event = Object.freeze({
                 profileId: profile.id,
@@ -1268,9 +1257,8 @@ export async function collectFastMarketObservations(input: {
               executableOutputAmountRaw: quote.value.expectedOutputAmount.toString(),
               adaptiveEntryEligible: adaptiveEntry.eligible,
               adaptiveEntryReason: adaptiveEntry.reason,
-              ...(adaptiveCalibration ? { adaptiveCalibration } : {}),
-              ...(oscillation ? { oscillation } : {}),
-              ...(fastRegime ? { fastRegime } : {}),
+              adaptiveCalibration,
+              admissionAudit: simplePattern,
               regimeWatched: watched,
               currentScore: current.score,
               currentFailedRules: current.failedRules,
@@ -1299,9 +1287,9 @@ export async function collectFastMarketObservations(input: {
                 input.at,
                 temporalEngineVersion,
                 eligible,
-                oscillation?.score ?? Math.max(0, Math.min(100, current.score.total)),
+                simplePattern.eligible ? 100 : 0,
                 JSON.stringify(signalEvidence),
-                JSON.stringify(oscillation?.gates ?? {}),
+                JSON.stringify({ simplePattern: simplePattern.eligible }),
                 JSON.stringify(reasons),
               ],
             );
@@ -1322,6 +1310,21 @@ export async function collectFastMarketObservations(input: {
                 input.at,
               ],
             );
+            if (simplePattern)
+              await input.pool.query(
+                `INSERT INTO paper_profile_admission_audit
+                   (id,epoch_id,wallet,profile_id,token_mint,observed_at,eligible,rule,
+                    entry_price,reference_price,rsi,z_score,buy_pressure,liquidity_usd,sma_crossings)
+                 VALUES($1,current_paper_validation_epoch_id(),$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                 ON CONFLICT(epoch_id,wallet,profile_id,token_mint,observed_at) DO NOTHING`,
+                [
+                  uuid([input.wallet, profile.id, candidate.mint_address, "admission", input.at]),
+                  input.wallet, profile.id, candidate.mint_address, input.at,
+                  simplePattern.eligible, simplePattern.rule, simplePattern.entryPrice,
+                  simplePattern.referencePrice, simplePattern.rsi, simplePattern.zScore,
+                  simplePattern.buyPressure, simplePattern.liquidityUsd, simplePattern.smaCrossings,
+                ],
+              );
             const intent = eligible
               ? await input.pool.query(
                   `INSERT INTO paper_profile_entry_intents
@@ -1482,7 +1485,7 @@ async function enterPosition(input: {
   const row = state.rows[0];
   if (!row)
     return Object.freeze({ outcome: "retry", reason: "Position state changed before entry" });
-  if (row.recent_hard_stop)
+  if (!temporalProfileIds.has(input.profile.id) && row.recent_hard_stop)
     return Object.freeze({
       outcome: "failed",
       reason: `Token is in this profile's ${lossCooldownMinutes}-minute loss cooldown after a hard-stop exit`,
@@ -1495,7 +1498,7 @@ async function enterPosition(input: {
       ORDER BY filled_at DESC LIMIT 1`,
     [input.wallet, input.candidate.mint_address, input.at],
   );
-  if (recentCrossProfileStop.rows[0]) {
+  if (!temporalProfileIds.has(input.profile.id) && recentCrossProfileStop.rows[0]) {
     const technical = input.candidate.signal_json?.technical;
     const demonstrablyImproved =
       technical?.higherLows === true &&
@@ -1525,33 +1528,6 @@ async function enterPosition(input: {
   );
   if (amount <= 0n)
     return Object.freeze({ outcome: "retry", reason: "Profile cash is currently unavailable" });
-  if (input.profile.id === "oscillation_trader" &&
-      input.candidate.signal_json?.oscillation?.signalType === "extreme_oversold") {
-    const currentHistory = await input.pool.query<FastObservationRow>(
-      `SELECT observed_at,output_amount_raw::text,liquidity_usd::text,
-              five_minute_volume_usd::text,five_minute_buys::text,five_minute_sells::text
-         FROM paper_fast_market_observations
-        WHERE wallet=$1 AND token_mint=$2
-          AND observed_at >= $3::timestamptz-interval '30 minutes'
-        ORDER BY observed_at`,
-      [input.wallet, input.candidate.mint_address, input.at],
-    );
-    const currentPoints: ExecutableMarketPoint[] = currentHistory.rows.map((item) => ({
-      observedAt: iso(item.observed_at),
-      outputAmountRaw: BigInt(item.output_amount_raw),
-      liquidityUsd: item.liquidity_usd,
-      fiveMinuteVolumeUsd: item.five_minute_volume_usd,
-      fiveMinuteBuys: item.five_minute_buys === null ? null : BigInt(item.five_minute_buys),
-      fiveMinuteSells: item.five_minute_sells === null ? null : BigInt(item.five_minute_sells),
-    }));
-    const currentOscillation = evaluateOscillation(currentPoints, { watched: true });
-    if (currentOscillation.signalType !== "extreme_oversold" ||
-        !currentOscillation.transitionOccurred || !currentOscillation.currentStateValid)
-      return Object.freeze({
-        outcome: "failed",
-        reason: `Extreme-oversold transition is stale at admission (RSI ${currentOscillation.currentRsi.toFixed(2)}, z ${currentOscillation.zScore.toFixed(2)})`,
-      });
-  }
   const quoted = await input.swap.quote({
     inputMint: WRAPPED_SOL_MINT,
     outputMint: input.candidate.mint_address as MintAddress,
@@ -1610,21 +1586,19 @@ async function enterPosition(input: {
       outcome: reverse.error.retryable ? "retry" : "failed",
       reason: `Round-trip cost check failed: ${reverse.error.reason}`,
     });
-  const immediateReturn = BigInt(reverse.value.expectedOutputAmount);
-  const roundTripLossBps =
-    immediateReturn >= BigInt(q.inputAmount)
-      ? 0n
-      : ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
-  const maximumFrictionBps = input.candidate.signal_json?.adaptiveCalibration
-    ? BigInt(input.candidate.signal_json.adaptiveCalibration.maximumRoundTripCostBps)
-    : input.profile.id === "scalper"
-      ? 100n
-      : 200n;
-  if (roundTripLossBps > maximumFrictionBps)
-    return Object.freeze({
-      outcome: "failed",
-      reason: `Executable round-trip cost ${roundTripLossBps} bps exceeds this profile's ${maximumFrictionBps} bps limit`,
-    });
+  if (!temporalProfileIds.has(input.profile.id)) {
+    const immediateReturn = BigInt(reverse.value.expectedOutputAmount);
+    const roundTripLossBps = immediateReturn >= BigInt(q.inputAmount) ? 0n :
+      ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
+    const maximumFrictionBps = input.candidate.signal_json?.adaptiveCalibration
+      ? BigInt(input.candidate.signal_json.adaptiveCalibration.maximumRoundTripCostBps)
+      : input.profile.id === "scalper" ? 100n : 200n;
+    if (roundTripLossBps > maximumFrictionBps)
+      return Object.freeze({
+        outcome: "failed",
+        reason: `Executable round-trip cost ${roundTripLossBps} bps exceeds this profile's ${maximumFrictionBps} bps limit`,
+      });
+  }
   // The provider receives the quote after the simulation cycle begins. Use that
   // later timestamp for the audited fill so filled_at can never precede quoted_at.
   const filledAt = q.receivedAt;
@@ -2130,7 +2104,7 @@ async function monitorPositions(input: {
       trailingBps: adaptiveTrailingBps,
       trailingActivationBps,
       thesisMature,
-      oscillationProfile: profile.id === "oscillation_trader",
+      oscillationProfile: false,
       timedOut: ageMinutes >= (calibration?.maximumHoldingMinutes ?? profile.maximumHoldingMinutes),
     });
     await input.pool.query(

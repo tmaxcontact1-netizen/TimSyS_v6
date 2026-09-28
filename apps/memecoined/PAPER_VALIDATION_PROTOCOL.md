@@ -132,6 +132,23 @@ of the latter.
 - Terminal conditions remain 60 valid closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first. Environment-interruption classification applies from the first cycle.
 - At `2026-09-27T17:06:22.880+03:00`, the worker terminated with a captured `pg-pool` connection-acquisition timeout. The last completed/partial cycle was scheduled at `17:05:30`; later running-cycle rows did not complete. No position or entry intent existed, so no trade required environment-interruption classification. Active-time accumulation stops at the last completed segment until a corrected worker resumes.
 
+### Epoch 10 (`.12`) termination
+
+- Epoch 10 terminated as `diagnostic` at `2026-09-28T02:54:06.251Z`.
+- Cause: `Profile gate stack eliminated patterns that meet manual trading criteria; simplification required`.
+- Seven closed Oscillation Trader trades were preserved in `paper_validation_trade_archive`; all seven are classified `clean`. The archive contains each signal/outcome record, both fills, entry and exit arithmetic, and the persisted position-sized quote path.
+- The archive contained the six pre-registered checkpoint cases plus one trade that closed after the checkpoint. The initial six-trade assertion was therefore rolled back rather than silently omitting the seventh trade.
+- No runtime worker or dashboard remained active after termination. No epoch 10 position, open intent, or watch is eligible for carryover to the successor epoch.
+
+### Epoch 13 (`.13`) protocol
+
+- Profiles: Fast & Furious and Oscillation Trader, each allocated 5,000 bps in automatic paper mode.
+- Terminal condition: 60 closed trades per profile or 168 hours of measured active scheduler time, whichever occurs first.
+- Fast & Furious uses only the 15-minute 20-100-bps pullback band, 45% five-minute buy pressure, $25,000 liquidity floor, and executable Jupiter route. Exit plan: +100 bps target, -50 bps hard stop, five-minute time exit.
+- Oscillation Trader uses only three or more 20-sample mean crossings inside 30 minutes, RSI <= 30 or Z-score <= -2, $25,000 liquidity floor, and executable Jupiter route. Exit plan: +80 bps target, -50 bps hard stop, ten-minute time exit.
+- Rug/honeypot controls and SEC-011 remain non-negotiable. SEC-006, SEC-008, SEC-010, SEC-012, score gates, cooldowns, cost caps, adaptive calibration, and cross-profile evidence are not admission gates.
+- The environment-interruption classification and active-time gap-exclusion rules apply from the first cycle. Parameters remain frozen throughout the window.
+
 ## Interpretation order
 
 1. Verify build identity, frozen configuration and uninterrupted provider availability.
