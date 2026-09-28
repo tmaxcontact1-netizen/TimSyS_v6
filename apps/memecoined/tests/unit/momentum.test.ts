@@ -96,6 +96,46 @@ describe("deterministic market gates", () => {
     ).toBe(expected);
   });
 
+  it("passes SEC-011 when no historical liquidity measurement exists", () => {
+    expect(
+      outcome(
+        valid({
+          liquidityUsdFifteenMinutesAgo: null,
+          liquidityUsd: usd(100_000),
+        }),
+        "SEC-011",
+      ),
+    ).toBe("pass");
+  });
+
+  it.each([
+    [null, "pass"],
+    [null, "pass"],
+    ["0", "pass"],
+    ["5", "pass"],
+    ["14.999999", "pass"],
+    ["15", "fail"],
+    ["15.000001", "fail"],
+    ["20", "fail"],
+    ["50", "fail"],
+    ["100", "fail"],
+  ])("keeps SEC-011 nullable while enforcing measured collapse case %#", (decline, expected) => {
+    const historicalLiquidity = decline === null ? null : usd(100_000);
+    const currentLiquidity =
+      decline === null
+        ? usd(100_000)
+        : usd(usd(100_000).mul(usd(100).minus(decline)).div(100));
+    expect(
+      outcome(
+        valid({
+          liquidityUsdFifteenMinutesAgo: historicalLiquidity,
+          liquidityUsd: currentLiquidity,
+        }),
+        "SEC-011",
+      ),
+    ).toBe(expected);
+  });
+
   it("fails closed for missing required facts", () => {
     const decision = evaluateMarket(
       valid({
@@ -111,7 +151,6 @@ describe("deterministic market gates", () => {
         "UNI-004",
         "SEC-005",
         "SEC-006",
-        "SEC-011",
         "SEC-012",
         "MOM-003",
         "MOM-004",

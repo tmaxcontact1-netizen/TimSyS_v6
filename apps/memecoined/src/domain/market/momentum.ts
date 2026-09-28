@@ -147,7 +147,7 @@ export function evaluateMarket(snapshot: MarketSnapshot): MarketDecision {
     rule(
       snapshot,
       "SEC-011",
-      liquidityDecline !== null && liquidityDecline.lt(15),
+      liquidityDecline === null || liquidityDecline.lt(15),
       "A liquidity decline of at least 15% is rejected",
       [measurement("liquidity_decline", liquidityDecline, "percent")],
     ),
