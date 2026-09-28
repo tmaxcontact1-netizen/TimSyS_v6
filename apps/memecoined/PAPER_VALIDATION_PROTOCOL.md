@@ -149,6 +149,26 @@ of the latter.
 - Rug/honeypot controls and SEC-011 remain non-negotiable. SEC-006, SEC-008, SEC-010, SEC-012, score gates, cooldowns, cost caps, adaptive calibration, and cross-profile evidence are not admission gates.
 - The environment-interruption classification and active-time gap-exclusion rules apply from the first cycle. Parameters remain frozen throughout the window.
 
+### Epoch 15 (`2026.09.28.14`) evaluation completion
+
+- Epoch 15 ran release `2026.09.28.14` under protocol `simplified-pattern-v1-hotfix-clean` with sealed configuration hash `83e9bed190720a651f572928afe1060c05ec8664e94e5d85c5a54b2590aa94b1`.
+- The pre-registered checkpoint was reached at 26 closed trades. Fast & Furious recorded a 17.39% win rate against an approximately 70% break-even rate implied by its realized payoff ratio; mean hard-stop overshoot was 107.14 bps beyond the planned 50-bps stop.
+- Epoch 15 terminated as `completed` at `2026-09-28T19:44:20.667680+03:00`. Runtime continued briefly while the read-only report was prepared, so the immutable final archive contains 31 closed trades rather than the 26 present at the checkpoint. One position remained open when the worker was stopped and remains epoch-scoped rather than being represented as a completed efficacy result.
+- Conclusion: the simplified Fast & Furious and Oscillation Trader profiles as configured have negative expectancy at the observed liquidity tier. Realized stop geometry was dominated by spread and executable-quote discontinuity rather than the nominal 50-bps stop.
+- All epoch-15 signals, decisions, intents, fills, observations and position-sized quote paths remain physically preserved for offline cost-structure and geometry analysis. No successor epoch was created.
+
+### Release `.15` hypothesis-test protocol
+
+- This protocol is fixed before the successor epoch begins. Fast & Furious and Oscillation Trader each receive 5,000 allocation bps in automatic-paper mode.
+- Fast & Furious: 250-bps hard stop, 600-bps profit target and ten-minute maximum holding time. Oscillation Trader: 250-bps hard stop, 300-bps profit target and ten-minute maximum holding time. The former fixed 50-bps stop is not used by either profile.
+- Both profiles require at least USD 100,000 current pool liquidity.
+- Admission also requires the per-token median executable round-trip spread to be no greater than the smaller of 25% of the profile target or 150 bps. This selects the 50th percentile of the retained per-token spread distribution. The resulting limits are 150 bps for Fast & Furious and 75 bps for Oscillation Trader.
+- Candidate quote-path telemetry is collected for every evaluated token whose liquidity passes USD 100,000, whether or not the strategy admits it. Each record contains the executable buy and immediate position-sized exit quote. Retention is capped at the newest 128 measurements per wallet/token and records retain their source epoch for offline replay.
+- Oscillation Trader is explicitly `inconclusive_by_sample`: epoch 15 supplied only three trades, so this window accumulates evidence rather than defending a prior geometry claim.
+- Fast & Furious passes only if net expectancy after realized costs is positive across at least 30 closed trades. If expectancy is negative when the 30th trade closes, the hypothesis concludes negative; parameters are not changed inside the window.
+- Using the epoch-15 mean hard-stop overshoot of 107.14 bps, the expected realized loss for a nominal 250-bps stop is 357.14 bps. Against a 600-bps target, the pre-registered break-even win rate is `357.14 / (600 + 357.14) = 37.31%` before any additional time-exit effect.
+- The window otherwise ends at 60 closed trades per evaluated profile or 168 measured active scheduler hours, whichever first. Environment-interruption classification and gap exclusion apply from the first cycle.
+
 ## Interpretation order
 
 1. Verify build identity, frozen configuration and uninterrupted provider availability.

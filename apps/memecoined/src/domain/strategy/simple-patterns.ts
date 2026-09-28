@@ -21,7 +21,9 @@ const deviation = (values: readonly number[]) => {
 };
 
 const rsi = (prices: readonly number[], period = 14) => {
-  const changes = prices.slice(-period - 1).slice(1)
+  const changes = prices
+    .slice(-period - 1)
+    .slice(1)
     .map((price, index) => price - prices.slice(-period - 1)[index]!);
   if (changes.length < period) return 50;
   const gain = mean(changes.map((value) => Math.max(0, value)));
@@ -34,9 +36,12 @@ function normalize(points: readonly ExecutableMarketPoint[], minutes: number) {
     .filter((point) => point.outputAmountRaw > 0n && Number.isFinite(Date.parse(point.observedAt)))
     .sort((left, right) => Date.parse(left.observedAt) - Date.parse(right.observedAt));
   const latestAt = Date.parse(ordered.at(-1)?.observedAt ?? "");
-  const window = ordered.filter((point) => latestAt - Date.parse(point.observedAt) <= minutes * 60_000);
+  const window = ordered.filter(
+    (point) => latestAt - Date.parse(point.observedAt) <= minutes * 60_000,
+  );
   const base = window[0]?.outputAmountRaw ?? 0n;
-  const prices = base === 0n ? [] : window.map((point) => Number(base) / Number(point.outputAmountRaw));
+  const prices =
+    base === 0n ? [] : window.map((point) => Number(base) / Number(point.outputAmountRaw));
   const latest = window.at(-1);
   const transactions = (latest?.fiveMinuteBuys ?? 0n) + (latest?.fiveMinuteSells ?? 0n);
   return {
@@ -44,8 +49,10 @@ function normalize(points: readonly ExecutableMarketPoint[], minutes: number) {
     prices,
     latestPrice: prices.at(-1) ?? 0,
     liquidityUsd: Number(latest?.liquidityUsd ?? "0"),
-    buyPressure: transactions === 0n || latest?.fiveMinuteBuys == null ? null
-      : Number(latest.fiveMinuteBuys * 10_000n / transactions) / 10_000,
+    buyPressure:
+      transactions === 0n || latest?.fiveMinuteBuys == null
+        ? null
+        : Number((latest.fiveMinuteBuys * 10_000n) / transactions) / 10_000,
   };
 }
 
@@ -72,39 +79,61 @@ function crossingsAgainstSma(prices: readonly number[], period = 20) {
   return Math.max(crossings, directionalCrossings);
 }
 
-export function simpleOscillationAdmissionFromMetrics(input: Readonly<{
-  observationCount: number;
-  smaCrossings: number;
-  rsi: number;
-  zScore: number;
-  liquidityUsd: number;
-}>): Readonly<{ eligible: boolean; rule: string }> {
-  const eligible = input.observationCount >= 20 && input.smaCrossings >= 3 &&
-    (input.rsi <= 30 || input.zScore <= -2) && input.liquidityUsd >= 25_000;
+export function simpleOscillationAdmissionFromMetrics(
+  input: Readonly<{
+    observationCount: number;
+    smaCrossings: number;
+    rsi: number;
+    zScore: number;
+    liquidityUsd: number;
+  }>,
+): Readonly<{ eligible: boolean; rule: string }> {
+  const eligible =
+    input.observationCount >= 20 &&
+    input.smaCrossings >= 3 &&
+    (input.rsi <= 30 || input.zScore <= -2) &&
+    input.liquidityUsd >= 100_000;
   return Object.freeze({
     eligible,
-    rule: input.observationCount < 20 ? "fewer_than_20_price_observations"
-      : input.smaCrossings < 3 ? "fewer_than_3_sma_crossings"
-        : input.rsi > 30 && input.zScore > -2 ? "price_not_oversold"
-          : input.liquidityUsd < 25_000 ? "liquidity_below_25000_usd"
-            : "oscillating_and_oversold",
+    rule:
+      input.observationCount < 20
+        ? "fewer_than_20_price_observations"
+        : input.smaCrossings < 3
+          ? "fewer_than_3_sma_crossings"
+          : input.rsi > 30 && input.zScore > -2
+            ? "price_not_oversold"
+            : input.liquidityUsd < 100_000
+              ? "liquidity_below_100000_usd"
+              : "oscillating_and_oversold",
   });
 }
 
-export function evaluateSimpleFastFurious(points: readonly ExecutableMarketPoint[]): SimplePatternDecision {
+export function evaluateSimpleFastFurious(
+  points: readonly ExecutableMarketPoint[],
+): SimplePatternDecision {
   const state = normalize(points, 15);
   const recentHigh = state.prices.length === 0 ? 0 : Math.max(...state.prices);
-  const pullbackBps = recentHigh <= 0 ? 0 : 10_000 * (recentHigh - state.latestPrice) / recentHigh;
+  const pullbackBps =
+    recentHigh <= 0 ? 0 : (10_000 * (recentHigh - state.latestPrice)) / recentHigh;
   const enoughHistory = state.prices.length >= 2;
-  const eligible = enoughHistory && pullbackBps >= 20 && pullbackBps <= 100 &&
-    (state.buyPressure ?? 0) >= .45 && state.liquidityUsd >= 25_000;
+  const eligible =
+    enoughHistory &&
+    pullbackBps >= 20 &&
+    pullbackBps <= 100 &&
+    (state.buyPressure ?? 0) >= 0.45 &&
+    state.liquidityUsd >= 100_000;
   return Object.freeze({
     eligible,
-    rule: !enoughHistory ? "insufficient_price_history"
-      : pullbackBps < 20 ? "price_not_20_bps_below_recent_high"
-        : pullbackBps > 100 ? "pullback_exceeds_100_bps"
-          : (state.buyPressure ?? 0) < .45 ? "buy_pressure_below_45_percent"
-            : state.liquidityUsd < 25_000 ? "liquidity_below_25000_usd"
+    rule: !enoughHistory
+      ? "insufficient_price_history"
+      : pullbackBps < 20
+        ? "price_not_20_bps_below_recent_high"
+        : pullbackBps > 100
+          ? "pullback_exceeds_100_bps"
+          : (state.buyPressure ?? 0) < 0.45
+            ? "buy_pressure_below_45_percent"
+            : state.liquidityUsd < 100_000
+              ? "liquidity_below_100000_usd"
               : "short_pullback_20_to_100_bps",
     entryPrice: state.latestPrice,
     referencePrice: recentHigh,
@@ -116,7 +145,9 @@ export function evaluateSimpleFastFurious(points: readonly ExecutableMarketPoint
   });
 }
 
-export function evaluateSimpleOscillation(points: readonly ExecutableMarketPoint[]): SimplePatternDecision {
+export function evaluateSimpleOscillation(
+  points: readonly ExecutableMarketPoint[],
+): SimplePatternDecision {
   const state = normalize(points, 30);
   const recent = state.prices.slice(-20);
   const average = mean(recent);

@@ -157,8 +157,12 @@ export function evaluateProfileCandidate(
   const applicableFailures = failedSafetyRules.filter((ruleId) => requiredRules.has(ruleId));
   if (applicableFailures.length)
     reasons.push(`Required gates failed: ${applicableFailures.join(", ")}`);
-  if (profile.id !== "fast_furious" && profile.id !== "oscillation_trader" &&
-      !options.adaptiveEntryConfirmed && score.total < profile.minimumCandidateScore)
+  if (
+    profile.id !== "fast_furious" &&
+    profile.id !== "oscillation_trader" &&
+    !options.adaptiveEntryConfirmed &&
+    score.total < profile.minimumCandidateScore
+  )
     reasons.push(
       `Score ${score.total} is below this profile's ${profile.minimumCandidateScore}-point threshold`,
     );
@@ -258,6 +262,16 @@ type EntryAttempt =
 const quoteSlippage = asBasisPoints(150n);
 const observationInput = asRawAmount(10_000_000n);
 const temporalEngineVersion = "temporal-v17-regime-watch";
+const measuredSpreadAbsoluteLimitBps = 150;
+
+export function measuredSpreadLimitBps(targetBps: number): number {
+  return Math.min(measuredSpreadAbsoluteLimitBps, Math.floor(targetBps * 0.25));
+}
+
+export function roundTripSpreadBps(inputRaw: bigint, exitRaw: bigint): number {
+  if (inputRaw <= 0n || exitRaw >= inputRaw) return 0;
+  return Number(((inputRaw - exitRaw) * 10_000n) / inputRaw);
+}
 export const fastObservationCohortSize = 8;
 export const fastObservationDiscoverySlots = 8;
 export const fastObservationTrackingUniverseSize = 64;
@@ -414,8 +428,12 @@ export function evaluateExecutableEntryEvidence(input: {
   if (temporalProfileIds.has(input.profile.id)) {
     if (evidence.liquidityUsd === null || evidence.liquidityUsd < 25_000)
       reasons.push("Pool liquidity is below $25,000");
-    if (evidence.inputAmountRaw <= 0n || evidence.outputAmountRaw <= 0n ||
-        input.proposedInputRaw <= 0n || input.proposedOutputRaw <= 0n)
+    if (
+      evidence.inputAmountRaw <= 0n ||
+      evidence.outputAmountRaw <= 0n ||
+      input.proposedInputRaw <= 0n ||
+      input.proposedOutputRaw <= 0n
+    )
       reasons.push("Executable quote evidence is incomplete");
     return Object.freeze({ eligible: reasons.length === 0, reasons: Object.freeze(reasons) });
   }
@@ -505,7 +523,9 @@ export function evaluateExitState(input: {
   const target =
     input.thesisMature && input.value * 10_000n >= input.cost * BigInt(10_000 + input.targetBps);
   const trailing =
-    input.thesisMature && input.trailingBps > 0 && input.trailingActivationBps > 0 &&
+    input.thesisMature &&
+    input.trailingBps > 0 &&
+    input.trailingActivationBps > 0 &&
     input.high * 10_000n >= input.cost * BigInt(10_000 + input.trailingActivationBps) &&
     input.value * 10_000n <= input.high * BigInt(10_000 - input.trailingBps);
   const breakevenArmed =
@@ -1107,6 +1127,62 @@ export async function collectFastMarketObservations(input: {
             [attemptId, attemptCompleted, quote.value.receivedAt],
           );
           if (insertedObservation.rowCount !== 1) return false;
+          let measuredMedianSpreadBps: number | null = null;
+          if (Number(observation.liquidityUsd ?? 0) >= 100_000) {
+            const candidateExit = await runInstrumentedProviderCall({
+              pool: input.pool,
+              attemptId,
+              provider: "jupiter",
+              operation: "candidate_exit_quote",
+              invoke: () =>
+                input.swap.quote({
+                  inputMint: mint,
+                  outputMint: WRAPPED_SOL_MINT,
+                  inputAmount: quote.value.expectedOutputAmount,
+                  slippageBasisPoints: quoteSlippage,
+                  requestedAt: quote.value.receivedAt,
+                }),
+            });
+            if (candidateExit.ok) {
+              const spreadBps = roundTripSpreadBps(
+                BigInt(quote.value.inputAmount),
+                BigInt(candidateExit.value.expectedOutputAmount),
+              );
+              const spread = await input.pool.query<{ median_spread_bps: string }>(
+                `WITH inserted AS (
+                   INSERT INTO paper_candidate_quote_paths
+                     (epoch_id,wallet,token_mint,observed_at,input_amount_raw,token_amount_raw,
+                      exit_amount_raw,spread_bps,buy_quote_fingerprint,exit_quote_fingerprint,liquidity_usd)
+                   VALUES(current_paper_validation_epoch_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+                   ON CONFLICT DO NOTHING RETURNING 1
+                 ), bounded AS (
+                   DELETE FROM paper_candidate_quote_paths q
+                    WHERE q.id IN (
+                      SELECT id FROM paper_candidate_quote_paths
+                       WHERE wallet=$1 AND token_mint=$2 ORDER BY observed_at DESC OFFSET 128
+                    ) RETURNING 1
+                 )
+                 SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY spread_bps)::text AS median_spread_bps
+                   FROM paper_candidate_quote_paths WHERE wallet=$1 AND token_mint=$2`,
+                [
+                  input.wallet,
+                  candidate.mint_address,
+                  candidateExit.value.receivedAt,
+                  quote.value.inputAmount.toString(),
+                  quote.value.expectedOutputAmount.toString(),
+                  candidateExit.value.expectedOutputAmount.toString(),
+                  spreadBps,
+                  quote.value.fingerprint,
+                  candidateExit.value.fingerprint,
+                  observation.liquidityUsd?.toString() ?? null,
+                ],
+              );
+              measuredMedianSpreadBps =
+                spread.rows[0]?.median_spread_bps == null
+                  ? null
+                  : Number(spread.rows[0].median_spread_bps);
+            }
+          }
           const history = await input.pool.query<FastObservationRow>(
             `WITH recent AS (
          SELECT observed_at,output_amount_raw,liquidity_usd,five_minute_volume_usd,
@@ -1159,13 +1235,16 @@ export async function collectFastMarketObservations(input: {
             const profile = tradingProfile(activation.profile_id);
             if (!profile) continue;
             const watched = candidate.watched_profiles?.includes(profile.id) ?? false;
-            const simplePattern = profile.id === "fast_furious"
-              ? evaluateSimpleFastFurious(points)
-              : evaluateSimpleOscillation(points);
-            const simpleEvaluable = profile.id === "fast_furious" ? points.length >= 2 : points.length >= 20;
-            const simpleQualified = simplePattern.liquidityUsd >= 25_000 &&
+            const simplePattern =
+              profile.id === "fast_furious"
+                ? evaluateSimpleFastFurious(points)
+                : evaluateSimpleOscillation(points);
+            const simpleEvaluable =
+              profile.id === "fast_furious" ? points.length >= 2 : points.length >= 20;
+            const simpleQualified =
+              simplePattern.liquidityUsd >= 100_000 &&
               (profile.id === "fast_furious"
-                ? (simplePattern.buyPressure ?? 0) >= .45
+                ? (simplePattern.buyPressure ?? 0) >= 0.45
                 : simplePattern.smaCrossings >= 3);
             await updateRegimeWatch({
               pool: input.pool,
@@ -1178,7 +1257,7 @@ export async function collectFastMarketObservations(input: {
               evaluable: simpleEvaluable,
             });
             await input.pool.query(
-                `INSERT INTO paper_profile_evaluation_watermarks
+              `INSERT INTO paper_profile_evaluation_watermarks
              (epoch_id,wallet,profile_id,token_mint,last_observation_at,last_observation_fingerprint,
               last_evaluated_at,evaluation_result,engine_version)
            VALUES(current_paper_validation_epoch_id(),$1,$2,$3,$4,$5,$6,$7,$8)
@@ -1188,50 +1267,70 @@ export async function collectFastMarketObservations(input: {
              last_evaluated_at=EXCLUDED.last_evaluated_at,
              evaluation_result=EXCLUDED.evaluation_result,engine_version=EXCLUDED.engine_version
            WHERE paper_profile_evaluation_watermarks.last_observation_fingerprint<>EXCLUDED.last_observation_fingerprint`,
-                [
-                  input.wallet,
-                  profile.id,
-                  candidate.mint_address,
-                  quote.value.receivedAt,
-                  quote.value.fingerprint,
-                  input.at,
-                  !simpleEvaluable ? "insufficient" : simpleQualified ? "qualified" : "failed_market",
-                  temporalEngineVersion,
-                ],
-              );
+              [
+                input.wallet,
+                profile.id,
+                candidate.mint_address,
+                quote.value.receivedAt,
+                quote.value.fingerprint,
+                input.at,
+                !simpleEvaluable ? "insufficient" : simpleQualified ? "qualified" : "failed_market",
+                temporalEngineVersion,
+              ],
+            );
             const signal = Object.freeze({
-                  eligible: simplePattern.eligible,
-                  pattern: simplePattern.eligible
-                    ? (profile.id === "fast_furious" ? "pullback_rebound" : "extreme_oversold")
-                    : "none",
-                  reason: simplePattern.rule,
-                  observedVolatilityBps: 0,
-                });
+              eligible: simplePattern.eligible,
+              pattern: simplePattern.eligible
+                ? profile.id === "fast_furious"
+                  ? "pullback_rebound"
+                  : "extreme_oversold"
+                : "none",
+              reason: simplePattern.rule,
+              observedVolatilityBps: 0,
+            });
             const adaptiveCalibration = Object.freeze({
-                  version: "fixed-v1" as const,
-                  profileId: profile.id,
-                  model: profile.id === "fast_furious" ? "simple short pullback" : "simple oscillation mean reversion",
-                  regime: "fixed" as const,
-                  targetBps: profile.id === "fast_furious" ? 100 : 80,
-                  hardStopBps: 50,
-                  observedDownsideBps: 0,
-                  trailingStopBps: 0,
-                  trailingActivationBps: 0,
-                  maximumHoldingMinutes: profile.id === "fast_furious" ? 5 : 10,
-                  maximumRoundTripCostBps: 10_000,
-                  sampleCount: points.length,
-                  confidencePercentage: 0,
-                  typicalMoveBps: 0,
-                  upperMoveBps: 0,
-                  riskSupported: true,
-                  calculatedAt: input.at,
-                  validUntil: new Date(Date.parse(input.at) + 2 * 60_000).toISOString(),
-                  tradeable: simplePattern.eligible,
-                  reason: simplePattern.rule,
-                } satisfies FixedTradePlan);
-            const adaptiveEntry = Object.freeze({ eligible: simplePattern.eligible, reason: simplePattern.rule });
-            const eligible = simplePattern.eligible;
-            const reasons = [simplePattern.rule];
+              version: "fixed-v1" as const,
+              profileId: profile.id,
+              model:
+                profile.id === "fast_furious"
+                  ? "simple short pullback"
+                  : "simple oscillation mean reversion",
+              regime: "fixed" as const,
+              targetBps: profile.id === "fast_furious" ? 600 : 300,
+              hardStopBps: 250,
+              observedDownsideBps: 0,
+              trailingStopBps: 0,
+              trailingActivationBps: 0,
+              maximumHoldingMinutes: 10,
+              maximumRoundTripCostBps: 10_000,
+              sampleCount: points.length,
+              confidencePercentage: 0,
+              typicalMoveBps: 0,
+              upperMoveBps: 0,
+              riskSupported: true,
+              calculatedAt: input.at,
+              validUntil: new Date(Date.parse(input.at) + 2 * 60_000).toISOString(),
+              tradeable: simplePattern.eligible,
+              reason: simplePattern.rule,
+            } satisfies FixedTradePlan);
+            const adaptiveEntry = Object.freeze({
+              eligible: simplePattern.eligible,
+              reason: simplePattern.rule,
+            });
+            const spreadLimitBps = measuredSpreadLimitBps(adaptiveCalibration.targetBps);
+            const spreadEligible =
+              measuredMedianSpreadBps !== null && measuredMedianSpreadBps <= spreadLimitBps;
+            const eligible = simplePattern.eligible && spreadEligible;
+            const reasons = [
+              simplePattern.rule,
+              ...(simplePattern.eligible && measuredMedianSpreadBps === null
+                ? ["measured_spread_unavailable"]
+                : simplePattern.eligible && !spreadEligible
+                  ? [
+                      `median_spread_${Math.round(measuredMedianSpreadBps!)}_bps_exceeds_${spreadLimitBps}_bps`,
+                    ]
+                  : []),
+            ];
             if (!eligible) {
               const event = Object.freeze({
                 profileId: profile.id,
@@ -1259,6 +1358,8 @@ export async function collectFastMarketObservations(input: {
               adaptiveEntryReason: adaptiveEntry.reason,
               adaptiveCalibration,
               admissionAudit: simplePattern,
+              measuredMedianSpreadBps,
+              measuredSpreadLimitBps: spreadLimitBps,
               regimeWatched: watched,
               currentScore: current.score,
               currentFailedRules: current.failedRules,
@@ -1319,10 +1420,19 @@ export async function collectFastMarketObservations(input: {
                  ON CONFLICT(epoch_id,wallet,profile_id,token_mint,observed_at) DO NOTHING`,
                 [
                   uuid([input.wallet, profile.id, candidate.mint_address, "admission", input.at]),
-                  input.wallet, profile.id, candidate.mint_address, input.at,
-                  simplePattern.eligible, simplePattern.rule, simplePattern.entryPrice,
-                  simplePattern.referencePrice, simplePattern.rsi, simplePattern.zScore,
-                  simplePattern.buyPressure, simplePattern.liquidityUsd, simplePattern.smaCrossings,
+                  input.wallet,
+                  profile.id,
+                  candidate.mint_address,
+                  input.at,
+                  simplePattern.eligible,
+                  simplePattern.rule,
+                  simplePattern.entryPrice,
+                  simplePattern.referencePrice,
+                  simplePattern.rsi,
+                  simplePattern.zScore,
+                  simplePattern.buyPressure,
+                  simplePattern.liquidityUsd,
+                  simplePattern.smaCrossings,
                 ],
               );
             const intent = eligible
@@ -1586,13 +1696,52 @@ async function enterPosition(input: {
       outcome: reverse.error.retryable ? "retry" : "failed",
       reason: `Round-trip cost check failed: ${reverse.error.reason}`,
     });
+  const entrySpreadBps = roundTripSpreadBps(
+    BigInt(q.inputAmount),
+    BigInt(reverse.value.expectedOutputAmount),
+  );
+  await input.pool.query(
+    `INSERT INTO paper_candidate_quote_paths
+       (epoch_id,wallet,token_mint,observed_at,input_amount_raw,token_amount_raw,exit_amount_raw,
+        spread_bps,buy_quote_fingerprint,exit_quote_fingerprint,liquidity_usd)
+     VALUES(current_paper_validation_epoch_id(),$1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+     ON CONFLICT DO NOTHING`,
+    [
+      input.wallet,
+      input.candidate.mint_address,
+      reverse.value.receivedAt,
+      q.inputAmount.toString(),
+      q.expectedOutputAmount.toString(),
+      reverse.value.expectedOutputAmount.toString(),
+      entrySpreadBps,
+      q.fingerprint,
+      reverse.value.fingerprint,
+      evidence?.liquidityUsd ?? null,
+    ],
+  );
+  const medianSpread = await input.pool.query<{ median_spread_bps: string }>(
+    `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY spread_bps)::text AS median_spread_bps
+       FROM paper_candidate_quote_paths WHERE wallet=$1 AND token_mint=$2`,
+    [input.wallet, input.candidate.mint_address],
+  );
+  const medianSpreadBps = Number(medianSpread.rows[0]?.median_spread_bps ?? entrySpreadBps);
+  const spreadLimit = measuredSpreadLimitBps(input.profile.firstProfitTargetBps);
+  if (medianSpreadBps > spreadLimit)
+    return Object.freeze({
+      outcome: "failed",
+      reason: `Median measured spread ${medianSpreadBps.toFixed(1)} bps exceeds ${spreadLimit} bps`,
+    });
   if (!temporalProfileIds.has(input.profile.id)) {
     const immediateReturn = BigInt(reverse.value.expectedOutputAmount);
-    const roundTripLossBps = immediateReturn >= BigInt(q.inputAmount) ? 0n :
-      ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
+    const roundTripLossBps =
+      immediateReturn >= BigInt(q.inputAmount)
+        ? 0n
+        : ((BigInt(q.inputAmount) - immediateReturn) * 10_000n) / BigInt(q.inputAmount);
     const maximumFrictionBps = input.candidate.signal_json?.adaptiveCalibration
       ? BigInt(input.candidate.signal_json.adaptiveCalibration.maximumRoundTripCostBps)
-      : input.profile.id === "scalper" ? 100n : 200n;
+      : input.profile.id === "scalper"
+        ? 100n
+        : 200n;
     if (roundTripLossBps > maximumFrictionBps)
       return Object.freeze({
         outcome: "failed",
