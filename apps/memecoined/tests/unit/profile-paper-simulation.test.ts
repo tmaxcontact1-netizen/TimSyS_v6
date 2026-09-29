@@ -33,9 +33,9 @@ const score = {
 };
 
 describe("profile paper simulation policy", () => {
-  it("uses one production watch-eviction policy: score, newest qualification, then mint", () => {
+  it("uses one deterministic capacity rank: depth, spread, buy pressure, then stable ties", () => {
     expect(observationWatchSlotOrderSql).toBe(
-      "watch_score DESC,qualified_at DESC,mint_address",
+      "capacity_entry_depth_bps DESC,capacity_spread_bps ASC NULLS LAST,capacity_buy_pressure DESC NULLS LAST,qualified_at,mint_address",
     );
   });
   it("reserves most quote capacity for a dense cohort while continuously admitting discoveries", () => {
@@ -219,9 +219,11 @@ describe("profile paper simulation policy", () => {
         adaptiveEntryConfirmed: true,
       }).eligible,
     ).toBe(true);
-    expect(evaluateProfileCandidate(tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], {
-      adaptiveEntryConfirmed: true,
-    }).eligible).toBe(true);
+    expect(
+      evaluateProfileCandidate(tradingProfile("fast_furious")!, adaptiveScore, ["SEC-005"], {
+        adaptiveEntryConfirmed: true,
+      }).eligible,
+    ).toBe(true);
   });
 
   it("removes legacy liquidity, concentration and market-range codes from simplified admission", () => {
@@ -356,26 +358,62 @@ describe("profile paper simulation policy", () => {
   });
 
   it("records a trailing exit before the breakeven arm", () => {
-    expect(evaluateExitState({ value: 990n, cost: 1_000n, high: 1_060n, stopBps: 900,
-      targetBps: 1_500, trailingBps: 500, trailingActivationBps: 500,
-      thesisMature: true, oscillationProfile: true, timedOut: false })).toEqual({
-      reason: "trailing_stop", breakevenArmed: false,
+    expect(
+      evaluateExitState({
+        value: 990n,
+        cost: 1_000n,
+        high: 1_060n,
+        stopBps: 900,
+        targetBps: 1_500,
+        trailingBps: 500,
+        trailingActivationBps: 500,
+        thesisMature: true,
+        oscillationProfile: true,
+        timedOut: false,
+      }),
+    ).toEqual({
+      reason: "trailing_stop",
+      breakevenArmed: false,
     });
   });
 
   it("retains the breakeven-armed fact when a trailing stop has precedence", () => {
-    expect(evaluateExitState({ value: 999n, cost: 1_000n, high: 1_080n, stopBps: 900,
-      targetBps: 1_500, trailingBps: 750, trailingActivationBps: 750,
-      thesisMature: true, oscillationProfile: true, timedOut: false })).toEqual({
-      reason: "trailing_stop", breakevenArmed: true,
+    expect(
+      evaluateExitState({
+        value: 999n,
+        cost: 1_000n,
+        high: 1_080n,
+        stopBps: 900,
+        targetBps: 1_500,
+        trailingBps: 750,
+        trailingActivationBps: 750,
+        thesisMature: true,
+        oscillationProfile: true,
+        timedOut: false,
+      }),
+    ).toEqual({
+      reason: "trailing_stop",
+      breakevenArmed: true,
     });
   });
 
   it("records a breakeven stop when the trail has not drawn down far enough", () => {
-    expect(evaluateExitState({ value: 1_000n, cost: 1_000n, high: 1_080n, stopBps: 900,
-      targetBps: 1_500, trailingBps: 900, trailingActivationBps: 750,
-      thesisMature: true, oscillationProfile: true, timedOut: false })).toEqual({
-      reason: "breakeven_stop", breakevenArmed: true,
+    expect(
+      evaluateExitState({
+        value: 1_000n,
+        cost: 1_000n,
+        high: 1_080n,
+        stopBps: 900,
+        targetBps: 1_500,
+        trailingBps: 900,
+        trailingActivationBps: 750,
+        thesisMature: true,
+        oscillationProfile: true,
+        timedOut: false,
+      }),
+    ).toEqual({
+      reason: "breakeven_stop",
+      breakevenArmed: true,
     });
   });
 });

@@ -49,7 +49,8 @@ export async function ensureAllProfilesPaperTrialPreset(
     `WITH presets(profile_id,enabled,mode,allocation_bps,audit_id) AS (
        VALUES
          ('fast_furious',true,'automatic_paper',5000,$3::uuid),
-         ('oscillation_trader',true,'automatic_paper',5000,$4::uuid)
+         ('oscillation_trader',true,'automatic_paper',5000,$4::uuid),
+         ('conviction_scale',false,'observe',0,$5::uuid)
      ), inserted AS (
        INSERT INTO paper_profile_activations
          (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)

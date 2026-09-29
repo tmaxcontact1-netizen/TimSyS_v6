@@ -6,11 +6,17 @@ function installActionFeedback() {
     if (detail.phase === "error") notify(detail.error ?? "The action did not complete.", true);
   });
 }
-const names = { fast_furious: "Fast & Furious", oscillation_trader: "Oscillation Trader" };
+const names = {
+  fast_furious: "Fast & Furious",
+  oscillation_trader: "Oscillation Trader",
+  conviction_scale: "Conviction Scale",
+};
 const descriptions = {
   fast_furious: "Short-duration trading calibrated to each coin's executable price movement.",
   oscillation_trader:
     "Mean-reversion trading when a coin repeatedly moves through a measurable range.",
+  conviction_scale:
+    "Inactive experiment: F&F geometry with position size scaled by four persisted score components.",
 };
 const $ = (id) => document.getElementById(id),
   n = (value) => Number(value ?? 0);
@@ -101,8 +107,13 @@ function renderProfiles() {
     .map((p) => {
       const closed = n(p.closed_trades),
         wins = n(p.winning_trades),
-        profit = n(p.realized_pnl_raw);
-      return `<article class="profile-card"><div class="profile-top"><div><h3>${esc(label(p.profile_id))}</h3><p>${esc(descriptions[p.profile_id])}</p></div><span class="badge ${p.enabled ? "on" : ""}">${p.enabled ? "RUNNING" : "STOPPED"}</span></div><div class="profile-stats"><div><span>Evaluated</span><strong>${n(p.evaluated).toLocaleString()}</strong></div><div><span>Accepted</span><strong>${n(p.accepted).toLocaleString()}</strong></div><div><span>Success</span><strong>${closed ? ((wins / closed) * 100).toFixed(1) + "%" : "—"}</strong></div><div><span>Profit / loss</span><strong class="${profit >= 0 ? "positive" : "negative"}">${sol(profit)}</strong></div></div><div class="profile-actions"><small>${closed} closed · ${n(p.open_positions)} open · ${n(p.allocation_bps) / 100}% allocation</small><button data-toggle="${p.profile_id}" data-version="${p.version}" data-enabled="${p.enabled}">${p.enabled ? "Stop profile" : "Start profile"}</button></div></article>`;
+        profit = n(p.realized_pnl_raw),
+        experimental = p.profile_id === "conviction_scale",
+        definition = byId.get(p.profile_id);
+      const scoreDetail = experimental
+        ? `<div class="experimental-detail"><strong>Score components</strong><span>Entry depth 35 · spread 25 · buy pressure 20 · session record 20</span><small>Minimum ${n(definition?.minimumCandidateScore || 60)}. Intended only after 200+ closed calibration trades. Activation requires a new epoch.</small></div>`
+        : "";
+      return `<article class="profile-card"><div class="profile-top"><div><h3>${esc(label(p.profile_id))}</h3><p>${esc(descriptions[p.profile_id])}</p></div><span class="badge ${p.enabled ? "on" : ""}">${experimental ? "INACTIVE — EXPERIMENTAL" : p.enabled ? "RUNNING" : "STOPPED"}</span></div><div class="profile-stats"><div><span>Evaluated</span><strong>${n(p.evaluated).toLocaleString()}</strong></div><div><span>Accepted</span><strong>${n(p.accepted).toLocaleString()}</strong></div><div><span>Success</span><strong>${closed ? ((wins / closed) * 100).toFixed(1) + "%" : "—"}</strong></div><div><span>Profit / loss</span><strong class="${profit >= 0 ? "positive" : "negative"}">${sol(profit)}</strong></div></div>${scoreDetail}<div class="profile-actions"><small>${closed} closed · ${n(p.open_positions)} open · ${n(p.allocation_bps) / 100}% allocation</small><button data-toggle="${p.profile_id}" data-version="${p.version}" data-enabled="${p.enabled}" ${experimental ? 'disabled title="Create a fresh validation epoch before activating this experiment"' : ""}>${experimental ? "Requires new epoch" : p.enabled ? "Stop profile" : "Start profile"}</button></div></article>`;
     })
     .join("");
   document
@@ -127,13 +138,13 @@ function filteredEvaluations() {
   return state.data.evaluations.filter(
     (x) =>
       (profile === "all" || x.profile_id === profile) &&
-      (result === "all" || (result === "accepted") === Boolean(x.eligible)) &&
+      (result === "all" || (result === "accepted") === Boolean(x.qualified)) &&
       (!q || x.token_mint.toLowerCase().includes(q)),
   );
 }
 function evaluationReason(x) {
   const reasons = Array.isArray(x.rejection_reasons_json) ? x.rejection_reasons_json : [];
-  return x.eligible
+  return x.qualified
     ? "Passed the profile's recorded entry gates"
     : reasons.length
       ? reasons.join(" · ")
@@ -147,10 +158,10 @@ function renderEvaluations() {
     ? rows
         .map(
           (x) =>
-            `<tr><td>${when(x.observed_at)}</td><td>${esc(label(x.profile_id))}</td><td class="coin" title="${esc(x.token_mint)}">${short(x.token_mint)}</td><td><span class="decision ${x.eligible ? "accepted" : "rejected"}">${x.eligible ? "ACCEPTED" : "REJECTED"}</span></td><td>${n(x.score)}</td><td class="reason">${esc(evaluationReason(x))}</td><td>${esc(x.outcome)}</td></tr>`,
+            `<tr><td>${when(x.observed_at)}</td><td>${esc(label(x.profile_id))}</td><td class="coin" title="${esc(x.token_mint)}">${short(x.token_mint)}</td><td><span class="decision ${x.qualified ? "accepted" : "rejected"}">${x.qualified ? "QUALIFIED" : "REJECTED"}</span></td><td class="reason">${esc(evaluationReason(x))}</td><td>${esc(x.outcome)}</td></tr>`,
         )
         .join("")
-    : `<tr><td colspan="7" class="empty">No evaluations match these filters.</td></tr>`;
+    : `<tr><td colspan="6" class="empty">No evaluations match these filters.</td></tr>`;
 }
 function filteredTrades() {
   const profile = $("trade-profile").value,

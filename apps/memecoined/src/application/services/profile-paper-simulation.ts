@@ -29,10 +29,18 @@ import {
   evaluateSimpleOscillation,
 } from "../../domain/strategy/simple-patterns.js";
 import { SignalGateCounter } from "../../domain/strategy/signal-gate-counter.js";
+import {
+  convictionMinimumScore,
+  convictionPositionAmount,
+  convictionScore,
+  tokenLossControl,
+} from "../../domain/strategy/conviction-scale.js";
 import { ObservationAttemptExecutor } from "../../workers/observation-attempt-executor.js";
+import { persistConvictionScore } from "../../infrastructure/database/conviction-score.js";
 
 export const profileSignalGateCounter = new SignalGateCounter();
-export const observationWatchSlotOrderSql = "watch_score DESC,qualified_at DESC,mint_address";
+export const observationWatchSlotOrderSql =
+  "capacity_entry_depth_bps DESC,capacity_spread_bps ASC NULLS LAST,capacity_buy_pressure DESC NULLS LAST,qualified_at,mint_address";
 
 interface FixedTradePlan {
   readonly version: "fixed-v1";
@@ -227,6 +235,7 @@ interface CandidateRow {
     readonly sourceScoreEvaluatedAt?: string;
     readonly technical?: TechnicalAnalysis;
     readonly oscillation?: unknown;
+    readonly convictionScore?: { readonly total: number } | null;
   } | null;
 }
 interface ActivationRow {
@@ -313,9 +322,14 @@ export function confirmedEntryLag(
   const moveBps = Number((firstOutput * 10_000n) / latestOutput - 10_000n);
   return Object.freeze({ eligible: moveBps <= Math.max(50, targetBps * 0.5), moveBps });
 }
-// MemeCoined intentionally executes only the two strategies under active
-// calibration. Other IDs remain readable so old evidence is never destroyed.
-const temporalProfileIds = new Set<TradingProfileId>(["fast_furious", "oscillation_trader"]);
+// The two active strategies and the dormant Conviction experiment share this
+// executable-observation path. Conviction remains inactive until a fresh epoch
+// deliberately enables it; other legacy IDs remain readable for audit.
+const temporalProfileIds = new Set<TradingProfileId>([
+  "fast_furious",
+  "oscillation_trader",
+  "conviction_scale",
+]);
 const iso = (value: Date | string): Timestamp => new Date(value).toISOString() as Timestamp;
 
 /** Refresh volatile score components and their matching gates from one live market reading. */
@@ -390,6 +404,7 @@ const shortHorizonProfiles = new Set<TradingProfileId>([
   "recovery_reversal",
   "launch_transition",
   "oscillation_trader",
+  "conviction_scale",
 ]);
 
 /**
@@ -398,7 +413,12 @@ const shortHorizonProfiles = new Set<TradingProfileId>([
  * disappears between monitoring cycles.
  */
 export function maximumPositionBps(profileId: TradingProfileId): bigint {
-  if (profileId === "fast_furious" || profileId === "oscillation_trader") return 125n;
+  if (
+    profileId === "fast_furious" ||
+    profileId === "oscillation_trader" ||
+    profileId === "conviction_scale"
+  )
+    return 125n;
   if (profileId === "scalper" || profileId === "recovery_reversal") return 100n;
   if (shortHorizonProfiles.has(profileId)) return 150n;
   if (profileId.startsWith("benchmark_")) return 200n;
@@ -714,9 +734,11 @@ async function updateRegimeWatch(input: {
   profileId: TradingProfileId;
   mint: MintAddress;
   at: Timestamp;
-  score: number;
   qualified: boolean;
   evaluable: boolean;
+  entryDepthBps: number;
+  spreadBps: number | null;
+  buyPressure: number | null;
 }): Promise<void> {
   // Missing or stale sampling evidence is not a market vote. Preserve an
   // existing qualification streak until a sufficiently sampled evaluation can
@@ -733,12 +755,16 @@ async function updateRegimeWatch(input: {
     await input.pool.query(
       `INSERT INTO paper_profile_regime_watches
          (wallet,profile_id,token_mint,qualified_at,last_evaluated_at,regime_score,
-          consecutive_qualifications,below_floor_cycles,pinned,status,updated_at)
-       VALUES ($1,$2,$3,$4,$4,$5,1,0,false,'active',$4)
+          consecutive_qualifications,below_floor_cycles,pinned,status,updated_at,
+          capacity_entry_depth_bps,capacity_spread_bps,capacity_buy_pressure)
+       VALUES ($1,$2,$3,$4,$4,0,1,0,false,'active',$4,$5,$6,$7)
        ON CONFLICT (wallet,profile_id,token_mint) DO UPDATE SET
-         last_evaluated_at=EXCLUDED.last_evaluated_at,regime_score=EXCLUDED.regime_score,
+         last_evaluated_at=EXCLUDED.last_evaluated_at,
          consecutive_qualifications=paper_profile_regime_watches.consecutive_qualifications+1,
          below_floor_cycles=0,status='active',updated_at=EXCLUDED.updated_at,
+         capacity_entry_depth_bps=EXCLUDED.capacity_entry_depth_bps,
+         capacity_spread_bps=EXCLUDED.capacity_spread_bps,
+         capacity_buy_pressure=EXCLUDED.capacity_buy_pressure,
          pinned=paper_profile_regime_watches.pinned OR
                 paper_profile_regime_watches.consecutive_qualifications+1>=5`,
       [
@@ -746,24 +772,26 @@ async function updateRegimeWatch(input: {
         input.profileId,
         input.mint,
         input.at,
-        Math.max(0, Math.min(100, input.score)),
+        input.entryDepthBps,
+        input.spreadBps,
+        input.buyPressure,
       ],
     );
     return;
   }
   await input.pool.query(
     `UPDATE paper_profile_regime_watches SET
-       last_evaluated_at=$4,regime_score=GREATEST(0,regime_score-1),
+       last_evaluated_at=$4,
        consecutive_qualifications=0,
-       below_floor_cycles=CASE WHEN $5<45 THEN below_floor_cycles+1 ELSE 0 END,
-       status=CASE WHEN $5<45 AND below_floor_cycles+1>=3
+       below_floor_cycles=below_floor_cycles+1,
+       status=CASE WHEN below_floor_cycles+1>=3
                          AND $4::timestamptz-qualified_at>=interval '10 minutes'
                    THEN 'removed' ELSE status END,
-       pinned=CASE WHEN $5<45 AND below_floor_cycles+1>=3
+       pinned=CASE WHEN below_floor_cycles+1>=3
                         AND $4::timestamptz-qualified_at>=interval '10 minutes'
                    THEN false ELSE pinned END,updated_at=$4
      WHERE wallet=$1 AND profile_id=$2 AND token_mint=$3 AND status='active'`,
-    [input.wallet, input.profileId, input.mint, input.at, Math.max(0, Math.min(100, input.score))],
+    [input.wallet, input.profileId, input.mint, input.at],
   );
 }
 
@@ -775,7 +803,9 @@ async function rebalanceRegimePins(
   await pool.query(
     `WITH ranked AS (
        SELECT wallet,profile_id,token_mint,
-              row_number() OVER (ORDER BY regime_score DESC,consecutive_qualifications DESC,
+              row_number() OVER (ORDER BY capacity_entry_depth_bps DESC,
+                                           capacity_spread_bps ASC NULLS LAST,
+                                           capacity_buy_pressure DESC NULLS LAST,
                                            qualified_at,profile_id,token_mint) AS pin_rank
          FROM paper_profile_regime_watches
         WHERE wallet=$1 AND status='active' AND consecutive_qualifications>=5
@@ -889,7 +919,10 @@ export async function collectFastMarketObservations(input: {
          FROM paper_fast_market_observations WHERE wallet=$1 GROUP BY token_mint
      ), active_watches AS (
        SELECT token_mint,array_agg(profile_id ORDER BY profile_id) AS watched_profiles,
-              bool_or(pinned) AS pinned,max(regime_score) AS watch_score,max(qualified_at) AS qualified_at
+              bool_or(pinned) AS pinned,max(regime_score) AS watch_score,max(qualified_at) AS qualified_at,
+              max(capacity_entry_depth_bps) AS capacity_entry_depth_bps,
+              min(capacity_spread_bps) AS capacity_spread_bps,
+              max(capacity_buy_pressure) AS capacity_buy_pressure
          FROM paper_profile_regime_watches
         WHERE wallet=$1 AND status='active' AND qualified_at >= $2::timestamptz-interval '24 hours'
           AND profile_id=ANY($7::text[])
@@ -900,7 +933,8 @@ export async function collectFastMarketObservations(input: {
               COALESCE((SELECT array_agg(r.rule_id ORDER BY r.rule_id) FROM rule_evaluations r
                          WHERE r.evaluation_run_id=s.evaluation_run_id AND r.outcome<>'pass'),'{}') AS failed_rules,
               h.last_observed,COALESCE(h.recent_observations,0) AS recent_observations,
-              COALESCE(w.pinned,false) AS pinned,w.watched_profiles,w.watch_score,w.qualified_at
+              COALESCE(w.pinned,false) AS pinned,w.watched_profiles,w.watch_score,w.qualified_at,
+              w.capacity_entry_depth_bps,w.capacity_spread_bps,w.capacity_buy_pressure
          FROM candidates c JOIN LATERAL
               (SELECT evaluation_run_id,total_score,breakdown_json,evaluated_at FROM score_breakdowns
                 WHERE candidate_id=c.id ORDER BY evaluated_at DESC,id DESC LIMIT 1) s ON true
@@ -1235,26 +1269,34 @@ export async function collectFastMarketObservations(input: {
             const profile = tradingProfile(activation.profile_id);
             if (!profile) continue;
             const watched = candidate.watched_profiles?.includes(profile.id) ?? false;
-            const simplePattern =
-              profile.id === "fast_furious"
-                ? evaluateSimpleFastFurious(points)
-                : evaluateSimpleOscillation(points);
-            const simpleEvaluable =
-              profile.id === "fast_furious" ? points.length >= 2 : points.length >= 20;
+            const fastGeometry = profile.id === "fast_furious" || profile.id === "conviction_scale";
+            const simplePattern = fastGeometry
+              ? evaluateSimpleFastFurious(points)
+              : evaluateSimpleOscillation(points);
+            const simpleEvaluable = fastGeometry ? points.length >= 2 : points.length >= 20;
             const simpleQualified =
               simplePattern.liquidityUsd >= 100_000 &&
-              (profile.id === "fast_furious"
+              (fastGeometry
                 ? (simplePattern.buyPressure ?? 0) >= 0.45
                 : simplePattern.smaCrossings >= 3);
+            const entryDepthBps =
+              simplePattern.referencePrice > 0
+                ? Math.abs(
+                    ((simplePattern.entryPrice - simplePattern.referencePrice) * 10_000) /
+                      simplePattern.referencePrice,
+                  )
+                : 0;
             await updateRegimeWatch({
               pool: input.pool,
               wallet: input.wallet,
               profileId: profile.id,
               mint,
               at: input.at,
-              score: simpleQualified ? 100 : 0,
               qualified: simpleQualified,
               evaluable: simpleEvaluable,
+              entryDepthBps,
+              spreadBps: measuredMedianSpreadBps,
+              buyPressure: simplePattern.buyPressure,
             });
             await input.pool.query(
               `INSERT INTO paper_profile_evaluation_watermarks
@@ -1281,7 +1323,7 @@ export async function collectFastMarketObservations(input: {
             const signal = Object.freeze({
               eligible: simplePattern.eligible,
               pattern: simplePattern.eligible
-                ? profile.id === "fast_furious"
+                ? fastGeometry
                   ? "pullback_rebound"
                   : "extreme_oversold"
                 : "none",
@@ -1291,12 +1333,9 @@ export async function collectFastMarketObservations(input: {
             const adaptiveCalibration = Object.freeze({
               version: "fixed-v1" as const,
               profileId: profile.id,
-              model:
-                profile.id === "fast_furious"
-                  ? "simple short pullback"
-                  : "simple oscillation mean reversion",
+              model: fastGeometry ? "simple short pullback" : "simple oscillation mean reversion",
               regime: "fixed" as const,
-              targetBps: profile.id === "fast_furious" ? 600 : 300,
+              targetBps: fastGeometry ? 600 : 300,
               hardStopBps: 250,
               observedDownsideBps: 0,
               trailingStopBps: 0,
@@ -1320,7 +1359,29 @@ export async function collectFastMarketObservations(input: {
             const spreadLimitBps = measuredSpreadLimitBps(adaptiveCalibration.targetBps);
             const spreadEligible =
               measuredMedianSpreadBps !== null && measuredMedianSpreadBps <= spreadLimitBps;
-            const eligible = simplePattern.eligible && spreadEligible;
+            const sessionResult =
+              profile.id === "conviction_scale"
+                ? await input.pool.query<{ net_bps: string }>(
+                    `SELECT COALESCE(sum(realized_net_bps),0)::text AS net_bps
+                       FROM paper_profile_signal_outcomes
+                      WHERE epoch_id=current_paper_validation_epoch_id() AND wallet=$1
+                        AND token_mint=$2 AND lifecycle_state='closed'`,
+                    [input.wallet, candidate.mint_address],
+                  )
+                : null;
+            const conviction =
+              profile.id === "conviction_scale"
+                ? convictionScore({
+                    entryDistanceBps: entryDepthBps,
+                    spreadBps: measuredMedianSpreadBps ?? measuredSpreadAbsoluteLimitBps,
+                    buyPressure: simplePattern.buyPressure,
+                    sessionTokenNetBps: Number(sessionResult?.rows[0]?.net_bps ?? 0),
+                  })
+                : null;
+            const eligible =
+              simplePattern.eligible &&
+              spreadEligible &&
+              (conviction === null || conviction.total >= convictionMinimumScore);
             const reasons = [
               simplePattern.rule,
               ...(simplePattern.eligible && measuredMedianSpreadBps === null
@@ -1330,6 +1391,9 @@ export async function collectFastMarketObservations(input: {
                       `median_spread_${Math.round(measuredMedianSpreadBps!)}_bps_exceeds_${spreadLimitBps}_bps`,
                     ]
                   : []),
+              ...(conviction !== null && conviction.total < convictionMinimumScore
+                ? [`conviction_score_${conviction.total}_below_${convictionMinimumScore}`]
+                : []),
             ];
             if (!eligible) {
               const event = Object.freeze({
@@ -1360,6 +1424,12 @@ export async function collectFastMarketObservations(input: {
               admissionAudit: simplePattern,
               measuredMedianSpreadBps,
               measuredSpreadLimitBps: spreadLimitBps,
+              capacityRank: {
+                entryDepthBps,
+                spreadBps: measuredMedianSpreadBps,
+                buyPressure: simplePattern.buyPressure,
+              },
+              convictionScore: conviction,
               regimeWatched: watched,
               currentScore: current.score,
               currentFailedRules: current.failedRules,
@@ -1375,8 +1445,8 @@ export async function collectFastMarketObservations(input: {
             await input.pool.query(
               `INSERT INTO paper_profile_signals
            (id,wallet,profile_id,candidate_id,token_mint,signal_type,observed_at,
-            engine_version,eligible,score,metrics_json,gates_json,rejection_reasons_json)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,$12::jsonb,$13::jsonb)
+            engine_version,eligible,qualified,score,metrics_json,gates_json,rejection_reasons_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,0,$10::jsonb,$11::jsonb,$12::jsonb)
          ON CONFLICT DO NOTHING`,
               [
                 signalId,
@@ -1388,12 +1458,21 @@ export async function collectFastMarketObservations(input: {
                 input.at,
                 temporalEngineVersion,
                 eligible,
-                simplePattern.eligible ? 100 : 0,
                 JSON.stringify(signalEvidence),
                 JSON.stringify({ simplePattern: simplePattern.eligible }),
                 JSON.stringify(reasons),
               ],
             );
+            if (conviction !== null)
+              await persistConvictionScore(input.pool, {
+                id: uuid([signalId, "conviction-score"]),
+                signalId,
+                wallet: input.wallet,
+                tokenMint: candidate.mint_address,
+                observedAt: input.at,
+                qualified: eligible,
+                score: conviction,
+              });
             await input.pool.query(
               `INSERT INTO paper_profile_signal_outcomes
            (signal_id,wallet,profile_id,token_mint,lifecycle_state,planned_target_bps,
@@ -1595,6 +1674,31 @@ async function enterPosition(input: {
   const row = state.rows[0];
   if (!row)
     return Object.freeze({ outcome: "retry", reason: "Position state changed before entry" });
+  if (temporalProfileIds.has(input.profile.id)) {
+    const tokenSession = await input.pool.query<{
+      session_net_bps: string;
+      hard_stop_times: Date[];
+    }>(
+      `SELECT COALESCE(sum(realized_net_bps) FILTER (WHERE lifecycle_state='closed'),0)::text
+                AS session_net_bps,
+              COALESCE(array_agg(exited_at ORDER BY exited_at)
+                FILTER (WHERE lifecycle_state='closed' AND exit_reason='hard_stop'
+                          AND exited_at >= $3::timestamptz-interval '4 hours'),ARRAY[]::timestamptz[])
+                AS hard_stop_times
+         FROM paper_profile_signal_outcomes
+        WHERE epoch_id=current_paper_validation_epoch_id() AND wallet=$1 AND token_mint=$2`,
+      [input.wallet, input.candidate.mint_address, input.at],
+    );
+    const control = tokenLossControl({
+      hardStopTimes: (tokenSession.rows[0]?.hard_stop_times ?? []).map((value) =>
+        new Date(value).getTime(),
+      ),
+      sessionNetBps: Number(tokenSession.rows[0]?.session_net_bps ?? 0),
+      now: Date.parse(input.at),
+    });
+    if (control.blocked)
+      return Object.freeze({ outcome: "failed", reason: control.reason ?? "Token loss control" });
+  }
   if (!temporalProfileIds.has(input.profile.id) && row.recent_hard_stop)
     return Object.freeze({
       outcome: "failed",
@@ -1633,9 +1737,17 @@ async function enterPosition(input: {
   const absoluteCap =
     (BigInt(row.initial_cash_raw) * maximumPositionBps(input.profile.id)) / 10_000n;
   const available = BigInt(row.cash_raw) - input.feeRaw;
-  const amount = [available, riskSized, absoluteCap].reduce((smallest, value) =>
-    value < smallest ? value : smallest,
-  );
+  const amount =
+    input.profile.id === "conviction_scale"
+      ? convictionPositionAmount({
+          availableRaw: available,
+          baseRiskSizedRaw: riskSized,
+          absoluteCapRaw: absoluteCap,
+          score: input.candidate.signal_json?.convictionScore?.total ?? 0,
+        })
+      : [available, riskSized, absoluteCap].reduce((smallest, value) =>
+          value < smallest ? value : smallest,
+        );
   if (amount <= 0n)
     return Object.freeze({ outcome: "retry", reason: "Profile cash is currently unavailable" });
   const quoted = await input.swap.quote({

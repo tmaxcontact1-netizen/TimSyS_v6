@@ -55,6 +55,7 @@ export default defineConfig({
       "tests/unit/trading-profiles.test.ts",
       "tests/unit/paper-profile-activations.test.ts",
       "tests/unit/profile-paper-simulation.test.ts",
+      "tests/unit/conviction-scale.test.ts",
       "tests/unit/observation-runtime.test.ts",
       "tests/unit/observation-scheduler.test.ts",
       "tests/unit/observation-attempt-executor.test.ts",

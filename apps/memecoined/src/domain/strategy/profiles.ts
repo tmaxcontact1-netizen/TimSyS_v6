@@ -12,6 +12,7 @@ export const profileIds = [
   "launch_transition",
   "scalper",
   "oscillation_trader",
+  "conviction_scale",
   "benchmark_buy_hold",
   "benchmark_momentum",
   "benchmark_ema_cross",
@@ -28,7 +29,11 @@ export type PaperProfileMode = "observe" | "recommend" | "automatic_paper";
 
 /** The deliberately small, supported MemeCoined product surface. Legacy profile
  * definitions remain below solely so historical records can still be decoded. */
-export const focusedProfileIds = ["fast_furious", "oscillation_trader"] as const;
+export const focusedProfileIds = [
+  "fast_furious",
+  "oscillation_trader",
+  "conviction_scale",
+] as const;
 export type FocusedProfileId = (typeof focusedProfileIds)[number];
 export const focusedProfileIdSet: ReadonlySet<TradingProfileId> = new Set(focusedProfileIds);
 
@@ -263,6 +268,26 @@ export const tradingProfileCatalogue: readonly TradingProfileDefinition[] = Obje
     evidenceStatus: "ready",
     evidenceMessage:
       "Uses executable Jupiter quotes and current pool activity; every signal and outcome is retained for validation.",
+  },
+  {
+    id: "conviction_scale",
+    name: "Conviction Scale",
+    summary: "Experimental F&F geometry with position size scaled by an auditable admission score.",
+    approach: "Uses identical 250/600/10-minute exits so only the sizing function differs.",
+    decisionModel:
+      "Entry depth 35% + spread 25% + buy pressure 20% + session token record 20%; minimum 60",
+    defaultAllocationBps: 0,
+    maximumConcurrentPositions: 10,
+    riskPerTradeBps: 8,
+    minimumCandidateScore: 60,
+    requiresWhaleConfirmation: false,
+    maximumHoldingMinutes: 10,
+    hardStopBps: 250,
+    firstProfitTargetBps: 600,
+    trailingStopBps: 0,
+    evidenceStatus: "ready",
+    evidenceMessage:
+      "Inactive — experimental. Intended for evaluation only after 200+ closed trades exist for score calibration.",
   },
   ...(
     [

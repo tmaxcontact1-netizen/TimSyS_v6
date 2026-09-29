@@ -17,13 +17,14 @@ export interface FocusedPaperDashboard {
   readonly rejectionReasons: readonly Record<string, unknown>[];
 }
 
-/** The focused operator view: two strategies, their actual decisions and their
+/** The focused operator view: the two active strategies plus the dormant
+ * Conviction Scale experiment, their actual decisions and their
  * actual trade outcomes. Values are returned as stored, without invented scores. */
 export async function readFocusedPaperDashboard(
   database: Pick<Pool, "query">,
   wallet: WalletAddress,
 ): Promise<FocusedPaperDashboard> {
-  const profileIds = ["fast_furious", "oscillation_trader"];
+  const profileIds = ["fast_furious", "oscillation_trader", "conviction_scale"];
   const [profiles, evaluations, trades, rejectionReasons] = await Promise.all([
     database.query(
       `SELECT a.profile_id,a.enabled,a.mode,a.allocation_bps,a.version,a.updated_at,
@@ -66,7 +67,7 @@ export async function readFocusedPaperDashboard(
     ),
     database.query(
       `SELECT s.id::text,s.observed_at,s.profile_id,s.token_mint,s.signal_type,s.eligible,
-              s.score,s.rejection_reasons_json,s.gates_json,s.metrics_json,
+              s.qualified,s.rejection_reasons_json,s.gates_json,s.metrics_json,
               COALESCE(o.lifecycle_state,CASE WHEN s.eligible THEN 'accepted' ELSE 'rejected' END) AS outcome
          FROM paper_profile_signals s
          LEFT JOIN paper_profile_signal_outcomes o ON o.signal_id=s.id
