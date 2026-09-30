@@ -36,8 +36,9 @@ export function semanticLayout(model){
  const levels=[...new Set([...meta.values()].map(m=>m.level))].map(id=>({id,band:LEVEL_BANDS[id]??-1,label:id==='unknown'?'Unknown / Unclassified':model.label(id)})).sort((a,b)=>b.band-a.band||a.id.localeCompare(b.id));
  return {positions,positions2d,centers,centers2d,meta,families,segments,levels,domainOrder:ordered,span,levelSpacing,version:VERSION,weights:[...weights],duration:performance.now()-started};
 }
-export function focusLayout(model,geography,graph,selected){
- const ids=graph.trail.nodes.filter(id=>geography.positions.has(id)),set=new Set(ids);if(!ids.length)return geography;
+export function focusLayout(model,geography,graph,selected,context=null,familyExpanded=false){
+ const contextIds=context?[selected,...context.directIds,...graph.trail.nodes.filter(id=>!context.familyIds.has(id)),...(familyExpanded?context.family:[])]:graph.trail.nodes;
+ const ids=[...new Set(contextIds)].filter(id=>graph.nodes.some(n=>n.id===id)&&geography.positions.has(id)),set=new Set(ids);if(!ids.length)return geography;
  const positions=new Map(geography.positions),positions2d=new Map(geography.positions2d),root=geography.positions.get(selected),root2=geography.positions2d.get(selected),rootBand=geography.meta.get(selected).band;
  const bands=new Map();for(const id of ids){const m=geography.meta.get(id);if(!bands.has(m.band))bands.set(m.band,new Map());const families=bands.get(m.band);if(!families.has(m.family))families.set(m.family,[]);families.get(m.family).push(id);}
  const familyX=new Map();const localSegments=[];
