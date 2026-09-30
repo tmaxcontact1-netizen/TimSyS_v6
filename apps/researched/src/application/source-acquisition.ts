@@ -104,13 +104,17 @@ export async function acquireSource(
     resolver?: typeof lookup;
     maximumBytes?: number;
     timeoutMs?: number;
+    signal?: AbortSignal;
   } = {},
 ): Promise<AcquiredSource> {
   const fetcher = options.fetcher ?? fetch;
   let current = await assertPublicUrl(requestedUrl, options.resolver ?? lookup);
   const controller = new AbortController(),
     timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 30_000);
+  const abort = () => controller.abort();
+  options.signal?.addEventListener("abort", abort, {once:true});
   try {
+    options.signal?.throwIfAborted();
     for (let redirects = 0; redirects <= 5; redirects++) {
       const response = await fetcher(current, {
         redirect: "manual",
@@ -161,6 +165,7 @@ export async function acquireSource(
     throw new Error("too_many_redirects");
   } finally {
     clearTimeout(timer);
+    options.signal?.removeEventListener("abort", abort);
   }
 }
 export async function preserveSource(
@@ -210,6 +215,7 @@ export async function acquireRenderedSource(
     timeoutMs?: number;
     expandInteractiveContent?: boolean;
     maximumInteractions?: number;
+    signal?: AbortSignal;
   } = {},
 ): Promise<AcquiredSource> {
   const initial = await assertPublicUrl(requestedUrl),
@@ -224,7 +230,11 @@ export async function acquireRenderedSource(
       "--no-first-run",
     ],
   });
+  const abort = () => { void browser.close(); };
+  options.signal?.addEventListener("abort", abort, {once:true});
+  const deadline = setTimeout(abort, (options.timeoutMs ?? 45_000) + 30_000);
   try {
+    if (options.signal?.aborted) throw new Error("capture_cancelled");
     const context = await browser.newContext({
         javaScriptEnabled: true,
         serviceWorkers: "block",
@@ -239,22 +249,23 @@ export async function acquireRenderedSource(
       }
     });
     const response = await page.goto(initial.href, {
-      waitUntil: "networkidle",
+      waitUntil: "domcontentloaded",
       timeout: options.timeoutMs ?? 45_000,
     });
     if (!response) throw new Error("rendered_source_no_response");
-    if (!response.ok()) throw new Error("source_http_error");
+    if (!response.ok()) throw Object.assign(new Error("source_http_error"), {status:response.status()});
+    await page.waitForLoadState("networkidle", {timeout:5_000}).catch(()=>undefined);
     const interactions: {kind:string;label:string}[]=[];
     if(options.expandInteractiveContent !== false){
-      const details=page.locator("details:not([open])");
-      for(let index=0;index<Math.min(await details.count(),options.maximumInteractions??40);index++){
-        const item=details.nth(index); await item.evaluate((element)=>(element as HTMLDetailsElement).open=true);
-        interactions.push({kind:"details",label:(await item.locator("summary").textContent().catch(()=>null))?.trim().slice(0,160)||"Expandable section"});
+      const details=await page.locator("details:not([open])").elementHandles();
+      for(let index=0;index<Math.min(details.length,options.maximumInteractions??40);index++){
+        const item=details[index]!; await item.evaluate((element)=>(element as HTMLDetailsElement).open=true);
+        interactions.push({kind:"details",label:(await item.evaluate(element=>(element as Element).querySelector("summary")?.textContent).catch(()=>null))?.trim().slice(0,160)||"Expandable section"});
       }
       const remaining=Math.max(0,(options.maximumInteractions??40)-interactions.length);
-      const controls=page.locator('[aria-expanded="false"], [data-toggle="collapse"], [data-bs-toggle="collapse"], button').filter({hasText:/\b(read|show|view|load)\s+more\b|\bexpand\b|\b(curriculum|courses?|requirements?|programme|program|admissions?|overview|degree)\b/i});
-      for(let index=0;index<Math.min(await controls.count(),remaining);index++){
-        const control=controls.nth(index);
+      const controls=await page.locator('button[aria-expanded="false"], button[data-toggle="collapse"], button[data-bs-toggle="collapse"], button[type="button"]').filter({hasText:/\b(read|show|view|load)\s+more\b|\bexpand\b|\b(curriculum|courses?|requirements?|programme|program|admissions?|overview|degree)\b/i}).elementHandles();
+      for(let index=0;index<Math.min(controls.length,remaining);index++){
+        const control=controls[index]!;
         if(!(await control.isVisible().catch(()=>false))) continue;
         const label=((await control.textContent().catch(()=>null))??(await control.getAttribute("aria-label"))??"Expandable control").trim().slice(0,160);
         try{await control.click({timeout:2_500}); interactions.push({kind:"click",label}); await page.waitForTimeout(100);}catch{/* A stale or covered control remains visible in the audit only by its absence. */}
@@ -282,6 +293,8 @@ export async function acquireRenderedSource(
       }),
     });
   } finally {
+    clearTimeout(deadline);
+    options.signal?.removeEventListener("abort", abort);
     await browser.close();
   }
 }

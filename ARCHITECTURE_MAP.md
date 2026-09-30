@@ -1,9 +1,5 @@
 # TimSyS Architecture Map
-
-## Assessment evaluation foundation
-
-Principal'Ed now consumes four shared TimSyS services: a versioned standards repository, a provenance-preserving standards ontology, document intelligence for PDF/DOCX/image extraction and visual-asset detection, and a provider-neutral AI gateway. The Assessment Evaluator owns the audit workflow. It locks deterministic construct analysis before standards comparison, keeps declared intent and benchmark metadata sealed until that point, and permits AI interpretation only for uncertain locked items. AI output is an auditable proposal with bounded evidence, citations, confidence and limitations; it cannot update the assessment record without professional review.
-Generated: 2026-09-12T11:12:39Z
+Generated: 2026-09-30T03:39:32Z
 Generator: platform/Tools/update_architecture_map.py (Discovery-Based)
 
 This document is auto-generated. Do not edit manually.
@@ -20,16 +16,17 @@ Platform Location: `platform/`
 
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
-| `CONTEXT.md` | ✅ | 12401B | 2026-08-12 21:13:27 |
-| `ARCHITECTURE_MAP.md` | ✅ | 45587B | 2026-09-12 13:56:59 |
-| `HANDOVER.md` | ✅ | 19037B | 2026-09-05 07:54:06 |
-| `CONSTITUTION_V6.0.md` | ✅ | 25342B | 2026-08-12 21:11:41 |
-| `LEXICON_V6.0.0.md` | ✅ | 20246B | 2026-08-12 10:37:47 |
+| `CONTEXT.md` | ✅ | 12409B | 2026-09-30 06:11:57 |
+| `ARCHITECTURE_MAP.md` | ✅ | 48211B | 2026-09-30 06:11:57 |
+| `HANDOVER.md` | ✅ | 20976B | 2026-09-30 06:39:32 |
+| `CONSTITUTION_V6.0.md` | ✅ | 25343B | 2026-09-30 06:11:57 |
+| `LEXICON_V6.0.0.md` | ✅ | 20246B | 2026-09-30 06:11:57 |
 
 ## Directory Tree
 
 ```
 .
+  .git
   .gitignore
   ARCHITECTURE_MAP.md
   CONSTITUTION_V6.0.md
@@ -39,6 +36,9 @@ Platform Location: `platform/`
   LEXICON_V6.0.0.md
   TEST_PROTOCOL.md
   package.json
+./.github
+./.github\workflows
+    ci.yml
 ./apps
 ./apps\dressed
     .env.example
@@ -204,11 +204,11 @@ Platform Location: `platform/`
         ensemble-engine.test.ts
         foundation.test.ts
         garment.test.ts
+        photography-repository.test.ts
         photography.test.ts
         platform-contract.test.ts
         rotation-engine.test.ts
         styling-engine.test.ts
-        visual-fingerprint.test.ts
 ./apps\launcher
     README.md
     index.html
@@ -217,79 +217,17 @@ Platform Location: `platform/`
     postcss.config.js
     tailwind.config.js
     vite.config.js
-./apps\launcher\.cache
-      postgresql-18.4-1-windows-x64-binaries.zip
-      postgresql-18.4-1-windows-x64-binaries.zip.sha256
-./apps\launcher\.cache\electron
-        electron-v43.2.0-win32-x64.zip
-./apps\launcher\.cache\electron-builder
-./apps\launcher\.cache\electron-builder\nsis
-./apps\launcher\.cache\postgres
-        StackBuilder_3rd_party_licenses.txt
-        commandlinetools_3rd_party_licenses.txt
-        pgAdmin_3rd_party_licenses.txt
-        pgAdmin_license.txt
-        server_license.txt
-./apps\launcher\.cache\postgres\bin
-          clusterdb.exe
-          createdb.exe
-          createuser.exe
-          dropdb.exe
-          dropuser.exe
-          ecpg.exe
-          icudt77.dll
-          icuin77.dll
-          icuio77.dll
-          icutu77.dll
-./apps\launcher\.cache\postgres\doc
-          README-pldebugger.md
-./apps\launcher\.cache\postgres\include
-          autosprintf.h
-          ecpg_config.h
-          ecpg_informix.h
-          ecpgerrno.h
-          ecpglib.h
-          ecpgtype.h
-          gettext-po.h
-          gettext.h
-          iconv.h
-          libcharset.h
-./apps\launcher\.cache\postgres\lib
-          _int.dll
-          amcheck.dll
-          auth_delay.dll
-          auto_explain.dll
-          autoinc.dll
-          basebackup_to_shell.dll
-          basic_archive.dll
-          bloom.dll
-          bool_plperl.dll
-          btree_gin.dll
-./apps\launcher\.cache\postgres\pgAdmin 4
-./apps\launcher\.cache\postgres\share
-          errcodes.txt
-          information_schema.sql
-          pg_hba.conf.sample
-          pg_ident.conf.sample
-          pg_service.conf.sample
-          postgres.bki
-          postgresql.conf.sample
-          psqlrc.sample
-          snowball_create.sql
-          sql_features.txt
-./apps\launcher\.cache\postgres\StackBuilder
 ./apps\launcher\electron
       ai-credential-vault.cjs
       ai-credential-vault.test.cjs
+      app-window-registry.cjs
+      app-window-registry.test.cjs
+      crash-capture.test.cjs
+      launcher-return-lifecycle.test.cjs
       local-postgres-manager.cjs
       local-postgres-manager.test.cjs
       main.cjs
-      preload.cjs
-      runtime-layout.cjs
-      runtime-layout.test.cjs
-      runtime-recovery.cjs
-      runtime-recovery.test.cjs
-./apps\launcher\public
+      memecoined-runtime-ownership.cjs
 ./apps\launcher\src
       App.jsx
       index.jsx
@@ -303,6 +241,7 @@ Platform Location: `platform/`
 ./apps\launcher\src\components
         ErrorBoundary.jsx
         UpdatePanel.jsx
+        UpdatePrompt.jsx
 ./apps\launcher\src\components\Dashboard
           IntelligencePanel.jsx
 ./apps\launcher\src\components\Launcher
@@ -320,7 +259,6 @@ Platform Location: `platform/`
         ModulePortalPage.jsx
         ModuleSelectorPage.jsx
         PrincipalEdPage.jsx
-./apps\launcher\src\registry
 ./apps\launcher\src\store
         appStore.js
         authStore.js
@@ -334,15 +272,16 @@ Platform Location: `platform/`
     .env.example
     .gitignore
     .prettierrc.json
+    PAPER_OBSERVATION_RUNTIME.md
+    PAPER_VALIDATION_PROTOCOL.md
     README.md
     docker-compose.test.yml
     eslint.config.js
     package-lock.json
     package.json
-    timsys.app.json
-    tsconfig.json
 ./apps\memecoined\config
       defaults.json
+      profiles-v1.json
       providers.example.json
       strategy-v1.json
       wallet-watchlist.example.json
@@ -350,6 +289,7 @@ Platform Location: `platform/`
       CHANGELOG.md
       DEPENDENCY_MANIFEST.md
       OPERATIONS_RUNBOOK.md
+      PAPER_OBSERVATION_RUNTIME.md
       PROJECT_MAP.md
       PROMOTION_GATES.md
       SECURITY_MODEL.md
@@ -372,6 +312,7 @@ Platform Location: `platform/`
       0009_position_runtime_facts.sql
       0010_position_observations.sql
 ./apps\memecoined\scripts
+      diagnose-profile-roundtrips.ts
       emergency-stop.ts
       generate-report.ts
       import-wallet-watchlist.ts
@@ -426,6 +367,16 @@ Platform Location: `platform/`
           evidence.ts
           state-machine.ts
           types.ts
+./apps\memecoined\src\domain\strategy
+          observation-runtime.ts
+          observation-scheduler.ts
+          oscillation.ts
+          profiles.ts
+          regime-watch.ts
+          short-horizon.ts
+          signal-gate-counter.ts
+          simple-patterns.ts
+          technical-analysis.ts
 ./apps\memecoined\src\domain\token
           security.ts
           token.ts
@@ -446,6 +397,7 @@ Platform Location: `platform/`
         telegram.ts
         worker.ts
 ./apps\memecoined\src\infrastructure
+        bounded-map.ts
 ./apps\memecoined\src\infrastructure\config
           load-config.ts
           load-strategy.ts
@@ -487,6 +439,8 @@ Platform Location: `platform/`
         discovery-worker.ts
         entry-worker.ts
         health-worker.ts
+        observation-attempt-executor.ts
+        observation-scheduler.ts
         position-worker.ts
         reconciliation-worker.ts
         risk-worker.ts
@@ -495,6 +449,7 @@ Platform Location: `platform/`
       setup.ts
 ./apps\memecoined\tests\contract
         dexscreener.test.ts
+        geckoterminal.test.ts
         helius-wallet-history.test.ts
         helius-wallet-observations.test.ts
         helius.test.ts
@@ -503,12 +458,12 @@ Platform Location: `platform/`
         optional-market.test.ts
         provider-clients.test.ts
         solana-wallet-inventory.test.ts
-        solana.test.ts
 ./apps\memecoined\tests\e2e
         failure-recovery.test.ts
         live-low-value.test.ts
         observation.test.ts
         paper.test.ts
+        profile-paper-path.test.ts
         shadow.test.ts
 ./apps\memecoined\tests\failure
         portfolio-production-readiness.test.ts
@@ -542,15 +497,15 @@ Platform Location: `platform/`
         transaction-inspection.test.ts
 ./apps\memecoined\tests\unit
         application-root.test.ts
+        atomic-profile-entry-regression.test.ts
+        bounded-map.test.ts
         candidate-scoring.test.ts
         circuit-breakers.test.ts
         dashboard-trading-configurations.test.ts
         dashboard-ui-standards.test.ts
         dashboard-watchlists.test.ts
+        database-pool-retry.test.ts
         emergency-execution.test.ts
-        emergency-exits.test.ts
-        execution-runtime-authority.test.ts
-        live-entry-planning.test.ts
 ./apps\principaled
     index.html
     package-lock.json
@@ -589,17 +544,21 @@ Platform Location: `platform/`
     .env.example
     .gitignore
     README.md
+    README_LEGACY.md
     eng.traineddata
     package-lock.json
     package.json
     timsys.app.json
     tsconfig.json
     vite.config.ts
-    vitest.config.ts
 ./apps\researched\frontend
       index.html
 ./apps\researched\frontend\src
+        content-ui.jsx
+        content.css
+        legacy-workflow.jsx
         main.jsx
+        status.css
         styles.css
 ./apps\researched\migrations
       0001_research_core.sql
@@ -614,27 +573,31 @@ Platform Location: `platform/`
       0010_evidence_locators.sql
 ./apps\researched\scripts
       migrate.ts
+      verify-content-pipeline.mjs
 ./apps\researched\src
 ./apps\researched\src\application
         ai-analysis.ts
         analysis-export.ts
         analysis-jobs.ts
+        content-reader.ts
+        content-worker.ts
         cross-source-analysis.ts
         deterministic-analysis.ts
         link-discovery.ts
+        programme-workflow.ts
         reporting.ts
-        research-insights.ts
-        source-acquisition.ts
-        source-extraction.ts
 ./apps\researched\src\domain
         analysis-results.ts
         analysis.ts
+        content-analysis.ts
         contracts.ts
         lifecycle.ts
 ./apps\researched\src\entrypoints
         api.ts
+        content-api.ts
 ./apps\researched\src\infrastructure
         config.ts
+        content-repository.ts
         repository.ts
 ./apps\researched\tests
       ai-analysis.test.ts
@@ -644,9 +607,9 @@ Platform Location: `platform/`
       analysis-results.test.ts
       analysis.test.ts
       api.test.ts
+      content-analysis.test.ts
       cross-source-analysis.test.ts
       foundation.test.ts
-      lifecycle.test.ts
 ./apps\shared-ui
     package.json
 ./apps\shared-ui\react
@@ -669,6 +632,7 @@ Platform Location: `platform/`
   PLATFORM_EXTRACTION.md
   UI_CAPABILITY_COVERAGE.md
   UI_INTERACTION_STANDARD.md
+  next-release-todo.md
 ./docs\architecture
     GRADEBOOK_DECOMPOSITION.md
     LATE_ENTRIES_DECOMPOSITION.md
@@ -684,7 +648,6 @@ Platform Location: `platform/`
   jest.config.js
   package-lock.json
   package.json
-  pnpm-workspace.yaml
   timsys.app.json
 ./platform\architecture
     event-management-components.json
@@ -702,17 +665,7 @@ Platform Location: `platform/`
     gradebook.js
     intelligence.js
 ./platform\data
-    contribution-test.sqlite
-    decision-full-test.sqlite
-    engine-hardening-full.sqlite
-    foundation-contract-test.sqlite
-    foundation-test-2.sqlite
-    foundation-test.sqlite
-    historical-final-test.sqlite
-    historical-full-test.sqlite
-    test_auth.sqlite
-    test_auth.sqlite-shm
-./platform\data\timsys.sqlite.documents
+    timsys.db
 ./platform\deploy
     backup.sh
     migrate.sh
@@ -755,6 +708,12 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\academic_structure\migrations
         001_academic_structure.sql
+./platform\modules\ai_gateway
+      CONTRACT.md
+      index.js
+      module.json
+./platform\modules\ai_gateway\migrations
+        001_ai_gateway.sql
 ./platform\modules\approvals
       CONTRACT.md
       component.json
@@ -1282,13 +1241,13 @@ Platform Location: `platform/`
       admin-app-baseline.test.js
       analysis-engine-contract.test.js
       application-protocol.test.js
+      assessment-evaluator-calibration.test.js
       contracts-verification.test.js
       cover-contract.test.js
       gradebook-contract.test.js
       gradebook-hardening.test.js
       independent-app-boundaries.test.js
       intelligence-contribution.test.js
-      intelligence.test.js
 ./platform\tests\unit\registries
         registries.test.js
 ./platform\tests\unit\services
@@ -1308,12 +1267,19 @@ Platform Location: `platform/`
   build-windows-artifacts.mjs
   create-update-release.mjs
   fetch-postgres.mjs
+  monitor-memecoined-process.ps1
+  package-researched-update.mjs
   preflight.mjs
   prepare-windows-runtime.mjs
   run-memecoined-paper-trial.cjs
-  smoke-windows-runtime.cjs
-  verify-windows-runtime.mjs
-./tools
+./verification
+  researched-content-analysis-2026-09-30.json
+./verification\2026.09.26.9
+./verification\2026.09.26.9\crash-capture
+      proof.json
+      report.20260926.081711.8588.0.001.json
+      worker.stderr.log
+      worker.stdout.log
 ```
 
 ## Phase 0: Foundation Contracts
@@ -1322,25 +1288,25 @@ Location: `/platform/contracts/`
 
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
-| `auth.js` | ✅ | 4046B | 2026-08-12 10:37:47 |
-| `auto_rules.js` | ✅ | 0B | 2026-08-12 10:37:47 |
-| `cache.js` | ✅ | 1594B | 2026-08-12 10:37:47 |
-| `cover.js` | ✅ | 7442B | 2026-08-14 10:22:33 |
-| `db.js` | ✅ | 2039B | 2026-08-12 10:37:47 |
-| `decision_log.js` | ✅ | 2462B | 2026-08-12 10:37:47 |
-| `event_store.js` | ✅ | 2494B | 2026-08-12 10:37:47 |
-| `events.js` | ✅ | 1938B | 2026-08-12 10:37:47 |
-| `gradebook.js` | ✅ | 2671B | 2026-08-13 20:31:29 |
-| `intelligence.js` | ✅ | 2335B | 2026-08-12 21:10:26 |
-| `knowledge_store.js` | ✅ | 0B | 2026-08-12 10:37:47 |
-| `log.js` | ✅ | 1666B | 2026-08-12 10:37:47 |
-| `notification.js` | ✅ | 0B | 2026-08-12 10:37:47 |
-| `programmeManager.js` | ✅ | 4747B | 2026-08-21 11:00:18 |
-| `relationship_registry.js` | ✅ | 0B | 2026-08-12 10:37:47 |
-| `scheduler.js` | ✅ | 7080B | 2026-08-13 22:25:53 |
-| `snapshot.js` | ✅ | 0B | 2026-08-12 10:37:47 |
-| `teacherPreferences.js` | ✅ | 3613B | 2026-08-13 23:54:35 |
-| `validate.js` | ✅ | 1315B | 2026-08-12 10:37:47 |
+| `auth.js` | ✅ | 4046B | 2026-09-30 06:11:58 |
+| `auto_rules.js` | ✅ | 0B | 2026-09-30 06:11:58 |
+| `cache.js` | ✅ | 1594B | 2026-09-30 06:11:58 |
+| `cover.js` | ✅ | 7457B | 2026-09-30 06:11:58 |
+| `db.js` | ✅ | 2039B | 2026-09-30 06:11:58 |
+| `decision_log.js` | ✅ | 2462B | 2026-09-30 06:11:58 |
+| `event_store.js` | ✅ | 2494B | 2026-09-30 06:11:58 |
+| `events.js` | ✅ | 1938B | 2026-09-30 06:11:58 |
+| `gradebook.js` | ✅ | 2738B | 2026-09-30 06:11:58 |
+| `intelligence.js` | ✅ | 2342B | 2026-09-30 06:11:58 |
+| `knowledge_store.js` | ✅ | 0B | 2026-09-30 06:11:58 |
+| `log.js` | ✅ | 1666B | 2026-09-30 06:11:58 |
+| `notification.js` | ✅ | 0B | 2026-09-30 06:11:58 |
+| `programmeManager.js` | ✅ | 4768B | 2026-09-30 06:11:58 |
+| `relationship_registry.js` | ✅ | 0B | 2026-09-30 06:11:58 |
+| `scheduler.js` | ✅ | 7108B | 2026-09-30 06:11:58 |
+| `snapshot.js` | ✅ | 0B | 2026-09-30 06:11:58 |
+| `teacherPreferences.js` | ✅ | 3629B | 2026-09-30 06:11:58 |
+| `validate.js` | ✅ | 1315B | 2026-09-30 06:11:58 |
 
 ## Phase 1.1: Persistence / Service Layer
 
@@ -1348,25 +1314,25 @@ Location: `/platform/shared/services/`
 
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
-| `appScope.js` | ✅ | 604B | 2026-09-05 07:52:25 |
-| `audit.js` | ✅ | 2599B | 2026-08-28 22:46:39 |
-| `auth.js` | ✅ | 3755B | 2026-08-12 10:37:48 |
-| `cache.js` | ✅ | 3603B | 2026-08-12 10:37:48 |
-| `csv_parser.js` | ✅ | 4208B | 2026-08-12 23:04:03 |
-| `db.js` | ✅ | 2187B | 2026-08-12 12:36:40 |
-| `email.js` | ✅ | 1735B | 2026-08-12 10:37:48 |
-| `events.js` | ✅ | 2619B | 2026-08-12 10:37:48 |
-| `gradebookAccess.js` | ✅ | 1207B | 2026-08-13 21:51:34 |
-| `log.js` | ✅ | 1152B | 2026-08-12 10:37:48 |
-| `metrics.js` | ✅ | 4611B | 2026-08-28 22:46:38 |
-| `ratelimit.js` | ✅ | 1535B | 2026-08-12 10:37:48 |
-| `refresh.js` | ✅ | 4472B | 2026-08-12 10:37:48 |
-| `reportingPeriods.js` | ✅ | 1244B | 2026-08-13 21:51:35 |
-| `session.js` | ✅ | 2957B | 2026-08-28 22:46:41 |
-| `sse.js` | ✅ | 2854B | 2026-08-12 10:37:48 |
-| `statusActions.js` | ✅ | 7624B | 2026-08-13 12:15:15 |
-| `systemHealth.js` | ✅ | 4043B | 2026-08-13 19:27:14 |
-| `validate.js` | ✅ | 1558B | 2026-08-12 13:17:56 |
+| `appScope.js` | ✅ | 623B | 2026-09-30 06:11:59 |
+| `audit.js` | ✅ | 2615B | 2026-09-30 06:11:59 |
+| `auth.js` | ✅ | 3755B | 2026-09-30 06:11:59 |
+| `cache.js` | ✅ | 3603B | 2026-09-30 06:11:59 |
+| `csv_parser.js` | ✅ | 4250B | 2026-09-30 06:11:59 |
+| `db.js` | ✅ | 2197B | 2026-09-30 06:11:59 |
+| `email.js` | ✅ | 1735B | 2026-09-30 06:11:59 |
+| `events.js` | ✅ | 2619B | 2026-09-30 06:11:59 |
+| `gradebookAccess.js` | ✅ | 1215B | 2026-09-30 06:11:59 |
+| `log.js` | ✅ | 1152B | 2026-09-30 06:11:59 |
+| `metrics.js` | ✅ | 4627B | 2026-09-30 06:11:59 |
+| `ratelimit.js` | ✅ | 1535B | 2026-09-30 06:11:59 |
+| `refresh.js` | ✅ | 4472B | 2026-09-30 06:11:59 |
+| `reportingPeriods.js` | ✅ | 1248B | 2026-09-30 06:11:59 |
+| `session.js` | ✅ | 2973B | 2026-09-30 06:11:59 |
+| `sse.js` | ✅ | 2854B | 2026-09-30 06:11:59 |
+| `statusActions.js` | ✅ | 7685B | 2026-09-30 06:11:59 |
+| `systemHealth.js` | ✅ | 4051B | 2026-09-30 06:11:59 |
+| `validate.js` | ✅ | 1560B | 2026-09-30 06:11:59 |
 
 ### Intelligence Service Package
 
@@ -1374,17 +1340,17 @@ Location: `/platform/shared/services/intelligence/`
 
 | File | Exists | Size |
 | ------ | ------ | ------ |
-| `health.js` | ✅ | 3003B |
-| `index.js` | ✅ | 2178B |
+| `health.js` | ✅ | 3016B |
+| `index.js` | ✅ | 2206B |
 | `logic.js` | ✅ | 4897B |
 | `metadata.js` | ✅ | 3692B |
-| `metrics.js` | ✅ | 1533B |
-| `products.js` | ✅ | 6253B |
-| `providerRunner.js` | ✅ | 2925B |
-| `scheduler.js` | ✅ | 1773B |
-| `store.js` | ✅ | 4676B |
-| `trendAnalysis.js` | ✅ | 1371B |
-| `workflow.js` | ✅ | 8292B |
+| `metrics.js` | ✅ | 1540B |
+| `products.js` | ✅ | 6295B |
+| `providerRunner.js` | ✅ | 2949B |
+| `scheduler.js` | ✅ | 1781B |
+| `store.js` | ✅ | 4678B |
+| `trendAnalysis.js` | ✅ | 1380B |
+| `workflow.js` | ✅ | 8309B |
 
 ## Phase 1.2: Registry Layer
 
@@ -1392,14 +1358,14 @@ Location: `/platform/shared/registry/`
 
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
-| `capabilityRegistry.js` | ✅ | 3003B | 2026-08-12 10:37:48 |
-| `componentRegistry.js` | ✅ | 4624B | 2026-08-13 19:27:09 |
-| `componentScanner.js` | ✅ | 4781B | 2026-08-13 19:36:07 |
-| `dependencyGraph.js` | ✅ | 5007B | 2026-08-13 18:32:17 |
-| `functionRegistry.js` | ✅ | 2692B | 2026-08-12 10:37:48 |
-| `moduleRegistry.js` | ✅ | 3320B | 2026-08-13 19:07:19 |
-| `routeRegistry.js` | ✅ | 2212B | 2026-08-12 10:37:48 |
-| `schemaRegistry.js` | ✅ | 2455B | 2026-08-12 10:37:48 |
+| `capabilityRegistry.js` | ✅ | 3003B | 2026-09-30 06:11:59 |
+| `componentRegistry.js` | ✅ | 4642B | 2026-09-30 06:11:59 |
+| `componentScanner.js` | ✅ | 4834B | 2026-09-30 06:11:59 |
+| `dependencyGraph.js` | ✅ | 5023B | 2026-09-30 06:11:59 |
+| `functionRegistry.js` | ✅ | 2692B | 2026-09-30 06:11:59 |
+| `moduleRegistry.js` | ✅ | 3329B | 2026-09-30 06:11:59 |
+| `routeRegistry.js` | ✅ | 2212B | 2026-09-30 06:11:59 |
+| `schemaRegistry.js` | ✅ | 2455B | 2026-09-30 06:11:59 |
 
 ## Phase 1.3: Staging Pipeline
 
@@ -1407,13 +1373,13 @@ Location: `/platform/shared/pipeline/`
 
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
-| `boot.js` | ✅ | 3292B | 2026-08-12 10:37:48 |
-| `discover.js` | ✅ | 1343B | 2026-08-12 21:08:02 |
-| `register.js` | ✅ | 2942B | 2026-08-13 11:48:05 |
-| `resolve.js` | ✅ | 2834B | 2026-08-13 18:32:19 |
-| `unstage.js` | ✅ | 3234B | 2026-08-12 10:37:48 |
-| `validate.js` | ✅ | 3919B | 2026-08-12 10:37:48 |
-| `wire.js` | ✅ | 2390B | 2026-08-12 12:35:42 |
+| `boot.js` | ✅ | 3292B | 2026-09-30 06:11:59 |
+| `discover.js` | ✅ | 1348B | 2026-09-30 06:11:59 |
+| `register.js` | ✅ | 2947B | 2026-09-30 06:11:59 |
+| `resolve.js` | ✅ | 2853B | 2026-09-30 06:11:59 |
+| `unstage.js` | ✅ | 3234B | 2026-09-30 06:11:59 |
+| `validate.js` | ✅ | 3919B | 2026-09-30 06:11:59 |
+| `wire.js` | ✅ | 2392B | 2026-09-30 06:11:59 |
 
 ## Phase 5: HTTP Middleware
 
@@ -1432,6 +1398,7 @@ Location: `/platform/modules/`
 | ------ | -------- | ----- | --------- | ------------ | ---- |
 | `academic_commentary` | ✅ | ✅ | ✅ | 1 | academic_operations |
 | `academic_structure` | ✅ | ✅ | ✅ | 1 | academic_foundation |
+| `ai_gateway` | ✅ | ✅ | ❌ | 1 | standard |
 | `approvals` | ✅ | ✅ | ✅ | 1 | workflow |
 | `assessment_evaluator` | ✅ | ✅ | ✅ | 1 | academic_evaluation |
 | `assessment_evidence` | ✅ | ✅ | ✅ | 1 | academic_operations |
@@ -1519,49 +1486,12 @@ Location: `/platform/scripts/cli/`
 - `index.js` (765B)
 
 **`/engine/recommendation/`**
-- `analyzer.js` (5517B)
+- `analyzer.js` (5525B)
 - `index.js` (1196B)
 
 ## Data Layer
 
-- `contribution-test.sqlite` (729088B)
-- `decision-full-test.sqlite` (802816B)
-- `engine-hardening-full.sqlite` (831488B)
-- `foundation-contract-test.sqlite` (684032B)
-- `foundation-test-2.sqlite` (724992B)
-- `foundation-test.sqlite` (724992B)
-- `historical-final-test.sqlite` (774144B)
-- `historical-full-test.sqlite` (774144B)
-- `test_auth.sqlite` (565248B)
-- `test_auth.sqlite-shm` (32768B)
-- `test_auth.sqlite-wal` (4124152B)
-- `test_boot_seq.sqlite` (4096B)
-- `test_boot_seq.sqlite-shm` (32768B)
-- `test_boot_seq.sqlite-wal` (0B)
-- `test_db.sqlite` (4096B)
-- `test_db.sqlite-shm` (32768B)
-- `test_db.sqlite-wal` (976472B)
-- `test_e2e.sqlite` (4096B)
-- `test_e2e.sqlite-shm` (32768B)
-- `test_e2e.sqlite-wal` (0B)
-- `test_pipeline.sqlite` (552960B)
-- `test_pipeline.sqlite-shm` (32768B)
-- `test_pipeline.sqlite-wal` (4128272B)
-- `test_pwd_prompt.sqlite` (565248B)
-- `test_pwd_prompt.sqlite-shm` (32768B)
-- `test_pwd_prompt.sqlite-wal` (4124152B)
-- `test_refresh.sqlite` (565248B)
-- `test_refresh.sqlite-shm` (32768B)
-- `test_refresh.sqlite-wal` (4124152B)
-- `test_registries.sqlite` (4096B)
-- `test_registries.sqlite-shm` (32768B)
-- `test_registries.sqlite-wal` (2418472B)
-- `test_staging.sqlite` (565248B)
-- `test_staging.sqlite-shm` (32768B)
-- `test_staging.sqlite-wal` (4124152B)
 - `timsys.db` (32768B)
-- `timsys.sqlite` (3952640B)
-- `workspace-full-test.sqlite` (802816B)
 
 ## Applications
 
@@ -1604,7 +1534,7 @@ Location: `/platform/scripts/cli/`
 
 ### Frozen Document Integrity
 
-- CONSTITUTION_V6.0.md SHA256: `0867b8d27d8d79bea1efc9711ca01d7f0202b13827741a915157726f861bae4d`
+- CONSTITUTION_V6.0.md SHA256: `04af218e1ee41a4006b8545ae3ea1e8f3106c2e8c095471ec32256ced9cd866b`
 - LEXICON_V6.0.0.md SHA256: `91cdfb6f9a559fb02eede87aa6caaaa108aa52b7571f422274cc6509bff2d93a`
 - Store these hashes. Any change indicates a frozen document was modified. Halt and investigate.
 

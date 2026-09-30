@@ -9,6 +9,7 @@ import { extname, isAbsolute, join, normalize } from "node:path";
 import { pathToFileURL } from "node:url";
 import pg, { type Pool } from "pg";
 import { ZodError } from "zod";
+import { createContentApi, type ContentDatabase } from "./content-api.js";
 import { createApplicationHealth, contentHash } from "@timsys/app-sdk";
 import {
   studyInput,
@@ -291,11 +292,13 @@ export function createResearchServer(input: {
     }
   };
   let queueWorkerError: string | null = null;
+  const contentApi = createContentApi({database:input.database as ContentDatabase,storageRoot,acquire,render:renderedAcquire,getAiProvider:()=>aiProvider,setProvider:provider=>{aiProvider=provider;},background:Boolean(input.backgroundQueue)});
   const server = createServer(async (q, r) => {
     const method = q.method ?? "GET",
       url = new URL(q.url ?? "/", "http://127.0.0.1"),
       path = url.pathname;
     try {
+      if(await contentApi.handle(q,r))return;
       if (path === "/api/health") {
         if (method !== "GET")
           return json(r, 405, { error: "method_not_allowed" });
@@ -311,10 +314,11 @@ export function createResearchServer(input: {
             ready ? 200 : 503,
             createApplicationHealth({
               application: "researched",
-              status: ready && !queueWorkerError ? "healthy" : "degraded",
+              status: ready && !queueWorkerError && !contentApi.worker.error ? "healthy" : "degraded",
               observedAt: now().toISOString(),
               components: [
                 { id: "research-core", status: ready ? "healthy" : "degraded" },
+                { id: "content-analysis-worker", status: contentApi.worker.error ? "degraded" : "healthy", ...(contentApi.worker.error ? {detail:contentApi.worker.error} : {}) },
                 {
                   id: "acquisition-worker",
                   status: queueWorkerError ? "degraded" : "healthy",
@@ -1621,6 +1625,7 @@ export function createResearchServer(input: {
     : null;
   programmeTimer?.unref();
   server.once("close", () => {
+    void contentApi.worker.stop();
     if (programmeTimer) clearInterval(programmeTimer);
   });
   return server;

@@ -1,0 +1,44 @@
+{
+  "diagnostic": "document-to-cited-content-results",
+  "passedAt": "2026-09-30T03:39:00.303Z",
+  "startedAt": "2026-09-30T03:38:40.655Z",
+  "controlledFixture": true,
+  "transport": "Local HTTP fixture transported through production bounded acquisition; production orchestrator and PostgreSQL persistence",
+  "buildFingerprint": "2b61a5d715a3f0dc67c5c1dc8a61e3c27efb58b2af782cf9f0475626996c41d2",
+  "checks": [
+    "all migrations apply to isolated PostgreSQL",
+    "real DOCX intake, generic MIME fallback, all sections and duplicate contexts",
+    "concurrent run gate",
+    "durable background processing and automatic delayed retry",
+    "bounded supporting HTML and PDF capture, field citations and untrusted-host suggestions",
+    "dead versus restricted links and separate accreditation context",
+    "snapshot fingerprints, passage lineage and deterministic replay",
+    "CSV and evidence JSON include successful and failed sources",
+    "selective retry, cancellation and immutable earlier run results",
+    "AI invalid citations rejected without altering deterministic findings",
+    "user document yields 74 distinct destinations including accreditation and training",
+    "interrupted running tasks recover to explicit retry state",
+    "production UI source review, saved run, results and evidence navigation"
+  ],
+  "unitTests": {
+    "files": 19,
+    "passed": 73
+  },
+  "liveCapture": [
+    {
+      "url": "https://www.neasc.org/accreditation",
+      "status": 200,
+      "bytes": 131073,
+      "interactions": 0,
+      "hash": "f927fd50f0662a6c5dab3d7f52c79ad48af5658188f3e12ea03940c84fbfac08"
+    },
+    {
+      "url": "https://www.theptc.org/principals-training-center",
+      "status": 200,
+      "bytes": 133856,
+      "interactions": 0,
+      "hash": "ee61c9e3b9925b7f5b6e6a3052c408ac5afa44da61e763cc26706e382b27eb0f"
+    }
+  ],
+  "scope": "All 74 distinct document destinations extracted. Full traversal of all 74 live destinations was not performed."
+}

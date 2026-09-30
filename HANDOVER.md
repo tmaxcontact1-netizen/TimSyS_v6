@@ -474,3 +474,14 @@ Current State
     ✅ Permissions: Admin-only backend modules gated correctly
     ⚠️ Tailwind: Hot reload may require hard refresh after config change
     ⚠️ Vite: Restart recommended after tailwind.config.js modification
+
+
+## 2026-09-30 — Research’Ed document-to-content analysis
+
+Research’Ed 0.2.0 replaces the default prototype screen with a deterministic document-link workflow. The old screen and its records remain available under Prototype history. Additive migration 0016 introduces content workflows, links, immutable runs and durable tasks. The existing PostgreSQL runtime, source acquisition, archives, audit records, AI adapter and shared UI remain in use.
+
+The user’s curriculum/professional-development use case now supports Word/PDF link intake including embedded hyperlinks, original contexts, source selection, bounded official supporting HTML/PDF/DOCX capture, cited field passages, separate accreditation context, failed-link classification, retry/cancel/recovery, preserved snapshots and CSV/JSON exports. AI is explicitly enabled per run; checked source passages remain separate from labelled AI notes. Source instructions are data, not executable requests.
+
+Validation: 73 tests across 19 files, TypeScript and production Vite build; isolated PostgreSQL and headless-browser pipeline including the supplied document’s 74 distinct destinations; representative live rendered NEASC/PTC captures. Release packaging additionally checks the staged build fingerprint and launcher updater/supervisor installation. See verification/researched-content-analysis-2026-09-30.json and the release verification asset. No claim is made that all 74 live destinations were fully analysed. Website structure, restrictions and missing content remain explicit coverage limitations.
+
+Use apps/researched/scripts/verify-content-pipeline.mjs for disposable full-path checks (configuration documented in its README). scripts/package-researched-update.mjs carries other released bundles forward without rebuilding them; scripts/verify-researched-install.mjs verifies the actual ZIP through the launcher’s updater and supervised runtime.
