@@ -1,6 +1,7 @@
 import React,{useEffect,useRef,useState} from 'react';
 import * as T from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {labelPolicy,labelPriority} from './label-policy.mjs';
 import {title,encoding} from './model.mjs';
 import {visibleEdges,nodeColor,relationshipClass} from './semantic-layout.mjs';
 
@@ -15,13 +16,13 @@ export default function Network3D({graph,geography,model,selected,onSelect,onEdg
       const labelLayer=document.createElement('div');labelLayer.className='l1-spatial-labels';element.appendChild(labelLayer);scene=new T.Scene();const camera=flat?new T.OrthographicCamera(-700,700,700,-700,.1,15000):new T.PerspectiveCamera(48,1,.1,15000);camera.position.set(1500,flat?0:1300,flat?6000:2100);camera.up.set(0,1,0);
       controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=false;controls.minDistance=12;controls.maxDistance=30000;controls.screenSpacePanning=true;controls.enableRotate=!flat;if(flat){controls.mouseButtons.LEFT=T.MOUSE.PAN;controls.minZoom=.0001;controls.maxZoom=40;}
       if(cameraMemory.current){camera.position.fromArray(cameraMemory.current.position);controls.target.fromArray(cameraMemory.current.target);if(flat)camera.zoom=cameraMemory.current.zoom||1;}controls.update();
-      const render=()=>{if(frame!==null)return;frame=requestAnimationFrame(()=>{frame=null;const started=performance.now();renderer.render(scene,camera);live.current?.refreshDetailLabels?.();const w=element.clientWidth,h=element.clientHeight,occupied=[];
+      const render=()=>{if(frame!==null)return;frame=requestAnimationFrame(()=>{frame=null;const started=performance.now(),pixelsPerUnit=flat?element.clientHeight*camera.zoom/1400:element.clientHeight/(2*Math.tan(T.MathUtils.degToRad(24))*camera.position.distanceTo(controls.target)),policy=labelPolicy({pixelsPerUnit,focused:live.current?.focused,smallScope:live.current?.smallScope});element.dataset.labelDetail=policy.detail;if(live.current?.orientationMaterial)live.current.orientationMaterial.opacity=policy.planeOpacity;renderer.render(scene,camera);live.current?.refreshDetailLabels?.();const w=element.clientWidth,h=element.clientHeight,occupied=[];
         // Labels are callouts, never new graph positions. Keep them near their
         // anchors vertically so collision avoidance cannot suggest another level.
         const labels=(live.current?.labels||[]).filter(item=>item.active!==false).map(item=>{const p=item.anchor.clone().project(camera);return {...item,ax:(p.x+1)*w/2,ay:(1-p.y)*h/2,depth:p.z};});
-        const priority={level:0,node:1,guide:2,family:3,edge:4};
-        labels.sort((a,b)=>priority[a.kind]-priority[b.kind]||a.ay-b.ay||a.ax-b.ax);
-        for(const item of labels){const {ax,ay}=item,width=item.width,height=item.height;let visible=item.depth<1&&item.depth>-1&&ax>-100&&ax<w+100&&ay>-100&&ay<h+100;
+
+        labels.sort((a,b)=>labelPriority(a.kind,a.id===live.current.selected)-labelPriority(b.kind,b.id===live.current.selected)||a.ay-b.ay||a.ax-b.ax);
+        for(const item of labels){const orientation=['guide','level'].includes(item.kind),scale=orientation?policy.orientationScale:1;item.el.style.opacity=String(orientation?policy.orientationOpacity:1);item.el.style.setProperty('font-size',(orientation?10*scale:10)+'px','important');const {ax,ay}=item,width=item.width*scale,height=item.height*scale;item.el.style.width=width+'px';let visible=!(item.kind==='guide'&&policy.hideDomains)&&item.depth<1&&item.depth>-1&&ax>-100&&ax<w+100&&ay>-100&&ay<h+100;
           let x=Math.max(4,Math.min(w-width-4,ax-width/2)),y=Math.max(4,Math.min(h-height-25,ay-height-8));
           const overlaps=(cx,cy)=>occupied.some(r=>cx<r.x+r.w+4&&cx+width+4>r.x&&cy<r.y+r.h+3&&cy+height+3>r.y);
           if(item.kind==='level')x=4;
@@ -57,7 +58,7 @@ renderer.domElement.dataset.renderMs=String(performance.now()-started);renderer.
     return()=>{if(frame!==null)cancelAnimationFrame(frame);observer?.disconnect();controls?.dispose();if(scene)scene.traverse(o=>{o.geometry?.dispose();o.material?.map?.dispose();o.material?.dispose();});renderer?.dispose();renderer?.domElement.remove();live.current?.labelLayer.remove();live.current=null;};
   },[]);
   useEffect(()=>{
-    const s=live.current;if(!s)return;const start=performance.now();s.model=model;const position=id=>{const p=(flat?geography.positions2d:geography.positions).get(id);return p;};
+    const s=live.current;if(!s)return;const start=performance.now();s.model=model;s.focused=!!geography.focused;s.selected=selected;const position=id=>{const p=(flat?geography.positions2d:geography.positions).get(id);return p;};
     if(s.content){s.scene.remove(s.content);s.content.traverse(o=>{o.geometry?.dispose();o.material?.map?.dispose();o.material?.dispose();});}
     const content=new T.Group();s.content=content;s.scene.add(content);s.pickable=[];s.labels=[];const bandCounts=new Map();for(const id of graph.trail.nodes){const band=geography.meta.get(id).band;bandCounts.set(band,(bandCounts.get(band)||0)+1);}s.smallScope=(!geography.focused&&graph.nodes.length<=25)||(geography.focused&&Math.max(0,...bandCounts.values())>6);s.labelLayer.replaceChildren();const leaders=document.createElementNS('http://www.w3.org/2000/svg','svg');leaders.classList.add('l1-label-leaders');s.labelLayer.appendChild(leaders);
     const trailNodes=new Set(graph.trail.nodes),trailEdges=new Set(graph.trail.edges),focused=!!selected&&!graph.selectedExcluded;
@@ -90,7 +91,7 @@ renderer.domElement.dataset.renderMs=String(performance.now()-started);renderer.
     const all=[...centres.values()],minX=Math.min(0,...all.map(p=>p.x))-geography.span,maxX=Math.max(0,...all.map(p=>p.x))+geography.span,minZ=Math.min(0,...all.map(p=>p.z))-geography.span;
     const bands=[...new Set(geography.levels.map(l=>l.band))];for(const band of bands){const y=band*geography.levelSpacing;addGuide({x:minX,y,z:flat?0:minZ},{x:maxX,y,z:flat?0:minZ});if(!geography.focused&&flat)label(geography.levels.filter(l=>l.band===band).map(l=>l.label).join(' / '),{x:minX+geography.span*.4,y:y+25,z:flat?0:minZ},geography.span,geography.span*.14,.8,'level');}
     for(const family of geography.segments){const members=family.ids.filter(id=>visibleIds.has(id));if(members.length<2)continue;const points=members.map(position),xs=points.map(p=>p.x),ys=points.map(p=>p.y),zs=points.map(p=>p.z);const x1=Math.min(...xs)-10,x2=Math.max(...xs)+10,y1=Math.min(...ys)-12,y2=Math.max(...ys)+12,z1=Math.min(...zs)-12,z2=Math.max(...zs)+12;const corners=flat?[{x:x1,y:y1,z:0},{x:x2,y:y1,z:0},{x:x2,y:y2,z:0},{x:x1,y:y2,z:0}]:[{x:x1,y:y1,z:z1},{x:x2,y:y1,z:z1},{x:x2,y:y1,z:z2},{x:x1,y:y1,z:z2}];corners.forEach((p,i)=>addGuide(p,corners[(i+1)%4],familyVertices));if(geography.focused&&(geography.segments.length<=30||family.ids.includes(selected)))label(family.family.split(':')[0],{x:(x1+x2)/2,y:y2+12,z:flat?0:(z1+z2)/2},65,16,.65,'family');}
-    for(const [v,c] of [[guideVertices,guideColor],[familyVertices,'#477783']]){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));content.add(new T.LineSegments(g,new T.LineBasicMaterial({color:c,transparent:true,opacity:geography.focused&&v===guideVertices?.25:.65})));}
+    for(const [v,c] of [[guideVertices,guideColor],[familyVertices,'#477783']]){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(v,3));const material=new T.LineBasicMaterial({color:c,transparent:true,opacity:geography.focused&&v===guideVertices?.12:.65});if(v===guideVertices)s.orientationMaterial=material;content.add(new T.LineSegments(g,material));}
     if(geography.focused){const ghosts=new T.InstancedMesh(new T.IcosahedronGeometry(2,0),new T.MeshBasicMaterial({color:'#344555',transparent:true,opacity:.25}),graph.trail.nodes.length);graph.trail.nodes.forEach((id,i)=>{const p=(flat?geography.globalPositions2d:geography.globalPositions).get(id);matrix.identity().setPosition(p.x,p.y,p.z);ghosts.setMatrixAt(i,matrix);});content.add(ghosts);}
     if(geography.focused)for(const e of displayedEdges.filter(e=>trailEdges.has(e.id)&&e.semantics.grouping!=='source_statement').slice(0,35)){const a=position(e.data.from_id),b=position(e.data.to_id);label(model.label(e.data.relationship_type_id)+' · '+e.data.evidence+' / '+e.data.review_status,{x:(a.x+b.x)/2+30,y:(a.y+b.y)/2,z:(a.z+b.z)/2},100,30,.9,'edge',e.id);}
     const labelIds=geography.focused?graph.trail.nodes:graph.nodes.length<=25?graph.nodes.map(n=>n.id):selected?[selected]:[];

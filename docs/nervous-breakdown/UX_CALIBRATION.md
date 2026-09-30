@@ -1,0 +1,11 @@
+# Layer 1 UX calibration — 2026.09.30.5
+
+This pass preserves semantic coordinates, layout version, governed data, traversal semantics and the existing REL-010 presentation.
+
+- Selecting a responsibility exposes explicit Upstream / Downstream / Both buttons and an independent Direct / 2 / 3 / Full depth selector. Direct remains the default. State lives above the renderers and survives 3D, 2D and List switches.
+- Explore uses the full horizontal width. The contextual inspector follows the representation and its secondary navigation. No selection produces only a short guidance line. Responsibility, source, documentary family, relationships and governance/history retain their existing information in responsive columns. The toolbar toggle and Collapse detail hide the inspector without clearing selection or trail.
+- Expanded mode uses the same full-width structure. The inspector can be scrolled below the graph; collapsing it leaves the graph primary.
+- Camera scale controls orientation labels through `label-policy.mjs`: global labels are prominent, intermediate labels secondary, close/focused domain labels suppressed and level labels/planes quieter. The Canvas fallback follows the same policy. Annotation priority is selected responsibility, trail responsibility, relationship, family, context, then domain/level labels. This does not move any graph coordinate or reinterpret direction.
+- Companion lines stay hidden globally by default. All 867 companion records remain symmetric; 178 inferred pathways remain the primary persistent connections. No endpoint, evidence or review changes occur.
+
+Validation includes all direction/depth combinations on a synthetic directed-plus-symmetric graph; zoom/priority tests; installed-corpus directional comparison for R-0378 and R-1082 across all three views; full-width assertions; inspector placement/collapse; both requested role/domain subsets; zoom-aware label checks; and read-only corpus snapshots. Private completion artefacts contain real-corpus screenshots and exact resulting trail IDs. Release testing exercises the packaged launcher through the actual updater against an isolated installation holding an exact copy of the frozen seven-JD corpus.
