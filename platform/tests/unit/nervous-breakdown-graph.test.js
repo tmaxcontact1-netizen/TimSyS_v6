@@ -1,5 +1,13 @@
 'use strict';
 const { graph, trail, validateNetwork, clean } = require('../../modules/nervous_breakdown/model');
+test('empty installed corpus does not report missing overlay bindings; populated mismatches still do', () => {
+  const {project}=require('../../modules/nervous_breakdown/exploration');
+  const query={mode:'draft_review'};
+  expect(project([],query,'principal-ed').diagnostics).toEqual([]);
+  const records=[{id:'unrelated',kind:'responsibility',revision:1,data:{name:'Synthetic',status:'draft',review_status:'draft',is_fixture:false}}];
+  expect(project(records,query,'principal-ed').diagnostics).toHaveLength(95);
+  expect(project(records,{mode:'normal'},'principal-ed').diagnostics).toEqual([]);
+});
 test('dense deterministic traversal remains bounded and preserves every graph node', () => {
   const records = Array.from({ length: 1200 }, (_, i) => ({ id: 'r' + i, kind: 'responsibility', data: { name: 'Node ' + i, role_id: 'role', status: 'active', is_fixture: false, domain_ids: [], responsibility_type_ids: [], authority_type_ids: [] } }));
   for (let i = 0; i < 1199; i++) for (const offset of [1, 3, 7]) if (i + offset < 1200) records.push({ id: `e${i}-${offset}`, kind: 'connection', data: { from_id: 'r' + i, to_id: 'r' + (i + offset), status: 'active', review_status: 'reviewed', is_fixture: false } });
