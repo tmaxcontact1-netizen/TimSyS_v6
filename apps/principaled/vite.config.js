@@ -14,6 +14,9 @@ export default defineConfig({
   server: {
     port: 5180,
     proxy: {
+      '/nervous-breakdown': { target: 'http://localhost:3000', changeOrigin: true },
+      '/documents': { target: 'http://localhost:3000', changeOrigin: true },
+      '/document-intelligence': { target: 'http://localhost:3000', changeOrigin: true },
       '/api': { target: 'http://localhost:3000', changeOrigin: true },
       '/students': { target: 'http://localhost:3000', changeOrigin: true },
       '/staff': { target: 'http://localhost:3000', changeOrigin: true },

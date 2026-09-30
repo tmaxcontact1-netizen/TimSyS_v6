@@ -1,0 +1,159 @@
+{
+  "format": "timsys.nervous-breakdown.v1",
+  "reason": "Synthetic contract example only",
+  "dry_run": true,
+  "confirm_review": true,
+  "records": [
+    {
+      "id": "example.role",
+      "kind": "role",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic role",
+        "mapping_state": "mapped",
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.source",
+      "kind": "source",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic job description",
+        "source_type": "job_description",
+        "role_id": "example.role",
+        "document_id": 1,
+        "document_version_id": 1,
+        "version_label": "Synthetic example — bind actual Documents IDs",
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.statement",
+      "kind": "statement",
+      "expected_revision": 0,
+      "data": {
+        "source_id": "example.source",
+        "original_text": "Record synthetic observations. Review synthetic observations.",
+        "location": "paragraph 1",
+        "review_status": "reviewed",
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.domain",
+      "kind": "term",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic domain",
+        "category": "domain",
+        "definition": "Synthetic demonstration only",
+        "parent_id": null,
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.subdomain",
+      "kind": "term",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic subdomain",
+        "category": "domain",
+        "definition": "Synthetic demonstration only",
+        "parent_id": "example.domain",
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.action",
+      "kind": "term",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic action",
+        "category": "responsibility_type",
+        "definition": "Synthetic demonstration only",
+        "parent_id": null,
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.authority",
+      "kind": "term",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic authority",
+        "category": "authority_type",
+        "definition": "Synthetic demonstration only",
+        "parent_id": null,
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.relationship",
+      "kind": "term",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic handoff",
+        "category": "relationship_type",
+        "definition": "Synthetic demonstration only",
+        "parent_id": null,
+        "status": "active",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.responsibility.1",
+      "kind": "responsibility",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic responsibility 1",
+        "normalized_statement": "Record synthetic observations.",
+        "role_id": "example.role",
+        "statement_id": "example.statement",
+        "statement_revision": 1,
+        "domain_ids": [
+          "example.domain",
+          "example.subdomain"
+        ],
+        "responsibility_type_ids": [
+          "example.action"
+        ],
+        "authority_type_ids": [
+          "example.authority"
+        ],
+        "level": null,
+        "review_status": "reviewed",
+        "status": "active",
+        "notes": "Synthetic only; not BBS organisational truth.",
+        "is_fixture": true
+      }
+    },
+    {
+      "id": "example.responsibility.2",
+      "kind": "responsibility",
+      "expected_revision": 0,
+      "data": {
+        "name": "Synthetic responsibility 2",
+        "normalized_statement": "Review synthetic observations.",
+        "role_id": "example.role",
+        "statement_id": "example.statement",
+        "statement_revision": 1,
+        "domain_ids": null,
+        "responsibility_type_ids": null,
+        "authority_type_ids": null,
+        "level": null,
+        "review_status": "reviewed",
+        "status": "active",
+        "notes": "Synthetic only; not BBS organisational truth.",
+        "is_fixture": true
+      }
+    }
+  ]
+}

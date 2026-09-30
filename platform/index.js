@@ -519,7 +519,7 @@ function createServer() {
 
       var body = {};
       if (['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
-        body = await readBody(req, pathname.indexOf('/documents/') === 0 ? 14 * 1024 * 1024 : 1024 * 1024);
+        body = await readBody(req, pathname === '/nervous-breakdown/import' ? 16 * 1024 * 1024 : pathname.indexOf('/documents/') === 0 ? 14 * 1024 * 1024 : 1024 * 1024);
       }
 
       if (!sanitizationMiddleware(req)) return;

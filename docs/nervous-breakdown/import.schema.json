@@ -1,0 +1,998 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TimSyS Nervous Breakdown Layer 1 import",
+  "type": "object",
+  "required": [
+    "format",
+    "records",
+    "reason"
+  ],
+  "properties": {
+    "format": {
+      "const": "timsys.nervous-breakdown.v1"
+    },
+    "reason": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "confirm_review": {
+      "type": "boolean"
+    },
+    "dry_run": {
+      "type": "boolean"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10000,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/role"
+          },
+          {
+            "$ref": "#/$defs/source"
+          },
+          {
+            "$ref": "#/$defs/statement"
+          },
+          {
+            "$ref": "#/$defs/term"
+          },
+          {
+            "$ref": "#/$defs/responsibility"
+          },
+          {
+            "$ref": "#/$defs/connection"
+          },
+          {
+            "$ref": "#/$defs/role_assignment"
+          }
+        ]
+      }
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "role": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "role"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "mapping_state"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "mapping_state": {
+              "enum": [
+                "mapped",
+                "referenced",
+                "placeholder"
+              ]
+            },
+            "level": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "source"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "source_type",
+            "document_id",
+            "document_version_id",
+            "version_label",
+            "role_id"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "source_type": {
+              "const": "job_description"
+            },
+            "document_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "document_version_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "document_sha256": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "version_label": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "role_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            }
+          }
+        }
+      }
+    },
+    "statement": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "statement"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source_id",
+            "original_text",
+            "location",
+            "review_status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "source_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            },
+            "original_text": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "location": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "section": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "review_status": {
+              "enum": [
+                "draft",
+                "proposed",
+                "reviewed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "term": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "term"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "category"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "category": {
+              "enum": [
+                "domain",
+                "responsibility_type",
+                "authority_type",
+                "relationship_type",
+                "responsibility_level"
+              ]
+            },
+            "definition": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "parent_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "aliases": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "directionality": {
+              "enum": [
+                "directed",
+                "symmetric"
+              ]
+            },
+            "grouping": {
+              "enum": [
+                "source_statement"
+              ]
+            },
+            "review_status": {
+              "enum": [
+                "draft",
+                "proposed",
+                "reviewed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "responsibility": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "responsibility"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "normalized_statement",
+            "role_id",
+            "statement_id",
+            "statement_revision",
+            "review_status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "name": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "normalized_statement": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "role_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            },
+            "statement_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            },
+            "statement_revision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "domain_ids": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "responsibility_type_ids": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "authority_type_ids": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "level": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "level_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "documentary",
+                    "inferred",
+                    "proposed",
+                    "approved_operational",
+                    "unresolved"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "review_status": {
+              "enum": [
+                "draft",
+                "proposed",
+                "reviewed"
+              ]
+            },
+            "operational_ownership_id": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "connection"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "from_id",
+            "to_id",
+            "evidence",
+            "review_status"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "from_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            },
+            "to_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            },
+            "direction": {
+              "enum": [
+                "from_to"
+              ]
+            },
+            "relationship_type_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "evidence": {
+              "enum": [
+                "documentary",
+                "inferred",
+                "proposed",
+                "approved_operational",
+                "unresolved"
+              ]
+            },
+            "statement_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "statement_revision": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "review_status": {
+              "enum": [
+                "draft",
+                "proposed",
+                "reviewed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "role_assignment": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "expected_revision",
+        "data"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+        },
+        "kind": {
+          "const": "role_assignment"
+        },
+        "expected_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role_id",
+            "staff_id"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "draft",
+                "active",
+                "inactive",
+                "superseded"
+              ],
+              "default": "draft"
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "effective_from": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "effective_to": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "superseded_by": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "is_fixture": {
+              "type": "boolean",
+              "default": false
+            },
+            "role_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$"
+            },
+            "staff_id": {
+              "type": "string",
+              "pattern": "\\S"
+            }
+          }
+        }
+      }
+    }
+  }
+}
