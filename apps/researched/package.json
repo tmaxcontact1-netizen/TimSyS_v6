@@ -1,6 +1,6 @@
 {
   "name": "researched",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "migrate": "tsx scripts/migrate.ts",
-    "start": "node dist/src/entrypoints/api.js"
+    "start": "node dist/src/entrypoints/api.js",
+    "verify:pipeline": "node scripts/verify-content-pipeline.mjs"
   },
   "engines": {
     "node": ">=24.18.0 <25"

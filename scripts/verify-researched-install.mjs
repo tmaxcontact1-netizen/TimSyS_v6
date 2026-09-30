@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,writeFile,symlink} from 'node:fs/promises';
+import {join,resolve} from 'node:path';
+import {tmpdir} from 'node:os';
+import {createRequire} from 'node:module';
+import {execFileSync} from 'node:child_process';
+const require=createRequire(import.meta.url);
+const {UpdateManager}=require('../apps/launcher/electron/update-manager.cjs');
+const {LocalPostgresManager,availablePort}=require('../apps/launcher/electron/local-postgres-manager.cjs');
+const {SupervisedAppManager}=require('../apps/launcher/electron/supervised-app-manager.cjs');
+const [assetsArg,postgresArg]=process.argv.slice(2);assert.ok(assetsArg&&postgresArg,'Usage: node scripts/verify-researched-install.mjs ASSETS POSTGRES_BINARY_ROOT');
+const assets=resolve(assetsArg),manifest=JSON.parse(await readFile(join(assets,'timsys-update.json'),'utf8'));
+const isolatedManifest={...manifest,bundles:manifest.bundles.filter(b=>b.id==='researched')};
+const dataRoot=await mkdtemp(join(tmpdir(),'researched-installed-'));
+const updater=new UpdateManager({dataRoot,currentLauncherVersion:'1.0.20',manifestUrl:'https://verification.example/timsys-update.json',fetchImpl:async url=>url.endsWith('/timsys-update.json')?Response.json(isolatedManifest):new Response(await readFile(join(assets,new URL(url).pathname.split('/').pop())))});
+const result=await updater.install();assert.deepEqual(result.installed.map(bundle=>bundle.id),['researched']);
+const root=updater.activeRoots().researched;assert.ok(root);await symlink(join(root,'modules-runtime'),join(root,'node_modules'),'junction');
+const postgres=new LocalPostgresManager({binaryRoot:resolve(postgresArg),dataRoot});
+const supervisor=new SupervisedAppManager({runtimeExecutable:process.execPath});
+try{
+ const database=await postgres.start();const port=await availablePort();
+ const env={...process.env,RESEARCHED_APP_ROOT:root,RESEARCHED_STORAGE_ROOT:join(dataRoot,'sources'),RESEARCHED_DATABASE_URL:database.migrationUrl,RESEARCHED_PORT:String(port)};
+ execFileSync(process.execPath,[join(root,'dist/scripts/migrate.js')],{cwd:root,env,windowsHide:true,stdio:'pipe'});
+ await postgres.grantSchemaPrivileges('researched');
+ const state=await supervisor.start(join(root,'timsys.app.json'),{...env,RESEARCHED_DATABASE_URL:database.runtimeUrl});assert.equal(state.state,'running');
+ const base=`http://127.0.0.1:${port}`;
+ const health=await (await fetch(base+'/api/health')).json();assert.equal(health.status,'healthy');
+ assert.ok((await (await fetch(base)).text()).includes('<div id="root">'));
+ const catalog=await fetch(base+'/api/content/catalog');assert.equal(catalog.status,200);
+ const created=await fetch(base+'/api/content/workflows',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:'Installed runtime verification',plan:{goal:'Review curriculum and professional development',fields:['curriculum','practice'],aiEnabled:false}})});assert.equal(created.status,201);const workflow=await created.json();assert.ok(workflow.id);
+ const report={passedAt:new Date().toISOString(),bundle:isolatedManifest.bundles[0],checks:['Launcher updater verifies ZIP size/hash, extracts and activates ResearchEd','Installed migration runner applies schema to disposable PostgreSQL','Launcher supervisor starts installed API using restricted runtime database role','Installed health, frontend, catalogue and workflow creation succeed']};
+ const proofPath=join(assets,'researched-verification.json'),proof=JSON.parse(await readFile(proofPath,'utf8'));proof.installedRuntime=report;await writeFile(proofPath,JSON.stringify(proof,null,2)+'\n');console.log(JSON.stringify(report,null,2));
+}finally{await supervisor.stop('researched').catch(()=>{});await postgres.stop();}

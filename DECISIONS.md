@@ -638,3 +638,14 @@ cat >> DECISIONS.md << 'EOF'
 **Example:** `student_registry_importStudents` (declared name) → `importStudents` (export name in index.js). The validator checks the declared name prefix, then looks up the export name.
 
 **Status:** IMPLEMENTED
+
+
+## 2026-09-30 — Research’Ed content analysis before comparison
+
+**Decision:** Retain the TimSyS/Research’Ed runtime and reusable acquisition, evidence, audit and provider capabilities. Replace the narrow document parser and make a generic deterministic, evidence-first workflow the default interface. Keep the prototype and its data accessible.
+
+Application-owned analysis categories and selected budgets define deterministic extraction; the goal prompt prioritises supporting links and optional AI notes. Accreditation is context only at this stage. Every finding retains source URL, captured passage, locator, timestamp and hash. Missing fields mean not found within the inspected evidence, not absent from the programme. Dead, restricted and temporarily unavailable sources are distinct. Cross-host supporting material requires explicit host selection, and replacement links remain suggestions. AI is off by default and cannot overwrite extracted facts.
+
+**Rationale:** This isolates the first usable function while preserving TimSyS composition and evidence ownership. General-purpose semantic planning and accreditation comparison remain future work. A run can be replayed against preserved evidence; fresh websites are naturally changeable.
+
+**Status:** IMPLEMENTED; production build, unit and full-path verification passed.

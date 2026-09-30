@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { createWorker } from "tesseract.js";
 import { load } from "cheerio";
 
-export const EXTRACTOR_VERSION = "researched-text-v4";
+export const EXTRACTOR_VERSION = "researched-text-v5";
 const localRequire = createRequire(import.meta.url);
 const englishData = localRequire("@tesseract.js-data/eng") as {
   code: string;
@@ -125,8 +125,8 @@ async function pdfText(bytes: Buffer) {
       const content = await page.getTextContent();
       pages.push(
         content.items
-          .map((item) => ("str" in item ? item.str : ""))
-          .join(" ")
+          .map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : " ") : ""))
+          .join("")
           .trim(),
       );
       page.cleanup();
@@ -196,7 +196,7 @@ export async function extractText(
     let text = normalise(pageTexts.join("\n\n"));
     const usedOcr = !text && options.ocr === true;
     if (usedOcr) text = await pdfOcr(bytes);
-    const segments = usedOcr?segment(text,"page",{source:"ocr"}):Object.freeze(pageTexts.filter(Boolean).map((content,index)=>Object.freeze({ordinal:index+1,kind:"page" as const,content,hash:contentHash(content),locator:Object.freeze({page:index+1})})));
+    const segments = usedOcr?segment(text,"page",{source:"ocr"}):Object.freeze(pageTexts.map((content,index)=>Object.freeze({ordinal:index+1,kind:"page" as const,content,hash:contentHash(content),locator:Object.freeze({page:index+1})})).filter(item=>Boolean(item.content)));
     return Object.freeze({
       status: text ? "completed" : "empty",
       text,
