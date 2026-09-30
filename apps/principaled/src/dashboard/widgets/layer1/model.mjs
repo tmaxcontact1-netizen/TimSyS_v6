@@ -9,11 +9,12 @@ export function adapt(raw) {
     for(const id of [e.data.from_id,e.data.to_id]){degree.set(id,degree.get(id)+1);adjacency.get(id).push(e);}
   }
   for(const n of raw.nodes){const key=groupKey(n);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(n.id);}
+  const gapsByResponsibility=new Map();for(const gap of raw.gaps){if(!gapsByResponsibility.has(gap.responsibility_id))gapsByResponsibility.set(gap.responsibility_id,[]);gapsByResponsibility.get(gap.responsibility_id).push(gap);}
   const label=id=>title(references.get(id));
   const search=new Map(raw.nodes.map(n=>[n.id,[n.id,title(n),label(n.data.role_id),label(n.data.source_id),...(n.data.domain_ids||[]).map(label)].join(' ').toLowerCase()]));
-  return {...raw,byId:nodes,references,degree,groups,adjacency,search,label};
+  return {...raw,byId:nodes,references,degree,groups,adjacency,gapsByResponsibility,search,label};
 }
-export function selectGraph(model, f, selected) {
+export function selectGraph(model, f, selected, selectedProjection=false,includeFamily=false) {
   const gapRoots=new Set(model.gaps.filter(g=>!f.referenced||g.target_role_name===f.referenced).map(g=>g.responsibility_id));
   const matches=(n,boundary=false)=> {
     const d=n.data;
@@ -23,10 +24,14 @@ export function selectGraph(model, f, selected) {
   const primary=new Set(model.nodes.filter(n=>matches(n)).map(n=>n.id)), ids=new Set(primary);
   // Explicit role/domain focus keeps one boundary hop; strict filtering is selectable.
   if(f.context&&(f.role||f.domain)&&!f.group&&!f.isolates) for(const e of eligible) if(primary.has(e.data.from_id)||primary.has(e.data.to_id)){for(const id of [e.data.from_id,e.data.to_id])if(matches(model.byId.get(id),true))ids.add(id);}
+  // Selection preserves filters while retaining immediate eligible endpoints.
+  if(selectedProjection&&model.byId.has(selected)){ids.add(selected);for(const e of eligible)if(e.semantics.grouping!=='source_statement'&&(e.data.from_id===selected||e.data.to_id===selected)){ids.add(e.data.from_id);ids.add(e.data.to_id);}}
+  if(includeFamily&&model.byId.has(selected))for(const id of model.groups.get(groupKey(model.byId.get(selected)))||[])ids.add(id);
   const nodes=model.nodes.filter(n=>ids.has(n.id)), edges=eligible.filter(e=>ids.has(e.data.from_id)&&ids.has(e.data.to_id));
   const trail={...traverse(nodes,edges,selected,f.direction,f.depth),filters:{...f},evidence_scope:{evidence:f.evidence||'all',include_inferred:f.inferred,include_companions:f.companions}};
-  const gaps=f.showGaps?model.gaps.filter(g=>ids.has(g.responsibility_id)&&(!f.referenced||g.target_role_name===f.referenced)):[];
-  return {nodes,edges,gaps,primary,trail,selectedExcluded:!!selected&&!ids.has(selected),totalNodes:model.nodes.length,totalEdges:model.edges.length};
+  const globalGaps=f.showGaps?model.gaps.filter(g=>ids.has(g.responsibility_id)&&(!f.referenced||g.target_role_name===f.referenced)):[];
+  const selectedGaps=selectedProjection?(model.gapsByResponsibility.get(selected)||[]):[],gaps=[...new Map([...globalGaps,...selectedGaps].map(g=>[g.id,g])).values()];
+  return {nodes,edges,gaps,globalGaps,selectedGaps,primary,trail,selectedExcluded:!!selected&&!ids.has(selected),totalNodes:model.nodes.length,totalEdges:model.edges.length};
 }
 export function traverse(nodes,edges,root,direction,depth) {
   const ids=new Set(nodes.map(n=>n.id)), reached=new Set(), traversed=new Set(), adjacency=new Map(), groups=new Map(), groupEdges=new Map();
