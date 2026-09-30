@@ -13,3 +13,5 @@ data/*.sqlite-wal
 **/test_*.sqlite
 **/test_*.sqlite-shm
 **/test_*.sqlite-wal
+# Original document bytes belong to the local data store, not source control.
+/platform/data/*.sqlite.documents/

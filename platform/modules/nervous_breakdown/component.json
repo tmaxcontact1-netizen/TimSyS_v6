@@ -1,0 +1,7 @@
+{
+  "name":"nervous_breakdown", "type":"organisational_governance",
+  "dependencies":["documents","staff_registry","ownership"],
+  "capabilities":["capability:nervous_breakdown.read","capability:nervous_breakdown.govern","capability:nervous_breakdown.exchange"],
+  "parts":["formal_role","versioned_source","source_statement","atomic_responsibility","editable_ontology","governed_connection","durable_revision","responsibility_trail"],
+  "intelligence":{"version":1,"entities":[{"type":"formal_organisational_record","source":{"table":"nb_governed_records","idField":"id"},"statusField":"status","displayFields":["kind","revision"],"events":[{"channel":"nervous_breakdown.changed","kind":"updated"}]}]}
+}

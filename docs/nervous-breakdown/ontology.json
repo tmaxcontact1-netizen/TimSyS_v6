@@ -1,0 +1,194 @@
+{
+  "provisional": true,
+  "controlled": {
+    "record_kind": [
+      {
+        "id": "role",
+        "name": "Role",
+        "definition": "Formal organisational role, separate from people and login permissions."
+      },
+      {
+        "id": "source",
+        "name": "Source",
+        "definition": "Link to an immutable job-description document version for a formal role."
+      },
+      {
+        "id": "statement",
+        "name": "Source statement",
+        "definition": "Exact located wording in a source document."
+      },
+      {
+        "id": "term",
+        "name": "Ontology term",
+        "definition": "Governed provisional classification or relationship vocabulary."
+      },
+      {
+        "id": "responsibility",
+        "name": "Atomic responsibility",
+        "definition": "Normalised responsibility pinned to exact source wording."
+      },
+      {
+        "id": "connection",
+        "name": "Connection",
+        "definition": "Governed relationship between responsibilities; directionality is inherited from its relationship term."
+      },
+      {
+        "id": "role_assignment",
+        "name": "Person in role",
+        "definition": "Link from a formal role to a canonical staff identity."
+      }
+    ],
+    "lifecycle": [
+      {
+        "id": "draft",
+        "name": "Draft",
+        "definition": "Not active; may await review."
+      },
+      {
+        "id": "active",
+        "name": "Active",
+        "definition": "Currently enabled record."
+      },
+      {
+        "id": "inactive",
+        "name": "Inactive",
+        "definition": "Retained but not currently active."
+      },
+      {
+        "id": "superseded",
+        "name": "Superseded",
+        "definition": "Replaced or retired; original evidence remains unchanged."
+      }
+    ],
+    "review": [
+      {
+        "id": "draft",
+        "name": "Draft",
+        "definition": "Analytical record awaiting human review, independent of evidence status."
+      },
+      {
+        "id": "proposed",
+        "name": "Proposed",
+        "definition": "Not marked human reviewed."
+      },
+      {
+        "id": "reviewed",
+        "name": "Reviewed",
+        "definition": "Human review confirmed; does not imply documentary evidence."
+      }
+    ],
+    "evidence": [
+      {
+        "id": "documentary",
+        "name": "Documentary / explicit",
+        "definition": "Connection explicitly supported by a pinned source statement."
+      },
+      {
+        "id": "inferred",
+        "name": "Inferred",
+        "definition": "Interpretation rather than an explicit documentary connection."
+      },
+      {
+        "id": "proposed",
+        "name": "Proposed",
+        "definition": "Suggested connection awaiting organisational acceptance."
+      },
+      {
+        "id": "approved_operational",
+        "name": "Approved operational",
+        "definition": "Operationally approved relationship; not necessarily stated in a JD."
+      },
+      {
+        "id": "unresolved",
+        "name": "Unresolved",
+        "definition": "Organisational question remains unresolved."
+      }
+    ],
+    "role_mapping": [
+      {
+        "id": "mapped",
+        "name": "Mapped",
+        "definition": "Role has been deliberately mapped."
+      },
+      {
+        "id": "referenced",
+        "name": "Referenced",
+        "definition": "Role referenced without a complete responsibility mapping."
+      },
+      {
+        "id": "placeholder",
+        "name": "Placeholder",
+        "definition": "Explicit unresolved role identity placeholder."
+      }
+    ],
+    "ontology_category": [
+      {
+        "id": "domain",
+        "name": "Domain / subdomain",
+        "definition": "Topic classification; a domain parent_id represents subdomain hierarchy."
+      },
+      {
+        "id": "responsibility_type",
+        "name": "Responsibility / action type",
+        "definition": "Classification of the kind of responsibility or action."
+      },
+      {
+        "id": "responsibility_level",
+        "name": "Responsibility level",
+        "definition": "Optional governed organisational or responsibility level."
+      },
+      {
+        "id": "authority_type",
+        "name": "Authority type",
+        "definition": "Classification of the authority involved."
+      },
+      {
+        "id": "relationship_type",
+        "name": "Relationship type",
+        "definition": "Meaning and optional directional semantics of a connection between responsibilities."
+      }
+    ],
+    "source_type": [
+      {
+        "id": "job_description",
+        "name": "Job description",
+        "definition": "Versioned source job description in shared Documents."
+      }
+    ],
+    "directionality": [
+      {
+        "id": "directed",
+        "name": "Directed",
+        "definition": "Stored endpoint order determines traversal direction; default for existing terms."
+      },
+      {
+        "id": "symmetric",
+        "name": "Symmetric",
+        "definition": "Traversable from either endpoint; no arrow or process-order inference."
+      }
+    ],
+    "grouping": [
+      {
+        "id": "source_statement",
+        "name": "Source statement",
+        "definition": "Shared pinned documentary statement identifies the companion group, not chain distance."
+      }
+    ],
+    "direction": [
+      {
+        "id": "from_to",
+        "name": "From → to",
+        "definition": "Ordered storage endpoints; semantic directionality is inherited from the governed relationship term."
+      }
+    ]
+  },
+  "levels": {
+    "controlled": true,
+    "optional": true,
+    "category": "responsibility_level",
+    "reference_field": "level_id",
+    "legacy_text_field": "level",
+    "description": "Optional governed term reference; legacy text and null/unknown remain supported."
+  },
+  "terms": []
+}

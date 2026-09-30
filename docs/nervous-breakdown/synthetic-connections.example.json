@@ -1,0 +1,26 @@
+{
+  "format": "timsys.nervous-breakdown.v1",
+  "reason": "Synthetic contract example only",
+  "dry_run": true,
+  "confirm_review": true,
+  "records": [
+    {
+      "id": "example.connection",
+      "kind": "connection",
+      "expected_revision": 0,
+      "data": {
+        "from_id": "example.responsibility.1",
+        "to_id": "example.responsibility.2",
+        "direction": "from_to",
+        "relationship_type_id": "example.relationship",
+        "evidence": "proposed",
+        "statement_id": null,
+        "statement_revision": null,
+        "review_status": "proposed",
+        "status": "draft",
+        "notes": "Synthetic example; no documentary connection asserted.",
+        "is_fixture": true
+      }
+    }
+  ]
+}

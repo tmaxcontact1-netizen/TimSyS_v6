@@ -1,0 +1,2282 @@
+Nervous Breakdown — Layer 1 Visualisation and Scale Architecture Addendum
+This instruction supersedes the previous proposed Layer 1 visualisation addendum.
+It adds two significant requirements to the Nervous Breakdown design specification:
+1. Layer 1 must ultimately support coordinated 3D Network, 2D Network, and List representations.
+2. The current seven JDs are an initial corpus only. The architecture must anticipate substantial expansion across the organisation.
+This does not change the current v0.2.1 validation/import sequence or authorise Layer 2/3 implementation.
+1. Expected organisational scale
+Do not architect Nervous Breakdown around the current corpus size.
+The initial corpus contains:
+- 7 JDs;
+- 328 source statements;
+- 1,195 atomic responsibilities;
+- 179 ontology terms;
+- 167 current endpoint-complete analytical connections;
+- 95 unresolved documentary role handoffs.
+BBS is a much larger organisation.
+The immediate expectation is that the source corpus may expand to approximately:
+20–30 job descriptions
+
+and potentially further.
+Future source types may additionally include:
+- policies;
+- procedures;
+- SOPs;
+- handbooks;
+- regulatory requirements;
+- approved operational documents.
+Therefore, for architectural planning, assume Nervous Breakdown should comfortably support at least:
+5,000 atomic responsibility nodes
+
+and:
+tens of thousands of relationships
+
+without requiring fundamental redesign.
+These are design-capacity targets, not expected initial display counts.
+2. Growth must be additive
+Adding another JD must extend the existing organisational model rather than create a separate mapping exercise.
+Conceptually:
+Current organisational graph
+            │
+            ▼
+       Add new JD
+            │
+            ▼
+Extract source statements
+            │
+            ▼
+Add atomic responsibilities
+            │
+            ▼
+Classify against existing ontology
+            │
+            ├── existing terms fit → reuse
+            │
+            └── genuine gap → governed ontology extension
+            │
+            ▼
+Map new relationships
+            │
+            ▼
+Existing graph expands
+
+The organisation should progressively become more complete.
+3. Referenced roles should mature into mapped roles
+The current seven JDs reference organisational roles/functions whose own source documents have not yet been mapped.
+Examples include:
+- Vice Principal;
+- Head of Schools;
+- Deputy Director of Student Affairs;
+- AEA Coordinator/team;
+- CST;
+- Events;
+- HR;
+- General Services;
+- other leadership/support functions.
+These currently exist or may exist as referenced/unmapped organisational entities.
+When their authoritative JDs are later added, the architecture should allow those roles to mature naturally:
+REFERENCED ROLE
+      │
+      ▼
+JD INGESTED
+      │
+      ▼
+SOURCE STATEMENTS
+      │
+      ▼
+ATOMIC RESPONSIBILITIES
+      │
+      ▼
+FULLY MAPPED ROLE
+
+Do not require recreation of the role merely because its mapping state changes.
+4. Existing unresolved handoffs may become resolvable
+The current corpus contains 95 unresolved documentary role handoffs.
+These are not necessarily permanent defects.
+Some may exist because:
+JD A explicitly points to Role B,
+
+but:
+Role B's own JD is not currently available or does not yet provide a defensible receiving responsibility.
+
+As additional JDs are ingested, Nervous Breakdown should be capable of identifying that a previously unresolved organisational endpoint may now have candidate responsibility nodes.
+However:
+do not resolve the handoff automatically.
+
+The system may eventually flag:
+New responsibilities now exist that may resolve unresolved handoff H-017.
+
+A human reviews and approves the connection.
+The historical unresolved state should remain auditable.
+5. Ontology growth
+The current ontology is provisional and derived from seven JDs.
+Do not assume 179 terms represent the final organisational ontology.
+When new JDs are analysed:
+1. attempt classification against the existing ontology;
+2. reuse existing terms where they genuinely fit;
+3. do not create synonyms merely because wording differs;
+4. do not force genuinely novel responsibilities into inappropriate existing categories;
+5. allow governed ontology expansion where necessary.
+The ontology should become progressively more mature as the source corpus expands.
+6. Ontology stability
+Although the ontology must remain editable, growth should increasingly favour stability.
+Later JDs should normally reuse established concepts rather than continuously fragment the taxonomy.
+Future governance/Insights may identify:
+- synonymous ontology terms;
+- excessively broad categories;
+- overly narrow categories;
+- underused terms;
+- conflicting classifications.
+Do not implement automated ontology consolidation now.
+7. One Layer 1 graph
+There is only one Layer 1 organisational graph.
+The graph consists fundamentally of:
+responsibility nodes
+
+and:
+governed relationships between them.
+
+Do not create separate graph models for:
+- Middle School;
+- High School;
+- Elementary;
+- departments;
+- domains;
+- roles;
+- source types.
+Those may become filters, clusters, views, or organisational partitions over the same underlying graph.
+8. Three coordinated Layer 1 representations
+Layer 1 must ultimately support:
+3D Network | 2D Network | List
+
+These are coordinated representations of the same data.
+Conceptually:
+                       LAYER 1
+                          │
+                   RESPONSIBILITY
+                       GRAPH
+                          │
+            ┌─────────────┼─────────────┐
+            ▼             ▼             ▼
+       3D NETWORK     2D NETWORK       LIST
+
+Do not create independent datasets for these views.
+9. Shared exploration state
+Where technically sensible, the three representations should share:
+- selected responsibility;
+- selected role;
+- search state;
+- domain/subdomain filters;
+- authority filters;
+- responsibility-level filters;
+- source filters;
+- evidence/provenance filters;
+- review-state filters;
+- trail;
+- trail depth;
+- trail direction;
+- other relevant Layer 1 filters.
+Example:
+3D NETWORK
+
+Selected:
+R-0817
+
+Domain:
+Behaviour & Discipline
+
+Trail:
+3 levels / both directions
+
+        │
+        │ switch view
+        ▼
+
+2D NETWORK
+
+R-0817 still selected
+Behaviour still filtered
+same trail highlighted
+
+        │
+        ▼
+
+LIST
+
+same analytical context retained
+
+Changing view should change representation, not analytical question.
+10. 3D Network — primary signature view
+The intended primary visualisation is a fully interactive three-dimensional organisational responsibility network.
+The interaction metaphor is:
+an interactive model of a solar system or constellation.
+
+The user should feel they are navigating the organisation spatially.
+The 3D view should ultimately support:
+- free 360-degree rotation;
+- smooth zoom;
+- pan;
+- recenter;
+- node selection;
+- search;
+- responsibility selection;
+- camera focus;
+- trail highlighting;
+- contextual fading;
+- node inspection;
+- reset to global organisation;
+- navigation between connected responsibilities.
+Desktop/laptop only.
+Mobile optimisation is not required.
+11. The third dimension should have meaning
+3D positioning should not be purely decorative.
+The final spatial model should be capable of using organisational attributes to influence position.
+Potential dimensions include:
+Vertical
+Potentially:
+STRATEGIC / ACCOUNTABILITY
+           ↑
+      LEADERSHIP
+           ↑
+ MONITOR / OVERSIGHT
+           ↑
+COORDINATION / SUPPORT
+           ↑
+SPECIALIST / INTERVENTION
+           ↑
+    IMPLEMENTATION
+
+This is illustrative, not a mandated hard-coded hierarchy.
+Horizontal/depth
+Potentially influenced by:
+- domain;
+- functional similarity;
+- role;
+- organisational section;
+- relationship density;
+- subdomain;
+- source-derived clustering.
+The final layout strategy should be informed by the real expanded graph.
+12. Organisational geography
+At larger scale, the 3D graph should allow recognisable organisational regions to emerge.
+For example:
+Teaching & Learning
+
+may form one region;
+Behaviour & Discipline
+
+another;
+Counselling & Wellbeing
+
+another;
+Operations
+
+another.
+Cross-functional responsibilities may form bridges between them.
+The user should eventually develop a spatial understanding of the organisation.
+13. Spatial stability is important
+Do not randomly regenerate the organisation's spatial arrangement during ordinary use.
+Users may develop spatial memory:
+"Safeguarding is through there."
+
+"Student support wraps around behaviour."
+
+"Assessment sits near teaching."
+
+That is valuable.
+Prefer deterministic/stable positioning or persisted derived positions after graph layout stabilisation.
+Positions remain presentation data, not organisational truth.
+14. Global constellation
+The complete graph should remain available.
+The user should be able to request:
+Show All
+
+and see the organisation as a whole.
+With 3,000–5,000 nodes this may be visually intimidating.
+That is acceptable.
+Do not remove valid responsibility nodes merely to make the organisation appear simpler.
+15. Progressive disclosure
+Large-scale usability should be achieved through progressive visual disclosure, not destruction of underlying complexity.
+At maximum zoom-out:
+- major clusters are apparent;
+- individual labels are limited;
+- edges may be subtle;
+- organisational shape dominates.
+At intermediate zoom:
+- roles/subdomains become clearer;
+- relevant local relationships become more visible.
+At close zoom:
+- individual responsibility nodes become readable;
+- local edges become clear;
+- detailed interaction becomes possible.
+This is conceptually similar to geographic mapping:
+the underlying roads exist even when the national view does not label every street.
+
+16. Edge-density management
+At future scale, edge count may be a greater challenge than node count.
+Do not assume every relationship should be rendered with equal prominence simultaneously.
+Possible visual behaviour:
+Global
+Nodes visible; most edges subdued.
+Domain/role focus
+Relevant edges become clearer.
+Responsibility selected
+Relevant trail becomes dominant.
+Close local view
+Additional neighbouring connections appear.
+The underlying graph remains unchanged.
+17. Do not confuse visibility with existence
+If an edge is visually suppressed because of:
+- zoom;
+- filter;
+- performance optimisation;
+- progressive disclosure;
+that does not mean the connection has been removed from the graph.
+Visual state and organisational state must remain separate.
+18. Responsibility trail — defining interaction
+The central Layer 1 interaction remains:
+select responsibility → illuminate organisational trail
+
+Example:
+FULL ORGANISATION
+
+ thousands of nodes
+ thousands of relationships
+
+           │
+           ▼
+
+SELECT RESPONSIBILITY
+
+           │
+           ▼
+
+selected node becomes dominant
+
+           │
+           ▼
+
+relevant upstream/downstream/lateral
+responsibilities illuminate
+
+           │
+           ▼
+
+unrelated organisation fades
+
+           │
+           ▼
+
+user explores the trail spatially
+
+This interaction must work consistently in both 3D and 2D.
+19. Trail controls
+At scale, trail traversal may itself become large.
+Support controls such as:
+Direction
+- upstream;
+- downstream;
+- both.
+Depth
+- direct;
+- 2 levels;
+- 3 levels;
+- full trail.
+Relationship type
+Potentially restrict trail to:
+- reporting;
+- support;
+- monitoring;
+- collaboration;
+- escalation;
+- etc.
+Evidence
+Potentially:
+- documentary only;
+- include inferred;
+- include proposed;
+- etc.
+These controls should operate on the deterministic graph.
+20. Camera behaviour
+In 3D:
+Search
+User finds responsibility.
+Locate
+System identifies its spatial location.
+Focus
+Camera moves toward the node.
+Orient
+Graph/camera presents the relevant local structure clearly.
+Highlight
+Trail becomes dominant.
+Inspect
+Details appear without removing the spatial model.
+Animation should remain fast and analytical rather than cinematic.
+Respect reduced-motion settings where applicable.
+21. Direct 3D interaction
+Expected desktop interactions include:
+- drag to rotate;
+- wheel/trackpad to zoom;
+- appropriate pan interaction;
+- click to select;
+- focus/recenter control;
+- reset;
+- direct node selection.
+Use conventional interaction patterns from the chosen 3D rendering technology where appropriate.
+22. Node semantics
+The fundamental graph node remains:
+atomic responsibility
+
+Do not solve scale by replacing responsibility nodes with roles.
+Roles may provide:
+- clustering;
+- labels;
+- filtering;
+- grouping;
+- metadata;
+- spatial influence.
+But the Layer 1 graph remains responsibility-based.
+23. Optional visual aggregation
+At very large scale, the renderer may visually aggregate distant nodes for performance/legibility.
+For example:
+127 responsibilities
+
+might appear as a distant cluster representation until zoomed.
+However:
+- the underlying responsibilities remain individually represented in data;
+- zoom/focus must reveal them;
+- search must locate an individual responsibility;
+- aggregation must not alter responsibility identity;
+- aggregation must not become a separate organisational model.
+This is visual level-of-detail only.
+24. Organisational sections
+As additional JDs are added, roles may belong to different organisational sections or functions.
+The graph should eventually be capable of representing/filtering by organisational context such as:
+- Middle School;
+- High School;
+- Elementary;
+- whole-school;
+- Student Affairs;
+- support services;
+- operations.
+Do not hard-code the current Middle School perspective into the fundamental responsibility model.
+Nervous Breakdown should be capable of becoming an institution-wide organisational map.
+25. 2D Network
+The 2D representation remains a first-class analytical view.
+It must use the same:
+- nodes;
+- edges;
+- filters;
+- ontology;
+- trail state;
+- provenance;
+- selection;
+- inspector.
+It may use a planar layout optimised for:
+- comparison;
+- screenshots;
+- documentation;
+- presentations;
+- simpler local analysis.
+Do not remove 2D after introducing 3D.
+26. List
+List remains a first-class analytical/governance view.
+It should eventually support:
+- search;
+- sorting;
+- filtering;
+- role;
+- organisational section;
+- domain;
+- subdomain;
+- action type;
+- authority;
+- responsibility level;
+- source;
+- evidence status;
+- review state;
+- connection count;
+- mapping state.
+List is particularly important for:
+- governance;
+- audit;
+- systematic review;
+- bulk comparison;
+- data-quality work.
+27. Accessibility
+No information should be available only through 3D navigation.
+Anything represented spatially must remain accessible through 2D/List/inspectors where appropriate.
+This is both an accessibility and analytical requirement.
+28. Connection provenance
+Visualisation must preserve the distinction between:
+- documentary;
+- inferred;
+- proposed;
+- approved operational;
+- unresolved;
+- superseded.
+An inferred relationship must not visually masquerade as documentary organisational truth.
+The same semantic distinction should apply in both 2D and 3D.
+29. Unresolved organisational structure
+Nervous Breakdown must be capable of visualising gaps.
+Future graph representations should support concepts such as:
+RESPONSIBILITY
+      │
+      │ documentary handoff
+      ▼
+     ???
+      │
+Referenced Role
+
+Do not manufacture a responsibility merely to complete a visual connection.
+Uncertainty is part of the organisational model.
+30. Referenced-role visualisation
+Referenced/unmapped roles should have a distinct visual treatment.
+The user should be able to recognise:
+This role exists in the documentary network but its own responsibility structure has not yet been mapped.
+
+As additional JDs are ingested, those grey/unmapped areas may progressively become populated.
+This should make organisational completeness itself visually observable.
+31. Mapping completeness
+Consider future metrics such as:
+- mapped roles;
+- referenced roles;
+- responsibilities;
+- documentary edges;
+- inferred edges;
+- unresolved handoffs;
+- source coverage.
+These may eventually allow Nervous Breakdown to say:
+68% of referenced organisational roles currently have authoritative source mapping.
+
+Do not implement this metric now unless trivial.
+Preserve the data necessary to support it.
+32. Future source layers
+Although current Layer 1 is JD-focused, future sources may add further organisational obligations.
+The graph must eventually be capable of distinguishing:
+JD-derived responsibility
+
+from:
+policy-derived requirement
+
+from:
+procedure-derived requirement
+
+without creating separate incompatible graphs.
+Source provenance should remain filterable.
+33. Potential future source view
+The same responsibility network might eventually be explored as:
+JDs only
+
+Policies only
+
+JDs + Policies
+
+Approved operational
+
+This is future scope.
+Do not implement now.
+34. Performance target
+The Layer 1 rendering architecture should be selected with at least the following planning target:
+5,000 responsibility nodes
+
+and:
+tens of thousands of potential relationships
+
+on a normal contemporary desktop/laptop environment.
+This does not mean all edges must be simultaneously rendered at full visual complexity.
+Use appropriate:
+- GPU acceleration;
+- WebGL;
+- level-of-detail;
+- progressive edge visibility;
+- spatial indexing;
+- graph filtering;
+- efficient state updates.
+Avoid DOM-heavy rendering approaches that inherently assume a few hundred nodes.
+35. Performance must be tested against realistic graph shapes
+Synthetic tests should eventually include:
+- several thousand nodes;
+- sparse regions;
+- dense regions;
+- highly connected hubs;
+- orphan nodes;
+- large trails;
+- cross-domain edges;
+- many faded background nodes;
+- repeated filtering;
+- rapid view switching.
+Do not benchmark only evenly distributed random graphs.
+Organisational networks are unlikely to behave that way.
+36. Future graph metrics
+Before final 3D layout implementation, analyse the real expanded graph for:
+- node count;
+- edge count;
+- degree distribution;
+- high-degree hubs;
+- isolated nodes;
+- connected components;
+- domain clustering;
+- role clustering;
+- authority distribution;
+- typical trail size;
+- maximum trail size;
+- unresolved endpoint density.
+Use these findings to choose the final spatial algorithm.
+37. Do not implement final spatial semantics prematurely
+The current seven JDs are too small a sample of the whole organisation to determine the definitive 3D geography.
+Build the capability to support meaningful spatial placement.
+Do not permanently decide:
+X axis = domain
+Y axis = authority
+Z axis = role
+
+before seeing the expanded graph.
+The final layout should emerge from actual organisational data and usability testing.
+38. Layer 2 remains separate
+3D does not replace Process.
+The relationship remains:
+LAYER 1
+3D / 2D / List
+       │
+       ▼
+select responsibility
+       │
+       ▼
+highlight trail
+       │
+       ▼
+OPEN AS PROCESS
+       │
+       ▼
+LAYER 2
+logical process representation
+
+Layer 1 embraces network complexity.
+Layer 2 reorganises a selected part of that complexity into a comprehensible process.
+39. Layer
+
+
+
+
+
+     
+
+
+
+
+
+
+
+continue
+
+
+
+
+
+ 
+
+
+
+
+
+
+Continuing directly from Section 39.
+39. Layer 3 remains separate
+The visualisation architecture must also remain independent from future Layer 3 Execution.
+Layer 3 may eventually instantiate a responsibility/process as:
+- case;
+- project;
+- task;
+- recurring obligation;
+- assignment;
+- intervention;
+- event;
+- review.
+The existence of a live execution instance must not create, remove, or redefine Layer 1 responsibility nodes.
+However, future visualisation may optionally allow operational information to be overlaid on the organisational graph.
+For example:
+formal responsibility exists here;
+
+three active execution instances currently depend upon it;
+
+operational owner differs from formal role;
+
+responsibility currently has overdue work.
+
+Such overlays are future scope.
+Do not encode Layer 3 state into the fundamental Layer 1 graph model.
+40. Formal versus operational overlays
+Because Principal'Ed already contains operational responsibility/ownership capability, future graph views may permit comparison between:
+Formal
+What authoritative documents assign.
+Operational
+Who is currently performing or owning work.
+A future visual mode might therefore expose:
+FORMAL NETWORK
+       │
+       ├── aligned operationally
+       ├── differently assigned
+       ├── shared operationally
+       └── apparently unassigned
+
+This could become analytically valuable.
+Do not implement it as part of the current Layer 1 visualisation work.
+Preserve the architectural ability to overlay operational data without contaminating the formal responsibility graph.
+41. Institution-wide filtering
+As the graph expands beyond Middle School, filtering must support organisational scope.
+Potential future dimensions include:
+- whole school;
+- section;
+- division;
+- department;
+- role;
+- functional team;
+- source type;
+- source document.
+For example:
+Scope: Middle School
+
+may show only responsibilities relevant to Middle School while preserving connections to whole-school roles where appropriate.
+Or:
+Scope: All BBS
+
+may expose the complete institution.
+Do not implement filtering by simply deleting out-of-scope nodes from the underlying graph.
+42. Boundary connections
+Filtering by organisational section must account for responsibilities crossing boundaries.
+If the user selects:
+Middle School
+
+and a Middle School responsibility connects to:
+HR
+
+or:
+Head of Schools
+
+or:
+General Services,
+
+the external node/connection may need to remain visible as contextual boundary information.
+The user should be able to understand:
+this responsibility leaves the selected organisational scope here.
+
+This is particularly important for escalation and support pathways.
+43. Cluster navigation
+At larger scale, users should eventually be able to navigate through organisational clusters.
+Potential interactions include:
+focus domain;
+
+focus role;
+
+focus section;
+
+focus subdomain;
+
+isolate connected component;
+
+return to parent/global context.
+
+Cluster navigation must not create artificial organisational hierarchy where none exists.
+It is a navigation mechanism.
+44. Search becomes increasingly important at scale
+With several thousand responsibility nodes, direct visual discovery alone is insufficient.
+Search must remain a first-class navigation mechanism.
+The user should eventually be able to search terms such as:
+safeguarding
+
+moderation
+
+parent communication
+
+field trip
+
+behaviour intervention
+
+curriculum
+
+and receive relevant responsibility results.
+Selecting a result should locate the corresponding node regardless of whether the user is currently in:
+3D;
+
+2D;
+
+List.
+
+45. Search results should retain provenance
+Search results should provide sufficient context to distinguish similarly worded responsibilities.
+For example:
+Maintain accurate records
+Teacher
+Professional Responsibilities
+
+Maintain accurate records
+Student Program Coordinator
+Programme Administration
+
+Do not assume wording alone uniquely identifies a responsibility.
+Stable ID, role, domain, and source context remain important.
+46. Search and ontology
+Future search may benefit from ontology relationships.
+For example, searching:
+assessment
+
+might reasonably surface responsibilities classified under:
+- assessment design;
+- moderation;
+- assessment records;
+- data analysis.
+This should eventually be deterministic through ontology relationships rather than requiring AI.
+Do not implement sophisticated semantic search merely for this addendum.
+Preserve the possibility.
+47. Graph legend
+Both 2D and 3D views should provide a contextual legend explaining currently active visual semantics.
+The legend should adapt if the user changes what the graph encodes.
+For example:
+node colour = domain
+
+vertical position = responsibility level
+
+line style = evidence status
+
+The legend must not imply that visual dimensions carry meaning when they currently do not.
+48. User-controlled visual encoding
+Longer term, consider allowing the user to choose what selected visual dimensions represent.
+For example:
+Colour by:
+Domain
+Role
+Authority
+Source type
+
+Size by:
+Connection count
+Authority
+Uniform
+
+Filter by:
+Evidence
+Review state
+Section
+
+This is future functionality.
+Do not make the initial 3D implementation unnecessarily configurable.
+The architecture should simply avoid making one visual encoding inseparable from the graph data.
+49. Default visualisation must remain intelligible
+Although Nervous Breakdown deliberately exposes complexity, the default view should not require configuration before it becomes meaningful.
+When the user first opens Layer 1, the application should provide a sensible organisational representation immediately.
+Advanced visual controls may refine that representation.
+Do not make the user construct the graph manually.
+50. 3D orientation aids
+Because free 3D rotation can cause spatial disorientation, the final implementation should consider orientation aids.
+Potential examples:
+- subtle vertical axis;
+- level markers;
+- domain legend;
+- minimap/overview;
+- home orientation;
+- reset camera;
+- selected-node locator;
+- breadcrumb/context indicator.
+Do not clutter the graph unnecessarily.
+The user should always have an obvious way to return to a known organisational orientation.
+51. Selection persistence
+A selected responsibility should remain selected until:
+- the user selects another responsibility;
+- explicitly clears selection;
+- changes to an incompatible dataset/version.
+Merely rotating, zooming, switching 2D/3D/List, or opening the inspector should not clear the analytical context.
+52. Multi-selection — future capability
+Do not implement now unless naturally supported.
+Future analysis may benefit from selecting multiple responsibilities and asking:
+How are these connected?
+
+For example:
+Teacher behaviour responsibility
+
+and:
+Principal behaviour responsibility.
+
+The system could identify paths between them.
+The architecture should not make multi-selection impossible.
+53. Pathfinding — future capability
+The graph may eventually support deterministic questions such as:
+Show the shortest documented path between Responsibility A and Responsibility B.
+
+or:
+Show all documentary paths from Teacher to Principal within Behaviour.
+
+or:
+Show paths that include inferred relationships.
+
+This could become particularly useful once thousands of nodes exist.
+Do not implement pathfinding as part of the current visualisation addendum unless the current graph library provides it trivially.
+54. Unresolved-path analysis
+Future pathfinding should also be capable of identifying:
+path terminates at unresolved handoff.
+
+That is analytically meaningful.
+A broken trail should not be silently bridged.
+55. Graph growth after new source ingestion
+When new JDs are added, the user should not need to rebuild the visualisation.
+Once new governed responsibilities and connections become active:
+the Layer 1 graph expands automatically.
+
+Likewise:
+- 3D updates;
+- 2D updates;
+- List updates;
+- filters update;
+- search updates;
+- cluster statistics update.
+The visualisations are projections of the organisational data.
+56. Incremental layout
+At larger scale, adding a new JD should ideally not completely scramble the existing spatial map.
+If practical, layout should support incremental placement:
+existing organisational geography remains broadly stable;
+
+new responsibilities find appropriate locations;
+
+local areas adjust as required.
+
+This preserves spatial memory.
+Do not prioritise perfect global graph optimisation over usability continuity.
+57. Major remapping
+There will nevertheless be occasions when major organisational changes justify recalculating the graph layout.
+Examples:
+- large-scale JD revision;
+- organisational restructuring;
+- substantial ontology redesign;
+- introduction of many new source types.
+The system should be capable of recalculating derived positions when deliberately requested.
+Previous organisational versions should remain historically recoverable through the underlying version architecture.
+58. Version-aware visualisation
+Future Layer 1 should eventually be capable of selecting an organisational version/time state.
+For example:
+Current
+
+versus:
+2026–27
+
+versus:
+2027–28.
+
+The graph should then derive from records effective in the selected organisational state.
+This is future functionality.
+Do not implement temporal graph navigation now.
+59. Future comparison mode
+A later capability may compare two organisational versions visually.
+Potentially show:
+- added responsibilities;
+- removed responsibilities;
+- modified responsibilities;
+- new connections;
+- removed connections;
+- role changes;
+- density changes;
+- resolved gaps.
+This could make Nervous Breakdown useful for organisational-change analysis.
+Preserve versioning foundations.
+60. Performance degradation strategy
+If the graph eventually exceeds the comfortable interactive limits of the chosen renderer, degradation should occur gracefully.
+Prefer:
+1. reduce background edge rendering;
+2. use level-of-detail;
+3. aggregate distant visual clusters;
+4. delay nonessential labels;
+5. restrict expensive effects;
+6. load/render local neighbourhood detail progressively;
+before:
+removing responsibilities from the organisational model.
+
+Data completeness is more important than simultaneously rendering every visual detail.
+61. No artificial hard cap tied to initial corpus
+Do not create assumptions such as:
+maximum 1,500 responsibilities
+
+because the current corpus contains approximately 1,200.
+Where a practical technical limit is unavoidable, document it and ensure it is comfortably above the planned capacity target.
+62. Data retrieval at larger scale
+As the corpus grows, avoid architectural assumptions requiring the entire detailed record payload for every responsibility to be loaded into the browser simply to draw a node.
+Where appropriate, distinguish:
+graph topology/summary data
+
+from:
+full responsibility/source details loaded for inspection.
+
+This should follow existing Principal'Ed architecture and actual performance evidence.
+Do not prematurely optimise if current architecture already handles the target scale comfortably.
+63. Graph identity
+Stable responsibility IDs are critical.
+Spatial position, selection, trail state, operational overlays, and future graph analytics should reference stable responsibility identity rather than display wording.
+A wording revision should not unnecessarily create a visually unrelated object if governance determines it is a version of the same underlying responsibility.
+Follow the established versioning model.
+64. Graph integrity after ontology changes
+Changing a responsibility's domain/subdomain classification may affect:
+- cluster placement;
+- colour;
+- filtering;
+- graph geography.
+It must not alter the responsibility's identity or documentary provenance.
+Visual changes are derived consequences of governed classification changes.
+65. Graph integrity after connection changes
+Approving, superseding, or resolving a connection should update all three views automatically.
+Example:
+Unresolved handoff
+       │
+       ▼
+new JD added
+       │
+       ▼
+candidate endpoint identified
+       │
+       ▼
+human approval
+       │
+       ▼
+governed connection created
+       │
+       ├── 3D updates
+       ├── 2D updates
+       └── List/connection data updates
+
+No manual diagram maintenance.
+66. Relationship density as information
+High connectivity may itself be organisationally meaningful.
+Do not automatically interpret it as bad data.
+A highly connected responsibility may represent:
+- genuine coordination hub;
+- leadership bottleneck;
+- specialist bridge;
+- broad accountability;
+- overly vague JD wording;
+- duplicated organisational responsibility.
+Future Insights may analyse this.
+The visualisation should expose connectivity without making evaluative conclusions automatically.
+67. Isolated nodes as information
+Likewise, isolated responsibilities may indicate:
+- legitimate standalone responsibility;
+- missing connection;
+- missing source document;
+- poorly specified JD;
+- incomplete mapping.
+Do not automatically connect isolated nodes to make the graph visually coherent.
+68. Organisational graph metrics
+The graph architecture should expose sufficient deterministic information for future analytics such as:
+- node degree;
+- in-degree;
+- out-degree;
+- connected component;
+- cluster membership;
+- role;
+- domain;
+- authority;
+- level;
+- evidence type;
+- source;
+- mapping status.
+Do not implement complex network science unless requested.
+Ensure the underlying graph can support it.
+69. Future Insights Engine opportunities
+At institutional scale, Nervous Breakdown may eventually provide the Principal'Ed Insights Engine with observations such as:
+responsibility concentration;
+
+unusually high dependency on one role;
+
+repeated unresolved handoffs;
+
+disconnected responsibilities;
+
+responsibility duplication;
+
+formal/operational misalignment;
+
+cross-sectional bottlenecks;
+
+responsibility expansion over time.
+
+These are future analytical capabilities.
+Do not build them as part of this addendum.
+70. AI remains separate
+Expansion to thousands of nodes does not change the deterministic-first principle.
+AI may later assist with:
+- explaining the graph;
+- suggesting connections;
+- interpreting clusters;
+- proposing ontology changes;
+- identifying possible JD gaps;
+- answering natural-language questions.
+But:
+AI does not determine organisational truth.
+
+The 3D graph, 2D graph, List, filters, trails, and deterministic relationships must function without AI.
+71. Institutional scope must not destroy local utility
+Even if Nervous Breakdown eventually maps all of BBS, the Middle School Principal must still be able to use it as a practical Middle School tool.
+The user should be able to reduce:
+5,000-node institutional universe
+
+to:
+Middle School responsibility environment
+
+without creating a separate database or graph.
+Scale upward without losing local usefulness.
+72. Local scope must retain external dependencies
+When viewing only Middle School, do not completely hide relevant external dependencies.
+For example:
+Teacher → Subject Leader → Principal → Head of Schools
+
+may cross the selected local boundary.
+External responsibilities can remain as contextual boundary nodes.
+The user should understand where local authority ends and another organisational system begins.
+73. Potential future "solar system" hierarchy
+The solar-system analogy may eventually extend beyond simple free-space graphing.
+For example, at institutional scale:
+organisational sections could resemble broad systems;
+
+domains could resemble clusters;
+
+roles could create local groupings;
+
+responsibilities remain individual nodes;
+
+cross-functional responsibilities create bridges.
+
+This is conceptual inspiration only.
+Do not impose literal planets/orbits or decorative astronomy that obscures organisational meaning.
+The visual metaphor is about spatial navigation and interconnected systems, not themed graphics.
+74. Avoid visual gimmickry
+The 3D model should feel analytical and professional.
+Avoid unnecessary:
+- glowing space backgrounds;
+- stars unrelated to data;
+- orbital animation;
+- constant node movement;
+- excessive particle effects;
+- dramatic camera transitions.
+The "solar system" analogy describes manipulation and scale, not visual branding.
+Nervous Breakdown may have a humorous name, but the tool itself should remain serious and useful.
+75. Motion
+Once layout stabilises, nodes should not constantly drift merely because a force simulation is running.
+Continuous motion makes analytical comparison difficult.
+Use force simulation for layout where appropriate, then stabilise/freeze positions.
+Movement should primarily occur because:
+- user navigates;
+- filter changes;
+- focus changes;
+- graph changes;
+- layout is deliberately recalculated.
+76. Launch-state expectation
+The eventual Layer 1 launch experience should allow the user to:
+1. enter Nervous Breakdown;
+2. see the organisational constellation;
+3. rotate and inspect it in 3D;
+4. zoom from institutional scale toward individual responsibility;
+5. search for any responsibility;
+6. select it;
+7. see its organisational trail illuminate;
+8. inspect documentary provenance;
+9. switch to 2D without losing context;
+10. switch to List without losing context;
+11. alter filters;
+12. return to 3D with the same analytical state;
+13. identify unresolved organisational gaps;
+14. eventually pass a selected trail into Layer 2.
+77. Capacity planning requirement
+For current architectural decisions, use the following as the minimum planning envelope:
+30 job descriptions
+
+5,000 atomic responsibility nodes
+
+tens of thousands of relationships
+
+multiple organisational sections/functions
+
+multiple source types in future
+
+This is not a hard maximum.
+It is the scale at which the current architecture should remain fundamentally sound.
+78. Current implementation instruction
+Do not implement the final 3D visualisation yet.
+Do not interrupt the current v0.2.1 validation/import sequence.
+Instead:
+1. record this addendum as a launch architecture requirement;
+2. inspect the existing Layer 1 implementation against the capacity target;
+3. inspect the current graph-rendering approach;
+4. inspect how selection/filter/trail state is currently stored;
+5. determine whether the architecture can support coordinated 3D/2D/List views;
+6. determine whether the current graph data adapter is renderer-independent;
+7. determine whether current graph loading assumptions remain sensible at 5,000 nodes / tens of thousands of relationships;
+8. identify any architectural change that should be made before further data population to avoid a major future rewrite.
+Do not make speculative large-scale changes merely because this requirement exists.
+79. Architectural questions to answer now
+Please report specifically:
+A. Shared graph model
+Can the current Layer 1 data architecture drive:
+3D Network
+2D Network
+List
+
+without separate graph datasets?
+B. Renderer independence
+Is the current graph transformation/data adapter sufficiently independent from the current 2D renderer to support a future WebGL 3D renderer?
+C. Shared state
+Can selection, filters, trail state, and focus be shared cleanly between all three views?
+D. Scale
+Is the current frontend/data-loading architecture reasonable for:
+5,000 nodes + tens of thousands of relationships?
+
+If not, what specifically needs changing?
+E. Current renderer
+Will the current 2D graph implementation remain useful as the permanent 2D view, or is it currently structured as a prototype that will need replacement?
+F. 3D renderer
+Without implementing it yet, identify a technically appropriate 3D rendering approach compatible with the existing Principal'Ed stack and target scale.
+Do not install or adopt a library merely for this report.
+G. Progressive disclosure
+Can edge/node visibility be changed according to zoom, focus, filter, and trail state without modifying underlying graph data?
+H. Stable layout
+Can the architecture support derived/persisted spatial positions so the organisational geography remains stable between sessions and as new JDs are incrementally added?
+I. Referenced roles
+Can referenced/unmapped roles and unresolved handoffs eventually be represented spatially without creating fake responsibility nodes?
+J. Incremental corpus growth
+Can new JDs be added without rebuilding or replacing the existing responsibility graph?
+80. Adjustment threshold
+If the answer to all major architectural questions is essentially:
+Yes — the current design supports this with normal future extension
+
+then:
+record the requirement and make no unnecessary changes now.
+
+If there is a
+
+
+
+
+
+     
+
+
+
+
+
+
+
+continue
+
+
+
+
+
+ 
+
+
+
+
+
+
+Continuing directly from Section 80.
+80. Adjustment threshold
+If the answer to all major architectural questions is essentially:
+Yes — the current design supports this with normal future extension
+
+then:
+record the requirement and make no unnecessary changes now.
+
+If there is a material architectural limitation that would cause substantial rework later, make only the minimum foundational adjustment necessary now.
+Examples might include:
+- graph state being embedded directly inside a 2D-specific component;
+- graph transformation logic depending on a particular renderer;
+- responsibility selection existing only as local component state;
+- inability to address nodes through stable IDs;
+- data retrieval requiring every full source record to be loaded simply to render graph topology;
+- graph position being treated as organisational data rather than derived presentation state;
+- architecture that cannot support more than one renderer;
+- role or section assumptions hard-coded around the current seven JDs;
+- inability to represent referenced/unmapped roles separately from responsibility nodes.
+Do not begin implementing the 3D experience merely because one of these foundations requires adjustment.
+81. Renderer-neutral graph representation
+The application should maintain a renderer-neutral representation of Layer 1 topology.
+Conceptually:
+ORGANISATIONAL DATA
+        │
+        ▼
+LAYER 1 GRAPH ADAPTER
+        │
+        ├──────────────► 3D renderer
+        │
+        ├──────────────► 2D renderer
+        │
+        └──────────────► List representation
+
+The graph adapter should provide sufficient information such as:
+- stable node ID;
+- responsibility summary;
+- role;
+- domain/subdomain;
+- authority;
+- level;
+- source/provenance;
+- review state;
+- edge endpoints;
+- relationship type;
+- relationship evidence;
+- mapping state.
+Renderer-specific coordinates, camera state, visual effects, and layout metadata should remain presentation concerns.
+82. Graph topology versus responsibility detail
+At institutional scale, distinguish conceptually between:
+Graph topology
+The lightweight information necessary to locate and connect nodes.
+and:
+Responsibility detail
+The full organisational record, including:
+- exact source wording;
+- source statement;
+- document/version;
+- classifications;
+- notes;
+- history;
+- governance information.
+A 3D renderer should not necessarily need to receive every full JD quotation simply to display 5,000 points.
+Where appropriate, detailed information may be retrieved or expanded when a node is inspected.
+Do not introduce unnecessary network complexity if the existing local architecture already handles this efficiently.
+83. Shared Layer 1 exploration state
+Selection and exploration state should belong to Layer 1 rather than to a particular renderer.
+Conceptually:
+Layer1ExplorationState
+
+selectedResponsibility
+selectedRole
+scope
+filters
+trailDirection
+trailDepth
+relationshipFilters
+evidenceFilters
+focusedNode
+searchQuery
+
+This is conceptual rather than a prescribed implementation interface.
+The important principle is:
+switching renderer must not destroy the user's analytical question.
+
+84. Renderer-specific state
+Some state legitimately belongs only to one representation.
+For example:
+3D
+- camera position;
+- camera orientation;
+- 3D node positions.
+2D
+- viewport;
+- 2D layout positions;
+- planar zoom.
+List
+- sort order;
+- visible columns;
+- table pagination where applicable.
+Do not force representation-specific state into the shared organisational model.
+85. View-state preservation
+Where practical, preserve each representation's local state when switching away and returning.
+Example:
+1. user rotates the 3D model;
+2. switches to List;
+3. inspects several records;
+4. returns to 3D;
+5. previous 3D orientation remains available.
+The selected responsibility/filter context should remain shared throughout.
+86. Large-corpus ingestion
+Adding a new JD should follow the existing governed ingestion architecture.
+The visualisation layer should not require special manual intervention after successful data governance.
+Once new records become active:
+graph topology refreshes;
+
+search indexes refresh;
+
+relevant clusters expand;
+
+unresolved-role status may change;
+
+visual layout incorporates new nodes.
+
+Do not create a separate "add to graph" step.
+87. Corpus completeness is not required
+Nervous Breakdown must remain useful while the organisation is only partially mapped.
+At various points the corpus may contain:
+7 mapped JDs;
+
+12 mapped JDs;
+
+20 mapped JDs;
+
+30 mapped JDs.
+
+The system must not require every organisational role to be mapped before displaying meaningful trails.
+Partial documentary coverage should be explicit.
+88. Mapping-state semantics
+Consider a governed mapping-state concept for roles/functions if one does not already exist.
+Potential states:
+- fully mapped;
+- partially mapped;
+- referenced/unmapped;
+- source pending;
+- superseded.
+Do not implement unnecessarily if existing role/source architecture already communicates this adequately.
+The requirement is that users can distinguish:
+absence of a responsibility
+
+from:
+absence of the source material necessary to know the responsibility.
+
+That distinction is extremely important.
+89. Visualising completeness
+Future visualisation may encode mapping completeness.
+For example:
+fully mapped role
+→ normal representation
+referenced but unmapped role
+→ grey/translucent contextual anchor
+unresolved handoff
+→ incomplete/dashed relationship
+This could allow the user literally to see holes in the organisational map.
+Do not treat those holes as rendering errors.
+90. Visualising authority
+The current responsibility ontology contains authority classifications.
+The final graph should be capable of using authority as one spatial or visual dimension.
+Potential examples:
+- node elevation;
+- node shape;
+- halo;
+- size;
+- filtering.
+Do not permanently assign a visual encoding until the real expanded graph is evaluated.
+The requirement is that authority remains available to the renderer.
+91. Visualising responsibility level
+Likewise, governed responsibility levels should be available to the spatial/layout engine.
+This may become particularly useful for the proposed vertical organisational dimension.
+However:
+responsibility level ≠ role seniority.
+
+Do not place every Principal responsibility above every Teacher responsibility merely because of job title.
+Use the responsibility's governed classification.
+92. Visualising domain
+Domain is likely to be particularly useful for spatial clustering and colour.
+However, cross-domain relationships must remain visible.
+The graph should not become seventeen isolated domain bubbles merely because the current ontology contains seventeen domains.
+Organisational bridges are often the most interesting information in the network.
+93. Visualising role
+Role may influence local grouping without replacing responsibility nodes.
+For example, responsibilities belonging to one role might naturally occupy a local neighbourhood within a broader domain region.
+Do not require all responsibilities belonging to one role to occupy a single isolated cluster if their functions genuinely span the organisation.
+94. Visualising source
+Future graph filtering should be able to distinguish responsibility provenance by source type.
+At present:
+Job Description.
+
+Later potentially:
+Policy;
+
+Procedure;
+
+Operational approval.
+
+The same organisational subject may acquire responsibilities/requirements from several source types.
+Do not conflate provenance with domain.
+95. Documentary versus analytical structure
+The 3D visualisation must continue to respect the fundamental governance distinction:
+Documentary structure
+Explicitly supported by source material.
+Analytical structure
+Inferred or proposed relationships.
+A beautiful spatial path must not give inferred relationships greater authority merely because the visualisation makes them look convincing.
+Evidence status remains visible and inspectable.
+96. Scale and the 167 current inferred edges
+The current 167 inferred connections are only the beginning of the analytical network.
+As additional JDs are mapped, the number of potential relationships may grow substantially faster than the number of responsibilities.
+Do not assume:
+5,000 nodes = approximately 700 edges.
+
+Plan for a much denser mature graph.
+97. Connection explosion must be governed
+Do not automatically create every semantically similar responsibility pair as a permanent connection merely because larger corpora make this computationally possible.
+A graph with every possible semantic similarity edge would become analytically meaningless.
+Connections should continue to have organisational significance and governed provenance.
+Future AI/analytics may identify candidate relationships separately from the governed graph.
+98. Candidate relationships versus governed relationships
+At future scale, consider maintaining conceptual separation between:
+governed Layer 1 connections
+
+and:
+analytical candidate relationships.
+
+Candidate relationships may help governance discover:
+- potential overlaps;
+- possible handoffs;
+- possible cascades;
+- likely duplicates.
+They should not automatically render as ordinary organisational connections.
+Do not implement this now unless an equivalent concept already exists.
+99. Edge filtering by evidence
+At mature scale, the user should eventually be able to choose:
+Documentary only
+
+Documentary + approved operational
+
+Include inferred
+
+Include proposed
+
+This may radically change graph density.
+Such filtering should affect visual representation and trail traversal according to explicit user choice.
+100. Default evidence view
+Once sufficient documentary connections exist, consider whether the safest default graph should privilege:
+documentary + approved operational
+
+while inferred relationships remain available but visually secondary.
+Do not make that final UX decision now.
+The important point is that evidence status remains queryable and visually meaningful.
+101. Graph rendering should not imply process order
+Spatial adjacency in Layer 1 does not mean:
+this happens next.
+
+Likewise, being visually "above" another node does not automatically mean:
+this approves that.
+
+The legend and interaction design must avoid creating false procedural meaning.
+Actual process ordering belongs to Layer 2.
+102. Trail rendering should distinguish relationship meaning
+A highlighted trail may contain different relationship types:
+reports to;
+
+supports;
+
+monitors;
+
+collaborates;
+
+escalates;
+
+refers.
+
+Do not render all of these as semantically identical merely because they belong to one highlighted trail.
+The user should be able to inspect what each edge actually means.
+103. Trail complexity
+Some selected responsibilities may produce very small trails.
+Others may produce large branching structures.
+Do not force every trail into one visual shape.
+A trail may legitimately be:
+A → B → C
+
+or:
+        B
+       ↗
+A ─── C ─── E
+       ↘
+        D
+
+or a much larger network.
+This is one reason Layer 1 remains a network rather than a process tree.
+104. Performance priority during focus
+When a user selects a responsibility, prioritise smooth interaction with the relevant local network.
+It is acceptable for distant unrelated detail to become visually simpler while focus mode is active.
+The selected organisational context should feel immediate even if the complete institution contains thousands of nodes.
+105. List scalability
+The List view must also anticipate thousands of records.
+Use established Principal'Ed table/list patterns suitable for:
+- filtering;
+- sorting;
+- searching;
+- potentially virtualised rendering or pagination where needed.
+Do not assume all 5,000 responsibilities should become 5,000 simultaneously rendered DOM rows.
+106. 2D scalability
+The permanent 2D view should similarly be evaluated against the institutional planning envelope.
+If the existing 2D renderer is appropriate for several thousand nodes with progressive disclosure, retain it.
+If it is inherently a small-graph prototype, identify that now.
+Do not replace it without evidence.
+107. 3D technology selection
+When the time comes to implement 3D, choose technology based on:
+- existing React/Vite architecture;
+- WebGL/GPU acceleration;
+- node/edge scale;
+- camera controls;
+- event handling;
+- stable coordinates;
+- dynamic visibility;
+- selection;
+- performance;
+- maintainability;
+- renderer-neutral graph adapter compatibility.
+Do not choose a library merely because it produces an attractive demo.
+108. No dependency on remote rendering
+The core organisational graph should render from Principal'Ed's own structured data.
+Do not make Layer 1 dependent upon a third-party hosted graph service.
+Libraries may provide local/browser rendering.
+Organisational data should remain within the established TimSyS/Principal'Ed architecture.
+109. Launch quality
+The 3D view should not be considered launch-ready merely because:
+nodes can rotate in three dimensions.
+
+It must remain an analytical tool.
+Launch readiness requires:
+- stable navigation;
+- understandable selection;
+- usable search;
+- clear trails;
+- meaningful inspector;
+- performant interaction;
+- consistent state with 2D/List;
+- provenance visibility;
+- sensible progressive disclosure;
+- reliable reset/reorientation;
+- acceptable behaviour at realistic graph scale.
+110. Preserve humour, not chaos
+The name Nervous Breakdown intentionally plays on the complexity of the organisational nervous system.
+The interface may acknowledge that personality subtly.
+However, the actual information architecture and graph behaviour must remain disciplined.
+The user's nervous breakdown should come from seeing what the organisation actually looks like, not from fighting the software.
+111. Current priority remains data integrity
+This addendum does not change the immediate priority.
+Current sequence remains:
+v0.2.1
+   │
+   ▼
+Validate
+   │
+   ▼
+Review
+   │
+   ▼
+Authorised Layer 1 import
+   │
+   ▼
+Inspect real graph
+   │
+   ▼
+Expand source corpus
+   │
+   ▼
+Evaluate mature graph behaviour
+   │
+   ▼
+Finalise 3D spatial strategy
+
+Do not allow visualisation work to destabilise the governed-data work currently nearing completion.
+112. Recommended growth sequence
+After successful initial import, future corpus expansion should proceed incrementally.
+For example:
+Corpus 1
+Current 7 JDs.
+Validate graph architecture.
+Corpus 2
+Add high-priority referenced roles that currently create unresolved handoffs.
+Corpus 3
+Add remaining major section/whole-school leadership and support roles.
+Corpus 4
+Expand toward institution-wide JD coverage.
+This is not a required batch structure.
+The principle is to learn from graph growth rather than wait until every JD is available before using the system.
+113. Priority for future JD acquisition
+Nervous Breakdown may itself help identify which JDs should be added next.
+Roles with:
+- many incoming documentary references;
+- many unresolved handoffs;
+- high apparent organisational centrality;
+- major cross-functional involvement;
+may provide the greatest increase in graph completeness when mapped.
+This is future analytical guidance, not an automated decision rule.
+114. Scaling success criterion
+Expansion from 7 JDs to approximately 20–30 JDs should feel like:
+adding territory to an existing map
+
+not:
+rebuilding the map.
+
+That is the core scalability test.
+115. Visualisation success criterion
+The mature Layer 1 interface succeeds when a user can move fluidly between three ways of understanding the same organisation:
+Spatial
+3D Network
+
+"What does this organisation look like?"
+Relational
+2D Network
+
+"How are these responsibilities connected?"
+Analytical
+List
+
+"What exactly are the records?"
+No view is subordinate or disposable.
+Each has individual utility.
+116. Final conceptual model
+The Layer 1 experience should ultimately resemble:
+                    ORGANISATIONAL TRUTH
+                           │
+                           ▼
+                  RESPONSIBILITY GRAPH
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+          ▼                ▼                ▼
+      3D NETWORK       2D NETWORK          LIST
+          │                │                │
+          └────────────────┼────────────────┘
+                           │
+                    SHARED CONTEXT
+                           │
+                           ▼
+                  SELECTED TRAIL
+                           │
+                           ▼
+                       LAYER 2
+                       PROCESS
+                           │
+                           ▼
+                       LAYER 3
+                      EXECUTION
+
+The current seven JDs represent only the first mapped portion of that organisational truth.
+117. Immediate instruction to Codex
+Do not implement the 3D visualisation yet.
+Do not pause or alter the v0.2.1 validation/import work unless this review identifies a genuine architectural blocker.
+Perform an architecture review against this addendum and report:
+1. whether current Layer 1 data structures are renderer-neutral;
+2. whether 3D/2D/List can share one graph dataset;
+3. whether exploration state can be shared between representations;
+4. whether the current design reasonably supports 5,000 nodes and tens of thousands of relationships;
+5. whether the existing 2D renderer is suitable as the permanent 2D view at that scale;
+6. what class of WebGL 3D solution would fit the existing React/Vite architecture, without installing one yet;
+7. whether stable/incremental spatial positioning can be supported;
+8. whether progressive disclosure can be implemented without altering underlying graph data;
+9. whether referenced/unmapped roles and unresolved handoffs can be visualised without fake responsibility nodes;
+10. whether adding 20–30 JDs can remain an additive ingestion process;
+11. whether any current architectural choice would cause a substantial future rewrite;
+12. if so, the minimum adjustment required now.
+Do not implement speculative functionality as part of this review.
+118. Decision rule following Codex review
+If Codex reports:
+Current architecture is fundamentally compatible
+
+then:
+- record this addendum;
+- make no unnecessary changes;
+- complete v0.2.1 validation/import;
+- inspect the real seven-JD graph;
+- continue expanding the JD corpus.
+If Codex identifies a narrow architectural issue whose cost will increase substantially after more data or UI work is added:
+correct that foundation now.
+
+If Codex identifies a major redesign requirement:
+stop and report before implementing it.
+
+Do not allow Codex to independently redesign Nervous Breakdown merely to satisfy the future 3D requirement.
+119. Supersession
+This document supersedes the earlier Layer 1 visualisation addendum.
+The governing launch requirement is now:
+One scalable Layer 1 responsibility graph, designed for institution-wide expansion, with coordinated 3D Network, 2D Network, and List representations.
+
+Planning envelope:
+30+ JDs
+
+5,000+ atomic responsibilities
+
+tens of thousands of governed relationships
+
+with future expansion to additional source types.
+120. Final requirement
+Nervous Breakdown must scale without losing the principle on which it was conceived:
+The organisation is not fundamentally a tree.
+
+There will be vertical chains.
+There will be top-down accountability.
+There will be bottom-up reporting.
+But there will also be:
+- lateral support;
+- specialist intervention;
+- collaboration;
+- shared responsibility;
+- monitoring;
+- referral;
+- communication;
+- cross-sectional dependency;
+- unresolved gaps.
+The purpose of the 3D model is to let that structure exist as a structure, rather than forcing it prematurely into a linear diagram.
+The purpose of the 2D model is to make relationships easier to inspect when spatial depth is unnecessary.
+The purpose of the List is to make the underlying organisational records precise and auditable.
+Together:
+3D shows the organisation.
+
+2D shows the network.
+
+**List shows
+
+
+
+
+
+
+     
+
+
+
+
+
+
+
+continue
+
+
+
+
+
+ 
+
+
+
+
+
+
+the records.**
+Layer 2 then explains how the relevant part operates.
+Layer 3 then manages what is actually happening.
+121. End-state vision
+At maturity, the user should be able to open Nervous Breakdown and move from the broadest possible institutional perspective to the smallest documentary detail without changing systems.
+For example:
+BBS ORGANISATIONAL UNIVERSE
+          │
+          ▼
+5,000+ RESPONSIBILITIES
+          │
+          ▼
+Filter: Middle School
+          │
+          ▼
+Filter: Behaviour & Discipline
+          │
+          ▼
+Select:
+Teacher escalates significant
+behavioural concern
+          │
+          ▼
+RESPONSIBILITY TRAIL ILLUMINATES
+          │
+          ├──── Teacher
+          │
+          ├──── Subject Leader
+          │
+          ├──── Behavioral Interventionist
+          │
+          ├──── Counselor
+          │
+          ├──── Student Affairs
+          │
+          ├──── Principal
+          │
+          └──── referenced/unmapped roles
+          │
+          ▼
+Select individual node
+          │
+          ▼
+Exact responsibility
+Role
+Authority
+Level
+Source statement
+JD
+Evidence status
+Connections
+          │
+          ▼
+OPEN AS PROCESS
+          │
+          ▼
+LAYER 2
+
+The system therefore supports movement from:
+institution → section → function → trail → responsibility → documentary evidence
+
+without losing context.
+122. Zoom is conceptual as well as spatial
+The eventual 3D implementation should treat zoom as more than camera distance.
+As the user moves closer, the information resolution should increase.
+Conceptually:
+Very distant
+Organisational shape and major clusters.
+Distant
+Domains, sections, and significant structural regions.
+Intermediate
+Roles, responsibility clusters, major connections.
+Close
+Individual responsibilities and local relationships.
+Focused
+Responsibility wording, edge semantics, authority, provenance.
+Inspected
+Exact source statement and documentary detail.
+The underlying data remains unchanged.
+Only presentation resolution changes.
+123. The 3D model should reward exploration
+One purpose of the spatial model is discovery.
+The user may enter looking for:
+behaviour escalation
+
+but notice that the highlighted network passes unexpectedly close to:
+wellbeing;
+
+family communication;
+
+safeguarding;
+
+student programmes.
+
+That should encourage legitimate organisational questions.
+The model should make relationships discoverable without presenting spatial proximity itself as documentary evidence.
+124. Spatial proximity is not a connection
+This distinction must remain explicit.
+Two nodes being physically close in the 3D layout does not mean there is an organisational relationship between them.
+Only governed edges establish graph relationships.
+Spatial proximity may result from:
+- shared domain;
+- same role;
+- similar classification;
+- layout optimisation;
+- graph topology.
+Do not allow the visualisation to imply unsupported documentary relationships.
+125. The visual model must remain inspectable
+At any point, the user should be able to answer:
+Why is this node here?
+
+Why is this line connecting these responsibilities?
+
+Why is this line dashed?
+
+Why is this node above another?
+
+Why is this node grey?
+
+The inspector/legend should expose the relevant underlying classification or governance information.
+Avoid unexplained visual magic.
+126. Role-centred exploration
+Although responsibilities remain fundamental nodes, users should be able to begin exploration from a role.
+Example:
+Role: School Counselor
+
+The graph may:
+1. locate the Counselor's responsibilities;
+2. emphasise them;
+3. fade unrelated responsibilities;
+4. retain connected responsibilities belonging to other roles;
+5. expose the Counselor's organisational reach.
+This becomes increasingly useful as more JDs are added.
+127. Domain-centred exploration
+Likewise:
+Domain: Safeguarding & Safety
+
+should reveal safeguarding responsibilities across all mapped roles rather than presenting one role's interpretation of safeguarding.
+This is one of the major advantages of institution-wide responsibility modelling.
+128. Authority-centred exploration
+The user should eventually be able to ask:
+Show me everything classified as Decide / Approve.
+
+or:
+Show me monitoring responsibilities.
+
+or:
+Show me implementation responsibilities.
+
+This may expose where organisational authority actually sits.
+Again, the graph presents the data.
+It does not evaluate whether the distribution is good or bad.
+129. Level-centred exploration
+The governed responsibility-level ontology should similarly support questions such as:
+Show section leadership/accountability responsibilities.
+
+or:
+Show implementation-level responsibilities.
+
+This may produce vertical slices through multiple domains and roles.
+130. Source-centred exploration
+The user should be able to begin from:
+Teacher JD
+
+and see all responsibilities derived from that source.
+Likewise, as more JDs are added:
+show all responsibilities originating from the Student Affairs JDs.
+
+Future source types may extend this further.
+131. Evidence-centred exploration
+Evidence status should be directly filterable.
+For example:
+Documentary only
+
+could strip away analytical hypotheses and reveal only explicitly supported organisational structure.
+Then:
+Include inferred
+
+could reveal the analytical connective tissue.
+This difference may be visually striking and organisationally useful.
+132. Unresolved-centred exploration
+A particularly important future view is:
+Show unresolved
+
+This should expose:
+- unresolved handoffs;
+- referenced/unmapped roles;
+- incomplete trails;
+- ambiguous organisational endpoints;
+- other governed gaps.
+At institutional scale, this may effectively become a visual map of where BBS's formal organisational documentation is incomplete.
+133. Overlap-centred exploration
+Potential overlaps identified analytically may eventually be available as a separate overlay.
+For example:
+Show responsibilities with highly similar wording across roles.
+
+This should remain analytically separate from governed responsibility connections.
+Similarity does not itself establish organisational interaction.
+134. Organisational nervous system metaphor
+The underlying conceptual metaphor should remain useful during design:
+Nodes
+Responsibilities.
+Nerves / pathways
+Governed relationships.
+Regions
+Domains/functions/organisational areas.
+Junctions
+Highly connected responsibilities.
+Signals
+Future process/execution activity.
+Missing pathways
+Unresolved organisational handoffs.
+Nervous system in action
+Future Layer 3 execution.
+This metaphor is useful because it accommodates both hierarchy and network behaviour.
+Do not implement literal anatomical graphics.
+135. Layer 2 as extracted pathway
+The nervous-system metaphor also clarifies Layer 2.
+Layer 1 shows the entire nervous system.
+The user selects:
+one signal/pathway of interest.
+
+Layer 2 extracts that pathway and presents it in the clearest logical sequence possible.
+This may include:
+- sequential actions;
+- parallel actions;
+- decisions;
+- handoffs;
+- professional judgement;
+- escalation;
+- evidence;
+- endpoints.
+136. Layer 3 as active signal
+Layer 3 then represents:
+a real event moving through that pathway.
+
+For example:
+FORMAL STRUCTURE
+Layer 1
+
+        ↓
+
+PROCESS
+Layer 2
+
+        ↓
+
+Student X's actual case
+Layer 3
+
+This remains future scope but should continue to inform architectural separation.
+137. Future live overlay
+Much later, Layer 3 may potentially allow the 3D graph to display activity.
+For example:
+14 active processes currently involve this responsibility.
+
+or:
+this organisational pathway currently contains five live cases.
+
+This could make the organisational nervous-system metaphor literal in a useful way.
+However, this is not part of current Layer 1 implementation.
+Do not design distracting animated "signals" now.
+138. Institutional expansion should improve analytical resolution
+Adding JDs should not merely increase node count.
+It should improve:
+- responsibility coverage;
+- receiving endpoints;
+- role definition;
+- authority visibility;
+- cross-functional relationships;
+- organisational completeness.
+Therefore future corpus-growth reporting should consider both:
+size
+
+and:
+resolution/completeness.
+
+139. New JDs should trigger governance review opportunities
+When a new JD is added, the system may eventually identify:
+existing unresolved handoffs now pointing toward the newly mapped role;
+
+existing inferred connections potentially supported by new documentary evidence;
+
+ontology terms now used more broadly;
+
+apparent conflicts between old and new source material.
+
+Do not automatically resolve these.
+Surface them for governance review.
+140. Existing inferred edges may mature
+An inferred connection may later acquire documentary support.
+Conceptually:
+INFERRED
+   │
+new JD/source added
+   │
+documentary evidence found
+   │
+governance review
+   │
+   ▼
+DOCUMENTARY / EXPLICIT
+
+Do not simply overwrite history.
+The governance model should preserve how the evidentiary status changed.
+141. Existing connections may also be disproved
+Likewise, new source material may reveal that an inferred relationship was incorrect.
+That connection should be capable of becoming:
+superseded/rejected
+
+without deleting the historical analytical record where appropriate.
+This is another reason AI or similarity analysis must never automatically define organisational truth.
+142. No requirement for perfect completeness before launch
+Nervous Breakdown does not need every BBS JD before it becomes useful.
+The initial seven-JD graph can launch as a clearly scoped:
+current mapped corpus
+
+provided the UI makes mapping completeness clear.
+Additional JDs can progressively expand the organisation.
+143. Launch corpus versus architecture
+Distinguish:
+Launch corpus
+Whatever governed source material has actually been imported and reviewed when the module launches.
+from:
+Architectural capacity
+The system must be capable of much larger institutional coverage.
+Do not delay architecture for scale.
+Do not delay usefulness waiting for complete institutional documentation.
+144. Current seven-JD graph is a proving ground
+The current corpus should be used to test:
+- graph integrity;
+- trail behaviour;
+- ontology;
+- evidence semantics;
+- unresolved handoffs;
+- filters;
+- shared state;
+- 2D usability;
+- List usability.
+It should not be used to permanently determine:
+- institutional spatial geography;
+- final cluster layout;
+- maximum graph size;
+- final ontology boundaries.
+145. Additive source-analysis workflow
+The long-term ingestion workflow should remain broadly:
+NEW AUTHORITATIVE SOURCE
+          │
+          ▼
+REGISTER SOURCE
+          │
+          ▼
+SOURCE STATEMENTS
+          │
+          ▼
+ATOMIC RESPONSIBILITIES
+          │
+          ▼
+NORMALISE
+          │
+          ▼
+CLASSIFY AGAINST ONTOLOGY
+          │
+          ▼
+REVIEW NEW/CHANGED ONTOLOGY NEEDS
+          │
+          ▼
+CROSS-ANALYSE AGAINST EXISTING GRAPH
+          │
+          ▼
+PROPOSE CONNECTIONS / RESOLUTIONS
+          │
+          ▼
+HUMAN GOVERNANCE
+          │
+          ▼
+GRAPH EXPANDS
+
+This is essentially the process used for the first seven JDs, made repeatable.
+146. Do not rerun the whole organisation unnecessarily
+Adding JD #21 should not require re-extracting and reimporting JDs #1–20 merely to add the new role.
+Cross-analysis may identify new relationships involving existing responsibilities, but the existing documentary responsibility records remain valid unless their own source/version changes.
+147. Reanalysis is different from re-ingestion
+The system should conceptually distinguish:
+new source ingestion
+
+from:
+analytical re-evaluation of the graph.
+
+A new JD may cause us to reconsider relationships among existing responsibilities without changing those responsibilities themselves.
+This distinction will become increasingly important as the corpus grows.
+148. Future batch analysis
+At larger scale, external deterministic/AI-assisted analytical tooling may propose:
+- candidate relationships;
+- ontology reuse;
+- overlaps;
+- unresolved-handoff resolutions.
+Such tooling should produce reviewable candidate data.
+It must not bypass governance.
+149. Data portability remains important
+As the corpus becomes institution-wide, Nervous Breakdown's structured organisational data becomes increasingly valuable.
+Maintain practical export capability for:
+- sources;
+- statements;
+- responsibilities;
+- ontology;
+- connections;
+- versions;
+- governance status.
+The visualisation itself is replaceable.
+The structured organisational model is the durable asset.
+150. Final launch architecture statement
+The target is not:
+a 3D diagram of seven job descriptions.
+
+The target is:
+a scalable, governed, institution-wide organisational responsibility graph capable of being explored spatially, relationally, and analytically.
+
+The current seven JDs are the first mapped region.
+Twenty or thirty JDs should enlarge the same organisational universe.
+Future policies and procedures should enrich the same organisational universe.
+Layer 2 should extract understandable processes from that universe.
+Layer 3 should eventually allow real work to move through those processes.
+END OF LAYER 1 VISUALISATION AND SCALE ARCHITECTURE ADDENDUM
+Immediate Codex response requested
+Do not implement the 3D view yet.
+Do not begin Layer 2 or Layer 3.
+Do not interrupt the current v0.2.1 validation/import sequence unless the architecture review reveals a material issue.
+Please review the current Principal'Ed/Nervous Breakdown implementation against this complete addendum and respond with:
+1. Current compatibility — whether the existing architecture can support coordinated 3D/2D/List views over one Layer 1 graph.
+2. Scale assessment — whether it can reasonably grow to at least 30 JDs, 5,000 responsibility nodes, and tens of thousands of relationships.
+3. Renderer assessment — whether the current 2D implementation is sufficiently decoupled from graph data/state.
+4. Shared-state assessment — whether selection, filtering, trails, and focus can persist between 3D/2D/List.
+5. Data-loading assessment — whether graph topology and full responsibility detail are appropriately separable at larger scale.
+6. Spatial-state assessment — whether stable/incremental 2D and future 3D positions can be treated as derived presentation data.
+7. Referenced-role assessment — whether unmapped roles and unresolved handoffs can be represented without creating fake responsibility nodes.
+8. Growth assessment — whether adding new JDs can remain additive rather than requiring corpus rebuild.
+9. 3D technical direction — identify an appropriate class of WebGL-based solution compatible with the existing React/Vite Principal'Ed stack, but do not install or implement it.
+10. Minimum changes now — identify only changes that should be made before further data population because postponing them would create significant rework.
+11. No-change areas — explicitly identify parts of the existing implementation that should remain untouched.
+12. Recommendation — either:
+    - architecture compatible; continue current sequence, or
+    - small foundational adjustment recommended, with exact scope, or
+    - material architectural conflict, in which case stop and explain before implementing anything.
+Do not treat this review as authorisation to redesign Nervous Breakdown.
+The purpose is to ensure that what we build today does not prevent the institution-wide, three-view system described above tomorrow.
