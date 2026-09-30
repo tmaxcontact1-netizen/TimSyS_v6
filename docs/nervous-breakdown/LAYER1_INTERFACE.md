@@ -1,3 +1,5 @@
+> The semantic spatialisation iteration supersedes the original layout and control descriptions below. See [SEMANTIC_SPATIALISATION.md](SEMANTIC_SPATIALISATION.md) for current domain territories, governed level bands, explicit focus, independent 2D coordinates and progressive family rendering. The graph/query/governance contracts remain unchanged.
+
 # Layer 1 analytical interface
 
 Nervous Breakdown is integrated in Principal’Ed under Organisation. Enter **Governance / Draft Review** to inspect the frozen seven-JD Pass 7 model. Normal View retains production visibility; an empty normal graph is legitimate while the corpus remains draft. Software completion does not constitute organisational approval.
@@ -70,4 +72,4 @@ Automated coverage includes pure adapter/traversal/layout tests, existing govern
 
 The real acceptance scenario includes rotation, zoom, responsibility search, R-0204 depth-three cross-role context, source-file download, shared 3D/2D/List selection, a six-member documentary group, inferred-edge rationale, actual unresolved handoff C-0001, role/domain focus, isolate inspection and reset. The completion report contains screenshots, measured timings and limitations. Browser harness authentication/registry responses are test fixtures; organisational handlers and frozen project data are actual. No deployment or production activation is implied by these tests.
 
-No Layer 2, Layer 3, AI assistance, corpus approval, additional source ingestion, handoff resolution, analytical reclassification, new inferred relationships, deployment or code push is authorised by this build.
+The interface introduces no Layer 2, Layer 3, AI assistance, corpus approval, additional source ingestion, handoff resolution, analytical reclassification or new inferred relationships. Release authorisation is governed by the current user instruction.

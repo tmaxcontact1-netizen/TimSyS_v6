@@ -1,4 +1,4 @@
-export const DEFAULTS = {role:'',domain:'',subdomain:'',action:'',authority:'',level:'',source:'',evidence:'',review:'',relationship:'',isolates:false,gapsOnly:false,referenced:'',companions:true,inferred:true,showGaps:false,context:true,group:'',direction:'both',depth:'2'};
+export const DEFAULTS = {role:'',domain:'',subdomain:'',action:'',authority:'',level:'',source:'',evidence:'',review:'',relationship:'',isolates:false,gapsOnly:false,referenced:'',companions:true,inferred:true,showGaps:false,context:true,group:'',direction:'both',depth:'1'};
 export const title = r => r?.data?.normalized_statement || r?.data?.name || r?.id || 'Unknown';
 export const groupKey = n => `${n.data.statement_id}:${n.data.statement_revision}`;
 export function adapt(raw) {
@@ -44,17 +44,6 @@ export function traverse(nodes,edges,root,direction,depth) {
   for(let hop=0;hop<limit&&frontier.length;hop++){const next=[];for(const id of frontier)for(const [target,e] of adjacency.get(id)||[]){traversed.add(e);if(!reached.has(target))next.push(target);}frontier=close(next);}
   return {root,nodes:[...reached],edges:[...traversed],direction,depth};
 }
-const hash=s=>{let h=2166136261;for(const c of String(s))h=Math.imul(h^c.charCodeAt(0),16777619);return h>>>0;};
-export function layout(model) {
-  const start=performance.now(), domains=[...new Set(model.nodes.map(n=>(n.data.domain_ids||[]).find(id=>!model.references.get(id)?.data.parent_id)||'unknown'))].sort();
-  const centers=new Map(domains.map((id,i)=>{const a=i/domains.length*Math.PI*2;return [id,{x:Math.cos(a)*430,y:Math.sin(a)*430,z:Math.sin(a*3)*120}];}));
-  const positions=new Map(), origins=new Map(), groupIndex=new Map();
-  for(const [k,members] of model.groups){members.slice().sort().forEach((id,i)=>groupIndex.set(id,{i,count:members.length,key:k}));}
-  for(const n of model.nodes){const d=n.data,domain=(d.domain_ids||[]).find(id=>centers.has(id))||'unknown',c=centers.get(domain)||{x:0,y:0,z:0},g=groupIndex.get(n.id),h=hash(g.key),a=(h%6283)/1000,r=35+(h%140),angle=g.i*2.399963;
-    const p={x:c.x+Math.cos(a)*r+Math.cos(angle)*9*Math.sqrt(g.i+1),y:c.y+Math.sin(a)*r+Math.sin(angle)*9*Math.sqrt(g.i+1),z:c.z+((hash([d.level_id,d.authority_type_ids,d.role_id,d.domain_ids?.[1]].join('|'))%160)-80)+Math.sin(angle)*8};positions.set(n.id,p);origins.set(n.id,{...p});}
-  // Bounded deterministic topology relaxation. No simulation or drift in renderers.
-  for(let step=0;step<10;step++){const delta=new Map(model.nodes.map(n=>[n.id,{x:0,y:0,z:0,count:0}]));for(const e of model.edges){if(e.semantics.grouping==='source_statement')continue;const a=positions.get(e.data.from_id),b=positions.get(e.data.to_id);for(const [id,p,q] of [[e.data.from_id,a,b],[e.data.to_id,b,a]]){const d=delta.get(id);for(const axis of ['x','y','z'])d[axis]+=q[axis]-p[axis];d.count++;}}for(const [id,p] of positions){const d=delta.get(id),o=origins.get(id);for(const axis of ['x','y','z'])p[axis]+=(o[axis]-p[axis])*.2+(d.count?d[axis]/d.count*.045:0);}}
-  return {positions,centers,version:'domain-statement-topology-v1',duration:performance.now()-start};
-}
+export {semanticLayout as layout} from './semantic-layout.mjs';
 export function searchNodes(model,q){const text=q.trim().toLowerCase();return model.nodes.filter(n=>!text||model.search.get(n.id).includes(text));}
 export function encoding(edge){return {symmetric:edge.semantics.directionality==='symmetric',companion:edge.semantics.grouping==='source_statement',draft:edge.data.review_status!=='reviewed'||edge.data.status!=='active'};}
