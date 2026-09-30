@@ -12,7 +12,9 @@ function project(records, query, app) {
   const edges = graph.edges.filter(e => ids.has(e.data.from_id) && ids.has(e.data.to_id));
   const refs = records.filter(r => ['role','source','term'].includes(r.kind) && r.data.is_fixture === (query.fixtures === 'true'));
   const gaps = [], diagnostics = [];
-  if (query.mode === 'draft_review' && app === overlay.app_id && query.fixtures !== 'true') {
+  // An unpopulated installation has no overlay bindings to review yet.
+  const hasCorpus = records.some(r => r.kind === 'responsibility' && !r.data.is_fixture);
+  if (hasCorpus && query.mode === 'draft_review' && app === overlay.app_id && query.fixtures !== 'true') {
     for (const raw of overlay.handoffs) {
       const node = byId.get(raw['Source Responsibility ID']);
       if (!node || node.data.statement_id !== raw['Evidence Source Statement ID']) {
