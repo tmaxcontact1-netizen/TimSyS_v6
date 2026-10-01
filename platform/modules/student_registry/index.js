@@ -294,6 +294,14 @@ async function importStudents(req, ctx) {
     var prepared = csvParser.prepareImportedRow(mapped[i], { rowNumber: i + 2, entity: 'student', identifier: 'student_id', required: ['student_id','first_name','last_name','date_of_birth','sex'] });
     var m = prepared.row;
     var rowWarnings = prepared.warnings;
+    // Missing dates remain reviewable under the existing incomplete-row contract.
+    // Non-empty dates must be unambiguous real calendar dates; never normalise them.
+    var dob = m.date_of_birth;
+    if (dob && (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || !Number.isFinite(Date.parse(dob + 'T00:00:00Z')) || new Date(dob + 'T00:00:00Z').toISOString().slice(0, 10) !== dob)) {
+      errors.push({ row: i + 2, reason: 'Invalid date_of_birth: use a real calendar date in YYYY-MM-DD format; row not imported' });
+      skipped++;
+      continue;
+    }
     var sexVal = m.sex === 'M' ? 'Male' : m.sex === 'F' ? 'Female' : m.sex;
     if (sexVal !== 'Male' && sexVal !== 'Female') { rowWarnings.push('Invalid or missing sex retained in import metadata; review required'); sexVal = 'Male'; }
     if (m.enrollment_status && !['active','withdrawn','graduated','suspended','expelled'].includes(m.enrollment_status)) rowWarnings.push('Invalid enrollment_status retained in import metadata; review required');
