@@ -7,6 +7,8 @@
   {"path":"/late-entries","method":"POST","handler":"late_entries_create","auth_required":true,"permissions":["admin:late-entries:record"]},
   {"path":"/late-entries/dashboard","method":"GET","handler":"late_entries_dashboard","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/analytics","method":"GET","handler":"late_entries_analytics","auth_required":true,"permissions":["admin:late-entries:read"]},
+  {"path":"/late-entries/threshold-cases","method":"GET","handler":"late_entries_listThresholdCases","auth_required":true,"permissions":["admin:late-entries:read"]},
+  {"path":"/late-entries/insights","method":"GET","handler":"late_entries_insights","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/:id","method":"GET","handler":"late_entries_read","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/:id/history","method":"GET","handler":"late_entries_history","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/:id/corrections","method":"POST","handler":"late_entries_correct","auth_required":true,"permissions":["admin:late-entries:reconcile"]},
@@ -23,7 +25,6 @@
   {"path":"/late-entries/config/thresholds","method":"GET","handler":"late_entries_listThresholds","auth_required":true,"permissions":["admin:late-entries:configure"]},
   {"path":"/late-entries/config/thresholds","method":"POST","handler":"late_entries_saveThreshold","auth_required":true,"permissions":["admin:late-entries:configure"]},
   {"path":"/late-entries/students/:studentId/threshold-evaluations","method":"POST","handler":"late_entries_evaluateThresholds","auth_required":true,"permissions":["admin:late-entries:reconcile"]},
-  {"path":"/late-entries/threshold-cases","method":"GET","handler":"late_entries_listThresholdCases","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/threshold-cases/:id/decisions","method":"POST","handler":"late_entries_decideThreshold","auth_required":true,"permissions":["admin:late-entries:reconcile"]},
   {"path":"/late-entries/context/preview","method":"POST","handler":"late_entries_previewContext","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/config/policies","method":"GET","handler":"late_entries_listPolicies","auth_required":true,"permissions":["admin:late-entries:configure"]},
@@ -32,8 +33,7 @@
   {"path":"/late-entries/config/reasons","method":"GET","handler":"late_entries_listReasons","auth_required":true,"permissions":["admin:late-entries:read"]},
   {"path":"/late-entries/config/reasons","method":"POST","handler":"late_entries_saveReason","auth_required":true,"permissions":["admin:late-entries:configure"]},
   {"path":"/late-entries/config/action-policy","method":"GET","handler":"late_entries_getActionPolicy","auth_required":true,"permissions":["admin:late-entries:configure"]},
-  {"path":"/late-entries/config/action-policy","method":"PUT","handler":"late_entries_saveActionPolicy","auth_required":true,"permissions":["admin:late-entries:configure"]},
-  {"path":"/late-entries/insights","method":"GET","handler":"late_entries_insights","auth_required":true,"permissions":["admin:late-entries:read"]}
+  {"path":"/late-entries/config/action-policy","method":"PUT","handler":"late_entries_saveActionPolicy","auth_required":true,"permissions":["admin:late-entries:configure"]}
  ],
  "schema":{"tables":["late_entry_policy_versions","late_entry_reasons","late_entries","late_entry_audit","late_entry_schedule_contexts","late_entry_exceptions","late_entry_reconciliation_runs","late_entry_attendance_links","late_entry_equivalence_calculations","late_entry_equivalence_audit","late_entry_threshold_definitions","late_entry_threshold_cases","late_entry_threshold_actions","late_entry_corrections","late_entry_action_policy"],"migrations":["migrations/001_late_entries_foundation.sql","migrations/002_late_entry_schedule_context.sql","migrations/003_late_entry_reconciliation.sql","migrations/004_late_entry_equivalence.sql","migrations/005_late_entry_threshold_workflows.sql","migrations/006_late_entry_hardening.sql"]},
  "events":{"publishes":["late_entry.policy_created","late_entry.policy_activated","late_entry.reason_configured","late_entry.recorded","late_entry.exception_raised","late_entry.context_resolved","late_entry.reconciliation_proposed","late_entry.reconciliation_blocked","late_entry.reconciled","late_entry.reconciliation_rejected","late_entry.equivalence_calculated","late_entry.equivalence_confirmed","late_entry.thresholds_evaluated","late_entry.threshold_decided","late_entry.corrected","late_entry.exception_resolved"],"subscribes":[]},

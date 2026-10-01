@@ -482,7 +482,10 @@ function createServer() {
       if (!route) {
         if (method === 'GET' && process.env.TIMSYS_LAUNCHER_DIST) {
           var staticRoot = path.resolve(process.env.TIMSYS_LAUNCHER_DIST);
-          var requestedAsset = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+          // Only declared launcher page shapes receive the SPA shell. Missing API
+          // endpoints and assets must retain their real 404 responses.
+          var launcherPage = /^\/(?:login(?:\/[A-Za-z0-9_-]+)?|modules|app\/[A-Za-z0-9_-]+(?:\/modules)?)\/?$/.test(pathname);
+          var requestedAsset = pathname === '/' || launcherPage ? 'index.html' : pathname.replace(/^\/+/, '');
           var staticFile = path.resolve(staticRoot, requestedAsset);
           if (staticFile.startsWith(staticRoot + path.sep) && fs.existsSync(staticFile) && fs.statSync(staticFile).isFile()) {
             var extension = path.extname(staticFile).toLowerCase();

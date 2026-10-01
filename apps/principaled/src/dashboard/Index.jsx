@@ -240,9 +240,9 @@ const WORKSPACES = {
   organisation: { label: "Organisation", icon: "N", description: "Formal responsibilities, sources and organisational trails", modules: ["nervous_breakdown"] },
   people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
   learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
-  planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "events", "event_planner"] },
+  planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
   operations: { label: "Operations", icon: "O", description: "Rooms, resources, safety and services", modules: ["rooms", "inventory", "venue_bookings", "resource_reservations", "transportation", "catering", "risk_assessments", "safeguarding_requirements", "contingency"] },
-  administration: { label: "Administration", icon: "A", description: "Tasks, approvals, records, communications and finance", modules: ["tasks", "approvals", "documents", "communications", "audiences", "invitations", "ownership", "finance"] },
+  administration: { label: "Administration", icon: "A", description: "Tasks, approvals, records, communications and finance", modules: ["tasks", "approvals", "documents", "communications", "audiences", "invitations", "ownership", "financial_planning"] },
   system: { label: "System", icon: "S", description: "Builder, health and technical services", modules: ["backend_builder", "backend_system_health", "backend_app_registry", "backend_auto_rules", "backend_decision_log", "backend_event_store", "backend_insight_management", "backend_intelligence", "backend_knowledge_store", "backend_notification", "backend_relationship_registry", "backend_snapshot_service", "backend_user_management"] },
 };
 
