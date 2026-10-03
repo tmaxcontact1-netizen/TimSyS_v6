@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateAsianRange, entriesAllowed, newYorkCivilDate, sessionBoundaries } from "../../src/domain/exchange/session-engine.js";
+import { calculateAsianRange, calculateLondonMarker, entriesAllowed, newYorkCivilDate, sessionBoundaries } from "../../src/domain/exchange/session-engine.js";
 import type { ExchangeCandle } from "../../src/domain/exchange/types.js";
 function candle(openTime:Date,high:number,low:number):ExchangeCandle{return{venue:"binance",venueSymbol:"BTCUSDT",interval:"1h",openTime,closeTime:new Date(openTime.valueOf()+3599999),eventTime:new Date(),receivedAt:new Date(),open:"1",high:String(high),low:String(low),close:"1",baseVolume:"1",quoteVolume:"1",trades:1,closed:true,fingerprint:openTime.toISOString()};}
 describe("New York session engine gate",()=>{
@@ -17,4 +17,6 @@ describe("New York session engine gate",()=>{
  it("reports empty pre-session evidence as building",()=>{const b=sessionBoundaries("2026-07-15");expect(calculateAsianRange([],b,new Date(b.asianEnd.valueOf()-1)).status).toBe("building");});
  it("reports empty post-session evidence as incomplete",()=>{const b=sessionBoundaries("2026-07-15");expect(calculateAsianRange([],b,b.asianEnd).status).toBe("incomplete");});
  it("ignores open evidence",()=>{const b=sessionBoundaries("2026-07-15");expect(calculateAsianRange([{...candle(b.asianStart,2,1),closed:false}],b,b.asianEnd).contributingCandles).toBe(0);});
+ it("locks London from the native 08:00 one-minute open",()=>{const b=sessionBoundaries("2026-07-15");const value={...candle(b.londonMarker,2,1),interval:"1m" as const,open:"1.25",closeTime:new Date(b.londonMarker.valueOf()+59_999)};expect(calculateLondonMarker([value],b,new Date(b.londonMarker.valueOf()+60_000))).toMatchObject({status:"locked",price:"1.25"});});
+ it("keeps a missing London marker visibly incomplete",()=>{const b=sessionBoundaries("2026-07-15");expect(calculateLondonMarker([],b,b.londonMarker).status).toBe("incomplete");});
 });

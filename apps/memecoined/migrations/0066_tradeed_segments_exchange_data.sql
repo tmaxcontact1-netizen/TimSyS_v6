@@ -53,4 +53,23 @@ CREATE TABLE exchange_session_levels (
   UNIQUE(venue,venue_symbol,civil_date,level_type,version)
 );
 
+CREATE TABLE exchange_stream_events (
+  id uuid PRIMARY KEY, venue text NOT NULL, venue_symbol text, event_type text NOT NULL,
+  occurred_at timestamptz NOT NULL, continuity_segment uuid NOT NULL,
+  latency_ms integer, http_status integer, retry_after_ms integer,
+  detail_json jsonb NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX exchange_stream_events_timeline_idx ON exchange_stream_events(venue,occurred_at DESC);
+
+CREATE VIEW market_observations_read_model AS
+SELECT 'solana'::text AS venue, token_mint AS instrument, observed_at,
+       market_price_usd::numeric AS market_price, five_minute_volume_usd::numeric AS volume,
+       'swap_quote'::text AS observation_type, market_evidence_json AS evidence
+FROM paper_fast_market_observations
+UNION ALL
+SELECT venue,venue_symbol,received_at,close,quote_volume,
+       ('candle_'||interval)::text,
+       jsonb_build_object('open_time',open_time,'close_time',close_time,'open',open,'high',high,'low',low,'closed',is_closed,'source',source,'continuity_segment',continuity_segment)
+FROM exchange_candles;
+
 COMMIT;

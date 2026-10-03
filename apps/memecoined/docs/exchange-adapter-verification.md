@@ -22,7 +22,9 @@ This is an operational and published-terms check, not legal advice or a guarante
 - Strict schema validation, stable fingerprints, open/final candle distinction.
 - Bounded retry/backoff primitives and `Retry-After` parsing.
 - Bounded priority queue that sheds low-priority repair work first.
-- PostgreSQL persistence schema for candles, top-of-book, ticker, and versioned session levels.
+- PostgreSQL persistence schema for candles, top-of-book, ticker, versioned session levels, and stream events, plus a provider-neutral read model that does not alter existing MemeCoin'Ed queries.
+- Metadata-driven instrument catalogue and configuration; venue symbols and URLs are not embedded in adapter logic.
+- Exact REST bootstrap and bounded priority gap repair, event deduplication, reconnect jitter, and controlled pre-24-hour stream rotation.
 - `America/New_York` session boundary engine with per-date UTC conversion and DST transition handling.
 - Top-of-book paper quoting using ask for buys, bid for sells, evidenced quantity, fee, spread, and staleness rejection.
 - Trade'Ed segment controls, both default off. MemeCoin'Ed off also disables its paper profiles.
@@ -32,18 +34,22 @@ This is an operational and published-terms check, not legal advice or a guarante
 
 - TypeScript type-check: passed.
 - Build: passed.
-- Full MemeCoin'Ed/Trade'Ed regression suite: **144 files, 854 tests passed**.
-- Focused adapter/session/paper-book coverage: **100% statements, branches, functions, and lines** (149/149 statements, 99/99 branches, 40/40 functions, 100/100 lines).
+- Full MemeCoin'Ed/Trade'Ed regression suite: **144 files, 856 tests passed**.
+- Focused adapter/session/paper-book coverage: **100% statements, 99.05% branches, 100% functions, and 100% lines** (154/154 statements, 105/106 branches, 42/42 functions, 102/102 lines).
 - Focused integration checks for segment controls and safe no-epoch behavior: passed.
 
 ## Gate status
 
-The offline parser, session, retry, bounded-queue, paper-book, persistence-contract, UI-control, and regression gates pass. The seven-day empirical acceptance gate is necessarily **pending** because it requires seven elapsed days of staging telemetry:
+The offline parser, session, retry, bounded-queue, paper-book, persistence-contract, UI-control, and regression gates pass. Section 11 is represented by named tests covering all intervals and both instruments, provisional/final candles, frame deduplication, exact gap repair, connection rotation, 429/418 handling, queue saturation, New York boundaries and DST, Asian and London levels, incomplete-session blocking, deterministic calculation, continuity isolation, executable-side paper fills, absence of a live execution mode, and compatibility of the provider-neutral read model.
+
+The seven-day empirical acceptance gate is **in progress** and cannot truthfully be marked passed until seven elapsed days of production-public telemetry have completed:
 
 - transport latency p95 <= 500 ms;
 - closed-candle availability p95 <= 2,500 ms;
 - availability >= 99.9%;
 - reconnection/gap-repair observations over the window.
+
+The soak runner writes immutable event records and minute snapshots under `diagnostics/exchange-adapter-soak/`. It consumes only production public market data and exposes no order endpoint.
 
 No claim is made that the seven-day gate has passed. Consequently `Playbook-translation.md` has not been produced yet, and no profile implementation has begun.
 

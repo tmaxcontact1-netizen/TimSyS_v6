@@ -70,6 +70,13 @@ export interface AsianRange {
   readonly contributingCandles: number;
 }
 
+export interface LondonMarker { readonly status: SessionLevelStatus; readonly price: string | null; readonly candleOpenTime: Date | null; }
+export function calculateLondonMarker(candles: readonly ExchangeCandle[], boundaries: SessionBoundaries, now: Date): LondonMarker {
+  const candle = candles.find((value) => value.interval === "1m" && value.closed && value.openTime.valueOf() === boundaries.londonMarker.valueOf());
+  if (candle) return Object.freeze({ status: "locked", price: candle.open, candleOpenTime: candle.openTime });
+  return Object.freeze({ status: now < boundaries.londonMarker ? "building" : "incomplete", price: null, candleOpenTime: null });
+}
+
 export function calculateAsianRange(candles: readonly ExchangeCandle[], boundaries: SessionBoundaries, now: Date): AsianRange {
   const selected = candles.filter((candle) => candle.interval === "1h" && candle.closed && candle.openTime >= boundaries.asianStart && candle.openTime < boundaries.asianEnd);
   const unique = new Map(selected.map((candle) => [candle.openTime.toISOString(), candle]));

@@ -8,11 +8,6 @@ import {
   type ExchangeTopOfBook,
 } from "../../../domain/exchange/types.js";
 
-export const binanceInstruments = Object.freeze([
-  Object.freeze({ canonicalAsset: "BTC" as const, venue: "binance" as const, venueSymbol: "BTCUSDT", baseAsset: "BTC", quoteAsset: "USDT" }),
-  Object.freeze({ canonicalAsset: "ETH" as const, venue: "binance" as const, venueSymbol: "ETHUSDT", baseAsset: "ETH", quoteAsset: "USDT" }),
-]);
-
 type Json = Record<string, unknown>;
 const intervalSet = new Set<string>(exchangeIntervals);
 const text = (value: unknown, name: string) => {
@@ -29,9 +24,9 @@ const record = (value: unknown, name: string): Json => {
 };
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 
-export function binanceCombinedStreams(): readonly string[] {
+export function binanceCombinedStreams(venueSymbols: readonly string[]): readonly string[] {
   return Object.freeze(
-    binanceInstruments.flatMap(({ venueSymbol }) => {
+    venueSymbols.flatMap((venueSymbol) => {
       const symbol = venueSymbol.toLowerCase();
       return [
         ...exchangeIntervals.map((interval) => `${symbol}@kline_${interval}`),
@@ -102,13 +97,14 @@ export interface SocketLike {
 }
 
 export type SocketFactory = (url: string) => SocketLike;
+export interface BinanceStreamConfig { readonly websocketBaseUrl: string; readonly venueSymbols: readonly string[]; }
 
 /** Binance market-data transport. Scheduling/reconnect ownership remains outside this parser-focused adapter. */
 export class BinanceMarketDataAdapter {
-  public constructor(private readonly sockets: SocketFactory, private readonly sink: ExchangeStreamSink, private readonly now = () => new Date()) {}
+  public constructor(private readonly config: BinanceStreamConfig, private readonly sockets: SocketFactory, private readonly sink: ExchangeStreamSink, private readonly now = () => new Date()) {}
   public connect(): SocketLike {
-    const streams = binanceCombinedStreams().join("/");
-    const socket = this.sockets(`wss://stream.binance.com:9443/stream?streams=${streams}`);
+    const streams = binanceCombinedStreams(this.config.venueSymbols).join("/");
+    const socket = this.sockets(`${this.config.websocketBaseUrl.replace(/\/$/,"")}/stream?streams=${streams}`);
     void this.sink.onState("connecting", "binance-public");
     socket.addEventListener("open", () => void this.sink.onState("connected", "binance-public"));
     socket.addEventListener("close", () => void this.sink.onState("disconnected", "binance-public"));
