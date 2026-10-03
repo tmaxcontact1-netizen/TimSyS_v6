@@ -79,7 +79,9 @@ describe("paper dashboard", () => {
     });
     const page = await get(address.port, "/");
     expect(page.status).toBe(200);
-    expect(page.body).toContain("MemeCoined");
+    expect(page.body).toContain("Trade'Ed");
+    expect(page.body).toContain("MemeCoin'Ed");
+    expect(page.body).toContain("Crypto'Ed");
     expect(page.body).toContain('id="page-title"');
     expect(page.body).toContain("Fast &amp; Furious");
     expect(page.body).toContain("Oscillation Trader");

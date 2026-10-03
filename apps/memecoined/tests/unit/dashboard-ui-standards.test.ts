@@ -2,6 +2,19 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 const root = new URL("../../", import.meta.url);
 describe("focused dashboard UI standards", () => {
+  it("provides the Trade'Ed segment shell without changing the MemeCoin'Ed workspace", async () => {
+    const html = await readFile(new URL("frontend/index.html", root), "utf8");
+    const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
+    expect(html).toContain("<h1>Trade'Ed</h1>");
+    expect(html).toContain("MemeCoin'Ed");
+    expect(html).toContain("Crypto'Ed");
+    expect(html).toContain('id="memecoin-workspace"');
+    expect(html).toContain('id="crypto-workspace"');
+    expect(html).toContain('data-segment="memecoined"');
+    expect(html).toContain('data-segment="cryptoed"');
+    expect(javascript).toContain('showSegment("home")');
+    expect(javascript).toContain('if (state.segment === "memecoined") load()');
+  });
   it("contains only the three operator tasks and a launcher exit", async () => {
     const html = await readFile(new URL("frontend/index.html", root), "utf8");
     expect(html).toContain('data-page="dashboard"');
@@ -53,7 +66,7 @@ describe("focused dashboard UI standards", () => {
     const javascript = await readFile(new URL("frontend/app.js", root), "utf8");
     expect(javascript).toContain('fetch("/api/focused-dashboard"');
     expect(javascript).toContain('fetch("/api/trading-profiles"');
-    expect(javascript).toContain("setInterval(load, 30000)");
+    expect(javascript).toContain('if (state.segment === "memecoined") load()');
     expect(javascript).toContain("rejection_reasons_json");
     expect(javascript).toContain("realized_net_bps");
   });

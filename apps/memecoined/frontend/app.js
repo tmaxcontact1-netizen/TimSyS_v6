@@ -1,4 +1,4 @@
-const state = { data: null, profiles: [], busy: false };
+const state = { data: null, profiles: [], busy: false, segment: "home" };
 function installActionFeedback() {
   window.addEventListener("timsys:action-feedback", (event) => {
     const detail = event.detail ?? {};
@@ -41,6 +41,13 @@ function notify(message, error = false) {
   el.hidden = false;
   clearTimeout(notify.timer);
   notify.timer = setTimeout(() => (el.hidden = true), 5000);
+}
+function showSegment(segment) {
+  state.segment = segment;
+  $("segment-home").hidden = segment !== "home";
+  $("memecoin-workspace").hidden = segment !== "memecoined";
+  $("crypto-workspace").hidden = segment !== "cryptoed";
+  if (segment === "memecoined") load();
 }
 function page(name) {
   document
@@ -206,7 +213,7 @@ async function load() {
   } catch (error) {
     $("connection").className = "connection offline";
     $("connection").querySelector("strong").textContent = "Disconnected";
-    notify(error.message || "Unable to load MemeCoined.", true);
+    notify(error.message || "Unable to load MemeCoin'Ed.", true);
   } finally {
     state.busy = false;
     $("refresh").disabled = false;
@@ -259,6 +266,16 @@ async function returnToLauncher() {
   }
 }
 $("return-launcher").addEventListener("click", returnToLauncher);
+$("crypto-return-launcher").addEventListener("click", returnToLauncher);
+$("home-return-launcher").addEventListener("click", returnToLauncher);
+document
+  .querySelectorAll("[data-segment]")
+  .forEach((button) => button.addEventListener("click", () => showSegment(button.dataset.segment)));
+document
+  .querySelectorAll("[data-segment-home]")
+  .forEach((button) => button.addEventListener("click", () => showSegment("home")));
 installActionFeedback();
-load();
-setInterval(load, 30000);
+showSegment("home");
+setInterval(() => {
+  if (state.segment === "memecoined") load();
+}, 30000);
