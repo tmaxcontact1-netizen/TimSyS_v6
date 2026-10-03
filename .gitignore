@@ -1,4 +1,5 @@
 node_modules/
+apps/memecoined/diagnostics/
 .npm-cache/
 **/dist/
 apps/launcher/runtime-stage/

@@ -12,6 +12,7 @@ import {
   type PositionRuntimeComposition,
 } from "./composition.js";
 import { installShutdownSignals, runProductionProcess } from "./main.js";
+import { startCryptoMarketDataControl } from "../infrastructure/providers/exchange/crypto-runtime.js";
 
 export interface ProductionWorkerFactories {
   readonly createPool: (config: RuntimeConfig) => Pool;
@@ -21,6 +22,7 @@ export interface ProductionWorkerFactories {
     readonly signal: AbortSignal;
   }) => PositionRuntimeComposition;
   readonly run: typeof runProductionProcess;
+  readonly startCrypto?: typeof startCryptoMarketDataControl;
 }
 
 const productionFactories: ProductionWorkerFactories = Object.freeze({
@@ -40,6 +42,7 @@ const productionFactories: ProductionWorkerFactories = Object.freeze({
       ? composePaperTradingRuntime(input)
       : composeProductionPositionRuntime(input),
   run: runProductionProcess,
+  startCrypto: startCryptoMarketDataControl,
 });
 
 export function persistHandledWorkerIncident(
@@ -79,7 +82,9 @@ export async function startProductionWorker(
   const removeSignals = installShutdownSignals(controller);
   const database = factories.createPool(config);
   let processOwnsPool = false;
+  let cryptoControl: ReturnType<typeof startCryptoMarketDataControl> | null = null;
   try {
+    cryptoControl = factories.startCrypto?.(database, environment, controller.signal) ?? null;
     const runtime = factories.compose({ config, database, signal: controller.signal });
     processOwnsPool = true;
     return await factories.run({
@@ -92,6 +97,7 @@ export async function startProductionWorker(
     });
   } finally {
     removeSignals();
+    await cryptoControl?.stop();
     if (!processOwnsPool) await database.end();
   }
 }

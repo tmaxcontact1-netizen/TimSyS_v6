@@ -28,6 +28,7 @@ This is an operational and published-terms check, not legal advice or a guarante
 - `America/New_York` session boundary engine with per-date UTC conversion and DST transition handling.
 - Top-of-book paper quoting using ask for buys, bid for sells, evidenced quantity, fee, spread, and staleness rejection.
 - Trade'Ed segment controls, both default off. MemeCoin'Ed off also disables its paper profiles.
+- The installed worker polls the Crypto'Ed control and owns exactly one public-data adapter lifecycle; disabling Crypto'Ed stops its stream and repair loop.
 - No-active-epoch startup now resolves to safe idle instead of a fatal process error.
 
 ## Verification results
@@ -55,4 +56,4 @@ No claim is made that the seven-day gate has passed. Consequently `Playbook-tran
 
 ## Release boundary
 
-Nothing from this branch is merged, published, installed, or enabled for live execution. There is no live-order path.
+There is no live-order path. Release promotion is recorded separately from this implementation verification.

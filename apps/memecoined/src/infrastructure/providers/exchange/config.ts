@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const schema=z.object({
-  BINANCE_PUBLIC_REST_URL:z.url(), BINANCE_PUBLIC_WS_URL:z.url(),
+  BINANCE_PUBLIC_REST_URL:z.url().default("https://api.binance.com"), BINANCE_PUBLIC_WS_URL:z.url().default("wss://stream.binance.com:9443"),
   CRYPTOED_SYMBOLS:z.string().default("BTCUSDT,ETHUSDT"),
   CRYPTOED_EXECUTION_MODE:z.literal("paper_internal").default("paper_internal"),
   CRYPTOED_REST_CONCURRENCY:z.coerce.number().int().min(1).max(20).default(4),

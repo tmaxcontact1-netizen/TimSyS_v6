@@ -3,7 +3,7 @@
 **Status:** Proposed for Tim's review  
 **Branch:** `adapter-crypto-playbook`  
 **Scope of this document:** API selection, native-candle ingestion, session-level calculation, persistence, reliability, and paper-execution boundaries  
-**Implementation status:** Design only. No adapter code, runtime configuration, schema migration, profile logic, release, or live trading is authorized by this document.
+**Implementation status:** Adapter and session-engine implementation complete on `adapter-crypto-playbook`; profile logic and live trading remain absent. Publication requires an explicit release instruction.
 
 ## 1. Decision summary
 
