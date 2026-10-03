@@ -22,6 +22,81 @@ body {
   min-height: 100vh;
   background: radial-gradient(circle at 75% 0, #14203a 0, transparent 38%), #0b0e13;
 }
+[hidden] {
+  display: none !important;
+}
+.segment-home {
+  min-height: 100vh;
+  padding: clamp(32px, 7vw, 96px);
+  display: grid;
+  align-content: center;
+  gap: 48px;
+}
+.segment-home-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+.segment-home-header h1 {
+  font-size: clamp(38px, 6vw, 72px);
+  margin-bottom: 12px;
+}
+.segment-home-header p:last-child {
+  color: var(--muted);
+  max-width: 680px;
+}
+.segment-home-header .secondary {
+  min-width: 170px;
+}
+.segment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(260px, 1fr));
+  gap: 20px;
+  max-width: 1100px;
+}
+.segment-tile {
+  min-height: 280px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #eef2f7;
+  background: linear-gradient(145deg, #182237, #11161e 72%);
+  border: 1px solid #2d3a50;
+  border-radius: 18px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.segment-tile:hover,
+.segment-tile:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--blue);
+  background: linear-gradient(145deg, #1c2d50, #121822 72%);
+  outline: none;
+}
+.segment-tile strong {
+  font-size: 29px;
+}
+.segment-tile > span:not(.segment-number) {
+  color: #c8d1dd;
+}
+.segment-tile small,
+.segment-number {
+  color: var(--muted);
+}
+.segment-number {
+  margin-bottom: auto;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+.empty-segment {
+  min-height: 100vh;
+}
 .sidebar {
   position: fixed;
   inset: 0 auto 0 0;
@@ -360,6 +435,14 @@ input {
   padding: 28px !important;
 }
 @media (max-width: 900px) {
+  .segment-home-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .segment-grid {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
   .sidebar {
     position: static;
     width: auto;

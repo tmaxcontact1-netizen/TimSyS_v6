@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "memecoined",
-  "name": "Memecoined",
+  "name": "Trade'Ed",
   "uiStandard": { "id": "timsys.application-ui", "version": 1, "required": true },
   "kind": "supervised-child",
   "platform": {

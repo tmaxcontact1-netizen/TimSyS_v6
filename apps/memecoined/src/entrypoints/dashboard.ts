@@ -238,7 +238,7 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
       }
       sendJson(response, 200, {
         id: "memecoined",
-        name: "MemeCoined",
+        name: "Trade'Ed",
         mode: "paper",
         functions: [
           "market-acquisition",

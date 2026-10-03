@@ -4,14 +4,39 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="color-scheme" content="dark" />
-    <title>MemeCoined · Paper Trading</title>
-    <link rel="stylesheet" href="/styles.css?v=6" />
+    <title>Trade'Ed</title>
+    <link rel="stylesheet" href="/styles.css?v=7" />
   </head>
   <body>
+    <section id="segment-home" class="segment-home">
+      <header class="segment-home-header">
+        <div>
+          <p class="kicker">TIMSYS</p>
+          <h1>Trade'Ed</h1>
+          <p>Choose a trading environment. Each segment keeps its own strategies, evidence and results.</p>
+        </div>
+        <button id="home-return-launcher" class="secondary">← Return to Launcher</button>
+      </header>
+      <div class="segment-grid" aria-label="Trade'Ed segments">
+        <button class="segment-tile" data-segment="memecoined">
+          <span class="segment-number">01</span>
+          <strong>MemeCoin'Ed</strong>
+          <span>Open the existing memecoin paper-trading laboratory.</span>
+          <small>Existing profiles, history and telemetry</small>
+        </button>
+        <button class="segment-tile" data-segment="cryptoed">
+          <span class="segment-number">02</span>
+          <strong>Crypto'Ed</strong>
+          <span>BTC and ETH trading workspace.</span>
+          <small>Ready for its brief</small>
+        </button>
+      </div>
+    </section>
+    <div id="memecoin-workspace" class="segment-workspace" hidden>
     <aside class="sidebar">
       <div>
         <p class="kicker">TIMSYS</p>
-        <h1>MemeCoined</h1>
+        <h1>MemeCoin'Ed</h1>
         <p class="muted">Two-strategy paper laboratory</p>
       </div>
       <nav aria-label="Sections">
@@ -21,6 +46,7 @@
       </nav>
       <div class="sidebar-bottom">
         <div id="connection" class="connection"><span></span><strong>Connecting…</strong></div>
+        <button class="secondary" data-segment-home>← Trade'Ed home</button>
         <button id="return-launcher" class="secondary">← Return to Launcher</button>
       </div>
     </aside>
@@ -144,6 +170,22 @@
         </div>
       </section>
     </main>
-    <script src="/app.js?v=6" defer></script>
+    </div>
+    <div id="crypto-workspace" class="segment-workspace" hidden>
+      <aside class="sidebar">
+        <div>
+          <p class="kicker">TRADE'ED</p>
+          <h1>Crypto'Ed</h1>
+          <p class="muted">BTC / ETH</p>
+        </div>
+        <nav aria-label="Crypto'Ed sections"></nav>
+        <div class="sidebar-bottom">
+          <button class="secondary" data-segment-home>← Trade'Ed home</button>
+          <button id="crypto-return-launcher" class="secondary">← Return to Launcher</button>
+        </div>
+      </aside>
+      <main class="empty-segment" aria-label="Crypto'Ed workspace"></main>
+    </div>
+    <script src="/app.js?v=7" defer></script>
   </body>
 </html>
