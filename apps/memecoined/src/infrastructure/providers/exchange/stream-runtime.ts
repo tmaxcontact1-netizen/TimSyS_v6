@@ -18,6 +18,7 @@ export class BinanceStreamRuntime {
   #attempt = 0;
   #reconnectTimer: unknown = null;
   #rotationTimer: unknown = null;
+  #suppressNextDisconnect = false;
   public constructor(
     private readonly config: BinanceStreamConfig,
     private readonly sockets: SocketFactory,
@@ -41,7 +42,8 @@ export class BinanceStreamRuntime {
       onState: (state, detail) => {
         void this.sink.onState(state, detail);
         if (state === "connected") { this.#attempt = 0; this.#scheduleRotation(); }
-        if (state === "disconnected" && !this.#stopped) this.#scheduleReconnect();
+        if (state === "disconnected" && this.#suppressNextDisconnect) this.#suppressNextDisconnect = false;
+        else if (state === "disconnected" && !this.#stopped) this.#scheduleReconnect();
       },
     };
     this.#socket = new BinanceMarketDataAdapter(this.config, this.sockets, runtimeSink).connect();
@@ -57,6 +59,7 @@ export class BinanceStreamRuntime {
       this.#rotationTimer = null;
       const previous = this.#socket;
       this.#socket = null;
+      this.#suppressNextDisconnect = true;
       previous?.close();
       this.#connect();
     }, this.rotationMs);

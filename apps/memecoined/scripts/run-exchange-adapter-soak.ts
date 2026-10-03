@@ -18,13 +18,13 @@ const dedupe = new EventDeduplicator(100_000);
 const latencies: number[] = [];
 const availability: number[] = [];
 const lastOpen = new Map<string, number>();
-let frames = 0, candles = 0, closedCandles = 0, books = 0, tickers = 0, duplicates = 0, gaps = 0, reconnects = 0, degraded = 0;
+let frames = 0, candles = 0, closedCandles = 0, books = 0, tickers = 0, duplicates = 0, gaps = 0, reconnects = 0, degraded = 0, futureTimestampFrames = 0;
 
 const percentile = (values: readonly number[], fraction: number) => values.length === 0 ? null : [...values].sort((a,b)=>a-b)[Math.min(values.length-1,Math.floor(values.length*fraction))]!;
 const snapshot = () => ({
   startedAt: startedAt.toISOString(), observedAt: new Date().toISOString(), elapsedMs: Date.now()-startedAt.valueOf(),
   venue: "binance", symbols: configuration.venueSymbols, frames, candles, closedCandles, books, tickers, duplicates, detectedGaps:gaps, reconnects, degraded,
-  transportLatencyP95Ms: percentile(latencies,0.95), closedCandleAvailabilityP95Ms: percentile(availability,0.95),
+  transportLatencyP95Ms: percentile(latencies,0.95), closedCandleAvailabilityP95Ms: percentile(availability,0.95), futureTimestampFrames,
   completionTargetAt: new Date(startedAt.valueOf()+sevenDaysMs).toISOString(), executionMode:configuration.executionMode,
 });
 const record = (kind:string, detail:unknown) => appendFileSync(eventsFile,`${JSON.stringify({at:new Date().toISOString(),kind,detail})}\n`);
@@ -45,7 +45,7 @@ const runtime = new BinanceStreamRuntime(
   {websocketBaseUrl:configuration.websocketBaseUrl,venueSymbols:configuration.venueSymbols},
   (url)=>{const ws=new WebSocket(url);return {addEventListener:(type,listener)=>ws.on(type,(data)=>listener({data:type==="message"?data.toString():undefined})),close:()=>ws.close()};},
   {
-    onCandle:(value)=>{frames++;if(!dedupe.accept(value.fingerprint)){duplicates++;return;}candles++;latencies.push(value.receivedAt.valueOf()-value.eventTime.valueOf());if(value.closed){closedCandles++;availability.push(value.receivedAt.valueOf()-value.closeTime.valueOf());const key=`${value.venueSymbol}:${value.interval}`;const previous=lastOpen.get(key);const step={"1m":60_000,"5m":300_000,"15m":900_000,"1h":3_600_000,"4h":14_400_000}[value.interval];if(previous!==undefined&&value.openTime.valueOf()>previous+step){gaps++;record("gap",{key,previous,current:value.openTime.toISOString()});}lastOpen.set(key,value.openTime.valueOf());}},
+    onCandle:(value)=>{frames++;if(!dedupe.accept(value.fingerprint)){duplicates++;return;}candles++;const transport=value.receivedAt.valueOf()-value.eventTime.valueOf();if(transport<0)futureTimestampFrames++;latencies.push(Math.max(0,transport));if(value.closed){closedCandles++;availability.push(Math.max(0,value.receivedAt.valueOf()-value.closeTime.valueOf()));const key=`${value.venueSymbol}:${value.interval}`;const previous=lastOpen.get(key);const step={"1m":60_000,"5m":300_000,"15m":900_000,"1h":3_600_000,"4h":14_400_000}[value.interval];if(previous!==undefined&&value.openTime.valueOf()>previous+step){gaps++;record("gap",{key,previous,current:value.openTime.toISOString()});}lastOpen.set(key,value.openTime.valueOf());}},
     onBook:()=>{frames++;books++;}, onTicker:()=>{frames++;tickers++;},
     onState:(state,detail)=>{if(state==="connected"&&frames>0)reconnects++;if(state==="degraded")degraded++;record("stream-state",{state,detail});},
   },

@@ -72,6 +72,7 @@ export default defineConfig({
       "tests/unit/simple-patterns.test.ts",
       "tests/unit/hypothesis-spread-gate.test.ts",
       "tests/unit/exchange-adapter.test.ts",
+      "tests/unit/exchange-runtime.test.ts",
       "tests/unit/exchange-session-engine.test.ts",
       "tests/unit/exchange-paper-book.test.ts",
       "tests/unit/adaptive-calibration.test.ts",
