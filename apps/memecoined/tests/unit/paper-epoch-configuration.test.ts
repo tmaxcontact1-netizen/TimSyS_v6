@@ -33,6 +33,15 @@ function config(fee = 5_000n): RuntimeConfig {
 }
 
 describe("paper epoch configuration seal", () => {
+  test("returns an idle result when no validation epoch is active", async () => {
+    const pool = {
+      query: async (sql: string) =>
+        sql.includes("FROM paper_profile_activations")
+          ? { rows: [], rowCount: 0 }
+          : { rows: [], rowCount: 0 },
+    };
+    await expect(assertPaperEpochConfiguration(pool as never, config())).resolves.toBeNull();
+  });
   test("stores the first hash and fails loudly when any frozen setting changes", async () => {
     let stored: string | undefined;
     const pool = {

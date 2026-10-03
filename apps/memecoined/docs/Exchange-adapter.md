@@ -25,7 +25,7 @@ The first implementation must not silently describe `BTCUSDT` as `BTC/USD`. Inte
 2. **Native candles remain native.** A 15-minute candle comes from the exchange's 15-minute stream, not from fifteen 1-minute candles and not from ticks.
 3. **Closed candles govern decisions.** An open candle may be displayed and persisted as provisional telemetry, but it cannot confirm a sweep, reclaim, swing, or entry.
 4. **The existing 15-second Trade'Ed scheduler remains unchanged.** The WebSocket receiver operates independently and continuously; each scheduler cycle reads a consistent snapshot from persisted/cache state.
-5. **UTC is authoritative.** Session boundaries, candle keys, and trading dates use UTC timestamps. No workstation-local time enters trading logic.
+5. **UTC is authoritative for storage.** Session boundaries are defined in `America/New_York` civil time and converted to UTC for each trading date. Candle keys, persisted timestamps, and event ordering remain UTC.
 6. **Missing or discontinuous data causes a visible degraded state, not invented data.** No interpolation is used to make a session or pattern appear complete.
 7. **Paper execution uses executable sides of the book.** A buy is valued at ask-side liquidity and a sell at bid-side liquidity, including configured fees and measured slippage.
 8. **A provider change creates a new data-continuity segment.** Strategies warm up again before entries are permitted.
@@ -226,19 +226,19 @@ If the configured outage threshold is exceeded, the system may activate Kraken m
 
 ### 6.1 Clock and calendar
 
-All boundaries are half-open UTC intervals on the UTC trading date:
+Session rules are expressed in the IANA time zone `America/New_York`, then converted to UTC independently for every New York civil trading date:
 
-- Asian range: `[00:00:00, 08:00:00)`;
-- London open marker: `08:00:00`;
-- New York entry window: `[13:00:00, 21:00:00)`.
+- Asian range: local `[00:00:00, 08:00:00)`;
+- London marker: local `08:00:00`;
+- entry window: local `[13:00:00, 21:00:00)`.
 
-This is intentionally fixed UTC and therefore does **not** track London or New York daylight-saving time. Exits, stops, reconciliation, and health work continue outside the entry window. Only new entries are gated.
+The persisted session record contains the civil date, IANA zone, resolved UTC start/end, and the zone offset used at each boundary. No workstation-local time participates. Exits, stops, reconciliation, and health work continue outside the entry window; only new entries are gated.
 
-Tim must confirm whether the strategy truly intends fixed UTC or actual local-market hours that move with daylight-saving time. The supplied brief specifies fixed UTC, so fixed UTC is the default decision.
+Daylight-saving transitions are resolved from the IANA time-zone database, never from a fixed `-04:00` or `-05:00` constant. These boundaries do not fall inside the ambiguous/repeated 01:00 hour or nonexistent 02:00 hour, but the engine still records offset changes and tests both transition dates. A tzdata/runtime upgrade that changes a previously persisted resolution creates a calculation-version change rather than silently rewriting historical session keys.
 
 ### 6.2 Session-level state machine
 
-For each `(venue, venue_symbol, UTC trading date)` the engine maintains:
+For each `(venue, venue_symbol, America/New_York civil trading date)` the engine maintains:
 
 - `BUILDING` — session currently accumulating closed candles;
 - `LOCKED` — the session interval ended and the level is final;
@@ -249,13 +249,13 @@ An incomplete level may be displayed but cannot authorize a trade.
 
 ### 6.3 Asian-range high and low
 
-The range uses the highs and lows of the eight closed native `1h` candles opening from 00:00 through 07:00 UTC. The 1-minute series independently verifies coverage and supplies detailed replay evidence; it does not replace the native hourly aggregation.
+The range uses the highs and lows of the eight closed native `1h` candles whose openings fall from 00:00 through 07:00 New York local time after per-date UTC conversion. The 1-minute series independently verifies coverage and supplies detailed replay evidence; it does not replace the native hourly aggregation.
 
-During the session, provisional high/low values are updated every scheduler cycle. At or after 08:00, the level locks only if all eight hourly candles are closed and contiguous. Persisted fields include contributing candle IDs and a calculation fingerprint, so the level can be reproduced exactly.
+During the session, provisional high/low values are updated every scheduler cycle. At or after local 08:00, the level locks only if the complete resolved UTC interval is covered. Persisted fields include contributing candle IDs and a calculation fingerprint, so the level can be reproduced exactly.
 
 ### 6.4 London open
 
-The London open level is the **open price of the native 1-minute candle whose open time is 08:00 UTC**. It is provisional when that candle first arrives and locks after the exchange closes the candle. If the candle is missing, the level is `INCOMPLETE`; the engine does not substitute the nearest tick.
+The London marker is the **open price of the native 1-minute candle whose UTC open time equals local 08:00 after time-zone resolution**. It is provisional when that candle first arrives and locks after the exchange closes the candle. If the candle is missing, the level is `INCOMPLETE`; the engine does not substitute the nearest tick.
 
 ### 6.5 New York session gate
 
@@ -263,8 +263,8 @@ At every 15-second cycle:
 
 ```text
 new_entries_allowed =
-    now_utc >= trading_date 13:00
-    AND now_utc < trading_date 21:00
+    now_utc >= resolved_utc(local trading_date 13:00 America/New_York)
+    AND now_utc < resolved_utc(local trading_date 21:00 America/New_York)
     AND required series are complete
     AND required session levels are locked
     AND provider health is not degraded
@@ -373,7 +373,7 @@ No playbook implementation begins until these adapter/session tests pass:
 5. proactive 24-hour connection rotation without a gap;
 6. 429, `Retry-After`, and 418 circuit behavior;
 7. bounded backfill queue under prolonged throttling;
-8. UTC boundary tests at 00:00, 08:00, 13:00, 21:00, and midnight;
+8. New York local boundary tests at 00:00, 08:00, 13:00, 21:00, both DST transitions, and both UTC offsets;
 9. Asian level stays provisional until all eight native hourly candles close;
 10. London level uses the native 08:00 one-minute candle open;
 11. incomplete session blocks entries and remains visibly incomplete;
@@ -406,7 +406,7 @@ Approval of this design should explicitly settle these points:
 2. **Quote basis:** accept `BTCUSDT`/`ETHUSDT` for v1 while preserving the USDT label everywhere, or require exact USD and select Kraken first.
 3. **Paper architecture:** approve production public data plus internal paper fills, using Binance Test Network only for order-contract testing.
 4. **Latency SLA:** approve the split between <=500 ms transport latency and <=2,500 ms closed-candle availability.
-5. **Session clock:** confirm fixed UTC windows as written, not daylight-saving-adjusted local sessions.
+5. **Session clock:** approved as `America/New_York` civil-time windows with per-date UTC conversion and explicit DST-transition coverage.
 6. **Failover:** approve failover as a new continuity segment with warm-up and no cross-venue candle splicing.
 
 No implementation should begin until all six are resolved.

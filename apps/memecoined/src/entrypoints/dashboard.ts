@@ -187,6 +187,41 @@ export function createPaperDashboardServer(dependencies: PaperDashboardDependenc
     const method = request.method ?? "GET";
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const pathname = url.pathname;
+    if (pathname === "/api/tradeed/segments") {
+      if (method === "GET") {
+        const result = await dependencies.database.query<{ segment_id: string; enabled: boolean; version: number; updated_at: Date }>(
+          `SELECT segment_id,enabled,version,updated_at FROM tradeed_segment_controls ORDER BY segment_id`,
+        );
+        sendJson(response, 200, { segments: result.rows });
+        return;
+      }
+      if (method === "PUT") {
+        if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
+          sendJson(response, 403, { error: "forbidden" }); return;
+        }
+        try {
+          const body = await readJson(request);
+          if ((body.segmentId !== "memecoined" && body.segmentId !== "cryptoed") || typeof body.enabled !== "boolean" || !validVersion(body.expectedVersion)) throw new Error("invalid_segment_control");
+          const result = await dependencies.database.query<{ segment_id: string; enabled: boolean; version: number; updated_at: Date }>(
+            `UPDATE tradeed_segment_controls SET enabled=$2,version=version+1,updated_at=now()
+              WHERE segment_id=$1 AND version=$3 RETURNING segment_id,enabled,version,updated_at`,
+            [body.segmentId, body.enabled, body.expectedVersion],
+          );
+          const row = result.rows[0];
+          if (!row) { sendJson(response, 409, { error: "version_conflict" }); return; }
+          if (body.segmentId === "memecoined" && body.enabled === false)
+            await dependencies.database.query(
+              `UPDATE paper_profile_activations SET enabled=false,version=version+1,updated_at=now() WHERE wallet=$1 AND enabled=true`,
+              [dependencies.wallet],
+            );
+          sendJson(response, 200, { segment: row });
+        } catch (error) {
+          sendJson(response, 400, { error: error instanceof Error ? error.message : "invalid_request" });
+        }
+        return;
+      }
+      sendJson(response, 405, { error: "method_not_allowed" }); return;
+    }
     if (pathname === "/api/health") {
       if (method !== "GET") {
         sendJson(response, 405, { error: "method_not_allowed" });

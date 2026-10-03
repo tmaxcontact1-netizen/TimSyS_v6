@@ -13,8 +13,7 @@
   "applicationRootEnvironment": "MEMECOINED_APP_ROOT",
   "workingDirectory": ".",
   "environmentDefaults": {
-    "PAPER_DASHBOARD_PORT": "8080",
-    "MEMECOINED_PAPER_PRESET": "all_profiles"
+    "PAPER_DASHBOARD_PORT": "8080"
   },
   "processes": {
     "worker": {

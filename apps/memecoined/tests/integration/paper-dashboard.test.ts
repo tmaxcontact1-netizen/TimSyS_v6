@@ -45,6 +45,28 @@ async function get(
 }
 
 describe("paper dashboard", () => {
+  it("reads and switches TradeEd segments with optimistic concurrency", async () => {
+    let enabled = false;
+    let version = 1;
+    const database = {
+      query: async (sql: string, values?: readonly unknown[]) => {
+        if (sql.startsWith("SELECT segment_id")) return { rows: [{ segment_id: "memecoined", enabled, version, updated_at: new Date() }] };
+        if (sql.startsWith("UPDATE tradeed_segment_controls")) {
+          if (values?.[2] !== version) return { rows: [] };
+          enabled = Boolean(values[1]); version += 1;
+          return { rows: [{ segment_id: values[0], enabled, version, updated_at: new Date() }] };
+        }
+        return { rows: [] };
+      }, end: async () => undefined,
+    };
+    const server=createPaperDashboardServer({database:database as never,wallet:"paper-wallet" as never,publicDirectory:"frontend",trustedLocalMutations:true});
+    servers.push(server); server.listen(0,"127.0.0.1"); await once(server,"listening");
+    const address=server.address(); if(address===null||typeof address==="string") throw new Error("Missing test address");
+    expect(JSON.parse((await get(address.port,"/api/tradeed/segments")).body).segments[0].enabled).toBe(false);
+    const changed=await get(address.port,"/api/tradeed/segments","PUT",{"content-type":"application/json"},JSON.stringify({segmentId:"memecoined",enabled:true,expectedVersion:1}));
+    expect(changed.status).toBe(200); expect(JSON.parse(changed.body).segment.enabled).toBe(true);
+    expect((await get(address.port,"/api/tradeed/segments","PUT",{"content-type":"application/json"},JSON.stringify({segmentId:"memecoined",enabled:false,expectedVersion:1}))).status).toBe(409);
+  });
   it("serves a read-only durable snapshot with security headers", async () => {
     const row = {
       initial_cash_raw: "10000000000",

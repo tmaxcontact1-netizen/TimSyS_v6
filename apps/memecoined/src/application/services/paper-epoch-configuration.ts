@@ -18,7 +18,7 @@ function profilePolicy() {
 export async function assertPaperEpochConfiguration(
   pool: Pick<Pool, "query">,
   config: RuntimeConfig,
-): Promise<string> {
+): Promise<string | null> {
   if (config.mode !== "paper" || config.paper === null || config.solana === null)
     throw new Error("A paper epoch can only be sealed by complete paper configuration");
   const activations = await pool.query<{
@@ -68,7 +68,7 @@ export async function assertPaperEpochConfiguration(
           WHERE id=current_paper_validation_epoch_id()`,
       )
     ).rows[0]?.config_hash;
-  if (stored === undefined) throw new Error("No active paper validation epoch exists");
+  if (stored === undefined) return null;
   if (stored !== expected)
     throw new Error(
       "Paper validation configuration changed after the epoch began; create a fresh epoch before continuing",

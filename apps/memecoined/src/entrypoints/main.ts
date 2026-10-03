@@ -45,7 +45,14 @@ export async function runProductionProcess(
           dependencies.config.paper.walletAddress as WalletAddress,
           new Date(),
         );
-      await assertPaperEpochConfiguration(dependencies.database, dependencies.config);
+      const epochHash = await assertPaperEpochConfiguration(dependencies.database, dependencies.config);
+      if (epochHash === null)
+        return Object.freeze({
+          database,
+          supervisor: Object.freeze({
+            recoveredPositionIds: Object.freeze([]), batchesCompleted: 0, jobsVisited: 0, acquisitionCyclesCompleted: 0,
+          }),
+        });
       if (dependencies.config.paper)
         await reconcileInterruptedProfileEntries(
           dependencies.database,

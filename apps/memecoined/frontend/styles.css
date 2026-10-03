@@ -72,6 +72,8 @@ body {
   font: inherit;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
+.segment-power { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-top:1rem; font-weight:700; }
+.segment-power input { width:2.75rem; height:1.4rem; accent-color:var(--accent); cursor:pointer; }
 .segment-tile:hover,
 .segment-tile:focus-visible {
   transform: translateY(-3px);

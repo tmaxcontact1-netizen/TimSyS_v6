@@ -1,4 +1,4 @@
-const state = { data: null, profiles: [], busy: false, segment: "home" };
+const state = { data: null, profiles: [], busy: false, segment: "home", segmentControls: new Map() };
 function installActionFeedback() {
   window.addEventListener("timsys:action-feedback", (event) => {
     const detail = event.detail ?? {};
@@ -43,11 +43,41 @@ function notify(message, error = false) {
   notify.timer = setTimeout(() => (el.hidden = true), 5000);
 }
 function showSegment(segment) {
+  if (segment !== "home" && !state.segmentControls.get(segment)?.enabled) {
+    notify(`${segment === "memecoined" ? "MemeCoin'Ed" : "Crypto'Ed"} is turned off. Use its switch to enable it.`);
+    return;
+  }
   state.segment = segment;
   $("segment-home").hidden = segment !== "home";
   $("memecoin-workspace").hidden = segment !== "memecoined";
   $("crypto-workspace").hidden = segment !== "cryptoed";
   if (segment === "memecoined") load();
+}
+async function loadSegmentControls() {
+  try {
+    const response = await fetch("/api/tradeed/segments", { cache: "no-store" });
+    if (!response.ok) throw new Error("Segment controls could not be loaded.");
+    const body = await response.json();
+    state.segmentControls = new Map((body.segments || []).map((item) => [item.segment_id, item]));
+    for (const id of ["memecoined", "cryptoed"]) {
+      const enabled = Boolean(state.segmentControls.get(id)?.enabled);
+      $(`${id}-power`).checked = enabled;
+      $(`${id}-power-state`).textContent = enabled ? "ON" : "OFF";
+    }
+  } catch (error) { notify(error.message || "Segment controls could not be loaded.", true); }
+}
+async function setSegmentControl(id, enabled) {
+  const current = state.segmentControls.get(id);
+  if (!current) return;
+  const control = $(`${id}-power`); control.disabled = true;
+  try {
+    const response = await fetch("/api/tradeed/segments", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ segmentId: id, enabled, expectedVersion: current.version }) });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || "The segment setting was not saved.");
+    await loadSegmentControls();
+    notify(`${id === "memecoined" ? "MemeCoin'Ed" : "Crypto'Ed"} is ${enabled ? "on" : "off"}.`);
+  } catch (error) { control.checked = !enabled; notify(error.message || "The segment setting was not saved.", true); }
+  finally { control.disabled = false; }
 }
 function page(name) {
   document
@@ -254,6 +284,10 @@ document
   $(id).addEventListener(id.includes("search") ? "input" : "change", renderTrades),
 );
 $("refresh").addEventListener("click", load);
+["memecoined", "cryptoed"].forEach((id) => {
+  $(`${id}-power`).addEventListener("click", (event) => event.stopPropagation());
+  $(`${id}-power`).addEventListener("change", (event) => setSegmentControl(id, event.target.checked));
+});
 async function returnToLauncher() {
   try {
     if (window.electronAPI?.returnToLauncher) {
@@ -275,6 +309,7 @@ document
   .querySelectorAll("[data-segment-home]")
   .forEach((button) => button.addEventListener("click", () => showSegment("home")));
 installActionFeedback();
+loadSegmentControls();
 showSegment("home");
 setInterval(() => {
   if (state.segment === "memecoined") load();
