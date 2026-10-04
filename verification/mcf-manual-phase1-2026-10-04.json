@@ -1,0 +1,69 @@
+{
+  "phase": "Approved Stages 1\u20133 only",
+  "unitTests": {
+    "files": 20,
+    "passed": 94,
+    "mcfTests": 21
+  },
+  "typescript": "passed",
+  "productionBuild": "passed",
+  "preflight": "passed",
+  "guiAudit": "passed",
+  "mcf": {
+    "fingerprintFiles": [
+      "dist/src/domain/mcf.js",
+      "dist/src/application/mcf-import.js",
+      "dist/src/infrastructure/mcf-repository.js",
+      "dist/src/entrypoints/mcf-api.js",
+      "dist/src/entrypoints/api.js",
+      "dist/frontend/index.html",
+      "dist/instruments/mcf/1.0.json",
+      "dist/analysis-config/mcf-retrieval/1.0.json",
+      "migrations/0017_mcf_manual.sql"
+    ],
+    "buildFingerprint": "996bdf81af7fe1014cbbce5a40bf26c44501e9559daa9571195eca38a2531ada",
+    "passedAt": "2026-10-04T17:32:28.317Z",
+    "checks": [
+      "additive migration preserves prototype data; migration runner safely repeats",
+      "original bytes, raw extraction, working text and located units stay distinct; remapping cannot overwrite",
+      "zero/multiple human codes, append-only revisions, stale-write protection and database immutability",
+      "split/join creates immutable segmentation versions; old sessions and decisions remain pinned",
+      "seeded sample repeats exactly; blind workspace/export do not disclose earlier coding",
+      "CSV mapping preserves metadata and raw text without importing historical codes",
+      "documentary states remain distinct; positive scores require in-session evidence; no valence or roll-ups",
+      "browser upload, column mapping, preview and derived corpus records",
+      "browser multi-code researcher revision with exact evidence and valence",
+      "production UI navigates corpus, manual save, blind sample and documentary evidence coding without browser errors",
+      "zero AI calls with a configured provider; no machine classification implemented"
+    ],
+    "instrumentHash": "0c10b62334e888084a0d293e8d2d0a08f634035f3b7212e1e791e57a011d5f24",
+    "scope": "MCF Stages 1\u20133 only; disposable PostgreSQL and production browser UI",
+    "aiCalls": 0
+  },
+  "existingContentPipeline": {
+    "diagnostic": "document-to-cited-content-results",
+    "passedAt": "2026-10-04T17:32:32.405Z",
+    "startedAt": "2026-10-04T17:32:09.828Z",
+    "controlledFixture": true,
+    "transport": "Local HTTP fixture transported through production bounded acquisition; production orchestrator and PostgreSQL persistence",
+    "buildFingerprint": "88721242de135047c2f4546a79cdc2fa39a4bcaf52d1ae058836cedcbe8c66b7",
+    "checks": [
+      "all migrations apply to isolated PostgreSQL",
+      "real DOCX intake, generic MIME fallback, all sections and duplicate contexts",
+      "concurrent run gate",
+      "durable background processing and automatic delayed retry",
+      "bounded supporting HTML and PDF capture, field citations and untrusted-host suggestions",
+      "dead versus restricted links and separate accreditation context",
+      "snapshot fingerprints, passage lineage and deterministic replay",
+      "CSV and evidence JSON include successful and failed sources",
+      "selective retry, cancellation and immutable earlier run results",
+      "AI invalid citations rejected without altering deterministic findings",
+      "interrupted running tasks recover to explicit retry state",
+      "production UI source review, saved run, results and evidence navigation"
+    ]
+  },
+  "limitations": [
+    "Synthetic pilot fixtures; full ISR corpus was not supplied or analysed.",
+    "No classifier, agreement statistics, thresholds or domain/institution roll-ups."
+  ]
+}

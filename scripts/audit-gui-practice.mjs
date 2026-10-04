@@ -8,7 +8,7 @@ const sources = {
   launcher: ["apps/launcher/src/index.jsx", "apps/launcher/src/App.jsx", "apps/launcher/src/pages/AppDashboard.jsx"],
   principaled: ["apps/principaled/src/main.jsx", "apps/principaled/src/api/client.js", "apps/principaled/src/dashboard/Index.jsx"],
   dressed: ["apps/dressed/frontend/src/main.jsx"],
-  researched: ["apps/researched/frontend/src/main.jsx", "apps/researched/frontend/src/content-ui.jsx", "apps/researched/frontend/src/legacy-workflow.jsx"],
+  researched: ["apps/researched/frontend/src/main.jsx", "apps/researched/frontend/src/content-ui.jsx", "apps/researched/frontend/src/mcf/McfWorkspace.jsx", "apps/researched/frontend/src/legacy-workflow.jsx"],
   memecoined: ["apps/memecoined/frontend/app.js", "apps/memecoined/frontend/index.html"],
 };
 const all = Object.values(sources).flat().map(read).join("\n");

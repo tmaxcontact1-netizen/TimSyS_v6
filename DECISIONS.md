@@ -649,3 +649,12 @@ Application-owned analysis categories and selected budgets define deterministic 
 **Rationale:** This isolates the first usable function while preserving TimSyS composition and evidence ownership. General-purpose semantic planning and accreditation comparison remain future work. A run can be replayed against preserved evidence; fresh websites are naturally changeable.
 
 **Status:** IMPLEMENTED; production build, unit and full-path verification passed.
+
+
+## 2026-10-04 — MCF manual methodology boundary
+
+The user approved Stages 1–3 only. MCF v1.0 definitions and inclusion/exclusion statements are immutable theoretical content; candidate words, synonyms and patterns are separately versioned implementation configuration. Conflict and Performance Management is the authoritative competency name.
+
+Source bytes, raw extraction, normalised working text, units and human decisions are distinct. Splits/joins create new unit sets. Sessions pin a segmentation population; revisions append with explicit predecessor checks. Blind samples show only their own session’s decisions and preserve the seed, population and selected IDs. Local deliberate navigation to other sessions remains possible.
+
+Documentary observations remain at the 21 competency level: 0–3 with evidence above zero; unavailable/unassessed are non-numeric. No arithmetic domain/institution roll-ups. Prior data-scientist labels are not imported as ground truth. Machine methodology, confidence calibration, comparison statistics and reliability thresholds remain deferred pending explicit approval.

@@ -10,6 +10,7 @@ import { pathToFileURL } from "node:url";
 import pg, { type Pool } from "pg";
 import { ZodError } from "zod";
 import { createContentApi, type ContentDatabase } from "./content-api.js";
+import { createMcfApi } from "./mcf-api.js";
 import { createApplicationHealth, contentHash } from "@timsys/app-sdk";
 import {
   studyInput,
@@ -292,12 +293,14 @@ export function createResearchServer(input: {
     }
   };
   let queueWorkerError: string | null = null;
+  const mcfApi = createMcfApi(input.database as ContentDatabase, storageRoot);
   const contentApi = createContentApi({database:input.database as ContentDatabase,storageRoot,acquire,render:renderedAcquire,getAiProvider:()=>aiProvider,setProvider:provider=>{aiProvider=provider;},background:Boolean(input.backgroundQueue)});
   const server = createServer(async (q, r) => {
     const method = q.method ?? "GET",
       url = new URL(q.url ?? "/", "http://127.0.0.1"),
       path = url.pathname;
     try {
+      if(await mcfApi(q,r))return;
       if(await contentApi.handle(q,r))return;
       if (path === "/api/health") {
         if (method !== "GET")
