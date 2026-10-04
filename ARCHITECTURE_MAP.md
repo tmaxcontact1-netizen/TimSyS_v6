@@ -1,5 +1,5 @@
 # TimSyS Architecture Map
-Generated: 2026-09-30T03:39:32Z
+Generated: 2026-10-04T17:33:50Z
 Generator: platform/Tools/update_architecture_map.py (Discovery-Based)
 
 This document is auto-generated. Do not edit manually.
@@ -17,8 +17,8 @@ Platform Location: `platform/`
 | File | Exists | Size | Last Modified |
 | ------ | ------ | ------ | --------------- |
 | `CONTEXT.md` | ✅ | 12409B | 2026-09-30 06:11:57 |
-| `ARCHITECTURE_MAP.md` | ✅ | 48211B | 2026-09-30 06:11:57 |
-| `HANDOVER.md` | ✅ | 20976B | 2026-09-30 06:39:32 |
+| `ARCHITECTURE_MAP.md` | ✅ | 43724B | 2026-09-30 06:39:33 |
+| `HANDOVER.md` | ✅ | 22116B | 2026-10-04 20:33:50 |
 | `CONSTITUTION_V6.0.md` | ✅ | 25343B | 2026-09-30 06:11:57 |
 | `LEXICON_V6.0.0.md` | ✅ | 20246B | 2026-09-30 06:11:57 |
 
@@ -228,6 +228,8 @@ Platform Location: `platform/`
       local-postgres-manager.test.cjs
       main.cjs
       memecoined-runtime-ownership.cjs
+./apps\launcher\public
+      favicon.svg
 ./apps\launcher\src
       App.jsx
       index.jsx
@@ -288,6 +290,7 @@ Platform Location: `platform/`
 ./apps\memecoined\docs
       CHANGELOG.md
       DEPENDENCY_MANIFEST.md
+      Exchange-adapter.md
       OPERATIONS_RUNBOOK.md
       PAPER_OBSERVATION_RUNTIME.md
       PROJECT_MAP.md
@@ -295,7 +298,6 @@ Platform Location: `platform/`
       SECURITY_MODEL.md
       SERVICE_CONTRACTS.md
       STRATEGY_SPECIFICATION.md
-      SYSTEM_SCHEMA.md
 ./apps\memecoined\frontend
       app.js
       index.html
@@ -318,6 +320,7 @@ Platform Location: `platform/`
       import-wallet-watchlist.ts
       migrate.ts
       reconcile-now.ts
+      run-exchange-adapter-soak.ts
       run-historical-evaluation.ts
       sanitize-fixture.ts
       verify-environment.ts
@@ -355,6 +358,9 @@ Platform Location: `platform/`
           evaluator.ts
           model.ts
           scoring.ts
+./apps\memecoined\src\domain\exchange
+          session-engine.ts
+          types.ts
 ./apps\memecoined\src\domain\market
           model.ts
           momentum.ts
@@ -543,6 +549,7 @@ Platform Location: `platform/`
 ./apps\researched
     .env.example
     .gitignore
+    MCF_MANUAL_GUIDE.md
     README.md
     README_LEGACY.md
     eng.traineddata
@@ -550,7 +557,9 @@ Platform Location: `platform/`
     package.json
     timsys.app.json
     tsconfig.json
-    vite.config.ts
+./apps\researched\analysis-config
+./apps\researched\analysis-config\mcf-retrieval
+        1.0.json
 ./apps\researched\frontend
       index.html
 ./apps\researched\frontend\src
@@ -560,6 +569,12 @@ Platform Location: `platform/`
         main.jsx
         status.css
         styles.css
+./apps\researched\frontend\src\mcf
+          McfWorkspace.jsx
+          mcf.css
+./apps\researched\instruments
+./apps\researched\instruments\mcf
+        1.0.json
 ./apps\researched\migrations
       0001_research_core.sql
       0002_source_acquisition.sql
@@ -574,6 +589,7 @@ Platform Location: `platform/`
 ./apps\researched\scripts
       migrate.ts
       verify-content-pipeline.mjs
+      verify-mcf-manual.mjs
 ./apps\researched\src
 ./apps\researched\src\application
         ai-analysis.ts
@@ -584,20 +600,23 @@ Platform Location: `platform/`
         cross-source-analysis.ts
         deterministic-analysis.ts
         link-discovery.ts
+        mcf-import.ts
         programme-workflow.ts
-        reporting.ts
 ./apps\researched\src\domain
         analysis-results.ts
         analysis.ts
         content-analysis.ts
         contracts.ts
         lifecycle.ts
+        mcf.ts
 ./apps\researched\src\entrypoints
         api.ts
         content-api.ts
+        mcf-api.ts
 ./apps\researched\src\infrastructure
         config.ts
         content-repository.ts
+        mcf-repository.ts
         repository.ts
 ./apps\researched\tests
       ai-analysis.test.ts
@@ -610,6 +629,8 @@ Platform Location: `platform/`
       content-analysis.test.ts
       cross-source-analysis.test.ts
       foundation.test.ts
+./apps\researched\tests\fixtures
+        mcf-manual-pilot.csv
 ./apps\shared-ui
     package.json
 ./apps\shared-ui\react
@@ -627,7 +648,9 @@ Platform Location: `platform/`
   npm-metadata.cjs
   npm.cmd
 ./docs
+  EXECUTION_BUILD_REPORT.md
   FRONTEND_GUI_ACCEPTANCE_CHECKLIST.md
+  NERVOUS_BREAKDOWN_PHASE1_STATUS.md
   PLATFORM_ACCEPTANCE_REPORT_2026-08-29.md
   PLATFORM_EXTRACTION.md
   UI_CAPABILITY_COVERAGE.md
@@ -638,6 +661,17 @@ Platform Location: `platform/`
     LATE_ENTRIES_DECOMPOSITION.md
     SCHEDULER_DECOMPOSITION.md
     STUDENT_EXITS_DECOMPOSITION.md
+./docs\nervous-breakdown
+    DRAFT_REVIEW_GATE.md
+    IMPORT_CONTRACT.md
+    INTERACTIVE_ANNOTATIONS.md
+    LAYER1_INTERFACE.md
+    SELECTED_ORGANISATIONAL_CONTEXT.md
+    SEMANTIC_SPATIALISATION.md
+    SOURCE_BINDINGS.md
+    SYMMETRIC_RELATIONSHIPS.md
+    UX_CALIBRATION.md
+    VERIFICATION.md
 ./docs\operations
     IN_APP_UPDATES.md
 ./packages
@@ -850,6 +884,14 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\event_record\migrations
         001_event_record.sql
+./platform\modules\execution
+      CONTRACT.md
+      engine.js
+      index.js
+      module.json
+./platform\modules\execution\migrations
+        001_execution.sql
+        002_app_assignment.sql
 ./platform\modules\financial_planning
       CONTRACT.md
       component.json
@@ -945,6 +987,19 @@ Platform Location: `platform/`
       module.json
 ./platform\modules\medical_referrals\migrations
         001_medical_referrals.sql
+./platform\modules\nervous_breakdown
+      CONTRACT.md
+      component.json
+      exploration.js
+      gap-overlay.json
+      import-schema.js
+      index.js
+      model.js
+      module.json
+      validation.js
+      vocabulary.js
+./platform\modules\nervous_breakdown\migrations
+        001_responsibility_network.sql
 ./platform\modules\ontology_engine
       CONTRACT.md
       index.js
@@ -1221,9 +1276,12 @@ Platform Location: `platform/`
       historical-intelligence.test.js
       insight-visibility.test.js
       intelligence-health.test.js
+./platform\tests\fixtures
+      nb-scale.mjs
 ./platform\tests\helpers
       test-server.js
 ./platform\tests\integration
+      execution-http.test.js
 ./platform\tests\integration\http
         academic-structure.test.js
         approvals.test.js
@@ -1242,12 +1300,12 @@ Platform Location: `platform/`
       analysis-engine-contract.test.js
       application-protocol.test.js
       assessment-evaluator-calibration.test.js
+      builder-baseline.test.js
       contracts-verification.test.js
       cover-contract.test.js
+      execution.test.js
       gradebook-contract.test.js
       gradebook-hardening.test.js
-      independent-app-boundaries.test.js
-      intelligence-contribution.test.js
 ./platform\tests\unit\registries
         registries.test.js
 ./platform\tests\unit\services
@@ -1266,13 +1324,14 @@ Platform Location: `platform/`
   audit-ui-coverage.mjs
   build-windows-artifacts.mjs
   create-update-release.mjs
+  execution-e2e.cjs
+  execution-scale.cjs
   fetch-postgres.mjs
   monitor-memecoined-process.ps1
   package-researched-update.mjs
   preflight.mjs
-  prepare-windows-runtime.mjs
-  run-memecoined-paper-trial.cjs
 ./verification
+  mcf-manual-phase1-2026-10-04.json
   researched-content-analysis-2026-09-30.json
 ./verification\2026.09.26.9
 ./verification\2026.09.26.9\crash-capture
@@ -1417,6 +1476,7 @@ Location: `/platform/modules/`
 | `evaluation_policies` | ✅ | ✅ | ✅ | 2 | academic_governance |
 | `event_planner` | ✅ | ✅ | ✅ | 0 | composite_module |
 | `event_record` | ✅ | ✅ | ✅ | 1 | planning_core |
+| `execution` | ✅ | ✅ | ❌ | 2 | standard |
 | `financial_planning` | ✅ | ✅ | ✅ | 1 | finance |
 | `grade_evaluation` | ✅ | ✅ | ✅ | 1 | academic_evaluation |
 | `grade_reporting` | ✅ | ✅ | ✅ | 1 | academic_reporting |
@@ -1430,6 +1490,7 @@ Location: `/platform/modules/`
 | `learning_behaviours` | ✅ | ✅ | ✅ | 1 | academic_operations |
 | `learning_standards` | ✅ | ✅ | ✅ | 1 | academic_configuration |
 | `medical_referrals` | ✅ | ✅ | ✅ | 1 | health_sensitive |
+| `nervous_breakdown` | ✅ | ✅ | ✅ | 1 | organisational_governance |
 | `ontology_engine` | ✅ | ✅ | ❌ | 1 | standard |
 | `ownership` | ✅ | ✅ | ✅ | 1 | workflow |
 | `programme_manager` | ✅ | ✅ | ✅ | 10 | composite_module |
@@ -1467,7 +1528,7 @@ Location: `/platform/scripts/cli/`
 - `/tests/unit/services/` — 6 test file(s)
 - `/tests/unit/registries/` — 1 test file(s)
 - `/tests/integration/staging/` — 1 test file(s)
-- `/tests/integration/http/` — 61 test file(s)
+- `/tests/integration/http/` — 64 test file(s)
 - `/tests/e2e/` — 15 test file(s)
 
 ### Smoke Tests
