@@ -1,0 +1,169 @@
+{
+  "name": "execution",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "auth",
+    "log",
+    "staff_registry",
+    "documents",
+    "nervous_breakdown",
+    "academic_structure"
+  ],
+  "provides": [
+    "capability:execution.read",
+    "capability:execution.write",
+    "capability:execution.manage"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/execution/availability",
+      "method": "GET",
+      "handler": "execution_availability",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/references",
+      "method": "GET",
+      "handler": "execution_references",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/workspace",
+      "method": "GET",
+      "handler": "execution_workspace",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/instances",
+      "method": "POST",
+      "handler": "execution_create",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:write"
+      ]
+    },
+    {
+      "path": "/execution/instances/:id",
+      "method": "GET",
+      "handler": "execution_get",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/instances/:id/commands",
+      "method": "POST",
+      "handler": "execution_command",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:write"
+      ]
+    },
+    {
+      "path": "/execution/instances/:id/preview",
+      "method": "GET",
+      "handler": "execution_preview",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/instances/:id/history",
+      "method": "GET",
+      "handler": "execution_history",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/instances/:id/context",
+      "method": "GET",
+      "handler": "execution_context",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:read"
+      ]
+    },
+    {
+      "path": "/execution/identity",
+      "method": "POST",
+      "handler": "execution_bindIdentity",
+      "auth_required": true,
+      "permissions": [
+        "admin:execution:manage"
+      ]
+    }
+  ],
+  "schema": {
+    "tables": [
+      "execution_instances",
+      "execution_activity",
+      "execution_receipts"
+    ],
+    "migrations": [
+      "migrations/001_execution.sql",
+      "migrations/002_app_assignment.sql"
+    ]
+  },
+  "events": {
+    "publishes": [],
+    "subscribes": []
+  },
+  "functions": [
+    {
+      "name": "execution_references",
+      "exports": "references"
+    },
+    {
+      "name": "execution_workspace",
+      "exports": "workspace"
+    },
+    {
+      "name": "execution_get",
+      "exports": "get"
+    },
+    {
+      "name": "execution_create",
+      "exports": "create"
+    },
+    {
+      "name": "execution_command",
+      "exports": "command"
+    },
+    {
+      "name": "execution_preview",
+      "exports": "preview"
+    },
+    {
+      "name": "execution_history",
+      "exports": "history"
+    },
+    {
+      "name": "execution_availability",
+      "exports": "availability"
+    },
+    {
+      "name": "execution_context",
+      "exports": "context"
+    },
+    {
+      "name": "execution_bindIdentity",
+      "exports": "bindIdentity"
+    }
+  ]
+}

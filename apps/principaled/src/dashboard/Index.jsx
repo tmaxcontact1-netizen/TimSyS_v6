@@ -12,6 +12,7 @@ import IntelligenceWorkspace from "./widgets/IntelligenceWorkspace";
 import CalendarWidget from "./widgets/CalendarWidget";
 import OwnershipWidget from "./widgets/OwnershipWidget";
 import TasksWidget from "./widgets/TasksWidget";
+import ExecutionWidget from "./widgets/ExecutionWidget";
 import ApprovalsWidget from "./widgets/ApprovalsWidget";
 import DocumentsWidget from "./widgets/DocumentsWidget";
 import CommunicationsWidget from "./widgets/CommunicationsWidget";
@@ -46,6 +47,7 @@ import {
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
+  execution: { id: "execution", label: "Execution", widget: ExecutionWidget, requiresAdmin: false },
   nervous_breakdown: { id: "nervous_breakdown", label: "Nervous Breakdown", widget: NervousBreakdownWidget, requiresAdmin: true },
   // Existing operational modules (non-admin)
   student_registry: {
@@ -237,7 +239,7 @@ const MODULE_TO_VIEW = {
 };
 
 const WORKSPACES = {
-  organisation: { label: "Organisation", icon: "N", description: "Formal responsibilities, sources and organisational trails", modules: ["nervous_breakdown"] },
+  organisation: { label: "Organisation", icon: "N", description: "Formal responsibilities, sources, organisational trails and shared execution", modules: ["nervous_breakdown", "execution"] },
   people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
   learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
   planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
@@ -247,6 +249,7 @@ const WORKSPACES = {
 };
 
 const VIEW_DESCRIPTIONS = {
+  execution: "Plan shared work, inspect dependencies and see what requires you",
   nervous_breakdown: "Explore and govern the responsibility network",
   students: "Student records and enrolment", student_profiles: "Complete student information", staff: "Staff records and employment", staff_profiles: "Complete staff information", student_exits: "Live student movement", late_entries: "Late arrival and attendance changes",
   assessment_evaluator: "Check what an assessment measures", gradebook: "Class evidence, grades and reports", attendance: "Attendance at events",
@@ -257,7 +260,7 @@ const VIEW_DESCRIPTIONS = {
 
 function PrincipalEdDashboard() {
   const [activeView, setActiveView] = useState(
-    () => sessionStorage.getItem("principaled_active_view") || "overview",
+    () => new URLSearchParams(location.search).has("execution_view") ? "execution" : sessionStorage.getItem("principaled_active_view") || "overview",
   );
   const [userData, setUserData] = useState(null);
   const [data, setData] = useState({
@@ -404,7 +407,14 @@ function PrincipalEdDashboard() {
           "X-Requested-With": "XMLHttpRequest",
         },
       });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok) {
+        // Personal Execution access must not require Builder administration.
+        if (response.status === 403) {
+          const execution = await fetch('/execution/availability', { headers: { Authorization: `Bearer ${token}` } });
+          if (execution.ok && (await execution.json()).enabled) { setEnabledModules(['execution']); return; }
+        }
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
       const enabled = (data.data || [])
         .filter((m) => m.enabled)
@@ -563,6 +573,7 @@ function PrincipalEdDashboard() {
     if (moduleName === "tasks") {
       return planning(<TasksWidget askConfirmation={askConfirmation} />);
     }
+    if (moduleName === "execution") return <ExecutionWidget />;
     if (moduleName === "approvals") {
       return planning(<ApprovalsWidget askConfirmation={askConfirmation} />);
     }
@@ -882,6 +893,7 @@ function PrincipalEdDashboard() {
     window.history.pushState(
       { ...window.history.state, principaledView: view },
       "",
+      view !== 'execution' ? (() => { const url=new URL(location.href); ['execution_view','execution_instance','execution_task'].forEach(key=>url.searchParams.delete(key)); return url; })() : undefined,
     );
     setActiveView(view);
     setNotice(null);
