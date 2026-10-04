@@ -1,6 +1,10 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { installShutdownSignals, runProductionProcess } from "../../src/entrypoints/main.js";
+import {
+  installShutdownSignals,
+  runProductionProcess,
+  waitForShutdown,
+} from "../../src/entrypoints/main.js";
 
 const required = [
   "audit_events.id",
@@ -105,5 +109,17 @@ describe("production process lifecycle", () => {
     expect(controller.signal.aborted).toBe(true);
     remove();
     expect(emitter.listenerCount("SIGINT")).toBe(0);
+  });
+  it("keeps an idle installed worker resident until cooperative shutdown", async () => {
+    const controller = new AbortController();
+    let settled = false;
+    const waiting = waitForShutdown(controller.signal).then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    controller.abort();
+    await waiting;
+    expect(settled).toBe(true);
   });
 });

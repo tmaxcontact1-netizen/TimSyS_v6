@@ -32,6 +32,20 @@ export interface ProductionProcessResult {
   readonly observationScheduler?: ObservationSchedulerResult;
 }
 
+const idleSupervisorResult = (): PositionJobSupervisorResult =>
+  Object.freeze({
+    recoveredPositionIds: Object.freeze([]),
+    batchesCompleted: 0,
+    jobsVisited: 0,
+    acquisitionCyclesCompleted: 0,
+  });
+
+/** Keep the installed worker resident until its supervisor requests shutdown. */
+export async function waitForShutdown(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return;
+  await new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve(), { once: true }));
+}
+
 /** Validates durable state before recovery and always drains the database pool on exit. */
 export async function runProductionProcess(
   dependencies: ProductionProcessDependencies,
@@ -46,13 +60,16 @@ export async function runProductionProcess(
           new Date(),
         );
       const epochHash = await assertPaperEpochConfiguration(dependencies.database, dependencies.config);
-      if (epochHash === null)
+      if (epochHash === null) {
+        // Trade'Ed can legitimately run with MemeCoin'Ed disabled and no paper epoch.
+        // The launcher owns this long-lived worker and treats any child exit as a
+        // startup failure, so remain resident for Crypto'Ed and dashboard control.
+        await waitForShutdown(dependencies.supervisor.signal);
         return Object.freeze({
           database,
-          supervisor: Object.freeze({
-            recoveredPositionIds: Object.freeze([]), batchesCompleted: 0, jobsVisited: 0, acquisitionCyclesCompleted: 0,
-          }),
+          supervisor: idleSupervisorResult(),
         });
+      }
       if (dependencies.config.paper)
         await reconcileInterruptedProfileEntries(
           dependencies.database,
@@ -63,12 +80,7 @@ export async function runProductionProcess(
     if (dependencies.supervisor.signal.aborted)
       return Object.freeze({
         database,
-        supervisor: Object.freeze({
-          recoveredPositionIds: Object.freeze([]),
-          batchesCompleted: 0,
-          jobsVisited: 0,
-          acquisitionCyclesCompleted: 0,
-        }),
+        supervisor: idleSupervisorResult(),
       });
     const supervisor = runPositionJobSupervisor(dependencies.supervisor);
     if (!dependencies.observationScheduler)
