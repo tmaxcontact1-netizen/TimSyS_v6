@@ -2,6 +2,10 @@
 
 Research’Ed is a local research application supervised by TimSyS. Tool 01 turns a Word or PDF document of links into structured, cited curriculum and professional-development evidence.
 
+## MCF Analysis — manual research
+
+Tool 02 implements the frozen MCF v1.0 instrument, immutable DOCX/TXT/CSV/XLSX corpus imports, versioned segmentation, append-only manual coding, competency-level documentary representation and seeded blind validation samples. It does not implement a machine classifier. See [the manual pilot guide](MCF_MANUAL_GUIDE.md) for the workflow, data boundaries and verification.
+
 ## Content analysis workflow
 
 1. Create a research workspace, describe the goal, and select information categories.

@@ -485,3 +485,12 @@ The user’s curriculum/professional-development use case now supports Word/PDF 
 Validation: 73 tests across 19 files, TypeScript and production Vite build; isolated PostgreSQL and headless-browser pipeline including the supplied document’s 74 distinct destinations; representative live rendered NEASC/PTC captures. Release packaging additionally checks the staged build fingerprint and launcher updater/supervisor installation. See verification/researched-content-analysis-2026-09-30.json and the release verification asset. No claim is made that all 74 live destinations were fully analysed. Website structure, restrictions and missing content remain explicit coverage limitations.
 
 Use apps/researched/scripts/verify-content-pipeline.mjs for disposable full-path checks (configuration documented in its README). scripts/package-researched-update.mjs carries other released bundles forward without rebuilding them; scripts/verify-researched-install.mjs verifies the actual ZIP through the launcher’s updater and supervised runtime.
+
+
+## 2026-10-04 — Research’Ed MCF manual phase
+
+Research’Ed 0.3.0 adds MCF Analysis as a second sidebar tool. Implements the approved Stages 1–3 only: frozen instrument, immutable imports and segmentation, manual multi-label coding with exact evidence, append-only decisions, documentary 0–3 observations and seeded blind manual samples. No classifier/provider was selected or implemented. No external AI transmission, reliability thresholds or domain/institution roll-ups.
+
+Migration 0017 adds eleven MCF tables and append-only triggers, reusing studies, source snapshots, audit events and archive storage. Candidate aids live separately from the instrument. Instrument SHA-256: 0c10b62334e888084a0d293e8d2d0a08f634035f3b7212e1e791e57a011d5f24. Original and working text are distinct; units use original-text UTF-16 offsets. Earlier sessions retain their unit IDs across segmentation revisions.
+
+See apps/researched/MCF_MANUAL_GUIDE.md for pilot instructions and limits. Tests use synthetic records and disposable databases, not the actual ISR corpus. Full source/report inventory is in the release verification report.
