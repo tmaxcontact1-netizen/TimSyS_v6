@@ -57,6 +57,24 @@ describe("migration execution", () => {
     expect(queries.at(-1)).toContain("pg_advisory_unlock");
   });
 
+  it("accepts Windows line endings for a migration recorded with its LF checksum", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "memecoined-migration-line-endings-"));
+    const lfSql = "BEGIN;\nSELECT 1;\nCOMMIT;\n";
+    await writeFile(join(directory, "0001_first.sql"), lfSql.replaceAll("\n", "\r\n"));
+    const [file] = await loadMigrationFiles(directory);
+    if (file === undefined) throw new Error("Migration fixture was not loaded");
+    const lfChecksum = file.compatibleChecksums?.[0];
+    if (lfChecksum === undefined) throw new Error("Expected a normalized compatible checksum");
+    const client = {
+      query: async (sql: string) =>
+        sql.startsWith("SELECT name")
+          ? { rows: [{ name: file.name, checksum: lfChecksum }], rowCount: 1 }
+          : { rows: [], rowCount: 0 },
+    };
+
+    await expect(applyMigrations(client as never, [file])).resolves.toEqual([]);
+  });
+
   it("commits each schema body and history record atomically", async () => {
     const queries: string[] = [];
     const client = {

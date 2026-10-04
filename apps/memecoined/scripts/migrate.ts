@@ -11,6 +11,7 @@ import { runtimePoolConfig } from "../src/infrastructure/database/pool.js";
 export interface MigrationFile {
   readonly name: string;
   readonly checksum: string;
+  readonly compatibleChecksums?: readonly string[];
   readonly sql: string;
 }
 
@@ -43,10 +44,17 @@ export async function loadMigrationFiles(directory: string): Promise<readonly Mi
   return Promise.all(
     names.map(async (name) => {
       const sql = await readFile(resolve(directory, name), "utf8");
+      const checksum = createHash("sha256").update(sql).digest("hex");
+      const normalizedChecksum = createHash("sha256")
+        .update(sql.replace(/\r\n/g, "\n"))
+        .digest("hex");
       return Object.freeze({
         name,
         sql,
-        checksum: createHash("sha256").update(sql).digest("hex"),
+        checksum,
+        compatibleChecksums: Object.freeze(
+          normalizedChecksum === checksum ? [] : [normalizedChecksum],
+        ),
       });
     }),
   );
@@ -70,7 +78,11 @@ export async function applyMigrations(
     for (const [name, checksum] of known) {
       const file = files.find((candidate) => candidate.name === name);
       if (file === undefined) throw new Error(`Applied migration ${name} is missing from disk`);
-      if (file.checksum !== checksum) throw new Error(`Applied migration ${name} was modified`);
+      if (
+        file.checksum !== checksum &&
+        !(file.compatibleChecksums ?? []).includes(checksum)
+      )
+        throw new Error(`Applied migration ${name} was modified`);
     }
     const completed: string[] = [];
     for (const file of files) {
