@@ -1,0 +1,47 @@
+// Isolated synthetic database only. Runs the built application and real API.
+const fs=require('fs'),path=require('path'),crypto=require('crypto');
+const repo=path.resolve(__dirname,'..'),out=fs.mkdtempSync(path.join(repo,'diagnostics','execution-e2e-'));
+process.env.NODE_ENV='test';process.env.PORT='0';process.env.DB_PATH=path.join(out,'synthetic.sqlite');process.env.JWT_SECRET='execution-isolated-browser-test-secret-32-chars';process.env.REFRESH_TOKEN_SECRET='execution-isolated-refresh-test-secret-32-chars';process.env.TIMSYS_LAUNCHER_DIST=path.join(repo,'apps/launcher/dist');
+let playwright;try{playwright=require(process.env.PLAYWRIGHT_MODULE||'playwright');}catch(error){if(process.env.PLAYWRIGHT_MODULE)throw error;playwright=require(path.join(require('os').homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));}const {chromium}=playwright;
+const platform=require('../platform');let server,browser;
+(async()=>{
+ server=await platform.bootPlatform();const origin=`http://127.0.0.1:${server.address().port}`;
+ const login=await fetch(origin+'/api/auth/dev-login',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:'{}'}).then(r=>r.json());const token=login.token;
+ async function api(route,body){const r=await fetch(origin+route,{method:body?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw Error(JSON.stringify(data));return data;}
+ const db=require('../platform/shared/services/db');
+ for(const [id,first] of [['lead','Sarah'],['teacher','Ahmed'],['principal','Tim']])db.query("INSERT INTO staff(staff_id,first_name,last_name,hire_date,employment_status) VALUES(?,?,?,'2026-01-01','active')",[id,first,'Synthetic']);
+ let instance=(await api('/execution/instances',{command_id:crypto.randomUUID(),title:'Synthetic Career Week',lead_staff_id:'lead',timezone:'Asia/Riyadh'})).instance;
+ const cmd=async(type,data)=>{instance=(await api(`/execution/instances/${instance.id}/commands`,{command_id:crypto.randomUUID(),expected_revision:instance.revision,type,data})).instance;};
+ const names=['Confirm presenters','Confirm rooms','Finalise programme','Review Bayan Tank','Issue Grade 7 materials','Release parent communication','Brief volunteers','Print activity packs','Approve translation','Confirm safeguarding briefing','Agree event welcome','Check accessibility plan','Review bilingual summary','Confirm session brief','Review session brief','Distribute session brief','Prepare reception desk','Reserve signs','Welcome speakers','Record retrospective'];
+ for(let i=0;i<20;i++)await cmd('task.add',{title:names[i],assignee_staff_id:i===3?'principal':'teacher',responsible_role:i===3?'Section Principal':'Coordinator',kind:i===3?'decision':'ordinary',available_on:i===6?'2099-02-14':null,due_on:i===9?'2020-02-09':null});
+ const ids=instance.tasks.map(t=>t.id);
+ for(const [a,b] of [[0,3],[1,3],[2,3],[3,4],[3,5],[3,6],[3,7],[8,5]])await cmd('dependency.add',{from_id:ids[a],to_id:ids[b]});
+ await cmd('blocker.add',{task_id:ids[7],reason:'Printer quotation unavailable'});await cmd('instance.activate',{});for(const id of ids.slice(0,3))await cmd('task.complete',{task_id:id});
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.addInitScript(token=>localStorage.setItem('jwt_token',token),token);
+ await page.goto(`${origin}/app/principal-ed?execution_view=My%20Work`);await page.getByRole('button',{name:'Link my staff record',exact:true}).click();await page.getByRole('dialog').getByLabel('Assigned person').selectOption('principal');await page.getByRole('dialog').getByLabel('Reason',{exact:true}).fill('Synthetic test account is the principal');await page.getByRole('dialog').getByRole('button',{name:'Confirm my identity'}).click();await page.getByRole('dialog').waitFor({state:'hidden'});
+ await page.goto(`${origin}/app/principal-ed?execution_view=Dependencies&execution_instance=${instance.id}&execution_task=${ids[3]}`);
+ await page.locator('.ex-hub h2').filter({hasText:'Review Bayan Tank'}).waitFor({timeout:30000});await page.getByText('Will become Ready',{exact:true}).waitFor();
+ await page.screenshot({path:path.join(out,'wheel.png'),fullPage:true});
+ await page.getByRole('button',{name:'Approve decision',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Confirm and save'}).click();await page.getByRole('dialog').waitFor({state:'hidden'});await page.getByRole('status').filter({hasText:'Issue Grade 7 materials became Ready.'}).waitFor();
+ const checked=(await api(`/execution/instances/${instance.id}`)).instance;if(checked.tasks[4].state!=='ready'||checked.tasks[5].state!=='waiting'||checked.tasks[6].state!=='upcoming'||checked.tasks[7].state!=='blocked')throw Error('Mixed consequences failed');
+ await page.getByRole('navigation',{name:'Execution views'}).getByRole('button',{name:'Tasks',exact:true}).click();if(await page.locator('.ex-table tbody tr').count()!==20)throw Error('20 tasks not rendered');
+ await page.getByRole('button',{name:'Add task',exact:true}).click();await page.getByRole('dialog').getByLabel('Title',{exact:true}).fill('UI-created follow-up');await page.getByRole('dialog').getByLabel('Assigned person').selectOption('teacher');await page.getByRole('dialog').getByRole('button',{name:'Confirm and save'}).click();await page.getByRole('dialog').waitFor({state:'hidden'});await page.getByRole('button',{name:'UI-created follow-up',exact:true}).waitFor();
+ await page.getByRole('navigation',{name:'Execution views'}).getByRole('button',{name:'Timeline',exact:true}).click();await page.screenshot({path:path.join(out,'timeline.png'),fullPage:true});
+ await page.getByRole('navigation',{name:'Execution views'}).getByRole('button',{name:'Dependencies',exact:true}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:path.join(out,'mobile.png'),fullPage:true});
+ // Reload is a real server read; synthetic state must survive view remount.
+ await page.reload();await page.locator('.ex-hub h2').filter({hasText:'Review Bayan Tank'}).waitFor();
+ if(errors.length)throw Error('Browser errors: '+errors.join('; '));
+ if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1))throw Error('Execution narrow view overflows');
+ // Independent staff account has no Builder permission and no Execution management.
+ db.query("INSERT INTO users(id,username,display_name) VALUES(2,'synthetic-teacher','Synthetic Teacher')");db.query("UPDATE staff SET user_id=2 WHERE staff_id='teacher'");
+ const staffToken=require('../platform/shared/services/auth').issueToken({id:2,permissions:['admin:execution:read','admin:execution:write']},'execution-synthetic-staff');
+ const staffPage=await browser.newPage({viewport:{width:1440,height:1000}});await staffPage.addInitScript(token=>localStorage.setItem('jwt_token',token),staffToken);
+ await staffPage.goto(`${origin}/app/principal-ed?execution_view=My%20Work`);await staffPage.locator('.execution h2').filter({hasText:'My Work'}).waitFor({timeout:30000});await staffPage.getByRole('button',{name:/Issue Grade 7 materials/}).click();await staffPage.getByRole('button',{name:'Complete task',exact:true}).click();await staffPage.getByRole('dialog').getByRole('button',{name:'Confirm and save'}).click();await staffPage.getByRole('dialog').waitFor({state:'hidden'});
+ await staffPage.screenshot({path:path.join(out,'staff-work.png'),fullPage:true});
+ const persisted=(await api(`/execution/instances/${instance.id}`)).instance;if(persisted.tasks[4].lifecycle!=='completed')throw Error('Staff completion failed');
+ await browser.close();browser=null;await platform.shutdownPlatform(server);server=null;
+ // Re-open the exact file with a fresh SQLite connection after platform shutdown.
+ const Database=require('../platform/node_modules/better-sqlite3'),disk=new Database(process.env.DB_PATH,{readonly:true});const restored=JSON.parse(disk.prepare('SELECT data_json FROM execution_instances WHERE id=?').get(instance.id).data_json);disk.close();if(restored.revision!==persisted.revision||restored.tasks.length!==21)throw Error('Persistence mismatch');
+ fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,syntheticOnly:true,checks:['real module discovery','real authenticated UI','canonical identity binding through UI','20-task branching wheel','UI decision approval and mixed consequences','UI task creation','Timeline','mobile Wheel without horizontal overflow','non-admin My Work and completion','reload','persistence after server shutdown'],browserErrors:errors,productionDatabaseTouched:false},null,2));console.log('EXECUTION_E2E_PASS '+out);
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();if(server)await platform.shutdownPlatform(server);});

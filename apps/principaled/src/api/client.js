@@ -34,6 +34,14 @@ client.interceptors.response.use(
 );
 
 export const get = (url) => client.get(url);
+export const executionWorkspace = () => client.get('/execution/workspace');
+export const bindExecutionIdentity = data => client.post('/execution/identity',data);
+export const executionReferences = () => client.get('/execution/references');
+export const executionInstance = id => client.get(`/execution/instances/${id}`);
+export const createExecutionInstance = data => client.post('/execution/instances', data);
+export const executionCommand = (id,data) => client.post(`/execution/instances/${id}/commands`,data);
+export const executionPreview = (id,task_id) => client.get(`/execution/instances/${id}/preview`,{params:{task_id}});
+export const executionHistory = (id,before) => client.get(`/execution/instances/${id}/history`,{params:{before}});
 export const getNervousBreakdownWorkspace = params => client.get('/nervous-breakdown/workspace', { params });
 export const getNervousBreakdownTopology = params => client.get('/nervous-breakdown/topology', { params });
 export const getNervousBreakdownDetail = (id, params) => client.get(`/nervous-breakdown/records/${id}/detail`, { params });
