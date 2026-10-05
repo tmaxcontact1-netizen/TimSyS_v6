@@ -9,7 +9,7 @@ export const MCF=freeze(instrument);
 export const MCF_ANALYSIS_CONFIG=freeze(aids);
 export const MCF_HASH=createHash('sha256').update(JSON.stringify(MCF)).digest('hex');
 export const MANUAL_ENGINE='researched.mcf.manual.v1';
-export const SOFTWARE_VERSION='researched.0.3.0+mcf-manual.1';
+export const SOFTWARE_VERSION='researched.0.3.1+mcf-structural.1';
 export const SEGMENTER_VERSION=`intl-sentence-en-v1;icu=${process.versions.icu}`;
 export const valence=z.enum(['positive','negative','neutral-descriptive','mixed-ambiguous']);
 export const competencyId=z.string().refine(id=>MCF.competencies.some(c=>c.id===id),'Unknown MCF competency');
