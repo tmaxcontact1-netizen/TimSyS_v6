@@ -97,7 +97,7 @@ const command=wrap((req,ctx)=>{
     activity(ctx,next,m,req.body.type,{data:req.body.data||{},before:old,after:next});
     const after=engine.project(next,people,today),newlyReady=after.tasks.filter(t=>t.state==='ready'&&before.tasks.some(o=>o.id===t.id&&o.state!=='ready'));
     const actors=people.filter(p=>p.actor_id!=null&&String(p.actor_id)===m.actor);
-    for(const t of newlyReady)activity(ctx,next,m,'task.ready',{task_id:t.id,title:t.title,cause:req.body.type,cause_task_title:next.tasks.find(x=>x.id===req.body.data?.task_id)?.title||null,actor_name:actors.length===1?actors[0].name:who.manager?'Execution manager':'Authorised user',local_date:today});
+    for(const t of newlyReady)activity(ctx,next,m,'task.ready',{task_id:t.id,title:t.title,cause:req.body.type,cause_task_title:old.tasks.find(x=>x.id===req.body.data?.task_id)?.title||next.tasks.find(x=>x.id===req.body.data?.task_id)?.title||null,actor_name:actors.length===1?actors[0].name:who.manager?'Execution manager':'Authorised user',local_date:today});
     const response={success:true,instance:view(next,req,ctx,people,who),newly_ready:newlyReady.map(t=>({id:t.id,title:t.title}))};storeReceipt(ctx,m,next,response);return response;
   });
 });
@@ -107,7 +107,7 @@ const history=wrap((req,ctx)=>{
   const rows=ctx.db.query('SELECT * FROM execution_activity WHERE instance_id=? AND id<? ORDER BY id DESC LIMIT 50',[s.id,before]).rows;
   // Historical aggregate snapshots remain in audit storage. The read projection exposes
   // only action facts; it cannot bypass current document/Layer 1 disclosure policy.
-  return {success:true,history:rows.map(r=>{const d=JSON.parse(r.detail_json),actors=people.filter(p=>p.actor_id!=null&&String(p.actor_id)===r.actor_id);return {id:r.id,type:r.type,actor_id:r.actor_id,actor_name:d.actor_name||(actors.length===1?actors[0].name:'Authorised user'),at:r.created_at,revision:r.revision,task_id:d.task_id||d.data?.task_id||null,title:d.title||d.after?.tasks?.find(t=>t.id===d.data?.task_id)?.title||null,reason:r.type==='link.add'?null:d.data?.reason||null};}),next_before:rows.length===50?rows[rows.length-1].id:null};
+  return {success:true,history:rows.map(r=>{const d=JSON.parse(r.detail_json),actors=people.filter(p=>p.actor_id!=null&&String(p.actor_id)===r.actor_id);return {id:r.id,type:r.type,actor_id:r.actor_id,actor_name:d.actor_name||(actors.length===1?actors[0].name:'Authorised user'),at:r.created_at,revision:r.revision,task_id:d.task_id||d.data?.task_id||null,title:d.title||d.after?.tasks?.find(t=>t.id===d.data?.task_id)?.title||d.before?.tasks?.find(t=>t.id===d.data?.task_id)?.title||null,reason:r.type==='link.add'?null:d.data?.reason||null};}),next_before:rows.length===50?rows[rows.length-1].id:null};
 });
 const references=wrap((req,ctx)=>{
   const docs=perm(req,ctx,'documents:read')?ctx.db.query('SELECT v.id,v.document_id,v.version_number,d.title FROM document_versions v JOIN documents d ON d.id=v.document_id WHERE d.app_id=? ORDER BY d.title,v.version_number DESC',[scope.fromRequest(req)]).rows:[];

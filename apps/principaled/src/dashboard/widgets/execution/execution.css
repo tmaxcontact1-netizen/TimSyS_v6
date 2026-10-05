@@ -8,3 +8,4 @@
 @media(max-width:1050px){.ex-handoffs.ex-with-detail .ex-content{display:block}}
 .ex-task-more{margin:0!important;padding:0!important;border:0!important}.ex-task-more summary{font-size:.85rem;padding:8px}.ex-task-more button{display:block;margin-top:8px}.ex-table small.ex-mobile-owner{display:none}
 .ex-help{max-width:760px;font-size:.88rem;color:#b7c4d6}.ex-help summary{color:#c4b5fd}.ex-help ol{list-style:decimal;padding:14px 0 0 24px}.ex-help li{margin:8px 0}.ex-project-header progress{appearance:none;border:0;border-radius:4px;overflow:hidden}.ex-project-header progress::-webkit-progress-bar{background:#354053}.ex-project-header progress::-webkit-progress-value{background:#b29bea}.ex-project-header progress::-moz-progress-bar{background:#b29bea}@media(max-width:600px){.ex-table small.ex-mobile-owner{display:block;margin-top:5px}}
+.execution button.ex-danger{color:#fecaca;border-color:#9f5555;background:transparent}

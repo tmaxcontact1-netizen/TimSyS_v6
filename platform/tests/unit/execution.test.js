@@ -111,3 +111,19 @@ test('academic year references and malformed commands are validated without repa
  expect((await command('task.add','not an object')).statusCode).toBe(400);
  expect((await command('task.add',{title:'Wrong date type',due_on:false})).statusCode).toBe(422);
 });
+
+test('deletion removes working references, preserves audit snapshots and never approves successors',async()=>{
+ const a=await add('Disposable decision',{kind:'decision'}),b=await add('Successor');await ok('dependency.add',{from_id:a,to_id:b});await ok('milestone.add',{title:'Checkpoint',task_ids:[a]});await ok('instance.activate');await ok('blocker.add',{task_id:a,reason:'Test blocker'});await ok('link.add',{task_id:a,kind:'evidence',note:'Test evidence'});
+ expect((await command('task.delete',{task_id:a,confirm_delete:true},staff)).statusCode).toBe(403);
+ expect((await command('task.delete',{task_id:a})).success).toBe(false);
+ const result=await ok('task.delete',{task_id:a,confirm_delete:true});expect(instance.tasks.map(t=>t.id)).toEqual([b]);expect(instance.tasks[0]).toMatchObject({state:'ready',lifecycle:'open'});expect(result.newly_ready.map(t=>t.id)).toEqual([b]);
+ for(const field of ['dependencies','blockers','links','outcomes','exceptions'])expect(instance[field]).toHaveLength(0);expect(instance.milestones[0]).toMatchObject({status:'pending',contributions:[]});
+ const audit=JSON.parse(db.prepare("SELECT detail_json FROM execution_activity WHERE type='task.delete'").get().detail_json);expect(audit.before.tasks.some(t=>t.id===a)).toBe(true);expect(audit.before.links).toHaveLength(1);
+ expect((await mod.history(req(),ctx)).history.find(h=>h.type==='task.delete').title).toBe('Disposable decision');
+ expect(()=>engine.project(instance,[])).not.toThrow();
+});
+
+test('completed and cancelled project tasks can be deleted without reopening or losing receipt protection',async()=>{
+ const a=await add('Finished test');await ok('instance.activate');await ok('task.complete',{task_id:a});await ok('instance.close');const body={type:'task.delete',data:{task_id:a,confirm_delete:true},expected_revision:instance.revision,command_id:randomUUID()};const first=await mod.command(req(body),ctx);expect(first.success).toBe(true);expect(first.instance.lifecycle).toBe('completed');expect(first.instance.tasks).toHaveLength(0);expect(await mod.command(req(body),ctx)).toEqual(first);expect((await mod.command(req({...body,command_id:randomUUID()}),ctx)).statusCode).toBe(409);
+ instance=first.instance;await ok('instance.reopen',{reason:'More testing'});const b=await add('Cancelled test');await ok('instance.cancel',{reason:'Test cleanup'});await ok('task.delete',{task_id:b,confirm_delete:true});expect(instance.lifecycle).toBe('cancelled');expect(instance.tasks).toHaveLength(0);
+});

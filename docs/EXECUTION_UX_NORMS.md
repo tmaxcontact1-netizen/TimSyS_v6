@@ -37,3 +37,5 @@ Execution helps school staff answer: What should I do next? What is stopping me?
 - [Trello boards](https://support.atlassian.com/trello/docs/creating-a-new-board/): simple visible organisation of tasks into understandable stages.
 
 These inform the presentation; Execution's existing governed readiness and handoff model remains authoritative. No new Layer 1 mappings, approval rules, workflow engine or database migration is introduced by this pass.
+
+Task cleanup: project leads and managers can open a task and choose **Delete task**. Confirm the link and milestone effects before deleting. The task leaves all working views; audit history remains. Use Cancel to retain a task visibly as cancelled, or Delete to remove test/erroneous work. Source documents are never deleted by task cleanup.

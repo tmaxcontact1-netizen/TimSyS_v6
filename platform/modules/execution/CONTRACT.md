@@ -47,3 +47,9 @@ Portfolio, Overview, Tasks, Planning, Timeline, Dependency Wheel, My Work and pa
 Clone/templates, full network graphs, scheduling/resource optimisation, drag scheduling, exact-time dependencies, external calendars and realtime notifications remain deferred as agreed. Timeline offers fit-all, day, week and month ranges and keeps undated tasks available. Out-of-range work is counted explicitly and still contributes to readiness. The module is not registered as an intelligence component: the current component certification mandates operational insights, contrary to this build’s explicit no-Insights boundary. It remains a normal registered, routable platform module and is visible in Builder’s module list.
 
 Tests use synthetic in-memory or isolated on-disk databases only. A successful local build is not publication or proof that an installed desktop app has updated.
+
+## Task deletion
+
+Project leads and Execution managers with write access can use **Delete task** in task details, including on completed/cancelled tasks and closed projects. `task.delete` requires `task_id`, `confirm_delete: true`, an expected revision and an idempotent command ID. The confirmation explains removal of both incoming/outgoing dependencies, task blockers, links, outcomes and milestone contributions. Related working exceptions and revision-target references are also cleaned. Removing a prerequisite can make other tasks ready; it never completes or approves them. Milestones are not automatically achieved and receive a contribution-deletion note. Source documents and Layer 1 records are untouched.
+
+The task is removed from the current aggregate and all working views. There is no UI undo. The existing transactional activity snapshot retains before/after data, actor and revision, and the Activity entry retains the deleted title. Receipt retries are idempotent; stale edits fail. Deletion does not reopen a closed project.
