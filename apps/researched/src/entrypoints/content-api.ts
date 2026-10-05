@@ -6,7 +6,7 @@ import { contentHash } from "@timsys/app-sdk";
 import { ContentWorker, type ContentWorkerOptions } from "../application/content-worker.js";
 import { readDocumentLinks } from "../application/content-reader.js";
 import { preserveSource } from "../application/source-acquisition.js";
-import { contentPlanInput, workflowInput, FIELD_CATALOG, type ContentResult } from "../domain/content-analysis.js";
+import { canonicalContentUrl, contentPlanInput, workflowInput, FIELD_CATALOG, type ContentResult } from "../domain/content-analysis.js";
 import { aiConnectionInput } from "../domain/analysis.js";
 import { createAiAnalysisProvider, type AiAnalysisProvider } from "../application/ai-analysis.js";
 
@@ -15,8 +15,8 @@ async function body(request:IncomingMessage,maximum=1_000_000) {const chunks:Buf
 async function jsonBody(request:IncomingMessage) {try{return JSON.parse((await body(request)).toString("utf8"));}catch(error){if(error instanceof Error&&error.message==="request_too_large")throw error;throw new Error("invalid_json");}}
 const csvCell=(value:unknown)=>{let text=String(value??"");if(/^[=+@\-\t\r]/.test(text))text=`'${text}`;return `"${text.replaceAll('"','""')}"`;};
 export function contentCsv(run:{tasks:{url:string;status:string;error?:{status?:string};result?:ContentResult}[]}) {
-  const rows:unknown[][]=[["URL","Status","Title","Resource type",...FIELD_CATALOG.map(f=>f.label),"Missing sections","Source URLs"]];
-  for(const task of run.tasks){const result=task.result;rows.push([task.url,task.error?.status??task.status,result?.title,result?.kind,...FIELD_CATALOG.map(f=>result?.fields[f.id]?.map(b=>`${b.text} [${result.pages.find(p=>p.id===b.pageId)?.url} — ${b.locator}]`).join("\n")??""),result?.coverage.missing.join("; "),result?.pages.map(p=>p.url).join("\n")]);}
+  const rows:unknown[][]=[["URL","Status","Title","Resource type",...FIELD_CATALOG.map(f=>f.label),"Missing sections","Source URLs","AI answers"]];
+  for(const task of run.tasks){const result=task.result;rows.push([task.url,task.error?.status??task.status,result?.title,result?.kind,...FIELD_CATALOG.map(f=>result?.fields[f.id]?.map(b=>`${b.text} [${result.pages.find(p=>p.id===b.pageId)?.url} — ${b.locator}]`).join("\n")??""),result?.coverage.missing.join("; "),result?.pages.map(p=>p.url).join("\n"),result?.ai.answers?.map(a=>a.question+": "+(a.status==="not-found"?"Not found in inspected evidence":a.findings.map(f=>f.text+" ["+f.evidence.map(e=>e.quote).join("; ")+"]").join("\n"))).join("\n\n")??""]);}
   return "\uFEFF"+rows.map(row=>row.map(csvCell).join(",")).join("\r\n");
 }
 
@@ -31,7 +31,7 @@ export function createContentApi(options:ContentWorkerOptions & {background:bool
     const origin=request.headers.origin;
     if(method!=="GET" && origin && origin!==`http://${request.headers.host}`){send(response,403,{error:"origin_not_allowed"});return true;}
     try {
-      if(path==="/api/content/catalog"&&method==="GET") {send(response,200,{fields:FIELD_CATALOG.map(({id,label})=>({id,label})),aiAvailable:Boolean(options.getAiProvider()),workerError:worker.error});return true;}
+      if(path==="/api/content/catalog"&&method==="GET") {send(response,200,{fields:FIELD_CATALOG.map(({id,label})=>({id,label})),aiAvailable:Boolean(options.getAiProvider()),provider:options.getAiProvider()?{id:options.getAiProvider()!.id,model:options.getAiProvider()!.model}:null,workerError:worker.error});return true;}
       if(path==="/api/content/provider"&&method==="POST") {const value=aiConnectionInput.parse(await jsonBody(request));options.setProvider(createAiAnalysisProvider({protocol:value.protocol,model:value.model,baseUrl:value.baseUrl,...(value.apiKey?{apiKey:value.apiKey}:{})}));send(response,200,{configured:true,persistence:"memory-only"});return true;}
       if(path==="/api/content/workflows") {
         if(method==="GET"){send(response,200,{items:await repo.list()});return true;}
@@ -42,6 +42,7 @@ export function createContentApi(options:ContentWorkerOptions & {background:bool
         const id=uuid.parse(workflowMatch[1]), action=workflowMatch[2];
         const workflow=await repo.get(id);if(!workflow){send(response,404,{error:"workflow_not_found"});return true;}
         if(!action&&method==="GET"){send(response,200,workflow);return true;}
+        if(action==="links"&&method==="POST") {const value=z.object({urls:z.array(z.string().trim().min(1).max(3000)).min(1).max(500)}).strict().parse(await jsonBody(request));const links=value.urls.map((raw,i)=>{let address:string;try{address=canonicalContentUrl(raw);}catch{throw Error('invalid_manual_link');}return {url:address,occurrences:[{label:'Manually entered link',context:raw,locator:`manual entry ${i+1}`,originalUrl:raw}]};});await repo.importLinks(id,links,null);send(response,201,await repo.get(id));return true;}
         if(action==="links"&&method==="PATCH") {const value=z.object({included:z.boolean()}).strict().parse(await jsonBody(request));send(response,200,await repo.decide(id,uuid.parse(workflowMatch[3]),value.included));return true;}
         if(action==="document"&&method==="POST") {
           const filename=z.string().min(1).max(250).parse(url.searchParams.get("filename")), extension=filename.split(".").at(-1)?.toLowerCase();
@@ -80,7 +81,7 @@ export function createContentApi(options:ContentWorkerOptions & {background:bool
       const message=error instanceof Error?error.message:"internal_error";
       const conflict=["analysis_already_running","no_selected_links","run_not_active","ai_provider_not_configured"].includes(message);
       const code=(error as {code?:string})?.code;
-      send(response,error instanceof ZodError?400:conflict||code==="23505"?409:message==="request_too_large"?413:["invalid_json","empty_upload","upload_a_word_or_pdf_document"].includes(message)?400:500,{error:error instanceof ZodError?"validation_failed":code==="23505"?"analysis_already_running":message, ...(error instanceof ZodError?{issues:error.issues}:{})});return true;
+      send(response,error instanceof ZodError?400:conflict||code==="23505"?409:message==="request_too_large"?413:["invalid_manual_link","invalid_json","empty_upload","upload_a_word_or_pdf_document"].includes(message)?400:500,{error:error instanceof ZodError?"validation_failed":code==="23505"?"analysis_already_running":message, ...(error instanceof ZodError?{issues:error.issues}:{})});return true;
     }
   };
   return {handle,worker};

@@ -60,6 +60,12 @@ export async function readDocumentLinks(bytes: Buffer, mediaType: string): Promi
 
 export async function readContentPage(bytes: Buffer, mediaType: string, url: string, metadata: Omit<CapturedPage, "title" | "blocks" | "warnings" | "mediaType" | "url">): Promise<CapturedPage> {
   const blocks: EvidenceBlock[] = [], warnings: string[] = [];
+  if(mediaType==='application/octet-stream'){
+    if(bytes.subarray(0,5).toString()==='%PDF-')mediaType='application/pdf';
+    else if(/\.docx$/i.test(new URL(url).pathname)&&bytes.subarray(0,2).toString()==='PK')mediaType=docxType;
+    else if(/\.txt$/i.test(new URL(url).pathname))mediaType='text/plain';
+    warnings.push('The server supplied a generic file type; supported document signatures and URL extensions were used for extraction.');
+  }
   let title = new URL(url).hostname;
   const add = (text: string, heading: string, locator: string) => {
     text = clean(text);
@@ -138,10 +144,11 @@ export function rankSupportingLinks(html: string, baseUrl: string, rootUrl: stri
       const url = canonicalContentUrl($(anchor).attr("href")!, base), target = new URL(url), label = clean($(anchor).text());
       if (/logout|signout|login|apply-now|shopping|payment/i.test(target.pathname)) return;
       const searchable = `${label} ${target.pathname}`, matches = FIELD_CATALOG.filter(f => plan.fields.includes(f.id) && f.pattern.test(searchable));
-      const attachment = /\.(?:pdf|docx)(?:$|\?)/i.test(url);
-      const goalWords = plan.goal.toLowerCase().match(/[a-z]{5,}/g) ?? [];
-      const score = matches.length * 5 + (attachment && /handbook|catalog|syllab|specification|programme|program|course/i.test(searchable) ? 4 : 0) + Math.min(2, goalWords.filter(w => searchable.toLowerCase().includes(w)).length);
-      if (score < 4 || url === canonicalContentUrl(baseUrl)) return;
+      const attachment = /\.(?:pdf|docx|txt|xlsx|csv|doc)(?:$|\?)/i.test(url)||/pdf|word|spreadsheet|officedocument/i.test($(anchor).attr("type")??"")||$(anchor).attr("download")!==undefined;
+      if(attachment&&!plan.followDocuments||!attachment&&!plan.followWebpages)return;
+      const goalWords = [plan.goal,...plan.questions].join(' ').toLowerCase().match(/[a-z]{5,}/g) ?? [];
+      const score = matches.length * 5 + (attachment ? 4 : 0) + Math.min(2, goalWords.filter(w => searchable.toLowerCase().includes(w)).length);
+      if (score < (plan.questions.length?1:4) || url === canonicalContentUrl(baseUrl)) return;
       const rootHost = root.hostname.replace(/^www\./, ""), host = target.hostname.replace(/^www\./, "");
       // Exact source host and its subdomains are automatic. Other hosts must be explicitly trusted.
       const allowed = host === rootHost || host.endsWith(`.${rootHost}`) || plan.allowedHosts.includes(target.hostname) || plan.allowedHosts.includes(host);

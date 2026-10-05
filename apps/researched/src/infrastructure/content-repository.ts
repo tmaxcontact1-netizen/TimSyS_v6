@@ -33,12 +33,12 @@ export class ContentRepository {
     ]);
     return {...workflow,links:links.rows,runs:runs.rows,documents:documents.rows};
   }
-  async importLinks(workflowId: string, links: IntakeLink[], sourceId: string) {
+  async importLinks(workflowId: string, links: IntakeLink[], sourceId: string | null) {
     await this.transaction(async client => {
       await client.query("SELECT id FROM researched.content_workflows WHERE id=$1 FOR UPDATE",[workflowId]);
       await this.assertIdle(client,workflowId);
-      for (const link of links) await client.query(`INSERT INTO researched.content_links(id,workflow_id,url,occurrences,created_at) VALUES($1,$2,$3,$4,now()) ON CONFLICT(workflow_id,url) DO UPDATE SET occurrences=researched.content_links.occurrences || excluded.occurrences`,[randomUUID(),workflowId,link.url,JSON.stringify(link.occurrences.map(x=>({...x,sourceDocumentId:sourceId})))]);
-      await this.audit(client,workflowId,"document_imported",sourceId,{links:links.length});
+      for (const link of links) await client.query(`INSERT INTO researched.content_links(id,workflow_id,url,occurrences,created_at) VALUES($1,$2,$3,$4,now()) ON CONFLICT(workflow_id,url) DO UPDATE SET occurrences=researched.content_links.occurrences || excluded.occurrences`,[randomUUID(),workflowId,link.url,JSON.stringify(link.occurrences.map(x=>({...x,...(sourceId?{sourceDocumentId:sourceId}:{inputMethod:"manual"})})))]);
+      await this.audit(client,workflowId,sourceId?"document_imported":"links_entered",sourceId??workflowId,{links:links.length});
     });
   }
   async assertIdle(client: Pick<PoolClient,"query">, workflowId: string) {
