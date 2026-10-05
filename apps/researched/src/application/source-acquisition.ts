@@ -100,6 +100,7 @@ async function limitedBytes(response: Response, maximum: number) {
 export async function acquireSource(
   requestedUrl: string,
   options: {
+    acceptMediaType?: (type:string)=>boolean;
     fetcher?: typeof fetch;
     resolver?: typeof lookup;
     maximumBytes?: number;
@@ -138,6 +139,8 @@ export async function acquireSource(
         throw Object.assign(new Error("source_http_error"), {
           status: response.status,
         });
+      const announcedType=(response.headers.get('content-type')??'application/octet-stream').split(';')[0]!.trim().toLowerCase();
+      if(options.acceptMediaType&&!options.acceptMediaType(announcedType)){await response.body?.cancel();throw Error('source_excluded_by_policy');}
       const bytes = await limitedBytes(
           response,
           options.maximumBytes ?? 25_000_000,

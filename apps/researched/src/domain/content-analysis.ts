@@ -19,6 +19,9 @@ export const contentPlanInput = z.object({
   maxDepth: z.number().int().min(0).max(2).default(2),
   maxPages: z.number().int().min(1).max(15).default(8),
   allowedHosts: z.array(z.string().trim().toLowerCase().regex(/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/)).max(30).default([]),
+  followWebpages: z.boolean().default(true),
+  followDocuments: z.boolean().default(true),
+  questions: z.array(z.string().trim().min(1).max(1000)).max(20).default([]),
   aiEnabled: z.boolean().default(false),
 }).strict();
 export type ContentPlan = z.infer<typeof contentPlanInput>;
@@ -33,7 +36,7 @@ export type ContentResult = {
   fields: Record<string, EvidenceBlock[]>; pages: CapturedPage[]; observations: LinkObservation[];
   warnings: string[]; suggestions: {url: string; label: string; reason: string}[];
   coverage: {found: number; requested: number; missing: string[]};
-  ai: {status: string; notes: {text: string; evidenceIds: string[]}[]; detail: string};
+  ai: {status: string; notes: {text: string; evidenceIds: string[]}[]; detail: string; answers?: import("../application/question-analysis.js").QuestionAnswer[]};
 };
 
 export function canonicalContentUrl(value: string, base?: string) {
@@ -46,6 +49,6 @@ export function canonicalContentUrl(value: string, base?: string) {
 export function failureObservation(error: unknown, url: string, parentUrl: string | null): LinkObservation {
   const detail = error instanceof Error ? error.message : String(error);
   const httpStatus = Number((error as {status?: number})?.status) || undefined;
-  const status = httpStatus === 404 || httpStatus === 410 ? "missing" : httpStatus === 401 || httpStatus === 403 || /captcha|access.denied|login_required/i.test(detail) ? "blocked" : httpStatus === 429 ? "rate_limited" : /timeout|abort|ECONN|ENOTFOUND|EAI_AGAIN|fetch failed|5\d\d/i.test(detail) || (httpStatus !== undefined && httpStatus >= 500) ? "temporary_failure" : /unsupported|not_public|not_allowed/i.test(detail) ? "unsupported" : "capture_failed";
+  const status = detail === "source_excluded_by_policy" ? "skipped" : httpStatus === 404 || httpStatus === 410 ? "missing" : httpStatus === 401 || httpStatus === 403 || /captcha|access.denied|login_required/i.test(detail) ? "blocked" : httpStatus === 429 ? "rate_limited" : /timeout|abort|ECONN|ENOTFOUND|EAI_AGAIN|fetch failed|5\d\d/i.test(detail) || (httpStatus !== undefined && httpStatus >= 500) ? "temporary_failure" : /unsupported|not_public|not_allowed/i.test(detail) ? "unsupported" : "capture_failed";
   return {url, parentUrl, status, detail, ...(httpStatus !== undefined ? {httpStatus} : {})};
 }

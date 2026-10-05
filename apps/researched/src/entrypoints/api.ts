@@ -293,7 +293,7 @@ export function createResearchServer(input: {
     }
   };
   let queueWorkerError: string | null = null;
-  const mcfApi = createMcfApi(input.database as ContentDatabase, storageRoot);
+  const mcfApi = createMcfApi(input.database as ContentDatabase, storageRoot,()=>aiProvider,Boolean(input.backgroundQueue));
   const contentApi = createContentApi({database:input.database as ContentDatabase,storageRoot,acquire,render:renderedAcquire,getAiProvider:()=>aiProvider,setProvider:provider=>{aiProvider=provider;},background:Boolean(input.backgroundQueue)});
   const server = createServer(async (q, r) => {
     const method = q.method ?? "GET",
@@ -1629,6 +1629,7 @@ export function createResearchServer(input: {
   programmeTimer?.unref();
   server.once("close", () => {
     void contentApi.worker.stop();
+    mcfApi.worker.stop();
     if (programmeTimer) clearInterval(programmeTimer);
   });
   return server;

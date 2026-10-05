@@ -1,8 +1,9 @@
+import {createHash} from 'node:crypto';
 import { z } from "zod";
 export const groundedAnalysisResponse=z.object({value:z.unknown(),confidence:z.number().min(0).max(1),evidenceSegmentIds:z.array(z.string().uuid()).min(1),limitations:z.array(z.string()).default([])}).strict();
 export interface AnalysisEvidence{segmentId:string;sourceId:string;content:string}
 export interface AiAnalysisRequest{requestId:string;analysisType:string;instructions:string;evidence:readonly AnalysisEvidence[];outputSchema?:Record<string,unknown>}
-export interface AiAnalysisProvider{readonly id:string;readonly model:string;analyse(request:AiAnalysisRequest):Promise<z.infer<typeof groundedAnalysisResponse>>}
+export interface AiAnalysisProvider{readonly id:string;readonly model:string;readonly configurationId?:string;analyse(request:AiAnalysisRequest):Promise<z.infer<typeof groundedAnalysisResponse>>}
 export type AiProtocol="openai-responses"|"openai-chat"|"anthropic-messages"|"generic-json";
 export const AI_PROVIDER_PROTOCOLS=[
   {id:"openai-responses",name:"OpenAI Responses",description:"OpenAI and services implementing the Responses API.",defaultBaseUrl:"https://api.openai.com",requiresKey:true},
@@ -40,6 +41,7 @@ export async function inspectAiConnection(configuration:AiProviderConfiguration)
 }
 abstract class HttpAnalysisProvider implements AiAnalysisProvider{
   abstract readonly id:string;
+  get configurationId(){return createHash('sha256').update(JSON.stringify({protocol:this.options.protocol,model:this.model,baseUrl:this.options.baseUrl})).digest('hex');}
   constructor(readonly model:string,protected readonly options:AiProviderConfiguration){}
   protected async post(endpoint:URL,body:unknown,headers:Record<string,string>={}){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),this.options.timeoutMs??90_000);try{return await boundedJson(await(this.options.fetch??fetch)(endpoint,{method:"POST",redirect:"error",signal:controller.signal,headers:{"Content-Type":"application/json",Accept:"application/json",...headers},body:JSON.stringify(body)}))}finally{clearTimeout(timer)}}
   abstract analyse(request:AiAnalysisRequest):Promise<z.infer<typeof groundedAnalysisResponse>>;

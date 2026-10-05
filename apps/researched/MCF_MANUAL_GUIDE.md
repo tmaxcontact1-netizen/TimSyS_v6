@@ -1,6 +1,6 @@
 # MCF Analysis — manual research phase
 
-This release implements the approved Stages 1–3 inside Research’Ed. No machine classifier, semantic provider, sentiment engine, reliability threshold, domain roll-up or institutional average is implemented. MCF never calls the configured AI connection.
+This guide describes the retained manual research workflow. Research’Ed 0.5.0 also offers explicitly requested AI proposals and interpretation; see GUIDED_ANALYSIS_GUIDE.md. Manual coding and blind validation do not require AI. Reliability thresholds, domain roll-ups and institutional averages remain unimplemented.
 
 ## Instrument and data boundaries
 
@@ -8,7 +8,7 @@ This release implements the approved Stages 1–3 inside Research’Ed. No machi
 
 `analysis-config/mcf-retrieval/1.0.json` is separate, versioned and unconfigured. Keywords, synonyms and future classifier aids are not part of the theoretical instrument.
 
-The storage layers are distinct: original file bytes → unchanged extraction output → mapped original record text → separate working text → versioned units → frozen manual sessions → append-only researcher decisions. There is no machine output in this phase. Original files use Research’Ed’s existing source/snapshot archive. PostgreSQL triggers prohibit updates to research records and deletion of saved decisions. The lifecycle transaction permits deletion of unused containers after dependency checks. A revision adds a row linked to the previous decision; concurrent stale edits return a conflict instead of overwriting work.
+The storage layers are distinct: original file bytes → unchanged extraction output → mapped original record text → separate working text → versioned units → frozen manual sessions → append-only researcher decisions. Machine proposals and interpretations are stored separately from researcher decisions. Original files use Research’Ed’s existing source/snapshot archive. PostgreSQL triggers prohibit updates to research records and deletion of saved decisions. The lifecycle transaction permits deletion of unused containers after dependency checks. A revision adds a row linked to the previous decision; concurrent stale edits return a conflict instead of overwriting work.
 
 Working-text normalisation only changes CRLF/CR line endings to LF. Unit offsets refer to **original record text**, measured in UTF-16 code units. CSV locations retain logical row/column; XLSX retains worksheet/row/column; document records retain original extraction offsets and available page/element locations. Parser text is a derivative of a DOCX/PDF, not a claim of exact visual transcription. Original bytes are always available for checking.
 

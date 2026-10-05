@@ -1,6 +1,6 @@
 {
   "name": "researched",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,8 @@
     "migrate": "tsx scripts/migrate.ts",
     "start": "node dist/src/entrypoints/api.js",
     "verify:pipeline": "node scripts/verify-content-pipeline.mjs",
-    "verify:mcf": "node scripts/verify-mcf-manual.mjs"
+    "verify:mcf": "node scripts/verify-mcf-manual.mjs",
+    "verify:guided": "node scripts/verify-guided-analysis.mjs"
   },
   "engines": {
     "node": ">=24.18.0 <25"
