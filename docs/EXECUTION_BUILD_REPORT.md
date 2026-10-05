@@ -45,3 +45,9 @@ Once released and installed, open Organisation → Execution → New Work Instan
 Clone/templates, resource optimisation, full network graph, AI recommendations, exact-time scheduling, external calendars and realtime notifications remain deferred as specified in the MVP design. A school pilot, full assistive-technology audit and broad production-volume testing have not been performed.
 
 See [module contract](../platform/modules/execution/CONTRACT.md) for endpoints, permissions, persistence and domain semantics. Repeatable verification scripts are [browser E2E](../scripts/execution-e2e.cjs) and [engine scale](../scripts/execution-scale.cjs); the browser runner accepts `PLAYWRIGHT_MODULE` and requires an installed Edge browser.
+
+## October 2026 usability pass
+
+The task interface now follows the norms in `EXECUTION_UX_NORMS.md`: My Work first, Projects, a task list by default, and one selected task detail. Handoffs, project settings and activity remain available through More. No API, stored states, database schema or production records changed.
+
+Validation: 15 Execution unit/HTTP tests, production UI build and an isolated real-browser flow covering setup, task creation, selection, approvals, mixed dependency outcomes, staff completion, persistence and narrow layouts. Screenshots were reviewed for the task list, detail, draft setup and mobile presentation. Release archives receive launcher extraction and installed-runtime verification before publication. Synthetic fixtures are confined to diagnostics databases.
