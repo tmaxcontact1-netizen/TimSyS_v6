@@ -1,3 +1,4 @@
+import {McfLifecycle,lifecycleTables,type LifecycleKind} from '../infrastructure/mcf-lifecycle.js';
 import type {IncomingMessage,ServerResponse} from 'node:http';
 import type {Pool} from 'pg';
 import {readFile} from 'node:fs/promises';
@@ -10,16 +11,22 @@ import {McfRepository} from '../infrastructure/mcf-repository.js';
 async function bytes(q:IncomingMessage,maximum=2_000_000){const chunks:Buffer[]=[];let size=0;for await(const part of q){const b=Buffer.from(part);size+=b.length;if(size>maximum)throw Error('request_too_large');chunks.push(b);}return Buffer.concat(chunks);}
 async function body(q:IncomingMessage){try{return JSON.parse((await bytes(q)).toString('utf8'));}catch(e){if(e instanceof Error&&e.message==='request_too_large')throw e;throw Error('invalid_json');}}
 export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:string){
- const repo=new McfRepository(database,storageRoot);
+ const repo=new McfRepository(database,storageRoot),lifecycle=new McfLifecycle(repo);
  const send=(r:ServerResponse,status:number,value:unknown)=>{r.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});r.end(JSON.stringify(value));};
  return async(q:IncomingMessage,r:ServerResponse):Promise<boolean>=>{
   const url=new URL(q.url??'/','http://127.0.0.1'),parts=url.pathname.split('/').filter(Boolean),method=q.method??'GET';if(parts[0]!=='api'||parts[1]!=='mcf')return false;
   if(method!=='GET'&&q.headers.origin&&q.headers.origin!==`http://${q.headers.host}`){send(r,403,{error:'origin_not_allowed'});return true;}
   try{
    const resource=parts[2],id=parts[3]?z.uuid().parse(parts[3]):'',action=parts[4],child=parts[5]?z.uuid().parse(parts[5]):'';
+   if(resource&&Object.prototype.hasOwnProperty.call(lifecycleTables,resource)&&id){
+    const kind=resource as LifecycleKind;
+    if(action==='lifecycle'&&method==='GET'){send(r,200,await lifecycle.policy(kind,id));return true;}
+    if(action==='history'&&method==='GET'){send(r,200,{items:await lifecycle.history(kind,id)});return true;}
+    if(action==='lifecycle'&&method==='POST'){const v=z.object({action:z.enum(['rename','archive','restore','delete']),actor,label:z.string().trim().min(1).max(200).optional()}).strict().parse(await body(q));if(v.action==='rename'&&(!v.label||!['datasets','imports','sessions'].includes(kind)))throw Error('display_name_required');send(r,200,await lifecycle.change(kind,id,v.action,v.actor,v.label));return true;}
+   }
    if(resource==='instrument'&&method==='GET'){send(r,200,{instrument:MCF,hash:MCF_HASH,classification:'not-implemented',transmission:'local-only'});return true;}
    if(resource==='datasets'){
-    if(!id&&method==='GET'){send(r,200,{items:await repo.list()});return true;}
+    if(!id&&method==='GET'){send(r,200,{items:await repo.list(url.searchParams.get('archived')==='true')});return true;}
     if(!id&&method==='POST'){send(r,201,await repo.create(datasetInput.parse(await body(q))));return true;}
     if(id&&!action&&method==='GET'){send(r,200,await repo.overview(id));return true;}
     if(action==='imports'&&method==='POST'){
