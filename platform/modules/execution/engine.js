@@ -81,9 +81,10 @@ function reconcile(s) {
 }
 function mutate(original, command, env) {
   const s = structuredClone(original), { type, data: b = {} } = command, { people, actor, lead, staffId, today } = env;
-  const leadCommands = ['instance.update','instance.activate','instance.close','instance.cancel','instance.reopen','phase.add','task.add','task.delete','task.update','task.reopen','task.cancel','task.reinstate','dependency.add','dependency.waive','dependency.remove','dependency.reinstate','milestone.add','milestone.achieve','milestone.cancel','milestone.reopen','milestone.waive'];
+  const leadCommands = ['instance.delete','instance.update','instance.activate','instance.close','instance.cancel','instance.reopen','phase.add','task.add','task.delete','task.update','task.reopen','task.cancel','task.reinstate','dependency.add','dependency.waive','dependency.remove','dependency.reinstate','milestone.add','milestone.achieve','milestone.cancel','milestone.reopen','milestone.waive'];
   if (leadCommands.includes(type) && !lead) fail('Only the Work Instance lead or Execution manager can perform this action', 403);
-  if (type !== 'task.delete' && (s.lifecycle === 'cancelled' || (s.lifecycle === 'completed' && type !== 'instance.reopen'))) fail('This Work Instance is closed', 409);
+  if (s.deleted_at) fail('Project has been deleted',404);
+  if (!['task.delete','instance.delete'].includes(type) && (s.lifecycle === 'cancelled' || (s.lifecycle === 'completed' && type !== 'instance.reopen'))) fail('This Work Instance is closed', 409);
   const reason = () => text(b.reason, 'Reason', true);
   const activePerson = id => { if (id != null && !people.some(p => p.id === id && p.active)) fail('Choose an active staff member'); return id || null; };
   const owned = () => { const t = task(s, b.task_id); if (!lead && (t.assignee_staff_id !== staffId || !people.some(p => p.id === staffId && p.active))) fail('Only the assigned person or Execution lead can act', 403); return t; };
@@ -91,6 +92,10 @@ function mutate(original, command, env) {
   const stamp = value => ({ ...value, id: randomUUID(), actor, at: new Date().toISOString() });
   const reopen = t => { t.lifecycle = 'open'; t.cycle += 1; t.completed_at = null; t.completed_by = null; };
   switch (type) {
+    case 'instance.delete': {
+      if (b.confirm_delete !== true) fail('Confirm project deletion explicitly');
+      s.deleted_at = new Date().toISOString(); s.deleted_by = actor; s.lifecycle = 'deleted'; s.revision += 1; return s;
+    }
     case 'instance.update': {
       for (const k of ['title', 'description', 'retrospective']) if (k in b) s[k] = text(b[k], k, k === 'title');
       if ('lead_staff_id' in b) s.lead_staff_id = activePerson(b.lead_staff_id);

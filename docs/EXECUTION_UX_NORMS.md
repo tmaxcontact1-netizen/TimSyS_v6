@@ -39,3 +39,5 @@ Execution helps school staff answer: What should I do next? What is stopping me?
 These inform the presentation; Execution's existing governed readiness and handoff model remains authoritative. No new Layer 1 mappings, approval rules, workflow engine or database migration is introduced by this pass.
 
 Task cleanup: project leads and managers can open a task and choose **Delete task**. Confirm the link and milestone effects before deleting. The task leaves all working views; audit history remains. Use Cancel to retain a task visibly as cancelled, or Delete to remove test/erroneous work. Source documents are never deleted by task cleanup.
+
+Project cleanup: choose **More → Project settings → Delete project** to remove the entire project and its tasks from working views. The explicit confirmation names the project and task count. This is separate from Cancel project. It supports draft and closed projects; an audit record remains, with no UI undo.

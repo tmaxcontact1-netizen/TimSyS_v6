@@ -13,10 +13,10 @@ function identity(req,ctx,people) {
   const matches=people.filter(p=>p.actor_id != null && String(p.actor_id)===String(req.user.id));
   return {staffId:matches.length===1&&matches[0].active?matches[0].id:null,ambiguous:matches.length>1,manager:perm(req,ctx,'execution:manage')};
 }
-function canRead(s,who) { return who.manager || (who.staffId && (s.lead_staff_id===who.staffId || s.tasks.some(t=>t.assignee_staff_id===who.staffId))); }
-function load(req,ctx,id,who) {
+function canRead(s,who) { return !s.deleted_at && (who.manager || (who.staffId && (s.lead_staff_id===who.staffId || s.tasks.some(t=>t.assignee_staff_id===who.staffId)))); }
+function load(req,ctx,id,who,allowDeleted=false) {
   const row=ctx.db.query('SELECT data_json FROM execution_instances WHERE id=? AND app_id=?',[id,scope.fromRequest(req)]).rows[0];
-  const s=row&&JSON.parse(row.data_json);if(!s||!canRead(s,who))engine.fail('Work Instance not found',404);return s;
+  const s=row&&JSON.parse(row.data_json);if(!s||!(allowDeleted&&s.deleted_at?(who.manager||who.staffId&&s.lead_staff_id===who.staffId):canRead(s,who)))engine.fail('Work Instance not found',404);return s;
 }
 function redact(s,req,ctx) {
   const output=structuredClone(s);
@@ -86,7 +86,7 @@ const command=wrap((req,ctx)=>{
   const m=commandMeta(req),people=directory(ctx),who=identity(req,ctx,people);
   if(typeof req.body.type!=='string'||(req.body.data!=null&&(typeof req.body.data!=='object'||Array.isArray(req.body.data))))engine.fail('Command type and an object data payload are required',400);
   return ctx.db.transaction(()=>{
-    const old=load(req,ctx,req.params.id,who),r=receipt(ctx,m);if(r){const cached=JSON.parse(r.result_json);cached.instance=redact(cached.instance,req,ctx);return cached;}
+    const old=load(req,ctx,req.params.id,who,req.body.type==='instance.delete'),r=receipt(ctx,m);if(r){const cached=JSON.parse(r.result_json);if(cached.instance)cached.instance=redact(cached.instance,req,ctx);return cached;}
     if(!Number.isInteger(req.body.expected_revision)||req.body.expected_revision!==old.revision)engine.fail('Work changed. Refresh and review before retrying.',409,'STALE_REVISION');
     const today=engine.localDate(old.timezone),before=engine.project(old,people,today);
     const commandInput={...req.body,data:{...(req.body.data||{})}};
@@ -95,6 +95,7 @@ const command=wrap((req,ctx)=>{
     const result=ctx.db.query("UPDATE execution_instances SET revision=?,data_json=?,updated_at=datetime('now') WHERE id=? AND app_id=? AND revision=?",[next.revision,JSON.stringify(next),next.id,m.app,old.revision]);
     if(result.changes!==1)engine.fail('Concurrent update; refresh and review',409,'STALE_REVISION');
     activity(ctx,next,m,req.body.type,{data:req.body.data||{},before:old,after:next});
+    if(req.body.type==='instance.delete'){const response={success:true,deleted:true,instance_id:next.id,revision:next.revision};storeReceipt(ctx,m,next,response);return response;}
     const after=engine.project(next,people,today),newlyReady=after.tasks.filter(t=>t.state==='ready'&&before.tasks.some(o=>o.id===t.id&&o.state!=='ready'));
     const actors=people.filter(p=>p.actor_id!=null&&String(p.actor_id)===m.actor);
     for(const t of newlyReady)activity(ctx,next,m,'task.ready',{task_id:t.id,title:t.title,cause:req.body.type,cause_task_title:old.tasks.find(x=>x.id===req.body.data?.task_id)?.title||next.tasks.find(x=>x.id===req.body.data?.task_id)?.title||null,actor_name:actors.length===1?actors[0].name:who.manager?'Execution manager':'Authorised user',local_date:today});

@@ -127,3 +127,21 @@ test('completed and cancelled project tasks can be deleted without reopening or 
  const a=await add('Finished test');await ok('instance.activate');await ok('task.complete',{task_id:a});await ok('instance.close');const body={type:'task.delete',data:{task_id:a,confirm_delete:true},expected_revision:instance.revision,command_id:randomUUID()};const first=await mod.command(req(body),ctx);expect(first.success).toBe(true);expect(first.instance.lifecycle).toBe('completed');expect(first.instance.tasks).toHaveLength(0);expect(await mod.command(req(body),ctx)).toEqual(first);expect((await mod.command(req({...body,command_id:randomUUID()}),ctx)).statusCode).toBe(409);
  instance=first.instance;await ok('instance.reopen',{reason:'More testing'});const b=await add('Cancelled test');await ok('instance.cancel',{reason:'Test cleanup'});await ok('task.delete',{task_id:b,confirm_delete:true});expect(instance.lifecycle).toBe('cancelled');expect(instance.tasks).toHaveLength(0);
 });
+
+test('project deletion removes all working access, retains audit and retries safely',async()=>{
+ const t=await add('Project cleanup');await ok('instance.activate');
+ expect((await command('instance.delete',{confirm_delete:true},staff)).statusCode).toBe(403);
+ expect((await command('instance.delete',{})).success).toBe(false);
+ const body={type:'instance.delete',data:{confirm_delete:true},expected_revision:instance.revision,command_id:randomUUID()};
+ expect((await mod.command(req({...body,expected_revision:instance.revision-1}),ctx)).statusCode).toBe(409);
+ const first=await mod.command(req(body),ctx);expect(first).toMatchObject({success:true,deleted:true,instance_id:instance.id});expect(await mod.command(req(body),ctx)).toEqual(first);
+ for(const user of [manager,staff]){const w=await mod.workspace(req({},user),ctx);expect(w.instances).toHaveLength(0);expect(w.my_work).toHaveLength(0);expect((await mod.get(req({},user),ctx)).statusCode).toBe(404);expect((await mod.history(req({},user),ctx)).statusCode).toBe(404);}
+ expect((await command('task.add',{title:'Must not resurrect'})).statusCode).toBe(404);
+ const audit=JSON.parse(db.prepare("SELECT detail_json FROM execution_activity WHERE type='instance.delete'").get().detail_json);expect(audit.before.tasks[0].id).toBe(t);expect(audit.after.deleted_by).toBe('1');expect(db.prepare("SELECT COUNT(*) n FROM execution_activity WHERE type='instance.delete'").get().n).toBe(1);
+});
+
+test.each(['planning','completed','cancelled'])('project deletion works for %s projects',async lifecycle=>{
+ if(lifecycle==='completed'){await ok('instance.activate');await ok('instance.close');}
+ if(lifecycle==='cancelled')await ok('instance.cancel',{reason:'Testing'});
+ expect((await command('instance.delete',{confirm_delete:true})).success).toBe(true);expect((await mod.workspace(req(),ctx)).instances).toHaveLength(0);
+});
