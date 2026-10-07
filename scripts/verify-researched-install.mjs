@@ -26,10 +26,11 @@ try{
  const base=`http://127.0.0.1:${port}`;
  const health=await (await fetch(base+'/api/health')).json();assert.equal(health.status,'healthy');
  assert.ok((await (await fetch(base)).text()).includes('<div id="root">'));
+ const workbench=await fetch(base+'/api/workbench');assert.equal(workbench.status,200);assert.ok(Array.isArray((await workbench.json()).items));
  const catalog=await fetch(base+'/api/content/catalog');assert.equal(catalog.status,200);
  const instrument=await (await fetch(base+'/api/mcf/instrument')).json();assert.equal(instrument.instrument.competencies.length,21);assert.equal(instrument.classification,'reviewable-proposals');
  const mcfCreated=await fetch(base+'/api/mcf/datasets',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:'Installed MCF verification',mode:'reviews',reviewCategory:'Principal',actor:'Verification'})});assert.equal(mcfCreated.status,201);
  const created=await fetch(base+'/api/content/workflows',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({title:'Installed runtime verification',plan:{goal:'Review curriculum and professional development',fields:['curriculum','practice'],aiEnabled:false}})});assert.equal(created.status,201);const workflow=await created.json();assert.ok(workflow.id);
- const report={passedAt:new Date().toISOString(),bundle:isolatedManifest.bundles[0],checks:['Launcher updater verifies ZIP size/hash, extracts and activates ResearchEd','Installed migration runner applies schema to disposable PostgreSQL','Launcher supervisor starts installed API using restricted runtime database role','Installed health, frontend, catalogue and workflow creation succeed']};
+ const report={passedAt:new Date().toISOString(),bundle:isolatedManifest.bundles[0],checks:['Launcher updater verifies ZIP size/hash, extracts and activates ResearchEd','Installed migration runner applies schema to disposable PostgreSQL','Launcher supervisor starts installed API using restricted runtime database role','Installed health, frontend, simple-workflow library, catalogue and workflow creation succeed']};
  const proofPath=join(assets,'researched-verification.json'),proof=JSON.parse(await readFile(proofPath,'utf8'));proof.installedRuntime=report;await writeFile(proofPath,JSON.stringify(proof,null,2)+'\n');console.log(JSON.stringify(report,null,2));
 }finally{await supervisor.stop('researched').catch(()=>{});await postgres.stop();}

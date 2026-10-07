@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 
 // Stage and verify the runtime first. Carry forward other released bundle entries verbatim.
-const [stageArg,baselineArg,verificationArg,outputArg,tag,mcfVerificationArg,guidedVerificationArg]=process.argv.slice(2);
+const [stageArg,baselineArg,verificationArg,outputArg,tag,mcfVerificationArg,guidedVerificationArg,simpleVerificationArg]=process.argv.slice(2);
 assert.ok(stageArg&&baselineArg&&verificationArg&&outputArg&&/^\d{4}\.\d{2}\.\d{2}\.\d+$/.test(tag??''),'Usage: node scripts/package-researched-update.mjs STAGE BASELINE_MANIFEST VERIFICATION OUTPUT YYYY.MM.DD.N');
 const stage=resolve(stageArg),output=resolve(outputArg);
 const report=JSON.parse(await readFile(verificationArg,'utf8'));
@@ -22,6 +22,11 @@ if(await lstat(join(stage,'dist/src/application/mcf-ai.js')).catch(()=>null)){
  const files=['dist/src/application/ai-analysis.js','dist/src/application/source-acquisition.js','dist/src/domain/content-analysis.js','dist/src/application/mcf-ai.js','dist/src/application/question-analysis.js','dist/src/application/content-worker.js','dist/src/application/content-reader.js','dist/src/entrypoints/content-api.js','dist/src/entrypoints/mcf-api.js','dist/src/infrastructure/mcf-repository.js','dist/frontend/index.html','dist/analysis-config/mcf-classification/1.0.json','migrations/0020_mcf_ai_proposals.sql'];
  assert.deepEqual(guidedReport.fingerprintFiles,files);const proof=createHash('sha256');for(const file of files)proof.update(await readFile(join(stage,file)));assert.equal(proof.digest('hex'),guidedReport.buildFingerprint,'Guided build must match staged verification');
 }
+let simpleReport=null;
+if(await lstat(join(stage,'dist/src/entrypoints/workbench-api.js')).catch(()=>null)){
+ assert.ok(simpleVerificationArg,'Simple workflow requires its staged acceptance report');simpleReport=JSON.parse(await readFile(simpleVerificationArg,'utf8'));assert.ok(simpleReport.passedAt&&simpleReport.externalModelCalls===0&&simpleReport.checks.length>=11);
+ const files=['dist/src/domain/draft-history.js','dist/src/entrypoints/workbench-api.js','dist/src/entrypoints/api.js','dist/src/infrastructure/mcf-repository.js','dist/src/infrastructure/content-repository.js','dist/frontend/index.html','migrations/0021_guided_workbench.sql'];assert.deepEqual(simpleReport.fingerprintFiles,files);const proof=createHash('sha256');for(const file of files)proof.update(await readFile(join(stage,file)));assert.equal(proof.digest('hex'),simpleReport.buildFingerprint,'Simple workflow must match staged verification');
+}
 const junction=join(stage,'node_modules');
 const info=await lstat(junction).catch(e=>{if(e.code!=='ENOENT')throw e;return null;});
 if(info){assert.ok(info.isSymbolicLink(),'Only the temporary verification junction may be removed');await unlink(junction);}
@@ -35,5 +40,5 @@ const baseline=JSON.parse(await readFile(baselineArg,'utf8'));
 const bundle={id:'researched',version,url:`https://github.com/tmaxcontact1-netizen/TimSyS_v6/releases/download/${tag}/${filename}`,size:bytes.length,sha256};
 const manifest={...baseline,releaseVersion:tag,publishedAt:new Date().toISOString(),notes:process.env.RESEARCHED_RELEASE_NOTES??'Research’Ed: document link intake, deterministic curriculum and professional-development evidence, supporting documents, source failures and optional cited AI notes.',bundles:[...baseline.bundles.filter(b=>b.id!=='researched'),bundle]};
 await writeFile(join(output,'timsys-update.json'),JSON.stringify(manifest,null,2)+'\n');
-await writeFile(join(output,'researched-verification.json'),JSON.stringify({sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),bundle,workflow:report,mcf:mcfReport,guided:guidedReport},null,2)+'\n');
+await writeFile(join(output,'researched-verification.json'),JSON.stringify({sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),bundle,workflow:report,mcf:mcfReport,guided:guidedReport,simple:simpleReport},null,2)+'\n');
 console.log(JSON.stringify({archive,bundle,retainedBundles:manifest.bundles.filter(b=>b.id!=='researched').map(b=>b.id)},null,2));

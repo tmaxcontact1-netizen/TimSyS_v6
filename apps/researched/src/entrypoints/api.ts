@@ -1,3 +1,4 @@
+import {createWorkbenchApi} from './workbench-api.js';
 import { createReadStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
@@ -293,6 +294,7 @@ export function createResearchServer(input: {
     }
   };
   let queueWorkerError: string | null = null;
+  const workbenchApi=createWorkbenchApi(input.database as ContentDatabase,storageRoot);
   const mcfApi = createMcfApi(input.database as ContentDatabase, storageRoot,()=>aiProvider,Boolean(input.backgroundQueue));
   const contentApi = createContentApi({database:input.database as ContentDatabase,storageRoot,acquire,render:renderedAcquire,getAiProvider:()=>aiProvider,setProvider:provider=>{aiProvider=provider;},background:Boolean(input.backgroundQueue)});
   const server = createServer(async (q, r) => {
@@ -300,6 +302,7 @@ export function createResearchServer(input: {
       url = new URL(q.url ?? "/", "http://127.0.0.1"),
       path = url.pathname;
     try {
+      if(await workbenchApi(q,r))return;
       if(await mcfApi(q,r))return;
       if(await contentApi.handle(q,r))return;
       if (path === "/api/health") {
