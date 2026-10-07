@@ -54,11 +54,12 @@ export class ContentRepository {
       return {included};
     });
   }
-  async start(workflowId: string, plan: ContentPlan, retryRunId?: string) {
+  async start(workflowId: string, plan: ContentPlan, retryRunId?: string, selectedLinkIds?:string[]) {
     return this.transaction(async client=>{
       if (!(await client.query("SELECT id FROM researched.content_workflows WHERE id=$1 FOR UPDATE",[workflowId])).rowCount) throw new Error("workflow_not_found");
       await this.assertIdle(client,workflowId);
-      const links = retryRunId ? (await client.query(`SELECT l.* FROM researched.content_links l JOIN researched.content_tasks t ON t.link_id=l.id JOIN researched.content_runs r ON r.id=t.run_id WHERE l.workflow_id=$1 AND r.workflow_id=$1 AND t.run_id=$2 AND t.status IN('failed','cancelled') AND l.included`,[workflowId,retryRunId])).rows : (await client.query("SELECT id FROM researched.content_links WHERE workflow_id=$1 AND included",[workflowId])).rows;
+      if(selectedLinkIds){const valid=(await client.query('SELECT id FROM researched.content_links WHERE workflow_id=$1 AND id=ANY($2::uuid[])',[workflowId,selectedLinkIds])).rows;if(valid.length!==new Set(selectedLinkIds).size)throw Error('invalid_link_selection');}
+      const links = selectedLinkIds ? (await client.query('SELECT id FROM researched.content_links WHERE workflow_id=$1 AND id=ANY($2::uuid[])',[workflowId,selectedLinkIds])).rows : retryRunId ? (await client.query(`SELECT l.* FROM researched.content_links l JOIN researched.content_tasks t ON t.link_id=l.id JOIN researched.content_runs r ON r.id=t.run_id WHERE l.workflow_id=$1 AND r.workflow_id=$1 AND t.run_id=$2 AND t.status IN('failed','cancelled') AND l.included`,[workflowId,retryRunId])).rows : (await client.query("SELECT id FROM researched.content_links WHERE workflow_id=$1 AND included",[workflowId])).rows;
       if (!links.length) throw new Error("no_selected_links");
       const id=randomUUID();
       await client.query("INSERT INTO researched.content_runs(id,workflow_id,plan,version,status,created_at) VALUES($1,$2,$3,$4,'running',now())",[id,workflowId,JSON.stringify(plan),CONTENT_VERSION]);

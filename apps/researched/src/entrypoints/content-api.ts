@@ -61,9 +61,9 @@ export function createContentApi(options:ContentWorkerOptions & {background:bool
           send(response,201,{workflow:await repo.get(id),import:{links:intake.links.length,occurrences:intake.links.reduce((n,l)=>n+l.occurrences.length,0),warnings:intake.warnings}});return true;
         }
         if(action==="run"&&method==="POST") {
-          const value=z.object({plan:contentPlanInput,retryRunId:uuid.optional()}).strict().parse(await jsonBody(request));
+          const value=z.object({plan:contentPlanInput,retryRunId:uuid.optional(),selectedLinkIds:z.array(uuid).min(1).max(500).optional()}).strict().parse(await jsonBody(request));
           if(value.plan.aiEnabled&&!options.getAiProvider())throw new Error("ai_provider_not_configured");
-          send(response,202,await repo.start(id,value.plan,value.retryRunId));return true;
+          send(response,202,await repo.start(id,value.plan,value.retryRunId,value.selectedLinkIds));return true;
         }
       }
       const runMatch=/^\/api\/content\/runs\/([^/]+)(?:\/(cancel|export))?$/.exec(path);
