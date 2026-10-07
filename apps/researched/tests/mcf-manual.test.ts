@@ -1,6 +1,6 @@
 import {describe,it,expect} from 'vitest';
 import JSZip from 'jszip';
-import {MCF,MCF_HASH,initialSpans,editSpans,seededSample,decisionInput,representationInput,mappingInput,validateDecision} from '../src/domain/mcf.js';
+import {datasetInput,MCF,MCF_HASH,initialSpans,editSpans,seededSample,decisionInput,representationInput,mappingInput,validateDecision} from '../src/domain/mcf.js';
 import {csvRows,readMcfImport,mapMcfRecords} from '../src/application/mcf-import.js';
 
 const actor='Researcher';
@@ -34,4 +34,16 @@ describe('lossless derived text and reproducible segmentation',()=>{
  it('rejects malformed CSV and cross-corpus categories',async()=>{expect(()=>csvRows('"unclosed')).toThrow();const raw=await readMcfImport(Buffer.from('text,category\nReview,School'),'x.csv');expect(()=>mapMcfRecords(raw,mappingInput.parse({actor,sheet:'CSV',textColumn:0,categoryColumn:1}),'Director')).toThrow('category_must_match');});
  it('reads XLSX rich strings, sparse cells and locations, without using historical labels',async()=>{const zip=new JSZip();zip.file('xl/workbook.xml','<workbook xmlns:r="rels"><sheets><sheet name="Director" r:id="r1"/></sheets></workbook>');zip.file('xl/_rels/workbook.xml.rels','<Relationships><Relationship Id="r1" Target="worksheets/sheet1.xml"/></Relationships>');zip.file('xl/sharedStrings.xml','<sst><si><t>Review</t></si><si><r><t>  Raw </t></r><r><t>text.  </t></r></si></sst>');zip.file('xl/worksheets/sheet1.xml','<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="C1" t="inlineStr"><is><t>old competency</t></is></c></row><row r="2"><c r="A2" t="s"><v>1</v></c><c r="C2" t="inlineStr"><is><t>Continuous Improvement</t></is></c></row></sheetData></worksheet>');const raw=await readMcfImport(await zip.generateAsync({type:'nodebuffer'}),'x.xlsx');const records=mapMcfRecords(raw,mappingInput.parse({actor,sheet:'Director',textColumn:0}),'Director');expect(records[0]?.text).toBe('  Raw text.  ');expect(records[0]).not.toHaveProperty('codes');expect(raw.sheets[0]?.rows[1]?.cells[2]).toBe('Continuous Improvement');});
  it('refuses mapped formula cells instead of executing or silently classifying them',()=>{const raw={format:'xlsx',text:'',warnings:[],blocks:[],sheets:[{name:'Sheet',rows:[{row:1,cells:['Text'],formulas:{}},{row:2,cells:['Computed'],formulas:{'0':'A1'}}]}]};expect(()=>mapMcfRecords(raw,mappingInput.parse({actor,sheet:'Sheet',textColumn:0}),'School')).toThrow('requires_raw_value');});
+});
+
+describe('general document intake',()=>{
+ it('does not invent a school or review category for general sources',async()=>{
+ const dataset=datasetInput.parse({title:'Operations notes',mode:'general',reviewCategory:'',actor});
+ const raw=await readMcfImport(Buffer.from('The manager allocates resources.'),'operations.txt');
+ const record=mapMcfRecords(raw,mappingInput.parse({actor}),dataset.reviewCategory)[0]!;
+ expect(record.reviewCategory).toBe('');expect(record.institution).toBe('');
+ expect(datasetInput.safeParse({...dataset,reviewCategory:'School'}).success).toBe(false);
+ const decision=decisionInput.parse({previousId:null,codes:[],valence:'neutral-descriptive',reviewedNoCode:true,notes:'',actor});
+ expect(()=>validateDecision(decision,record.text,'general')).not.toThrow();
+ });
 });
