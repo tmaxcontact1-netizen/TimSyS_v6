@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { cumulativeBundles, publishedBaseline } from './update-manifest-merge.mjs';
 import {
   access,
   mkdir,
@@ -276,13 +277,16 @@ for (const [id, source] of Object.entries(sources)) {
     sha256: createHash("sha256").update(bytes).digest("hex"),
   });
 }
+// Resolve the baseline after building, so a partial release cannot hide a newer
+// independently published app. Failure to retrieve it must stop publication.
+const baseline = await publishedBaseline();
 const manifest = {
   schemaVersion: 1,
   releaseVersion,
   minimumLauncherVersion: "1.0.20",
   publishedAt: new Date().toISOString(),
   notes: "Verified TimSyS application update.",
-  bundles,
+  bundles: cumulativeBundles(baseline, bundles),
 };
 await writeFile(
   join(output, "timsys-update.json"),
