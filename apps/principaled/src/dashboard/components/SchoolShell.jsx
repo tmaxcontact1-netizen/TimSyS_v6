@@ -19,7 +19,7 @@ export default function SchoolShell({ navigation = [], pages = [], active, onNav
     window.addEventListener('keydown', keys);
     return () => window.removeEventListener('keydown', keys);
   }, []);
-  useEffect(() => { contentRef.current?.focus({ preventScroll: true }); }, [active]);
+  useEffect(() => { contentRef.current?.scrollTo({ top: 0, left: 0 }); contentRef.current?.focus({ preventScroll: true }); }, [active]);
   const go = id => { void onNavigate?.(id); };
   const found = pages.filter(item => `${item.label} ${item.description || ''}`.toLowerCase().includes(query.toLowerCase()));
   const link = item => <button key={item.id} type="button" aria-current={active === item.id ? 'page' : undefined} onClick={() => go(item.id)}>{item.label}</button>;

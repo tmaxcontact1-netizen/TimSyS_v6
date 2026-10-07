@@ -30,3 +30,9 @@ The release verification asset records the exact source commit, bundle hashes, b
 ## Limits
 
 This is a researched implementation and functional verification, not a usability study with school staff. The cross-page test checks shared navigation and form behaviour; it does not claim to retest every specialist business workflow end to end. Mandatory source IDs, approval authority, provenance and governance constraints remain intact.
+
+## Scrolling correction — 7 October 2026
+
+The launcher intentionally sets `body { overflow: hidden }`. The new shell initially omitted a bounded, scrollable content region, clipping long pages including Nervous Breakdown. The shell now fills the viewport and gives its page content the remaining height with `overflow: auto`; navigation and breadcrumbs stay reachable. New page navigation resets the page scroll position. Network renderer input handlers are unchanged.
+
+A dedicated browser regression checks real wheel scrolling in both directions, keyboard access to the bottom, and navigation reset in 2D Network and List at 1440×600 and 390×660. It uses the empty synthetic corpus with advanced filters open to exercise overflow, without importing organisational data.
