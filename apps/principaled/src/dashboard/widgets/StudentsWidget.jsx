@@ -209,7 +209,7 @@ function StudentsWidget({
     <div className="registry-workspace">
       {relatedRecord && <RegistryRelatedPanel type="student" record={relatedRecord} onClose={() => setRelatedRecord(null)} />}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">Students</h2>
+        <h1>Students</h1>
         <div className="flex gap-3">
           <button
             onClick={() => setShowImport(true)}

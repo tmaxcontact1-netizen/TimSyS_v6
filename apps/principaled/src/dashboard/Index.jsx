@@ -38,8 +38,8 @@ import ProgrammeManagerWidget from "./widgets/ProgrammeManagerWidget";
 import BuilderWorkspace from "./widgets/BuilderWorkspace";
 import CommunicationHistoryConsole from "./components/CommunicationHistoryConsole";
 import WorkspaceHub from "./components/WorkspaceHub";
+import SchoolShell from "./components/SchoolShell";
 import {
-  AppShell,
   ConfirmationDialog,
   InputDialog,
   Feedback,
@@ -47,8 +47,8 @@ import {
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
-  execution: { id: "execution", label: "Execution", widget: ExecutionWidget, requiresAdmin: false },
-  nervous_breakdown: { id: "nervous_breakdown", label: "Nervous Breakdown", widget: NervousBreakdownWidget, requiresAdmin: true },
+  execution: { id: "execution", label: "Projects & tasks", widget: ExecutionWidget, requiresAdmin: false },
+  nervous_breakdown: { id: "nervous_breakdown", label: "Responsibilities", widget: NervousBreakdownWidget, requiresAdmin: true },
   // Existing operational modules (non-admin)
   student_registry: {
     id: "students",
@@ -88,7 +88,7 @@ const MODULE_TO_VIEW = {
   },
   tasks: {
     id: "tasks",
-    label: "Tasks",
+    label: "Standalone tasks",
     widget: TasksWidget,
     requiresAdmin: false,
   },
@@ -239,7 +239,7 @@ const MODULE_TO_VIEW = {
 };
 
 const WORKSPACES = {
-  organisation: { label: "Organisation", icon: "N", description: "Formal responsibilities, sources, organisational trails and shared execution", modules: ["nervous_breakdown", "execution"] },
+  organisation: { label: "Organisation", icon: "N", description: "Responsibilities and shared projects", modules: ["nervous_breakdown", "execution"] },
   people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
   learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
   planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
@@ -250,12 +250,12 @@ const WORKSPACES = {
 
 const VIEW_DESCRIPTIONS = {
   execution: "Plan shared work, inspect dependencies and see what requires you",
-  nervous_breakdown: "Explore and govern the responsibility network",
+  nervous_breakdown: "Nervous Breakdown: explore and govern the responsibility network",
   students: "Student records and enrolment", student_profiles: "Complete student information", staff: "Staff records and employment", staff_profiles: "Complete staff information", student_exits: "Live student movement", late_entries: "Late arrival and attendance changes",
   assessment_evaluator: "Check what an assessment measures", gradebook: "Class evidence, grades and reports", attendance: "Attendance at events",
-  calendar: "School dates and commitments", scheduler: "Timetable configuration and review", programme_manager: "Activities, electives and enrichment", teacher_preferences: "Advisory staff preferences", cover: "Absence cover recommendations", events: "Event records", event_planner: "Plan complete events",
+  calendar: "School dates and commitments", scheduler: "Timetable configuration and review", programme_manager: "Activities, electives and enrichment", teacher_preferences: "Advisory staff preferences", cover: "Absence cover recommendations", event_record: "Event records", event_planner: "Plan complete events",
   rooms: "Rooms and teaching spaces", inventory: "Equipment and other resources", venue_bookings: "Reserve spaces", resource_reservations: "Reserve equipment", transportation: "Transport requirements", catering: "Food and service plans", risk_assessments: "Operational risk reviews", safeguarding_requirements: "Safeguarding checks", contingency: "Alternative plans",
-  tasks: "Assigned work and follow-up", approvals: "Decisions awaiting a person", documents: "Managed school documents", communications: "Messages and communication history", audiences: "Groups of participants", invitations: "Invite and track participants", ownership: "Accountability and responsibility", finance: "Budgets and requests",
+  tasks: "Individual tasks outside a project", approvals: "Decisions awaiting a person", documents: "Managed school documents", communications: "Messages and communication history", audiences: "Groups of participants", invitations: "Invite and track participants", ownership: "Accountability and responsibility", financial_planning: "Budgets and requests",
 };
 
 function PrincipalEdDashboard() {
@@ -471,14 +471,13 @@ function PrincipalEdDashboard() {
       .map(([id, workspace]) => ({ id, ...workspace })),
   ];
 
-  const activeNavigation = Object.entries(WORKSPACES).find(([, workspace]) => workspace.modules.includes(activeView))?.[0] || activeView;
 
   const renderWidget = () => {
     const planning = (content) => (
       <div className="planning-workspace legacy-planning-workspace">{content}</div>
     );
     if (activeView === "overview") {
-      return <OverviewWidget data={data} onNavigate={navigateToView} availableViews={navItems.map((item) => item.id)} />;
+      return <OverviewWidget data={data} onNavigate={navigateToView} availableViews={[...navItems,...moduleNavItems].map((item) => item.id)} />;
     }
     if (activeView === "intelligence_workspace")
       return <IntelligenceWorkspace />;
@@ -916,9 +915,7 @@ function PrincipalEdDashboard() {
 
   if (loading) {
     return (
-      <AppShell
-        brand="Principal’Ed"
-        context="School operations"
+      <SchoolShell
         navigation={[]}
         active="overview"
         onBack={() => window.history.back()}
@@ -931,22 +928,16 @@ function PrincipalEdDashboard() {
             <span>Loading school records and available workspaces…</span>
           </div>
         </div>
-      </AppShell>
+      </SchoolShell>
     );
   }
 
   return (
-    <AppShell
-      brand="Principal’Ed"
-      context="School operations"
+    <SchoolShell
       navigation={navItems}
-      active={activeNavigation}
+      pages={moduleNavItems}
+      active={activeView}
       onNavigate={(view) => void navigateToView(view)}
-      onBack={() =>
-        activeView === "overview"
-          ? window.history.back()
-          : void navigateToView(Object.entries(WORKSPACES).find(([, workspace]) => workspace.modules.includes(activeView))?.[0] || "overview")
-      }
       onLauncher={() => void returnToLauncher()}
     >
       <ConfirmationDialog
@@ -977,7 +968,7 @@ function PrincipalEdDashboard() {
       <div className="principaled-workspace" key={activeView}>
         {renderWidget()}
       </div>
-    </AppShell>
+    </SchoolShell>
   );
 }
 

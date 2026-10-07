@@ -251,7 +251,7 @@ function StaffWidget({
     <div className="registry-workspace">
       {relatedRecord && <RegistryRelatedPanel type="staff" record={relatedRecord} onClose={() => setRelatedRecord(null)} />}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">Staff</h2>
+        <h1>Staff</h1>
         <div className="flex gap-3">
           <button
             onClick={() => setShowImport(true)}

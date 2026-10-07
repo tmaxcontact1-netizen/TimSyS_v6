@@ -234,7 +234,7 @@ function RoomsWidget({
     <div className="registry-workspace">
       {relatedRecord && <RegistryRelatedPanel type="room" record={relatedRecord} onClose={() => setRelatedRecord(null)} />}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">Room Manifest</h2>
+        <h1>Rooms</h1>
         <div className="flex gap-3">
           <button
             onClick={() => setShowImport(true)}
