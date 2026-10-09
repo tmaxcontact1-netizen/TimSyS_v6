@@ -1,3 +1,5 @@
+import {unlink} from 'node:fs/promises';
+import {resolve} from 'node:path';
 import { randomUUID } from "node:crypto";
 import type { Pool } from "pg";
 import {answerQuestions} from "./question-analysis.js";
@@ -46,6 +48,7 @@ export class ContentWorker {
     const pending=(async()=>{
       const source=await this.repo.source(workflowId,url,url), attemptId=randomUUID(), at=new Date().toISOString();
       await this.archive.beginRetrieval(attemptId,source.id,url,at);
+      let pendingPath='';
       try {
         signal.throwIfAborted();
         const acceptMediaType=(type:string)=>!policy||(type.includes('html')?policy.followWebpages:policy.followDocuments);
@@ -63,17 +66,18 @@ export class ContentWorker {
         signal.throwIfAborted();
         const saved=(await this.options.database.query("SELECT id FROM researched.source_snapshots WHERE source_id=$1 AND content_hash=$2",[source.id,captured.hash])).rows[0];
         const snapshotId=saved?.id??randomUUID();
-        const storagePath=saved?"":await preserveSource(this.options.storageRoot,source.id,snapshotId,captured.bytes,captured.mediaType);
+        const storagePath=pendingPath=saved?"":await preserveSource(this.options.storageRoot,source.id,snapshotId,captured.bytes,captured.mediaType);
         await this.archive.completeRetrieval({attemptId,sourceId:source.id,snapshotId,at,resolvedUrl:captured.resolvedUrl,status:captured.status,hash:captured.hash,mediaType:captured.mediaType,byteLength:captured.bytes.length,storagePath,metadata:captured.metadata,unchanged:Boolean(saved)});
+        pendingPath='';
         return {...captured,snapshotId};
-      }catch(error){await this.archive.failRetrieval(attemptId,source.id,new Date().toISOString(),JSON.stringify(failureObservation(error,url,null)));throw error;}
+      }catch(error){if(pendingPath)await unlink(resolve(this.options.storageRoot,pendingPath)).catch(()=>{});await this.archive.failRetrieval(attemptId,source.id,new Date().toISOString(),JSON.stringify(failureObservation(error,url,null)));throw error;}
     })();
     this.captures.set(key,pending);
     try{return await pending;}finally{this.captures.delete(key);}
   }
   async process() {
     const task=await this.repo.claim();if(!task)return;
-    const context=await this.repo.context(task.id), controller=new AbortController();
+    const context=await this.repo.context(task.id);if(!context)return;const controller=new AbortController();
     this.active.set(task.id,{runId:task.run_id,controller});
     const signal=controller.signal, plan=contentPlanInput.parse(context.plan);
     const check=async()=>{signal.throwIfAborted();if(!await this.repo.active(task.id))throw new Error("capture_cancelled");};

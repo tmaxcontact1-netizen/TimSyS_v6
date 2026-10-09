@@ -1,3 +1,5 @@
+import {deleteWorkbench} from '../infrastructure/workbench-delete.js';
+import {McfLifecycle} from '../infrastructure/mcf-lifecycle.js';
 import {draftChanges,applyDraftChanges} from '../domain/draft-history.js';
 import {randomUUID} from 'node:crypto';
 import type {IncomingMessage,ServerResponse} from 'node:http';
@@ -11,7 +13,7 @@ const change=z.object({revision:z.number().int(),title:z.string().trim().min(1).
 async function body(q:IncomingMessage){let size=0;const chunks:Buffer[]=[];for await(const part of q){const b=Buffer.from(part);size+=b.length;if(size>12_000_000)throw Error('draft_too_large');chunks.push(b);}return JSON.parse(Buffer.concat(chunks).toString('utf8'));}
 export function createWorkbenchApi(db:Pick<Pool,'query'|'connect'>,storageRoot:string){
  const repo=new McfRepository(db,storageRoot);
- async function get(id:string){const p=(await db.query('SELECT p.*,r.previous_id IS NOT NULL AS can_undo,jsonb_array_length(p.redo)>0 AS can_redo FROM researched.workbench_projects p JOIN researched.workbench_revisions r ON r.id=p.head WHERE p.id=$1',[id])).rows[0];if(!p)throw Error('project_not_found');return p;}
+ async function get(id:string){const p=(await db.query('SELECT p.*,r.previous_id IS NOT NULL AS can_undo,jsonb_array_length(p.redo)>0 AS can_redo FROM researched.workbench_times p JOIN researched.workbench_revisions r ON r.id=p.head WHERE p.id=$1',[id])).rows[0];if(!p)throw Error('project_not_found');return p;}
  async function save(c:PoolClient,p:any,state:unknown,title:string,label:string){const head=randomUUID();await c.query('INSERT INTO researched.workbench_revisions(id,project_id,previous_id,title,state,label) VALUES($1,$2,$3,$4,$5,$6)',[head,p.id,p.head,title,JSON.stringify(draftChanges(p.state,state as Record<string,unknown>)),label]);await c.query("UPDATE researched.workbench_projects SET state=$2,title=$3,head=$4,revision=revision+1,redo='[]',updated_at=now() WHERE id=$1",[p.id,JSON.stringify(state),title,head]);}
  const send=(r:ServerResponse,status:number,value:unknown)=>{r.writeHead(status,{'content-type':'application/json','cache-control':'no-store'});r.end(JSON.stringify(value));};
  return async(q:IncomingMessage,r:ServerResponse)=>{
@@ -19,22 +21,17 @@ export function createWorkbenchApi(db:Pick<Pool,'query'|'connect'>,storageRoot:s
   try{
    if(q.method!=='GET'&&q.headers.origin&&q.headers.origin!==`http://${q.headers.host}`){send(r,403,{error:'origin_not_allowed'});return true;}
    const id=match[1],action=match[2];
-   if(!id&&q.method==='GET'){send(r,200,{items:(await db.query('SELECT id,tool,title,state->>\'workflowId\' AS workflow_id,state->>\'datasetId\' AS dataset_id,state->>\'step\' AS step,deleted_at,updated_at FROM researched.workbench_projects WHERE ($1::boolean OR deleted_at IS NULL) ORDER BY updated_at DESC',[url.searchParams.get('deleted')==='true'])).rows});return true;}
+   if(!id&&q.method==='GET'){await new McfLifecycle(repo).cleanupFiles();send(r,200,{items:(await db.query("SELECT id,tool,title,state->>'workflowId' AS workflow_id,state->>'datasetId' AS dataset_id,state->>'step' AS step,deleted_at,created_at,updated_at,processing_started_at,processing_finished_at,processing_status,draft_created_at,confirmed_at FROM researched.workbench_times ORDER BY updated_at DESC")).rows});return true;}
    if(!id&&q.method==='POST'){const v=z.object({tool:z.enum(['content','mcf']),title:z.string().trim().min(1).max(200),state:stateSchema}).strict().parse(await body(q)),key=randomUUID(),head=randomUUID();await repo.transaction(async c=>{await c.query('INSERT INTO researched.workbench_projects(id,tool,title,state,head) VALUES($1,$2,$3,$4,$5)',[key,v.tool,v.title,JSON.stringify(v.state),head]);await c.query("INSERT INTO researched.workbench_revisions(id,project_id,title,state,label) VALUES($1,$2,$3,$4,'Created')",[head,key,v.title,JSON.stringify(v.state)]);});send(r,201,await get(key));return true;}
    if(!id)throw Error('project_not_found');
    if(q.method==='GET'){send(r,200,action==='history'?{items:(await db.query('SELECT id,label,created_at FROM researched.workbench_revisions WHERE project_id=$1 ORDER BY created_at DESC',[id])).rows}:await get(id));return true;}
    const input=await body(q);
+   let deletion:any=null;
    await repo.transaction(async c=>{
+    if(action==='delete')await c.query('LOCK TABLE researched.workbench_projects IN SHARE ROW EXCLUSIVE MODE');
     const p=(await c.query('SELECT * FROM researched.workbench_projects WHERE id=$1 FOR UPDATE',[id])).rows[0];if(!p)throw Error('project_not_found');if(input.revision!==p.revision)throw Error('draft_changed_reload');
-    if(action==='delete'||action==='restore'){
-     // Deletion is a recoverable move to Deleted items, never disguised permanent erasure.
-     if(action==='delete'){
-      const workflow=p.state.workflowId,session=[p.state.sessionId,p.state.finalSessionId].filter(Boolean);
-      if(workflow){await c.query("UPDATE researched.content_tasks SET status='cancelled',updated_at=now() WHERE run_id IN(SELECT id FROM researched.content_runs WHERE workflow_id=$1 AND status='running') AND status IN('queued','running','retry')",[workflow]);await c.query("UPDATE researched.content_runs SET status='cancelled',completed_at=now() WHERE workflow_id=$1 AND status='running'",[workflow]);}
-      if(session.length){await c.query("UPDATE researched.mcf_ai_tasks SET status='cancelled' WHERE run_id IN(SELECT id FROM researched.mcf_ai_runs WHERE session_id=ANY($1::uuid[])) AND status IN('queued','running')",[session]);await c.query("UPDATE researched.mcf_ai_runs SET status='cancelled',finished_at=now() WHERE session_id=$1 AND status IN('queued','running')",[session]);}
-     }
-     await c.query('UPDATE researched.workbench_projects SET deleted_at=CASE WHEN $2 THEN now() ELSE NULL END,revision=revision+1,updated_at=now() WHERE id=$1',[id,action==='delete']);return;
-    }
+    if(action==='delete'){deletion=await deleteWorkbench(c,p);return;}
+    if(action==='restore')throw Error('permanent_deletion_cannot_be_restored');
     if(p.deleted_at)throw Error('restore_project_first');
     if(action==='undo'||action==='redo'){
      const current=(await c.query('SELECT * FROM researched.workbench_revisions WHERE id=$1',[p.head])).rows[0];const stack:string[]=p.redo;const target=action==='undo'?current.previous_id:stack.pop();if(!target)throw Error('nothing_to_'+action);if(action==='undo')stack.push(p.head);
@@ -59,7 +56,7 @@ export function createWorkbenchApi(db:Pick<Pool,'query'|'connect'>,storageRoot:s
      await save(c,p,s,p.title,'Confirmed results');return;
     }
     const v=change.parse(input);if(v.state.step===5&&p.state.step!==5)throw Error('confirm_results_first');if(action||q.method!=='PATCH')throw Error('invalid_action');await save(c,p,v.state,v.title,v.label);
-   });send(r,200,await get(id));
+   });if(deletion){const pendingFiles=await new McfLifecycle(repo).cleanupFiles();send(r,200,{...deletion,pendingFiles});}else send(r,200,await get(id));
   }catch(e){const message=e instanceof Error?e.message:'request_failed';send(r,message==='project_not_found'?404:message==='draft_changed_reload'?409:400,{error:message});}return true;
  };
 }
