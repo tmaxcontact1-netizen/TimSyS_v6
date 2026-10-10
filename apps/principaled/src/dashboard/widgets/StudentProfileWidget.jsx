@@ -1,3 +1,5 @@
+import { useWorkflow } from "../components/WorkflowContext";
+import PersonActions from "../components/PersonActions";
 import React, { useState, useEffect } from "react";
 import * as api from "../../api/client";
 import { Pagination, rowNumber } from "../../../../shared-ui/react/index.js";
@@ -5,8 +7,9 @@ import ProfileExtendedEditor from "../components/ProfileExtendedEditor";
 import ProfileEvidenceSections from "../components/ProfileEvidenceSections";
 
 function StudentProfileWidget() {
+  const { context } = useWorkflow();
   const [students, setStudents] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(context?.type === "student" ? context.id : "");
   const [gradeFilter, setGradeFilter] = useState("");
   const [homeroomFilter, setHomeroomFilter] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
@@ -18,6 +21,7 @@ function StudentProfileWidget() {
   const [editingExtended, setEditingExtended] = useState(false);
   const [notice, setNotice] = useState("");
 
+  useEffect(() => { if (context?.type === 'student' && context.recordId) void viewProfile({ id: context.recordId }); }, [context?.id]);
   // Fetch students
   useEffect(() => {
     const timer = setTimeout(() => fetchStudents(), 300);
@@ -104,7 +108,7 @@ function StudentProfileWidget() {
     } = profileData;
 
     return (
-      <div className="profile-workspace profile-workspace--detail">
+      <div className="profile-workspace profile-workspace--detail"><PersonActions kind="student" record={student} />
         <div className="flex items-center justify-between">
           <button
             onClick={clearSelection}

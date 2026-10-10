@@ -2,11 +2,19 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as api from '../../api/client';
 
 const sources = {
+  responsibility: [api.listResponsibilities, 'responsibilities', 'id', r => `${r.role} · ${r.party_name || r.party_id} · ${r.subject_type}`],
+  approval: [api.listApprovalRequests, 'requests', 'id', r => r.title],
+  calendar: [async ({q, page, limit}) => {
+    const year = new Date().getFullYear();
+    const response = await api.listCalendarEntries({from: `${year - 1}-01-01`, to: `${year + 2}-01-01`});
+    const distinct = [...new Map(response.data.entries.map(r => [r.id, r])).values()].filter(r => `${r.title} ${r.start_at}`.toLowerCase().includes(q.toLowerCase()));
+    return {data: {entries: distinct.slice((page-1)*limit, page*limit), total: distinct.length}};
+  }, 'entries', 'id', r => `${r.title} · ${new Date(r.start_at).toLocaleDateString()}`],
   student: [api.listStudents, 'students', 'student_id', r => `${r.first_name} ${r.last_name} · ${r.student_id}`],
   staff: [api.listStaff, 'staff', 'staff_id', r => `${r.first_name} ${r.last_name} · ${r.staff_id}`],
   room: [api.listRooms, 'rooms', 'id', r => `${r.room_number}${r.name ? ' · ' + r.name : ''}`],
   resource: [api.listInventory, 'items', 'id', r => r.item_name || r.name || r.item_number],
-  event: [api.listEvents, 'events', 'id', r => r.title || r.name],
+  event: [api.listEvents, 'events', 'event_code', r => r.title || r.name],
   task: [api.listTasks, 'tasks', 'id', r => r.title],
   document: [api.listDocuments, 'documents', 'id', r => r.title],
 };
@@ -50,6 +58,7 @@ export default function RecordPicker({ kind, label, value = '', onChange, multip
       </select>
     </label>
     {multiple && <small>Select more than one with Ctrl or Shift. {selected.length} selected.</small>}
+    {kind === 'calendar' && <small>Calendar entries from last year through next year, within the calendar service’s 1,000-occurrence limit.</small>}
     {busy && <small role="status">Loading records…</small>}
     {error ? <div role="alert">{error} <button type="button" onClick={() => setRetry(n => n + 1)}>Retry</button></div> : !busy && !rows.length && <small>{query ? 'No matching records.' : `No ${kind} records yet. Add them in the corresponding workspace first.`}</small>}
     {total > 50 && <div><button type="button" disabled={page === 1 || busy} onClick={() => setPage(n => n - 1)}>Previous results</button><span> Page {page} </span><button type="button" disabled={page * 50 >= total || busy} onClick={() => setPage(n => n + 1)}>Next results</button></div>}

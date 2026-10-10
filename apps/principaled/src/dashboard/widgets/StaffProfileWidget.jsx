@@ -1,3 +1,5 @@
+import { useWorkflow } from "../components/WorkflowContext";
+import PersonActions from "../components/PersonActions";
 import React, { useState, useEffect } from "react";
 import * as api from "../../api/client";
 import { Pagination, rowNumber } from "../../../../shared-ui/react/index.js";
@@ -5,8 +7,9 @@ import ProfileExtendedEditor from "../components/ProfileExtendedEditor";
 import ProfileEvidenceSections from "../components/ProfileEvidenceSections";
 
 function StaffProfileWidget() {
+  const { context } = useWorkflow();
   const [staff, setStaff] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(context?.type === "staff" ? context.id : "");
   const [deptFilter, setDeptFilter] = useState("");
   const [selectedStaff, setSelectedStaff] = useState(null);
   const [profileData, setProfileData] = useState(null);
@@ -37,6 +40,7 @@ function StaffProfileWidget() {
     }
   };
 
+  useEffect(() => { if (context?.type === 'staff' && context.recordId) void viewProfile({ id: context.recordId }); }, [context?.id]);
   // Split departments (comma or semicolon separated) for filtering
   const allDepartments = [
     ...new Set(
@@ -100,7 +104,7 @@ function StaffProfileWidget() {
     } = profileData;
 
     return (
-      <div className="profile-workspace profile-workspace--detail">
+      <div className="profile-workspace profile-workspace--detail"><PersonActions kind="staff" record={s} />
         <div className="flex items-center justify-between">
           <button
             onClick={clearSelection}

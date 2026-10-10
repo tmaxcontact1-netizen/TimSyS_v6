@@ -1,3 +1,4 @@
+import { useWorkflow } from "../components/WorkflowContext";
 import React,{useEffect,useState}from"react";
 import * as api from"../../api/client";
 import Pagination from"../components/Pagination";
@@ -5,9 +6,9 @@ import LateEntryReviewPanel from"../components/LateEntryReviewPanel";
 const label=v=>String(v||"").replaceAll("_"," ").replace(/\b\w/g,c=>c.toUpperCase());
 const errorMessage=e=>e.response?.data?.error?.message||e.message;
 const freshId=()=>globalThis.crypto?.randomUUID?.()||`late-${Date.now()}-${Math.random()}`;
-export default function LateEntriesWidget({askConfirmation,askText}){
- const[tab,setTab]=useState("arrivals"),[entries,setEntries]=useState([]),[reasons,setReasons]=useState([]),[policies,setPolicies]=useState([]),[summary,setSummary]=useState({}),[page,setPage]=useState(1),[total,setTotal]=useState(0),[filter,setFilter]=useState("today"),[search,setSearch]=useState(""),[students,setStudents]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(""),[proposal,setProposal]=useState(null),[thresholdCases,setThresholdCases]=useState([]);
- const[form,setForm]=useState({student_id:"",occurrence_type:"school_arrival",reason_code:"transport_delay",operational_note:"",evidence_reference:""}),[policyForm,setPolicyForm]=useState({effective_from:new Date().toISOString().slice(0,10),school_day_grace_minutes:0,class_grace_minutes:0,school_tardies_per_absence:3,class_tardies_per_absence:3,count_excused:false});
+export default function LateEntriesWidget({askConfirmation,askText}){const {context}=useWorkflow();
+ const[tab,setTab]=useState("arrivals"),[entries,setEntries]=useState([]),[reasons,setReasons]=useState([]),[policies,setPolicies]=useState([]),[summary,setSummary]=useState({}),[page,setPage]=useState(1),[total,setTotal]=useState(0),[filter,setFilter]=useState("today"),[search,setSearch]=useState(context?.type==="student"?context.title:""),[students,setStudents]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState(""),[proposal,setProposal]=useState(null),[thresholdCases,setThresholdCases]=useState([]);
+ const[form,setForm]=useState({student_id:context?.type==="student"?context.id:"",occurrence_type:"school_arrival",reason_code:"transport_delay",operational_note:"",evidence_reference:""}),[policyForm,setPolicyForm]=useState({effective_from:new Date().toISOString().slice(0,10),school_day_grace_minutes:0,class_grace_minutes:0,school_tardies_per_absence:3,class_tardies_per_absence:3,count_excused:false});
  const load=async()=>{try{const params={page,limit:50,...(filter==="today"?{date:new Date().toISOString().slice(0,10)}:filter==="unresolved"?{unresolved:true}:{})},[list,dash,reasonData,policyData,cases]=await Promise.all([api.listLateEntries(params),api.getLateEntriesDashboard(),api.listLateEntryReasons(),api.listLateEntryPolicies(),api.listLateEntryThresholdCases({status:"recommended"})]);setEntries(list.data.entries);setTotal(list.data.total);setSummary(dash.data.summary);setReasons(reasonData.data.reasons.filter(x=>x.enabled));setPolicies(policyData.data.policies);setThresholdCases(cases.data.cases);setError("")}catch(e){setError(errorMessage(e))}};
  useEffect(()=>{void load()},[page,filter]);
  useEffect(()=>{const timer=setTimeout(async()=>{if(search.trim().length<2)return setStudents([]);try{const r=await api.listStudents({page:1,limit:10,search:search.trim()});setStudents(r.data.students||[])}catch(e){setError(errorMessage(e))}},250);return()=>clearTimeout(timer)},[search]);

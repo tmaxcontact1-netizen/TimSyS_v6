@@ -39,6 +39,7 @@ import BuilderWorkspace from "./widgets/BuilderWorkspace";
 import CommunicationHistoryConsole from "./components/CommunicationHistoryConsole";
 import WorkspaceHub from "./components/WorkspaceHub";
 import SchoolShell from "./components/SchoolShell";
+import { WorkflowContext, ContextBar } from "./components/WorkflowContext";
 import {
   ConfirmationDialog,
   InputDialog,
@@ -259,6 +260,7 @@ const VIEW_DESCRIPTIONS = {
 };
 
 function PrincipalEdDashboard() {
+  const [workContext, setWorkContext] = useState(null);
   const [activeView, setActiveView] = useState(
     () => new URLSearchParams(location.search).has("execution_view") ? "execution" : sessionStorage.getItem("principaled_active_view") || "overview",
   );
@@ -286,6 +288,7 @@ function PrincipalEdDashboard() {
   const [confirmation, setConfirmation] = useState(null);
   const [textRequest, setTextRequest] = useState(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [dirtyForms, setDirtyForms] = useState(new Set());
   const confirmationResolver = useRef(null);
   const textResolver = useRef(null);
 
@@ -864,8 +867,10 @@ function PrincipalEdDashboard() {
   }, [activeView]);
 
   useEffect(() => {
-    const onPopState = (event) =>
+    const onPopState = (event) => {
       setActiveView(event.state?.principaledView || "overview");
+      setWorkContext(event.state?.principaledContext || null);
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
@@ -876,10 +881,16 @@ function PrincipalEdDashboard() {
     return () =>
       window.removeEventListener("principaled:dirty-state", onDirtyState);
   }, []);
+  useEffect(() => {
+    const onFormDirty = ({ detail }) => setDirtyForms(previous => { const next = new Set(previous); if (detail.dirty) next.add(detail.id); else next.delete(detail.id); return next; });
+    window.addEventListener('principaled:form-dirty', onFormDirty);
+    return () => window.removeEventListener('principaled:form-dirty', onFormDirty);
+  }, []);
 
-  const navigateToView = async (view) => {
-    if (view === activeView) return;
-    if (hasUnsavedChanges) {
+  const navigateToView = async (view, context = null) => {
+    view = view || activeView;
+    if (view === activeView && context === workContext) return;
+    if (hasUnsavedChanges || dirtyForms.size) {
       const leave = await askConfirmation({
         title: "Discard unsaved changes?",
         message:
@@ -890,16 +901,17 @@ function PrincipalEdDashboard() {
       if (!leave) return;
     }
     window.history.pushState(
-      { ...window.history.state, principaledView: view },
+      { ...window.history.state, principaledView: view, principaledContext: context },
       "",
       view !== 'execution' ? (() => { const url=new URL(location.href); ['execution_view','execution_instance','execution_task'].forEach(key=>url.searchParams.delete(key)); return url; })() : undefined,
     );
     setActiveView(view);
+    setWorkContext(context);
     setNotice(null);
   };
 
   const returnToLauncher = async () => {
-    if (hasUnsavedChanges) {
+    if (hasUnsavedChanges || dirtyForms.size) {
       const leave = await askConfirmation({
         title: "Discard unsaved changes?",
         message:
@@ -965,9 +977,12 @@ function PrincipalEdDashboard() {
           {notice}
         </Feedback>
       )}
-      <div className="principaled-workspace" key={activeView}>
+      <WorkflowContext.Provider value={{ context: workContext, currentView: activeView, navigate: navigateToView, available: moduleNavItems.map(item => item.id) }}>
+      <ContextBar />
+      <div className="principaled-workspace" key={`${activeView}:${workContext?.component || ''}:${workContext?.id || ''}`}>
         {renderWidget()}
       </div>
+      </WorkflowContext.Provider>
     </SchoolShell>
   );
 }

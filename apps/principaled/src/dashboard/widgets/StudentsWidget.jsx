@@ -1,3 +1,4 @@
+import PersonActions from "../components/PersonActions";
 import React, { useEffect, useRef, useState } from "react";
 import CsvImportResult from "./CsvImportResult";
 import { reviewRowClass, reviewRowTitle } from "./importQuality";
@@ -691,7 +692,7 @@ function StudentsWidget({
                   {r.enrollment_status}
                 </td>
                 <td className="px-4 py-3 text-right space-x-2">
-                  <button onClick={() => setRelatedRecord(r)}>Details</button>
+                  <PersonActions kind="student" record={r} compact /><button onClick={() => setRelatedRecord(r)}>Details</button>
                   <button
                     onClick={() => handleEditClick(r)}
                     className="text-timsys-primary hover:text-white text-sm"
