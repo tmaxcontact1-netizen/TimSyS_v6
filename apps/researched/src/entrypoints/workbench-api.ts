@@ -39,6 +39,7 @@ export function createWorkbenchApi(db:Pick<Pool,'query'|'connect'>,storageRoot:s
     }
     if(action==='confirm'){
      if(p.state.step!==4)throw Error('check_draft_before_confirming');
+     if(p.state.previewOnly)throw Error('process_all_selected_links_before_confirming');
      const s={...p.state,step:5,confirmedAt:new Date().toISOString()};
      if(p.tool==='mcf'){
       const name=z.string().trim().min(1).max(200).parse(p.state.researcher),original=await repo.session(z.uuid().parse(p.state.sessionId),c);await repo.writable(original.dataset_id,c);await repo.active('sessions',original.id,c);

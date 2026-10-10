@@ -2,7 +2,7 @@ import {formatWorkTime} from './time.js';
 import React,{useEffect,useRef,useState} from 'react';
 export const steps=['Upload','Clean','Choose analysis','Check draft','Confirm','Results'];
 export const fields={curriculum:'Course content',outcomes:'Skills you will gain',assessment:'Assignments and assessment',practice:'Professional development',delivery:'How it is taught',duration:'Time commitment',admissions:'Entry requirements'};
-export const defaultPlan={goal:'Explain what each course offers.',fields:Object.keys(fields),maxDepth:2,maxPages:8,allowedHosts:[],followWebpages:false,followDocuments:false,aiEnabled:true,questions:[]};
+export const defaultPlan={goal:'Explain what each course offers.',fields:Object.keys(fields),maxDepth:1,maxPages:5,allowedHosts:[],followWebpages:false,followDocuments:false,aiEnabled:false,questions:[]};
 export const post=v=>({method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(v)});
 export async function api(path,options){const r=await fetch('/api/'+path,options),v=await r.json();if(!r.ok){const names={draft_changed_reload:'This draft changed in another window. Reopen it before making changes.',ai_provider_not_configured:'Connect your AI helper, or choose to work without AI.',review_at_least_one_passage:'Keep at least one finding or record a coverage assessment first.',evidence_must_be_an_exact_unit_substring:'The quotation must match the source exactly.',no_links_found:'No links were found. Try another document or paste the links.',no_selected_links:'Keep at least one link.',validation_failed:'Please check the required choices.'};throw Error(names[v.error]??String(v.error??'Something went wrong. Please retry.').replaceAll('_',' '));}return v;}
 export function useProject(onError){
