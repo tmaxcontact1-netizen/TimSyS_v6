@@ -1,0 +1,44 @@
+// Browser verification uses an isolated database, never the installed workspace.
+const fs=require('fs'),path=require('path'),assert=require('assert/strict');
+const root=path.resolve(__dirname,'..'),out=fs.mkdtempSync(path.join(root,'diagnostics','clean-pass-browser-'));
+Object.assign(process.env,{NODE_ENV:'test',PORT:'0',DB_PATH:path.join(out,'isolated.sqlite'),JWT_SECRET:'clean-pass-test-jwt-secret-only-32-characters',REFRESH_TOKEN_SECRET:'clean-pass-test-refresh-secret-only-32-characters',TIMSYS_LAUNCHER_DIST:path.join(root,'apps/launcher/dist'),RATE_LIMIT_DEFAULT:'10000',RATE_LIMIT_ADMIN:'10000'});
+const {chromium}=require(path.join(require('os').homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
+const platform=require('../platform');let server,browser;
+(async()=>{
+ server=await platform.bootPlatform();const origin=`http://127.0.0.1:${server.address().port}`;
+ const {token}=await fetch(origin+'/api/auth/dev-login',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:'{}'}).then(r=>r.json());
+ const request=async(url,data)=>{const r=await fetch(origin+url,{method:data?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},...(data?{body:JSON.stringify(data)}:{})});const result=await r.json();assert.ok(r.ok,JSON.stringify(result));return result;};
+ assert.equal((await request('/students')).total,0);assert.equal((await request('/nervous-breakdown/workspace')).records.length,0);
+ browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];
+ page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(token=>localStorage.setItem('jwt_token',token),token);
+ await page.goto(origin+'/app/principal-ed');const content=page.locator('#school-content');
+ async function go(name){await page.getByRole('searchbox',{name:'Find a page'}).fill(name);await page.getByRole('navigation',{name:'Application',exact:true}).getByRole('button',{name,exact:true}).click();}
+ await go('Responsibilities');await content.getByRole('heading',{name:'Nervous Breakdown',exact:true}).waitFor();
+ assert.equal(await content.getByRole('option',{name:'Synthetic test records'}).count(),0);
+ await content.getByRole('tab',{name:'Govern',exact:true}).click();await content.getByRole('button',{name:'Create record',exact:true}).click();
+ assert.equal(await content.getByLabel('Synthetic test data',{exact:true}).count(),0);await content.getByRole('button',{name:'Discard draft',exact:true}).click();
+ const dialog=page.getByRole('alertdialog');if(await dialog.count())await dialog.getByRole('button',{name:'Discard draft',exact:true}).click();
+ for(let i=1;i<=55;i++)await request('/students',{student_id:`PICK-${String(i).padStart(3,'0')}`,first_name:`Person${String(i).padStart(3,'0')}`,last_name:'Isolated',date_of_birth:'2013-01-01',sex:'Male',enrollment_date:'2026-09-01'});
+ const event=(await request('/events',{title:'Isolated school event',event_type:'academic',purpose:'Browser verification',owner_type:'user',owner_id:'1',starts_at:'2026-11-01T09:00:00',ends_at:'2026-11-01T10:00:00'})).event;
+ const session=(await request('/attendance/sessions',{title:'Isolated attendance',subject_component:'event_record',subject_type:'event',subject_id:String(event.id)})).session;
+ await go('Event Attendance');await content.getByRole('button',{name:'Expected roster',exact:true}).click();
+ const picker=content.locator('.school-record-picker');await picker.getByRole('option',{name:/Person001/}).waitFor();
+ await picker.getByRole('listbox',{name:'Students',exact:true}).selectOption('PICK-001');
+ await picker.getByRole('button',{name:'Next results'}).click();await picker.getByRole('option',{name:/Person055/}).waitFor();
+ await picker.getByRole('listbox',{name:'Students',exact:true}).selectOption(['PICK-001','PICK-055']);
+ await content.getByRole('button',{name:'Add expected students',exact:true}).click();await content.getByRole('button',{name:'Expected roster',exact:true}).waitFor();
+ const saved=await request(`/attendance/sessions?subject_id=${event.id}`);assert.ok(JSON.stringify(saved).includes('PICK-001'));assert.ok(JSON.stringify(saved).includes('PICK-055'));
+ await go('Standalone tasks');await content.getByRole('button',{name:'Add task',exact:true}).click();
+ await content.getByLabel('Task title',{exact:true}).fill('Real linked task in isolated test');
+ await content.getByText('Link to another record (optional)',{exact:true}).click();
+ await content.getByRole('combobox',{name:'Related record type',exact:true}).selectOption('event');
+ await content.getByRole('option',{name:'Isolated school event',exact:true}).waitFor({state:'attached'});
+ await content.getByRole('combobox',{name:'Event',exact:true}).selectOption(String(event.id));
+ await content.getByRole('button',{name:'Create task',exact:true}).click();await content.getByText('Task created',{exact:true}).waitFor();
+ const tasks=await request('/tasks');assert.equal(tasks.tasks[0].subject_component,'event_record');assert.equal(tasks.tasks[0].subject_id,String(event.id));
+ await go('Venue Bookings');await content.getByRole('button',{name:'Add venue booking',exact:true}).click();
+ await content.getByRole('option',{name:'Isolated school event',exact:true}).waitFor({state:'attached'});await content.getByRole('combobox',{name:'Event',exact:true}).selectOption(String(event.id));
+ assert.equal(await content.getByPlaceholder('Subject ID',{exact:true}).count(),0);
+ assert.deepEqual(errors,[]);await page.screenshot({path:path.join(out,'named-event-selection.png'),fullPage:true});
+ fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,isolatedDatabase:process.env.DB_PATH,checks:['empty boot has no school records','no synthetic dataset or fixture toggle','student selection across pages preserves identities','expected roster saved through real endpoint','task links actual event through named selection','venue event selected by name'],browserErrors:errors},null,2));console.log('CLEAN_PASS_BROWSER_OK '+out);
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(async()=>{if(browser)await browser.close();if(server)await platform.shutdownPlatform(server);});

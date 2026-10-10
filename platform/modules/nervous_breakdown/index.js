@@ -65,6 +65,7 @@ async function apply(req, ctx, items) {
     if (input.expected_revision !== (old?.revision || 0)) model.fail(`Record ${id} changed; reload and review before saving`, 'REVISION_CONFLICT', 409);
     if (old && old.kind !== input.kind) model.fail('Record kind cannot change');
     const next = { id, kind: input.kind, revision: (old?.revision || 0) + 1, data: model.clean(input.kind, input.data) };
+    if (next.data.is_fixture && process.env.NODE_ENV !== 'test') model.fail('Synthetic records belong in an isolated test database, not the working application.', 'TEST_DATA_NOT_ALLOWED');
     if (old && old.data.is_fixture !== next.data.is_fixture) model.fail('Test records cannot be converted into organisational records');
     if (old?.kind === 'source' && ['document_id', 'document_version_id', 'role_id'].some(k => old.data[k] !== next.data[k])) model.fail('Create a successor source to change its document version or formal role');
     if (old?.kind === 'statement' && old.data.source_id !== next.data.source_id) model.fail('A source statement cannot move between sources');

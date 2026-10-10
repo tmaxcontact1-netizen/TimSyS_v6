@@ -20,6 +20,19 @@ describe('Nervous Breakdown governed source-to-trail workflow', () => {
     version = (await request('POST', `/documents/${document.id}/versions`, { filename: 'fixture.txt', mime_type: 'text/plain', content_base64: Buffer.from('Record concerns and report them for review.').toString('base64') })).data.document.versions[0];
   });
   afterAll(async () => { if (context) await context.cleanup(); });
+  test('working runtime refuses synthetic imports without saving any rows', async () => {
+    const previous = process.env.NODE_ENV;
+    const before = (await request('GET', '/nervous-breakdown/workspace')).data.records.length;
+    try {
+      process.env.NODE_ENV = 'production';
+      const response = await batch([row('working-runtime-fixture', 'role', { name: 'Isolated test role', mapping_state: 'referenced', is_fixture: true })]);
+      expect(response.status).toBe(400);
+      expect(response.data.report.errors.some(error => error.code === 'TEST_DATA_NOT_ALLOWED')).toBe(true);
+      expect((await request('GET', '/nervous-breakdown/workspace')).data.records).toHaveLength(before);
+    } finally {
+      process.env.NODE_ENV = previous;
+    }
+  });
   test('imports one source statement with multiple responsibilities, then traverses a directed trail', async () => {
     const imported = await batch(fixture()); expect(imported.status).toBe(200); expect(imported.data.records).toHaveLength(8);
     const result = await request('GET', '/nervous-breakdown/graph?fixtures=true&selected=test-a&direction=downstream&depth=1');
