@@ -24,10 +24,10 @@ describe("deterministic image gate", () => {
     expect(result.contentHash).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  test("stores but flags low-resolution or cardless evidence for recapture", () => {
+  test("accepts card-free uploads and makes limited resolution a review warning", () => {
     const result = validateOriginalImage(png(640, 480), false);
-    expect(result.status).toBe("recapture_required");
-    expect(result.findings.map((finding) => finding.code)).toEqual(["inadequate_resolution", "calibration_card_not_confirmed"]);
+    expect(result.status).toBe("accepted_for_analysis");
+    expect(result.findings.map((finding) => finding.code)).toEqual(["limited_resolution"]);
   });
 
   test("rejects unsupported bytes and implausible dimensions", () => {

@@ -1,3 +1,7 @@
+import sharp from "sharp";
+import { cropSchema, reviewSchema } from "../domain/garment/appearance-review.js";
+import { IntakeRepository } from "../infrastructure/database/intake-repository.js";
+import { analyseCardFree } from "../infrastructure/images/card-free-analysis.js";
 import { createReadStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -21,7 +25,7 @@ import { LifecycleRepository } from "../infrastructure/database/lifecycle-reposi
 import { InsightsRepository } from "../infrastructure/database/insights-repository.js";
 import { PrivateImageStore } from "../infrastructure/images/private-image-store.js";
 import { validateOriginalImage } from "../infrastructure/images/image-validation.js";
-import { inspectCalibrationCard, combineFingerprint, measureImage, suggestFields } from "../infrastructure/images/visual-fingerprint-engine.js";
+import { inspectCalibrationCard } from "../infrastructure/images/visual-fingerprint-engine.js";
 import { evaluateStyling } from "../domain/outfit/styling-engine.js";
 import { generateEnsembles } from "../domain/outfit/ensemble-engine.js";
 import { planRotation } from "../domain/planner/rotation-engine.js";
@@ -85,6 +89,7 @@ export function createDressedServer(input: {
   readonly now?: () => Date;
 }) {
   const now = input.now ?? (() => new Date());
+  const intake = new IntakeRepository(input.database as Pool);
   const wardrobe = new WardrobeRepository(input.database as Pool);
   const photography = new PhotographyRepository(input.database as Pool);
   const fingerprints = new FingerprintRepository(input.database as Pool);
@@ -100,7 +105,7 @@ export function createDressedServer(input: {
     if (pathname === "/api/health") {
       if (method !== "GET") return json(response, 405, { error: "method_not_allowed" });
       try {
-        const result = await input.database.query<{ database: string; schema_ready: boolean; catalogue_ready: boolean; photography_ready: boolean; fingerprint_ready: boolean; styling_ready: boolean; ensemble_ready: boolean; planner_ready: boolean; lifecycle_ready:boolean; insights_ready:boolean }>(
+        const result = await input.database.query<{ database: string; schema_ready: boolean; catalogue_ready: boolean; photography_ready: boolean; fingerprint_ready: boolean; styling_ready: boolean; ensemble_ready: boolean; planner_ready: boolean; lifecycle_ready:boolean; insights_ready:boolean; intake_ready:boolean }>(
           `SELECT current_database() AS database,
              to_regclass('dressed.dressed_schema_migrations') IS NOT NULL AS schema_ready,
              to_regclass('dressed.garments') IS NOT NULL AS catalogue_ready,
@@ -110,14 +115,15 @@ export function createDressedServer(input: {
              to_regclass('dressed.saved_outfits') IS NOT NULL AS ensemble_ready,
              to_regclass('dressed.planned_outfits') IS NOT NULL AS planner_ready,
              to_regclass('dressed.wear_events') IS NOT NULL AS lifecycle_ready,
-             to_regclass('dressed.user_preferences') IS NOT NULL AS insights_ready`,
+             to_regclass('dressed.user_preferences') IS NOT NULL AS insights_ready,
+             to_regclass('dressed.garment_appearance_reviews') IS NOT NULL AS intake_ready`,
         );
         const row = result.rows[0];
-        if (row?.schema_ready !== true || row.catalogue_ready !== true || row.photography_ready !== true || row.fingerprint_ready !== true || row.styling_ready !== true || row.ensemble_ready !== true || row.planner_ready !== true || row.lifecycle_ready !== true || row.insights_ready !== true) return json(response, 503, createApplicationHealth({ status: "degraded", application: "dressed", observedAt: now().toISOString(), components: [{ id: "database-schema", status: "degraded", message: "One or more required schema components are unavailable" }], database: "schema_unavailable" }));
+        if (row?.schema_ready !== true || row.catalogue_ready !== true || row.photography_ready !== true || row.fingerprint_ready !== true || row.styling_ready !== true || row.ensemble_ready !== true || row.planner_ready !== true || row.lifecycle_ready !== true || row.insights_ready !== true || row.intake_ready !== true) return json(response, 503, createApplicationHealth({ status: "degraded", application: "dressed", observedAt: now().toISOString(), components: [{ id: "database-schema", status: "degraded", message: "One or more required schema components are unavailable" }], database: "schema_unavailable" }));
         return json(response, 200, createApplicationHealth({
           status: "healthy",
           application: "dressed",
-          version: "0.0.0",
+          version: "0.1.0",
           database: "ready",
           observedAt: now().toISOString(),
           components: [
@@ -137,8 +143,9 @@ export function createDressedServer(input: {
         id: "dressed",
         name: "Dress'Ed",
         phase: 9,
-        operationalFeatures: ["wardrobe-catalogue", "configurable-categories", "multi-use-garment-classification", "use-filtered-outfit-generation", "garment-metadata", "two-photo-capture", "calibration-profiles", "image-quality-gate", "visual-fingerprint", "editable-field-suggestions", "styling-rules", "explanations", "ensemble-generation", "saved-outfits", "manual-grade-overrides", "combination-overrides", "calendar-planning", "rotation-policies", "planned-versus-worn", "immutable-wear-history", "garment-care", "cost-per-wear", "wardrobe-insights", "user-preferences"],
-        message: "Dress'Ed's complete deterministic wardrobe, styling, planning, lifecycle, and insights workflow is operational.",
+        version: "0.1.0",
+        operationalFeatures: ["wardrobe-catalogue", "configurable-categories", "multi-use-garment-classification", "use-filtered-outfit-generation", "garment-metadata", "card-free-intake", "editable-appearance-review", "in-app-crop", "appearance-uncertainty", "calibration-profiles", "image-quality-gate", "visual-fingerprint", "editable-field-suggestions", "styling-rules", "explanations", "ensemble-generation", "saved-outfits", "manual-grade-overrides", "combination-overrides", "calendar-planning", "rotation-policies", "planned-versus-worn", "immutable-wear-history", "garment-care", "cost-per-wear", "wardrobe-insights", "user-preferences"],
+        message: "Upload photographs without a colour card, adjust the garment area, and confirm an editable appearance review.",
       });
     }
     try {
@@ -229,6 +236,21 @@ export function createDressedServer(input: {
         const value = z.object({ version: z.number().int().positive() }).strict().parse(await body(request));
         return await wardrobe.archive(garmentArchiveMatch[1]!, value.version, now().toISOString()) ? json(response, 200, { archived: true }) : json(response, 409, { error: "version_conflict_or_archived" });
       }
+      const intakeMatch = /^\/api\/garments\/([0-9a-f-]{36})\/intake(?:\/(analyse|review))?$/i.exec(pathname);
+      if (intakeMatch) {
+        const garmentId=intakeMatch[1]!, action=intakeMatch[2];
+        if(!await wardrobe.get(garmentId)) return json(response,404,{error:"not_found"});
+        if(!action && method==="GET") return json(response,200,await intake.state(garmentId));
+        if(action==="analyse" && method==="POST") {
+          const value=z.object({imageId:z.string().uuid(),crop:cropSchema.nullable().default(null)}).strict().parse(await body(request));
+          const sources=await fingerprints.currentImages(garmentId),source=sources.find(x=>x.id===value.imageId);
+          if(!source) return json(response,409,{error:"image_not_current"});
+          const result=await analyseCardFree(await images.read(source.relativePath),value.crop);
+          return json(response,201,await intake.analyse({id:randomUUID(),garmentId,imageIds:sources.map(x=>x.id),imageId:source.id,crop:value.crop,result,timestamp:now().toISOString()}));
+        }
+        if(action==="review" && method==="POST") return json(response,201,await intake.review(garmentId,reviewSchema.parse(await body(request)),randomUUID(),randomUUID(),now().toISOString()));
+        return json(response,405,{error:"method_not_allowed"});
+      }
       const garmentImagesMatch = /^\/api\/garments\/([0-9a-f-]{36})\/images$/i.exec(pathname);
       if (garmentImagesMatch !== null) {
         const garmentId = garmentImagesMatch[1]!;
@@ -237,18 +259,16 @@ export function createDressedServer(input: {
           if (!(await photography.garmentExists(garmentId))) return json(response, 404, { error: "garment_not_found" });
           const url = new URL(request.url ?? pathname, "http://127.0.0.1");
           const role = url.searchParams.get("role"); const profileId = url.searchParams.get("calibrationProfileId"); const filename = (url.searchParams.get("filename") ?? "original").replace(/[\\/\0]/g, "_").slice(0, 240);
-          if (!(["whole","detail","additional"] as readonly string[]).includes(role ?? "") || profileId === null || !/^[0-9a-f-]{36}$/i.test(profileId)) return json(response, 400, { error: "invalid_image_metadata" });
+          if (!(["whole","detail","additional"] as readonly string[]).includes(role ?? "") || (profileId !== null && !/^[0-9a-f-]{36}$/i.test(profileId))) return json(response, 400, { error: "invalid_image_metadata" });
           const capturedAtValue = url.searchParams.get("capturedAt");
           if (capturedAtValue !== null && !Number.isFinite(new Date(capturedAtValue).getTime())) return json(response, 400, { error: "invalid_captured_at" });
-          const bytes = await binaryBody(request); let validation; let calibrationInspection;
-          try { calibrationInspection = await inspectCalibrationCard(bytes); validation = validateOriginalImage(bytes, true); } catch (error) {
-            if (error instanceof Error && error.message.startsWith("calibration_")) return json(response, 422, { error: error.message });
-            return json(response, 415, { error: "unsupported_or_invalid_image" });
-          }
+          const bytes = await binaryBody(request); let validation;
+          try { validation=validateOriginalImage(bytes,false); await sharp(bytes,{limitInputPixels:100_000_000}).rotate().resize(32,32,{fit:"inside"}).toBuffer(); }
+          catch { return json(response,415,{error:"unsupported_or_invalid_image"}); }
           const imageId = randomUUID(); const relativePath = await images.writeOriginal({ garmentId, imageId, extension: validation.extension, bytes });
           try {
-            const image = await photography.addImage({ imageId, garmentId, profileId, role: role as ImageRole, filename, relativePath, cardVisible: true, capturedAt: capturedAtValue === null ? null : new Date(capturedAtValue).toISOString(), timestamp: now().toISOString(), validation });
-            return json(response, 201, { image, readiness: await photography.readiness(garmentId), calibration: calibrationInspection });
+            const image = await photography.addImage({ imageId, garmentId, profileId, role: role as ImageRole, filename, relativePath, cardVisible: false, capturedAt: capturedAtValue === null ? null : new Date(capturedAtValue).toISOString(), timestamp: now().toISOString(), validation });
+            return json(response, 201, { image, readiness: await photography.readiness(garmentId), calibration: null });
           } catch (error) { await images.removeOriginal(relativePath); throw error; }
         }
         return json(response, 405, { error: "method_not_allowed" });
@@ -257,14 +277,7 @@ export function createDressedServer(input: {
       if (garmentFingerprintMatch !== null) {
         const garmentId = garmentFingerprintMatch[1]!;
         if (method === "GET") { const current = await fingerprints.current(garmentId); return current === null ? json(response, 404, { error: "fingerprint_not_found" }) : json(response, 200, current); }
-        if (method === "POST") {
-          const sources = await fingerprints.currentImages(garmentId);
-          if (!sources.some((source)=>source.role==="whole") || !sources.some((source)=>source.role==="detail")) return json(response, 409, { error: "whole_and_detail_photographs_required" });
-          const measured = await Promise.all(sources.map(async (source) => ({ ...source, measurements: await measureImage(await images.read(source.relativePath),source.patches) })));
-          const whole = measured.find((source) => source.role === "whole") ?? null; const detail = measured.find((source) => source.role === "detail") ?? null;
-          const fingerprint = combineFingerprint(whole?.measurements ?? null, detail?.measurements ?? null); const suggestions = suggestFields(fingerprint);
-          return json(response, 201, await fingerprints.save({ fingerprintId: randomUUID(), garmentId, fingerprint, suggestions, wholeImageId: whole?.id ?? null, detailImageId: detail?.id ?? null, timestamp: now().toISOString() }));
-        }
+        if (method === "POST") return json(response,409,{error:"intake_review_required"});
         return json(response, 405, { error: "method_not_allowed" });
       }
       const fingerprintDecisionMatch = /^\/api\/fingerprints\/([0-9a-f-]{36})\/decision$/i.exec(pathname);
@@ -281,6 +294,8 @@ export function createDressedServer(input: {
         const content = await images.read(String(image.relativePath)); secure(response); response.writeHead(200, { "content-type": String(image.mediaType), "content-length": String(content.length), "content-disposition": "inline" }); return method === "HEAD" ? response.end() : response.end(content);
       }
     } catch (error) {
+      if(error instanceof Error && ["review_version_conflict","review_analysis_stale"].includes(error.message)) return json(response,409,{error:error.message});
+      if(error instanceof Error && error.message==="review_invalid_classification") return json(response,400,{error:error.message});
       if (error instanceof ZodError) return json(response, 400, { error: "validation_failed", issues: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })) });
       if (error instanceof Error && error.message === "invalid_json") return json(response, 400, { error: "invalid_json" });
       if (error instanceof Error && error.message === "request_too_large") return json(response, 413, { error: "request_too_large" });

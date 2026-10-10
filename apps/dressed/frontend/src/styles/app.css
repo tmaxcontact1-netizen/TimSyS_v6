@@ -1158,3 +1158,14 @@ td small {
   color: var(--ts-muted);
   line-height: 1.8;
 }
+
+/* Card-free intake and review */
+.intake-modal{width:min(1180px,96vw);max-width:1180px;box-sizing:border-box;overflow-wrap:anywhere}.intake-modal header p{max-width:780px}.intake-modal fieldset{min-width:0}.intake-modal input,.intake-modal select{max-width:100%;box-sizing:border-box}
+.intake-columns{display:grid;grid-template-columns:minmax(240px,.9fr) minmax(320px,1.1fr);gap:28px}.intake-columns>section{min-width:0}
+.intake-columns label{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.intake-columns small{color:var(--muted,#a9b5c6);font-size:.78rem}
+.intake-photo{position:relative;line-height:0;margin:14px 0;background:#16202c}.intake-photo img{display:block;width:100%;height:auto}.intake-photo svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.intake-crop-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.intake-crop-controls input{width:100%;box-sizing:border-box}
+.intake-findings{border:1px solid #806b3c;background:#28271e;color:#f2e7c9;border-radius:8px;padding:12px;margin:14px 0}.intake-findings ul{padding-left:20px;margin:8px 0}.intake-findings li{margin:6px 0}
+.intake-checks{display:flex;flex-wrap:wrap;gap:12px;margin:14px 0;padding:12px;border:1px solid #394657;border-radius:8px}.intake-checks label{flex-direction:row;align-items:center;margin:0}.intake-checks input{width:auto}.intake-modal form>fieldset{border:0;padding:0;min-width:0}
+.intake-outfit-warnings{padding-left:18px;color:#f0d590;font-size:.85rem}.intake-upload{margin-top:12px}.intake-columns details a{display:block;padding:6px}
+@media(max-width:780px){.intake-columns{grid-template-columns:1fr}.intake-modal{width:96vw}.intake-crop-controls{grid-template-columns:repeat(2,minmax(0,1fr))}}

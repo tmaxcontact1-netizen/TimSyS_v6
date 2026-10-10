@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import PhotoIntake from "./photo-intake.jsx";
 import ReactDOM from "react-dom/client";
 import {
   AppShell,
@@ -866,248 +867,6 @@ function CalibrationForm({ close, saved }) {
     </div>
   );
 }
-function PhotoManager({ garment, profiles, categories, close, review }) {
-  const usableProfiles = profiles.filter((item) => item.readyForPhotos);
-  const [images, setImages] = useState([]),
-    [readiness, setReadiness] = useState({
-      wholeReady: false,
-      detailReady: false,
-      readyForAnalysis: false,
-    }),
-    [fingerprint, setFingerprint] = useState(null),
-    [role, setRole] = useState("whole"),
-    [profile, setProfile] = useState(usableProfiles[0]?.id || ""),
-    [file, setFile] = useState(null),
-    [calibrationNotice, setCalibrationNotice] = useState(""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const selectedProfile = usableProfiles.find((item) => item.id === profile) || usableProfiles[0];
-  const load = useCallback(async () => {
-    try {
-      const value = await api(`/api/garments/${garment.id}/images`);
-      setImages(value.items);
-      setReadiness(value.readiness);
-      try {
-        setFingerprint(await api(`/api/garments/${garment.id}/fingerprint`));
-      } catch {
-        setFingerprint(null);
-      }
-    } catch (cause) {
-      setError(cause.message);
-    }
-  }, [garment.id]);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  const upload = async (e) => {
-    e.preventDefault();
-    if (!file) return;
-    setBusy(true);
-    setError("");
-    try {
-      const q = new URLSearchParams({
-        role,
-        calibrationProfileId: profile,
-        filename: file.name,
-      });
-      const response = await fetch(`/api/garments/${garment.id}/images?${q}`, {
-        method: "POST",
-        headers: { "content-type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      const value = await response.json();
-      if (!response.ok) throw new Error(value.error || "Upload failed");
-      setCalibrationNotice(value.calibration?.message || "Colour card found and applied to this photograph.");
-      setFile(null);
-      e.target.reset();
-      await load();
-    } catch (cause) {
-      setError(cause.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const analyse = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      setFingerprint(
-        await api(`/api/garments/${garment.id}/fingerprint`, {
-          method: "POST",
-        }),
-      );
-    } catch (cause) {
-      setError(cause.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const useSuggestions = () => {
-    const byField = Object.fromEntries(
-      fingerprint.suggestions.map((x) => [x.field, x]),
-    );
-    const categorySlug = byField.category?.value?.[0]?.slug;
-    const categoryId =
-      categories.find((x) => x.slug === categorySlug)?.id ?? garment.categoryId;
-    const categoryName = categories.find((x) => x.id === categoryId)?.name;
-    review({
-      fingerprintId: fingerprint.id,
-      values: {
-        categoryId,
-        name: garment.name.startsWith("New garment ") && categoryName ? categoryName : garment.name,
-        formality: byField.formality?.value ?? garment.formality,
-        seasons: byField.seasons?.value ?? garment.seasons,
-      },
-    });
-  };
-  return (
-    <div className="modal-backdrop">
-      <section className="modal">
-        <header>
-          <div>
-            <p className="eyebrow">GARMENT PHOTOS</p>
-            <h2>{garment.name}</h2>
-            <p className="muted">
-              Whole: {readiness.wholeReady ? "ready" : "needed"} · Detail:{" "}
-              {readiness.detailReady ? "ready" : "needed"}
-            </p>
-          </div>
-          <button className="quiet" onClick={close}>
-            Close
-          </button>
-        </header>
-        {!usableProfiles.length ? (
-          <div className="empty">
-            <h3>Add your colour card first.</h3>
-            <p>Go to Settings, photograph your printed red, green and blue card, then return here.</p>
-          </div>
-        ) : (
-          <form onSubmit={upload} className="upload-form">
-            <label>
-              Photograph type
-              <select value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="whole">Whole item</option>
-                <option value="detail">Close-up/detail</option>
-                <option value="additional">Additional</option>
-              </select>
-            </label>
-            {selectedProfile && (
-              <div className="calibration-active" role="status">
-                <strong>Colour calibration is on</strong>
-                <span>{selectedProfile.name} will be used for this photograph.</span>
-              </div>
-            )}
-            <label>
-              Colour card
-              <select
-                value={profile}
-                onChange={(e) => setProfile(e.target.value)}
-              >
-                {usableProfiles.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Choose a photograph
-              <input
-                required
-                type="file"
-                accept="image/jpeg,image/png"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-              />
-            </label>
-            <p className="muted">Dress’Ed will locate and measure the colour card automatically. The photograph will be rejected if the card is missing, distorted or obscured by glare.</p>
-            <button className="primary" disabled={busy}>
-              {busy ? "Checking photograph…" : "Add photograph"}
-            </button>
-          </form>
-        )}
-        {error && <p className="error banner">{error}</p>}
-        {calibrationNotice && <p className="success banner" role="status">{calibrationNotice}</p>}
-        <div className="photo-grid">
-          {images.map((image) => (
-            <article
-              key={image.id}
-              className={
-                image.validationStatus === "recapture_required"
-                  ? "photo-bad"
-                  : ""
-              }
-            >
-              <img
-                src={`/api/images/${image.id}/content`}
-                alt={`${image.role} photograph of ${garment.name}`}
-              />
-              <div>
-                <strong>{image.role}</strong>
-                <span>
-                  {image.width} × {image.height}
-                </span>
-                <span>{image.validationStatus.replaceAll("_", " ")}</span>
-                {image.findings.map((finding) => (
-                  <small key={finding.code}>{finding.message}</small>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-        {readiness.readyForAnalysis && (
-          <div className="analysis-actions">
-            <button className="primary" disabled={busy} onClick={analyse}>
-              {fingerprint ? "Reanalyse photographs" : "Analyse photographs"}
-            </button>
-            <span>Analysed privately on this computer</span>
-          </div>
-        )}
-        {fingerprint && (
-          <section className="suggestions">
-            <h3>Colours found</h3>
-            <div className="palette">
-              {fingerprint.measurements.combined.palette.map((x) => (
-                <span
-                  key={`${x.label}-${x.rgb.join("-")}`}
-                  style={{ background: `rgb(${x.rgb.join(",")})` }}
-                  title={`${x.label} ${Math.round(x.proportion * 100)}%`}
-                />
-              ))}
-            </div>
-            <p>
-              Visual detail{" "}
-              {Math.round(
-                fingerprint.measurements.combined.visualComplexity * 100,
-              )}
-              % · likely to be a solid colour{" "}
-              {Math.round(
-                fingerprint.measurements.combined.solidConfidence * 100,
-              )}
-              % · visible texture{" "}
-              {Math.round(
-                fingerprint.measurements.combined.textureStrength * 100,
-              )}
-              %
-            </p>
-            <h3>Suggested details</h3>
-            {fingerprint.suggestions.map((x) => (
-              <article key={x.field}>
-                <strong>{x.field}</strong>
-                <span>
-                  {Math.round(Number(x.confidence) * 100)}% match
-                </span>
-                <span>{Array.isArray(x.value) ? x.value.map((value) => value.slug || value).join(", ") : String(x.value)}</span>
-              </article>
-            ))}
-            <button className="primary" onClick={useSuggestions}>
-              Review and confirm these details
-            </button>
-          </section>
-        )}
-      </section>
-    </div>
-  );
-}
 function StylingLab({ garments, close }) {
   const [catalogue, setCatalogue] = useState(null),
     [selected, setSelected] = useState([]),
@@ -1417,7 +1176,7 @@ function OutfitBuilder({ close }) {
           <div className="empty">
             <h3>No eligible garments yet.</h3>
             <p>
-              Add and analyse garment photographs before asking Dress’Ed to include them in an outfit.
+              Upload a photograph, review the detected details, and confirm the garment before building an outfit. Manual entry is available when detection is uncertain.
             </p>
           </div>
         )}
@@ -1446,7 +1205,7 @@ function OutfitBuilder({ close }) {
                   <article key={candidate.key}>
                     <div className="ensemble-score">
                       <strong>{candidate.evaluation.grade}</strong>
-                      <span>{candidate.evaluation.score}/100</span>
+                      <span>{candidate.evaluation.outcomes.some(x=>x.ruleId==="appearance.uncertainty") ? "Approximate ranking" : `${candidate.evaluation.score}/100`}</span>
                     </div>
                     <div className="ensemble-items">
                       {candidate.garments.map((x) => (
@@ -2057,7 +1816,7 @@ const navigation = [
   {
     id: "settings",
     label: "Settings",
-    description: "Categories and calibration",
+    description: "Categories and photography",
     icon: "⚙",
   },
 ];
@@ -2245,7 +2004,7 @@ function ModernApp() {
     ],
     settings: [
       "Settings",
-      "Manage the classifications and calibration used by Dress’Ed.",
+      "Manage garment categories and retained photography records.",
     ],
   }[view];
   const wardrobeTable = (
@@ -2428,9 +2187,9 @@ function ModernApp() {
               context="Used to organise garments"
             />
             <Metric
-              label="Colour cards"
-              value={profiles.length}
-              context="Used for photo measurement"
+              label="Photo intake"
+              value="Card-free"
+              context="Upload, detect and review"
             />
             <Metric
               label="System"
@@ -2626,8 +2385,8 @@ function ModernApp() {
             </Button>
           </Panel>
           <Panel
-            title="Photo calibration"
-            description="Photograph your printed red, green and blue card once. Include the same card in every garment photograph so colours stay consistent."
+            title="Card-free photography"
+            description="Upload an ordinary photograph, adjust the garment area, then review and correct its details. No colour card is required. Older calibration records are retained for historical photographs."
           >
             {profiles.length ? (
               <div className="calibration-summary" role="status">
@@ -2635,9 +2394,9 @@ function ModernApp() {
                 <div className="calibration-profile-list">
                   <strong>{profiles.length === 1 ? "1 colour card is available" : `${profiles.length} colour cards are available`}</strong>
                   {profiles.map((profile) => <article key={profile.id}>
-                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? `${profile.patches?.length || 0} patches measured · ready for new garment photographs` : "Needs attention before use"}</p></div>
+                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? `${profile.patches?.length || 0} patches retained for historical photographs` : "Needs attention before use"}</p></div>
                     <div className="source-actions">
-                      <Button onClick={() => setModal({ type: "calibration" })}>Add replacement</Button>
+
                       <Button variant="danger" onClick={() => setCalibrationDeleteTarget(profile)}>Delete</Button>
                     </div>
                   </article>)}
@@ -2646,12 +2405,10 @@ function ModernApp() {
             ) : (
               <div className="calibration-summary calibration-summary--empty">
                 <StatusBadge tone="warning">Not set up</StatusBadge>
-                <div><strong>No colour card is available</strong><p>Add one before photographing garments.</p></div>
+                <div><strong>No colour card required</strong><p>Start in Wardrobe → Add from photographs. You can also complete details manually.</p></div>
               </div>
             )}
-            <Button onClick={() => setModal({ type: "calibration" })}>
-              Add a colour card
-            </Button>
+
           </Panel>
           <Panel
             title="Styling rules"
@@ -2758,15 +2515,7 @@ function ModernApp() {
         onCancel={() => setCalibrationDeleteTarget(null)}
       />
       {modal?.type === "photos" && (
-        <PhotoManager
-          garment={modal.item}
-          profiles={profiles}
-          categories={categories}
-          close={() => setModal(null)}
-          review={(suggestion) =>
-            setModal({ type: "garment", item: modal.item, suggestion })
-          }
-        />
+        <PhotoIntake garment={modal.item} categories={categories} uses={uses} api={api} close={() => setModal(null)} saved={load} />
       )}{" "}
       {modal?.type === "styling" && (
         <StylingLab garments={catalogue.items} close={() => setModal(null)} />

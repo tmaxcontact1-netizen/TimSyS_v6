@@ -165,6 +165,8 @@ export class WardrobeRepository {
       await client.query("UPDATE dressed.outfit_plans SET fixed_garment_ids=array_remove(fixed_garment_ids,$1::uuid),excluded_garment_ids=array_remove(excluded_garment_ids,$1::uuid)", [id]);
       await client.query("DELETE FROM dressed.garment_care_cases WHERE garment_id=$1", [id]);
       await client.query("DELETE FROM dressed.garment_field_suggestions WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.garment_appearance_reviews WHERE garment_id=$1", [id]);
+      await client.query("DELETE FROM dressed.garment_analyses WHERE garment_id=$1", [id]);
       await client.query("DELETE FROM dressed.visual_fingerprints WHERE garment_id=$1", [id]);
       await client.query("DELETE FROM dressed.image_derivatives WHERE source_image_id IN (SELECT image_id FROM dressed.garment_images WHERE garment_id=$1)", [id]);
       await client.query("DELETE FROM dressed.image_quality_findings WHERE image_id IN (SELECT image_id FROM dressed.garment_images WHERE garment_id=$1)", [id]);

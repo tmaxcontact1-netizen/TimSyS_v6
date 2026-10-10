@@ -22,7 +22,7 @@ function jpeg(buffer: Buffer): { width: number; height: number } | null {
   return null;
 }
 
-export function validateOriginalImage(buffer: Buffer, cardVisible: boolean): ValidatedImage {
+export function validateOriginalImage(buffer: Buffer, _cardVisible: boolean = false): ValidatedImage {
   const pngSize = png(buffer);
   const jpegSize = pngSize === null ? jpeg(buffer) : null;
   const dimensions = pngSize ?? jpegSize;
@@ -30,8 +30,7 @@ export function validateOriginalImage(buffer: Buffer, cardVisible: boolean): Val
   if (dimensions.width <= 0 || dimensions.height <= 0 || dimensions.width > 20_000 || dimensions.height > 20_000 || dimensions.width * dimensions.height > 100_000_000) throw new TypeError("unsupported_or_invalid_image");
   const mediaType = pngSize === null ? "image/jpeg" : "image/png";
   const findings: ImageFinding[] = [];
-  if (dimensions.width < 800 || dimensions.height < 800) findings.push({ code: "inadequate_resolution", severity: "error", message: "Use an image at least 800 × 800 pixels." });
-  if (!cardVisible) findings.push({ code: "calibration_card_not_confirmed", severity: "error", message: "Retake the photograph with the calibration card fully visible." });
+  if (dimensions.width < 800 || dimensions.height < 800) findings.push({ code: "limited_resolution", severity: "warning", message: "This image has limited resolution. Review the detected details or enter them manually." });
   if (dimensions.width / dimensions.height > 4 || dimensions.height / dimensions.width > 4) findings.push({ code: "extreme_aspect_ratio", severity: "warning", message: "The image shape suggests inadequate garment coverage." });
   return Object.freeze({ mediaType, extension: mediaType === "image/jpeg" ? ".jpg" : ".png", width: dimensions.width, height: dimensions.height, byteSize: buffer.length, contentHash: createHash("sha256").update(buffer).digest("hex"), findings: Object.freeze(findings), status: findings.some((finding) => finding.severity === "error") ? "recapture_required" : "accepted_for_analysis" });
 }

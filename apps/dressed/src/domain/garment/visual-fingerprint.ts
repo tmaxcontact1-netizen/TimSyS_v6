@@ -9,9 +9,10 @@ export type ImageMeasurements = Readonly<{
   paletteComplexity: number; visualComplexity: number; solidConfidence: number;
 }>;
 export type VisualFingerprint = Readonly<{
-  schemaVersion: typeof FINGERPRINT_SCHEMA_VERSION; algorithmVersion: typeof FINGERPRINT_ALGORITHM_VERSION;
+  schemaVersion: typeof FINGERPRINT_SCHEMA_VERSION; algorithmVersion: string;
   whole: ImageMeasurements | null; detail: ImageMeasurements | null;
   combined: Readonly<{ palette: readonly PaletteEntry[]; averageLightness: number; averageChroma: number; contrast: number; patternDensity: number; textureStrength: number; visualComplexity: number; solidConfidence: number }>;
   confidence: number;
+  appearance?: import("./appearance-review.js").Appearance & Readonly<{status:"reviewed";analysisId:string|null;uncertainFields:readonly string[];colourBasis:"representative-family"}>;
 }>;
 export type FieldSuggestion = Readonly<{ field: "category" | "formality" | "seasons" | "colour_summary" | "pattern_summary"; value: unknown; confidence: number; evidence: Readonly<Record<string, unknown>> }>;

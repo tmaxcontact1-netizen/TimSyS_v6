@@ -49,11 +49,16 @@ export class PhotographyRepository {
     return result.rowCount === 1;
   }
 
-  public async addImage(input: { imageId: string; garmentId: string; profileId: string; role: ImageRole; filename: string; relativePath: string; cardVisible: boolean; capturedAt: string | null; timestamp: string; validation: ValidatedImage }) {
+  public async addImage(input: { imageId: string; garmentId: string; profileId: string | null; role: ImageRole; filename: string; relativePath: string; cardVisible: boolean; capturedAt: string | null; timestamp: string; validation: ValidatedImage }) {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
+      await client.query("SELECT 1 FROM dressed.garments WHERE garment_id=$1 FOR UPDATE", [input.garmentId]);
       const isCurrent = input.validation.status === "accepted_for_analysis";
+      if (isCurrent && input.role !== "additional") {
+        await client.query("UPDATE dressed.visual_fingerprints SET is_current=false,superseded_at=$2 WHERE garment_id=$1 AND is_current", [input.garmentId,input.timestamp]);
+        await client.query("UPDATE dressed.garments SET version=version+1,updated_at=$2 WHERE garment_id=$1", [input.garmentId,input.timestamp]);
+      }
       if (isCurrent && input.role !== "additional") await client.query("UPDATE dressed.garment_images SET is_current=false,superseded_at=$3 WHERE garment_id=$1 AND role=$2 AND is_current", [input.garmentId,input.role,input.timestamp]);
       await client.query(`INSERT INTO dressed.garment_images(image_id,garment_id,calibration_profile_id,role,original_filename,original_relative_path,content_hash,media_type,byte_size,width,height,card_visibility_confirmed,validation_status,is_current,captured_at,created_at)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`, [input.imageId,input.garmentId,input.profileId,input.role,input.filename,input.relativePath,input.validation.contentHash,input.validation.mediaType,input.validation.byteSize,input.validation.width,input.validation.height,input.cardVisible,input.validation.status,isCurrent,input.capturedAt,input.timestamp]);
@@ -66,21 +71,21 @@ export class PhotographyRepository {
   public async images(garmentId: string) {
     const result = await this.pool.query(`SELECT i.*,p.name AS calibration_profile_name,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('code',f.code,'severity',f.severity,'message',f.message) ORDER BY f.finding_index) FROM dressed.image_quality_findings f WHERE f.image_id=i.image_id),'[]'::jsonb) AS findings
-      FROM dressed.garment_images i JOIN dressed.calibration_profiles p ON p.calibration_profile_id=i.calibration_profile_id WHERE i.garment_id=$1 ORDER BY i.created_at DESC,i.image_id`, [garmentId]);
+      FROM dressed.garment_images i LEFT JOIN dressed.calibration_profiles p ON p.calibration_profile_id=i.calibration_profile_id WHERE i.garment_id=$1 ORDER BY i.created_at DESC,i.image_id`, [garmentId]);
     return result.rows.map(mapImage);
   }
 
   public async image(id: string) {
     const result = await this.pool.query(`SELECT i.*,p.name AS calibration_profile_name,
       COALESCE((SELECT jsonb_agg(jsonb_build_object('code',f.code,'severity',f.severity,'message',f.message) ORDER BY f.finding_index) FROM dressed.image_quality_findings f WHERE f.image_id=i.image_id),'[]'::jsonb) AS findings
-      FROM dressed.garment_images i JOIN dressed.calibration_profiles p ON p.calibration_profile_id=i.calibration_profile_id WHERE i.image_id=$1`, [id]);
+      FROM dressed.garment_images i LEFT JOIN dressed.calibration_profiles p ON p.calibration_profile_id=i.calibration_profile_id WHERE i.image_id=$1`, [id]);
     return result.rows[0] === undefined ? null : mapImage(result.rows[0]);
   }
 
   public async readiness(garmentId: string) {
     const result = await this.pool.query<{ role: string }>("SELECT role FROM dressed.garment_images WHERE garment_id=$1 AND is_current AND validation_status='accepted_for_analysis' AND role IN ('whole','detail')", [garmentId]);
     const roles = new Set(result.rows.map((row) => row.role));
-    return { readyForAnalysis: roles.has("whole") && roles.has("detail"), wholeReady: roles.has("whole"), detailReady: roles.has("detail") };
+    return { readyForAnalysis: roles.has("whole") || roles.has("detail"), wholeReady: roles.has("whole"), detailReady: roles.has("detail") };
   }
 }
 

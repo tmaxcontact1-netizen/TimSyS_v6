@@ -2,7 +2,7 @@
 
 Dress'Ed is the TimSyS-hosted, domain-isolated wardrobe management and deterministic outfit-coordination application.
 
-Phase 9 is complete: Dress'Ed now provides the full local deterministic workflow from garment intake and measurable image analysis through explainable outfit generation, calendar rotation, explicit wear confirmation, garment care, cost-per-wear, wardrobe insights, and user-controlled refinement.
+Version 0.1.0 adds a functional card-free intake prototype: upload an original, select the garment in-app, inspect provisional detection, correct every presented field, and confirm before outfit generation. Originals and review history are retained. Colour families are approximate; unknown attributes and approximate ranking are visible in outfit suggestions. This release verifies intake through saved outfit generation, rather than claiming every existing planner and lifecycle feature has been validated.
 
 ## Boundaries
 
@@ -20,8 +20,8 @@ Phase 9 is complete: Dress'Ed now provides the full local deterministic workflow
 
 1. supervised application heartbeat and isolated runtime;
 2. configurable wardrobe catalogue and garment records;
-3. immutable two-photo workflow, calibration-card capture and image validation;
-4. deterministic visual fingerprints;
+3. immutable single-photo intake, optional detail photograph, in-app selection and validation;
+4. provisional detection and explicit appearance review, with manual fallback;
 5. styling rules and explanations;
 6. ensemble generation and ranking;
 7. planner and rotation;

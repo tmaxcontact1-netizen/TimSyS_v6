@@ -15,7 +15,7 @@ afterEach(async () => {
 async function runningServer(schemaReady = true) {
   const publicDirectory = await mkdtemp(join(tmpdir(), "dressed-api-"));
   await writeFile(join(publicDirectory, "index.html"), "<main>Dress'Ed</main>");
-  const query = vi.fn().mockResolvedValue({ rows: [{ database: "dressed", schema_ready: schemaReady, catalogue_ready: schemaReady, photography_ready: schemaReady, fingerprint_ready: schemaReady, styling_ready: schemaReady, ensemble_ready: schemaReady, planner_ready: schemaReady, lifecycle_ready: schemaReady, insights_ready: schemaReady }] });
+  const query = vi.fn().mockResolvedValue({ rows: [{ database: "dressed", schema_ready: schemaReady, catalogue_ready: schemaReady, photography_ready: schemaReady, fingerprint_ready: schemaReady, styling_ready: schemaReady, ensemble_ready: schemaReady, planner_ready: schemaReady, lifecycle_ready: schemaReady, insights_ready: schemaReady, intake_ready: schemaReady }] });
   const server = createDressedServer({ database: { query } as never, publicDirectory, storageRoot: publicDirectory, now: () => new Date("2026-08-28T12:00:00.000Z") });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -37,7 +37,7 @@ describe("Dress'Ed Phase 1 API", () => {
       protocol: "timsys.application.v1",
       status: "healthy",
       application: "dressed",
-      version: "0.0.0",
+      version: "0.1.0",
       database: "ready",
       observedAt: "2026-08-28T12:00:00.000Z",
       components: expect.arrayContaining([expect.objectContaining({ id: "database", status: "healthy" })]),
