@@ -1,5 +1,6 @@
 node_modules/
 /diagnostics/
+/dist-updates/
 __pycache__/
 apps/memecoined/diagnostics/
 .npm-cache/

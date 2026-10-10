@@ -3,7 +3,7 @@ const fs=require('fs'),path=require('path'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..'),out=fs.mkdtempSync(path.join(root,'diagnostics','clean-pass-browser-'));
 Object.assign(process.env,{NODE_ENV:'test',PORT:'0',DB_PATH:path.join(out,'isolated.sqlite'),JWT_SECRET:'clean-pass-test-jwt-secret-only-32-characters',REFRESH_TOKEN_SECRET:'clean-pass-test-refresh-secret-only-32-characters',TIMSYS_LAUNCHER_DIST:path.join(root,'apps/launcher/dist'),RATE_LIMIT_DEFAULT:'10000',RATE_LIMIT_ADMIN:'10000'});
 const {chromium}=require(path.join(require('os').homedir(),'.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright'));
-const platform=require('../platform');let server,browser;
+const platform=require(process.env.PRINCIPALED_VERIFY_PLATFORM||'../platform');let server,browser;
 (async()=>{
  server=await platform.bootPlatform();const origin=`http://127.0.0.1:${server.address().port}`;
  const {token}=await fetch(origin+'/api/auth/dev-login',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:'{}'}).then(r=>r.json());
