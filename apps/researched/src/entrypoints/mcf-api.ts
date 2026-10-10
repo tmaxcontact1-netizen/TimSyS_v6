@@ -1,3 +1,4 @@
+import {machineReport} from '../application/mcf-report.js';
 import {McfAiWorker} from '../application/mcf-ai.js';
 import type {AiAnalysisProvider} from '../application/ai-analysis.js';
 import {McfLifecycle,lifecycleTables,type LifecycleKind} from '../infrastructure/mcf-lifecycle.js';
@@ -59,7 +60,7 @@ export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:s
     if(!action&&method==='GET'){send(r,200,await repo.workspace(id));return true;}
     if(action==='decisions'&&child){if(method==='POST'){send(r,201,await repo.decide(id,child,decisionInput.parse(await body(q))));return true;}if(method==='GET'){send(r,200,{items:await repo.decisionHistory(id,child)});return true;}}
     if(action==='representations'&&child){if(method==='POST'){send(r,201,await repo.represent(id,child,representationInput.parse(await body(q))));return true;}if(method==='GET'){send(r,200,{items:await repo.representationHistory(id,child)});return true;}}
-    if(action==='export'&&method==='GET'){r.setHeader('content-disposition',`attachment; filename="mcf-manual-${id}.json"`);send(r,200,await repo.archive(id));return true;}
+    if(action==='export'&&method==='GET'){r.setHeader('content-disposition',`attachment; filename="mcf-manual-${id}.json"`);const archive=await repo.archive(id);const config=archive.session.configuration;if(config.machineRunId&&!archive.session.blind){const machine=await machineReport(database,config.draftSessionId,config.machineRunId);send(r,200,{...archive,contract:'researched.mcf-report-export.v1',machineOutputs:machine,notice:machine.notice});}else send(r,200,archive);return true;}
    }
    send(r,404,{error:'mcf_route_not_found'});return true;
   }catch(error){const e=error as Error&{code?:string},message=e.message;const status=error instanceof ZodError?400:message.startsWith('stale_')||e.code==='23505'?409:message.endsWith('_not_found')?404:message==='request_too_large'?413:e.code?500:400;send(r,status,{error:error instanceof ZodError?'validation_failed':e.code==='23505'?'already_mapped_or_concurrent_revision':message,...(error instanceof ZodError?{issues:error.issues}:{})});return true;}

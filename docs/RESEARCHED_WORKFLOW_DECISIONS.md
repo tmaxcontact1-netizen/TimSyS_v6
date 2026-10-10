@@ -1,5 +1,7 @@
 # Research’Ed workflow decisions — 10 October 2026
 
+Update: the MCF-specific restrictions below were superseded by explicit user approval on 10 October 2026. See [Automatic MCF workflow](RESEARCHED_AUTOMATIC_MCF.md) for the current 0.8.0 behavior. The earlier decisions are retained as dated rationale.
+
 Scope: production Research’Ed 0.7.0. No scenario selector, fictional data, reset-example controls or document-category questionnaire belongs in the application. These decisions use documented product workflows as benchmarks and the researcher's requirements as calibration; documentation is not a hands-on usability study.
 
 | Decision | Benchmark | Adaptation and acceptance |
