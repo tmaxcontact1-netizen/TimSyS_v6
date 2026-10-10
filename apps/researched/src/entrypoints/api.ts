@@ -1,4 +1,5 @@
 import {createWorkbenchApi} from './workbench-api.js';
+import {createAssistantApi} from './assistant-api.js';
 import { createReadStream } from "node:fs";
 import { randomUUID } from "node:crypto";
 import {
@@ -150,6 +151,9 @@ export function createResearchServer(input: {
   acquireRendered?: typeof acquireRenderedSource;
   backgroundQueue?: boolean;
   aiProvider?: AiAnalysisProvider | null;
+  assistantToken?: string;
+  aiUnavailableReason?: string | null;
+  aiManaged?: boolean;
 }) {
   const repo = new ResearchRepository(input.database),
     now = input.now ?? (() => new Date()),
@@ -295,6 +299,7 @@ export function createResearchServer(input: {
   };
   let queueWorkerError: string | null = null;
   const workbenchApi=createWorkbenchApi(input.database as ContentDatabase,storageRoot);
+  const assistantApi=createAssistantApi(input.database,input.assistantToken);
   const mcfApi = createMcfApi(input.database as ContentDatabase, storageRoot,()=>aiProvider,Boolean(input.backgroundQueue));
   const contentApi = createContentApi({database:input.database as ContentDatabase,storageRoot,acquire,render:renderedAcquire,getAiProvider:()=>aiProvider,setProvider:provider=>{aiProvider=provider;},background:Boolean(input.backgroundQueue)});
   const server = createServer(async (q, r) => {
@@ -302,6 +307,9 @@ export function createResearchServer(input: {
       url = new URL(q.url ?? "/", "http://127.0.0.1"),
       path = url.pathname;
     try {
+      if(await assistantApi(q,r))return;
+      if(path==='/api/ai/status'&&method==='GET')return json(r,200,{configured:Boolean(aiProvider),managed:Boolean(input.aiManaged),provider:aiProvider?{id:aiProvider.id,model:aiProvider.model}:null,unavailableReason:aiProvider?null:input.aiUnavailableReason??null,deterministicAvailable:true});
+      if(input.aiManaged&&['/api/ai/connection','/api/ai/inspect','/api/content/provider'].includes(path)&&method!=='GET')return json(r,409,{error:'ai_managed_by_launcher',detail:'Use TimSyS AI Integration, then close and reopen ResearchEd to apply connection changes.'});
       if(await workbenchApi(q,r))return;
       if(await mcfApi(q,r))return;
       if(await contentApi.handle(q,r))return;
@@ -642,6 +650,8 @@ export function createResearchServer(input: {
       if (path === "/api/ai/providers" && method === "GET")
         return json(r, 200, {
           items: AI_PROVIDER_PROTOCOLS,
+          unavailableReason: aiProvider ? null : input.aiUnavailableReason??null,
+          managed: Boolean(input.aiManaged),
           configured: aiProvider
             ? { protocol: aiProvider.id, model: aiProvider.model }
             : null,
@@ -1645,6 +1655,9 @@ export async function startResearchApi(env: NodeJS.ProcessEnv) {
       publicDirectory: join(c.appRoot, "dist/frontend"),
       storageRoot: c.storageRoot,
       backgroundQueue: true,
+      ...(c.assistantToken?{assistantToken:c.assistantToken}:{}),
+      aiUnavailableReason: c.aiUnavailableReason,
+      aiManaged: env.RESEARCHED_AI_MANAGED==='1',
       aiProvider: c.ai ? createAiAnalysisProvider(c.ai) : null,
     });
   server.on("close", () => void database.end());

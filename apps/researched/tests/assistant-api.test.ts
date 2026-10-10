@@ -1,0 +1,17 @@
+import {afterEach,describe,expect,it} from 'vitest';
+import {createServer} from 'node:http';
+import type {AddressInfo} from 'node:net';
+import {assistantPage,createAssistantApi} from '../src/entrypoints/assistant-api.js';
+import {createResearchServer} from '../src/entrypoints/api.js';
+const servers:ReturnType<typeof createServer>[]=[];
+afterEach(async()=>{for(const s of servers.splice(0))await new Promise<void>(r=>s.close(()=>r()));});
+const token='a'.repeat(64);
+async function serve(configured:string|undefined=token){let queries=0;const db={query:async()=>{queries++;throw Error('must not read database');}} as any;const handler=createAssistantApi(db,configured);const s=createServer(async(q,r)=>{if(!await handler(q,r)){r.writeHead(404);r.end();}});servers.push(s);await new Promise<void>(r=>s.listen(0,'127.0.0.1',r));return {base:'http://127.0.0.1:'+(s.address() as AddressInfo).port,queries:()=>queries};}
+describe('assistant evidence boundary',()=>{
+ it('rejects missing, wrong and renderer-supplied credentials before reading records',async()=>{const s=await serve();for(const headers of [{},{authorization:'Bearer wrong'},{authorization:'Bearer '+token,origin:'http://localhost'}])expect((await fetch(s.base+'/api/assistant/projects',{headers})).status).toBe(403);expect(s.queries()).toBe(0);});
+ it('fails closed without a strong bridge secret',async()=>{const s=await serve('short');expect((await fetch(s.base+'/api/assistant/projects',{headers:{authorization:'Bearer short'}})).status).toBe(403);expect(s.queries()).toBe(0);});
+ it('rejects writes and query-based scope overrides',async()=>{const s=await serve();const headers={authorization:'Bearer '+token};expect((await fetch(s.base+'/api/assistant/projects',{method:'POST',headers})).status).toBe(405);for(const q of ['coderId=other','sessionId=other','limit=1000','offset=-1','section=summary&section=units'])expect((await fetch(s.base+'/api/assistant/projects?'+q,{headers})).status).toBe(400);expect(s.queries()).toBe(0);});
+ it('reassembles long evidence without silently clipping source characters',()=>{const items=[{id:'stable-id',text:'source😀'.repeat(6000)}];let offset=0,text='';do{const p=assistantPage(items,{total:1,nextOffset:null},offset);text+=p.content;expect(p.content.length).toBeLessThanOrEqual(12000);offset=p.nextContentOffset??-1;}while(offset>=0);expect(JSON.parse(text)).toEqual(items);});
+ it('removes nested operational secrets before stringifying evidence',()=>{const page=assistantPage([{id:'source',locator:{page:1,storage_path:'private',apiKey:'secret'},original_text:'Verbatim evidence'}],{},0);expect(JSON.parse(page.content)).toEqual([{id:'source',locator:{page:1},original_text:'Verbatim evidence'}]);});
+ it('central managed mode rejects legacy connection mutation without provider calls',async()=>{const s=createResearchServer({database:{query:async()=>({rows:[]})} as any,publicDirectory:'missing',aiManaged:true,aiUnavailableReason:'unsupported_ai_protocol'});servers.push(s);await new Promise<void>(r=>s.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+(s.address() as AddressInfo).port;for(const path of ['/api/ai/connection','/api/ai/inspect','/api/content/provider'])expect((await fetch(base+path,{method:'POST',body:'{}'})).status).toBe(409);expect(await (await fetch(base+'/api/ai/status')).json()).toMatchObject({configured:false,managed:true,unavailableReason:'unsupported_ai_protocol',deterministicAvailable:true});});
+});
