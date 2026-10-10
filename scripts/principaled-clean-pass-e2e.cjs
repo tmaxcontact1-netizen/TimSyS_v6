@@ -13,6 +13,10 @@ const platform=require(process.env.PRINCIPALED_VERIFY_PLATFORM||'../platform');l
  page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(token=>localStorage.setItem('jwt_token',token),token);
  await page.goto(origin+'/app/principal-ed');const content=page.locator('#school-content');
  async function go(name){await page.getByRole('searchbox',{name:'Find a page'}).fill(name);await page.getByRole('navigation',{name:'Application',exact:true}).getByRole('button',{name,exact:true}).click();}
+ await page.evaluate(()=>sessionStorage.setItem('execution_selection',JSON.stringify({instance:'deleted-before-clean-pass',task:'old-task',tab:'Tasks'})));
+ await go('Projects & tasks');await content.getByText('That project no longer exists. Choose a project or create a new one.',{exact:true}).waitFor();
+ await content.getByRole('button',{name:'New project',exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('execution_selection')).instance),'');
  await go('Responsibilities');await content.getByRole('heading',{name:'Nervous Breakdown',exact:true}).waitFor();
  assert.equal(await content.getByRole('option',{name:'Synthetic test records'}).count(),0);
  await content.getByRole('tab',{name:'Govern',exact:true}).click();await content.getByRole('button',{name:'Create record',exact:true}).click();

@@ -22,6 +22,7 @@ Login identity, module assignments, system schemas/migrations, required calendar
 - Event links in venue/resource reservations, transport, catering, finance, safety and contingency forms select actual events. Owner selection in event, finance, safety and contingency forms uses staff records.
 - Tasks, approval requests, ownership and communications use a record-type and named-record selector for supported links. Existing links outside that selector's catalogue are retained until deliberately changed.
 - Governed imports, source revisions, draft review, actual lifecycle states and ordinary form hint text remain. These are working capabilities, not test data. Stable identifiers remain in exports and provenance where they are necessary.
+- Saved links to deleted projects recover to the project list and clear the obsolete selection, rather than leaving the workspace unable to load after the reset.
 
 ## Verification
 
@@ -30,5 +31,6 @@ Login identity, module assignments, system schemas/migrations, required calendar
 - Isolated browser pass verified empty school data on startup, removal of fixture controls, roster selection across pages and persistence through the real endpoint, task-to-event named selection, and venue event selection. No browser errors.
 - Existing platform-wide usability browser regression passed: navigation, forms, retained drafts, controlled save failure, mobile navigation and specialist workspaces.
 - Launcher production build passed. Existing bundle-size advisory remains.
+- The focused release reuses the SHA-256-verified published platform runtime and replaces only the tested Nervous Breakdown backend file. The staged runtime passed the isolated browser flow; the final UI additionally passed deleted-project recovery. The latest Research'Ed bundle is carried forward unchanged.
 
 This is a clean-data and input-hardening pass. It does not establish that the platform-wide workflow redesign in the benchmark document has been implemented, nor that every specialist workflow has undergone a new end-to-end audit. Remaining technical configuration fields and specialist interactions must be assessed in that platform-wide design pass; they have not been relabelled as completed work here.
