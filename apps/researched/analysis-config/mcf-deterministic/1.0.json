@@ -1,0 +1,28 @@
+{
+  "id": "mcf-deterministic-retrieval",
+  "version": "1.0",
+  "purpose": "Reproducible candidate passage retrieval, not validated competency classification. No inference of implicit meaning, valence or representation scores.",
+  "rules": [
+    {"competencyId":"A1","pattern":"\\b(?:resource management|budget allocation|allocat\\w* (?:\\w+ ){0,4}(?:resources|funds|budget|staff)|manag\\w* (?:\\w+ ){0,3}resources)\\b"},
+    {"competencyId":"A2","pattern":"\\b(?:process efficiency|administrative efficiency|unnecessary bureaucracy|streamlin\\w* (?:\\w+ ){0,3}(?:processes|procedures|workflows)|coordinat\\w* (?:\\w+ ){0,3}(?:schedules|procedures|workflows))\\b"},
+    {"competencyId":"A3","pattern":"\\b(?:accountability mechanisms|formal oversight|performance expectations|monitor\\w* (?:\\w+ ){0,3}(?:implementation|responsibilities|compliance))\\b"},
+    {"competencyId":"B1","pattern":"\\b(?:strategic planning|strategic priorities|institutional goals|long[- ]term planning|strategic plan)\\b"},
+    {"competencyId":"B2","pattern":"\\b(?:change management|managing resistance|implement\\w* (?:\\w+ ){0,3}(?:reforms|organisational change|organizational change)|manag\\w* (?:\\w+ ){0,3}transition)\\b"},
+    {"competencyId":"B3","pattern":"\\b(?:innovation and adaptability|organisational innovation|organizational innovation|adapt\\w* (?:\\w+ ){0,3}(?:practices|procedures|operations) to)\\b"},
+    {"competencyId":"C1","pattern":"\\b(?:talent development|professional development|staff development|succession planning|staff retention|teacher retention|staff induction|mentor\\w* (?:\\w+ ){0,2}(?:staff|teachers))\\b"},
+    {"competencyId":"C2","pattern":"\\b(?:motivation and engagement|staff morale|staff engagement|employee engagement|staff recognition|empower\\w* (?:\\w+ ){0,2}(?:staff|teachers|employees))\\b"},
+    {"competencyId":"C3","pattern":"\\b(?:conflict and performance management|staff appraisal|teacher appraisal|employee performance|workplace conflict|staff disciplinary|performance management)\\b"},
+    {"competencyId":"D1","pattern":"\\b(?:cultural alignment|enacted values|stated and enacted|align\\w* (?:\\w+ ){0,3}(?:practices|behaviours|behaviors) with (?:\\w+ ){0,2}values)\\b"},
+    {"competencyId":"D2","pattern":"\\b(?:equity and inclusion|equitable treatment|systemic bias|discriminat\\w* against|inclusive practices|equal access)\\b"},
+    {"competencyId":"D3","pattern":"\\b(?:organisational climate|organizational climate|psychological safety|toxic workplace|workplace relationships|staff wellbeing|culture of fear)\\b"},
+    {"competencyId":"E1","pattern":"\\b(?:data literacy|interpret\\w* (?:\\w+ ){0,3}(?:data|metrics|survey results)|evaluat\\w* (?:\\w+ ){0,3}evidence quality)\\b"},
+    {"competencyId":"E2","pattern":"\\b(?:evidence[- ]based decision[- ]making|data[- ]informed decisions|decisions (?:\\w+ ){0,3}(?:informed by|based on) (?:\\w+ ){0,3}(?:evidence|research|data))\\b"},
+    {"competencyId":"E3","pattern":"\\b(?:continuous improvement|improvement cycle|systematic evaluation|use\\w* feedback to (?:\\w+ ){0,2}(?:refine|improve))\\b"},
+    {"competencyId":"F1","pattern":"\\b(?:internal communication|staff consultation|staff feedback channels|communicat\\w* decisions to (?:\\w+ ){0,2}staff|consult\\w* (?:\\w+ ){0,2}staff)\\b"},
+    {"competencyId":"F2","pattern":"\\b(?:external relations|parent partnerships|community partnerships|relationships with (?:\\w+ ){0,2}(?:parents|boards|regulators|partners)|engag\\w* with (?:\\w+ ){0,2}(?:parents|regulators|community))\\b"},
+    {"competencyId":"F3","pattern":"\\b(?:advocacy|advocat\\w* for (?:\\w+ ){0,3}(?:staff|students|interests|rights)|represent\\w* (?:\\w+ ){0,3}(?:staff|stakeholder) interests)\\b"},
+    {"competencyId":"G1","pattern":"\\b(?:moral decision[- ]making|ethical decision[- ]making|conflicts? of interest|ethical consequences)\\b"},
+    {"competencyId":"G2","pattern":"\\b(?:transparency|reasons for decisions|procedural clarity|disclos\\w* (?:\\w+ ){0,3}(?:decisions|finances|budgets)|transparent (?:\\w+ ){0,2}(?:processes|decisions))\\b"},
+    {"competencyId":"G3","pattern":"\\b(?:social responsibility|community impact|wider consequences|impact of (?:\\w+ ){0,3}decisions on (?:\\w+ ){0,2}(?:people|communities))\\b"}
+  ]
+}

@@ -51,7 +51,7 @@ export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:s
    }
    if(resource==='sessions'&&action==='ai'){
     if(method==='GET'){send(r,200,{...await worker.overview(id),workerError:worker.error});return true;}
-    if(method==='POST'){const v=z.object({kind:z.enum(['classification','interpretation']),actor,questions:z.array(z.string().trim().min(1).max(1000)).max(20).default([])}).strict().parse(await body(q));send(r,202,await worker.enqueue(id,v.kind,v.actor,v.questions));return true;}
+    if(method==='POST'){const v=z.object({kind:z.enum(['classification','interpretation']),actor,deterministicFallback:z.boolean().default(false),localOnly:z.boolean().default(false),questions:z.array(z.string().trim().min(1).max(1000)).max(20).default([])}).strict().parse(await body(q));send(r,202,await worker.enqueue(id,v.kind,v.actor,v.questions,v.deterministicFallback,v.localOnly));return true;}
    }
    if(resource==='sessions'&&action==='ai-reject'&&child&&method==='POST'){const v=z.object({actor,reason:z.string().trim().min(1).max(2000)}).strict().parse(await body(q));send(r,200,await worker.reject(id,child,v.actor,v.reason));return true;}
    if(resource==='sessions'&&action==='ai-cancel'&&child&&method==='POST'){z.object({actor}).strict().parse(await body(q));send(r,200,await worker.cancel(id,child));return true;}
