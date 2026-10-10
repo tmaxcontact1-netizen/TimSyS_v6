@@ -4,7 +4,8 @@ import {resolve,join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 
-// Stage and verify the runtime first. Carry forward other released bundle entries verbatim.
+// ResearchEd releases update only ResearchEd. Re-advertising historical shared
+// bundles can downgrade a locally installed platform/assistant integration.
 const [stageArg,baselineArg,verificationArg,outputArg,tag,mcfVerificationArg,guidedVerificationArg,simpleVerificationArg]=process.argv.slice(2);
 assert.ok(stageArg&&baselineArg&&verificationArg&&outputArg&&/^\d{4}\.\d{2}\.\d{2}\.\d+$/.test(tag??''),'Usage: node scripts/package-researched-update.mjs STAGE BASELINE_MANIFEST VERIFICATION OUTPUT YYYY.MM.DD.N');
 const stage=resolve(stageArg),output=resolve(outputArg);
@@ -38,7 +39,7 @@ execFileSync('tar.exe',['-a','-cf',archive,'-C',stage,'.'],{windowsHide:true});
 const bytes=await readFile(archive),sha256=createHash('sha256').update(bytes).digest('hex');
 const baseline=JSON.parse(await readFile(baselineArg,'utf8'));
 const bundle={id:'researched',version,url:`https://github.com/tmaxcontact1-netizen/TimSyS_v6/releases/download/${tag}/${filename}`,size:bytes.length,sha256};
-const manifest={...baseline,releaseVersion:tag,publishedAt:new Date().toISOString(),notes:process.env.RESEARCHED_RELEASE_NOTES??'Research’Ed: document link intake, deterministic curriculum and professional-development evidence, supporting documents, source failures and optional cited AI notes.',bundles:[...baseline.bundles.filter(b=>b.id!=='researched'),bundle]};
+const manifest={...baseline,releaseVersion:tag,publishedAt:new Date().toISOString(),notes:process.env.RESEARCHED_RELEASE_NOTES??'Research’Ed: document link intake, deterministic curriculum and professional-development evidence, supporting documents, source failures and optional cited AI notes.',bundles:[bundle]};
 await writeFile(join(output,'timsys-update.json'),JSON.stringify(manifest,null,2)+'\n');
 await writeFile(join(output,'researched-verification.json'),JSON.stringify({sourceCommit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),bundle,workflow:report,mcf:mcfReport,guided:guidedReport,simple:simpleReport},null,2)+'\n');
 console.log(JSON.stringify({archive,bundle,retainedBundles:manifest.bundles.filter(b=>b.id!=='researched').map(b=>b.id)},null,2));

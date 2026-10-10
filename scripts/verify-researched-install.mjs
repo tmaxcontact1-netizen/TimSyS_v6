@@ -1,19 +1,27 @@
 import assert from 'node:assert/strict';
-import {mkdtemp,readFile,writeFile,symlink} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,symlink,mkdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createRequire} from 'node:module';
 import {execFileSync} from 'node:child_process';
 const require=createRequire(import.meta.url);
-const {UpdateManager}=require('../apps/launcher/electron/update-manager.cjs');
+const {UpdateManager}=require(process.env.RESEARCHED_VERIFY_UPDATER_MODULE||'../apps/launcher/electron/update-manager.cjs');
 const {LocalPostgresManager,availablePort}=require('../apps/launcher/electron/local-postgres-manager.cjs');
 const {SupervisedAppManager}=require('../apps/launcher/electron/supervised-app-manager.cjs');
 const [assetsArg,postgresArg]=process.argv.slice(2);assert.ok(assetsArg&&postgresArg,'Usage: node scripts/verify-researched-install.mjs ASSETS POSTGRES_BINARY_ROOT');
 const assets=resolve(assetsArg),manifest=JSON.parse(await readFile(join(assets,'timsys-update.json'),'utf8'));
-const isolatedManifest={...manifest,bundles:manifest.bundles.filter(b=>b.id==='researched')};
+// Verify the exact public manifest, not a filtered substitute which hides
+// incompatible platform or launcher updates from the installation test.
+assert.deepEqual(manifest.bundles.map(b=>b.id),['researched'],'ResearchEd release must not replace shared bundles');
+const isolatedManifest=manifest;
 const dataRoot=await mkdtemp(join(tmpdir(),'researched-installed-'));
+const retained=Object.fromEntries(['platform','launcher-ui','dressed','memecoined'].map(id=>[id,{version:'aaaaaaaaaaaaaaaaaaaaaaaa',sha256:'a'.repeat(64),path:join(dataRoot,'updates','bundles',id,'aaaaaaaaaaaaaaaaaaaaaaaa'),publishedAt:new Date().toISOString()}]));
+await mkdir(join(dataRoot,'updates'),{recursive:true});
+await writeFile(join(dataRoot,'updates','state.json'),JSON.stringify({schemaVersion:1,bundles:retained}));
 const updater=new UpdateManager({dataRoot,currentLauncherVersion:'1.0.20',manifestUrl:'https://verification.example/timsys-update.json',fetchImpl:async url=>url.endsWith('/timsys-update.json')?Response.json(isolatedManifest):new Response(await readFile(join(assets,new URL(url).pathname.split('/').pop())))});
+assert.deepEqual((await updater.check()).available.map(b=>b.id),['researched']);
 const result=await updater.install();assert.deepEqual(result.installed.map(bundle=>bundle.id),['researched']);
+for(const [id,value] of Object.entries(retained))assert.deepEqual(updater.state.bundles[id],value,`${id} must be preserved verbatim`);
 const root=updater.activeRoots().researched;assert.ok(root);await symlink(join(root,'modules-runtime'),join(root,'node_modules'),'junction');
 const postgres=new LocalPostgresManager({binaryRoot:resolve(postgresArg),dataRoot});
 const supervisor=new SupervisedAppManager({runtimeExecutable:process.execPath});
