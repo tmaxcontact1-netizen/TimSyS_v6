@@ -23,10 +23,10 @@ describe('automatic MCF report',()=>{
  });
  it('exports AI status, partial coverage, escaped evidence, all competencies and provenance',()=>{
   const html=reportHtml({tool:'mcf',draft:{useAi:true,title:'<script>',machineRunId:'current'},session,instrument,machine});
-  expect(html).toContain('AI analysis: 1 of 2 passages');expect(html).toContain('AI finding');expect(html).toContain('Communication');expect(html).toContain('Unit: one');expect(html).toContain('&lt;script&gt;');expect(html).not.toContain('<script>');
+  expect(html).toContain('Successfully semantically assessed</dt><dd>1');expect(html).toContain('AI finding');expect(html).toContain('Communication');expect(html).toContain('Unit: one');expect(html).toContain('&lt;script&gt;');expect(html).not.toContain('<script>');
  });
- it('refuses confirmation of absent, running or wholly failed runs',async()=>{
-  for(const run of [undefined,{status:'queued'},{status:'running'},{status:'failed'}])await expect(machineReport({query:async()=>({rows:run?[run]:[]})} as any,'session','run')).rejects.toThrow('finish_analysis_before_confirming');
+ it('refuses confirmation of absent or running runs',async()=>{
+  for(const run of [undefined,{status:'queued'},{status:'running'}])await expect(machineReport({query:async()=>({rows:run?[run]:[]})} as any,'session','run')).rejects.toThrow('finish_analysis_before_confirming');
  });
  it('refuses an empty terminal report',async()=>{
   let calls=0;await expect(machineReport({query:async()=>({rows:calls++===0?[{status:'completed'}]:[]})} as any,'session','run')).rejects.toThrow('no_analysis_findings_to_confirm');

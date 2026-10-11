@@ -1,3 +1,6 @@
 node_modules/
 storage/
 .env
+
+# Disposable verification databases, screenshots and reports.
+verification-local/

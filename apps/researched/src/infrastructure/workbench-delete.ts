@@ -17,6 +17,10 @@ export async function deleteWorkbench(c:PoolClient,p:any){
   await c.query('DELETE FROM researched.mcf_ai_reviews WHERE proposal_id IN(SELECT id FROM researched.mcf_ai_proposals WHERE session_id=ANY($1::uuid[]))',[sessions]);
   await c.query('DELETE FROM researched.mcf_ai_proposals WHERE session_id=ANY($1::uuid[])',[sessions]);
   await c.query('DELETE FROM researched.mcf_ai_outputs WHERE run_id=ANY($1::uuid[])',[runs]);
+  await c.query('DELETE FROM researched.mcf_deterministic_candidates WHERE run_id=ANY($1::uuid[])',[runs]);
+  await c.query('DELETE FROM researched.mcf_semantic_attempts WHERE task_id IN(SELECT id FROM researched.mcf_ai_tasks WHERE run_id=ANY($1::uuid[]))',[runs]);
+  await c.query('DELETE FROM researched.mcf_semantic_tasks WHERE task_id IN(SELECT id FROM researched.mcf_ai_tasks WHERE run_id=ANY($1::uuid[]))',[runs]);
+  await c.query('DELETE FROM researched.mcf_report_snapshots WHERE session_id=ANY($1::uuid[])',[sessions]);
   await c.query('DELETE FROM researched.mcf_ai_tasks WHERE run_id=ANY($1::uuid[])',[runs]);
   await c.query('DELETE FROM researched.mcf_ai_runs WHERE id=ANY($1::uuid[])',[runs]);
   for(const table of ['mcf_representation_decisions','mcf_decisions','mcf_session_units'])await c.query(`DELETE FROM researched.${table} WHERE session_id=ANY($1::uuid[])`,[sessions]);
