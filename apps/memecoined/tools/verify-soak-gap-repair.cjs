@@ -8,7 +8,7 @@ const {execFileSync}=require('node:child_process');
  const {BinanceRestAdapter}=await import(pathToFileURL(path.join(base,'binance-rest.js')));
  const {ExchangeIngestionService}=await import(pathToFileURL(path.join(base,'ingestion.js')));
  const config={endpoint:'https://api.binance.com',dates:['2026-10-05T14:17:00Z','2026-10-06T18:03:00Z','2026-10-09T08:42:00Z'],symbols:['BTCUSDT','ETHUSDT'],interval:'1m',persistence:'isolated JSONL staging store'};
- const report={startedAt:new Date().toISOString(),commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),config,configHash:crypto.createHash('sha256').update(JSON.stringify(config)).digest('hex'),calls:[],gaps:[]};
+ const report={startedAt:new Date().toISOString(),commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),verifierSha256:crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex'),config,configHash:crypto.createHash('sha256').update(JSON.stringify(config)).digest('hex'),calls:[],gaps:[]};
  const http=async url=>{const began=Date.now();const r=await fetch(url,{signal:AbortSignal.timeout(15000)});report.calls.push({url,status:r.status,latencyMs:Date.now()-began});return r;};
  const rest=new BinanceRestAdapter(config.endpoint,http);
  const candles=new Map();

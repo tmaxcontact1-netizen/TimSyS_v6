@@ -92,7 +92,7 @@ async function run(config) {
     const eventsPath=path.join(config.dataDirectory,'events.ndjson');
     if(fs.existsSync(eventsPath)){
       const tail=fs.readFileSync(eventsPath,'utf8').trim().split('\n').at(-1);
-      if(tail&&JSON.parse(tail).kind==='finished'){state.status='completed';save();clearInterval(timer);event('validation_completed',{});return;}
+      if(tail&&JSON.parse(tail).kind==='finished'){if(state.status!=='completed'){state.status='completed';save();event('validation_completed',{});}return;}
     }
     const pidOk=worker&&alive(worker.pid),portOk=await workerHeartbeat(config.workerPort,state.workerPid);
     state.lastCheck=new Date().toISOString();
