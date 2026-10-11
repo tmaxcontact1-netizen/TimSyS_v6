@@ -36,7 +36,17 @@ for (const args of selected) {
   await new Promise((success, failure) => {
     let child;
     if (existsSync(npmCli)) {
-      child = spawn(process.execPath, [npmCli, ...args], { cwd: root, stdio: "inherit", shell: false });
+      // npm's prefix-based local file dependency resolution differs on Windows.
+      // Install from the package directory so its committed lock and relative
+      // SDK binding have exactly the same base path as a developer's npm ci.
+      const prefixIndex=args.indexOf("--prefix");
+      const installDirectory=args[0]==="ci" ? resolve(root,args[prefixIndex+1]) : root;
+      const npmArgs=args[0]==="ci" ? args.filter((_,i)=>i!==prefixIndex&&i!==prefixIndex+1) : args;
+      if(args[0]==="ci"){
+        const lock=JSON.parse(readFileSync(resolve(installDirectory,"package-lock.json"),"utf8"));
+        if(lock.lockfileVersion<1)throw new Error(`Invalid committed lockfile in ${installDirectory}`);
+      }
+      child = spawn(process.execPath, [npmCli, ...npmArgs], { cwd: installDirectory, stdio: "inherit", shell: false });
     } else {
       if (args[0] === "ci") return failure(new Error("npm is required for workspace dependency installation"));
       const prefixIndex = args.indexOf("--prefix");

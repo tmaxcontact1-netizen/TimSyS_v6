@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 24.18.0
       - name: Verify dependency-free isolation and recovery
-        run: node --test apps/memecoined/tools/validation-watchdog.test.cjs
+        run: node --test apps/memecoined/tools/validation-watchdog.test.cjs apps/memecoined/tools/isolation-shutdown.test.cjs
   regression-suite:
     runs-on: windows-latest
     timeout-minutes: 45
@@ -33,4 +33,4 @@ jobs:
       - name: Run tests and production builds
         run: npm run verify
       - name: Verify isolated validation watchdog recovery
-        run: node --test apps/memecoined/tools/validation-watchdog.test.cjs
+        run: node --test apps/memecoined/tools/validation-watchdog.test.cjs apps/memecoined/tools/isolation-shutdown.test.cjs

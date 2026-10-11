@@ -49,7 +49,7 @@ async function run(config) {
   const event=(kind,detail)=>fs.appendFileSync(path.join(config.logDirectory,'incidents.ndjson'),JSON.stringify({at:new Date().toISOString(),kind,detail})+'\n');
   const save=()=>atomic(stateFile,state);
   let worker=null,closing=false;
-  const server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({pid:worker?.pid,alive:worker?alive(worker.pid):false,status:state.status}));});
+  const server=http.createServer((req,res)=>{res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify({pid:worker?.pid,watchdogPid:process.pid,alive:worker?alive(worker.pid):false,status:state.status,stopRequestId:state.stopRequestId}));});
   await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(config.port,'127.0.0.1',resolve);});
   const start=()=>{
     const stamp=Date.now();
@@ -72,6 +72,23 @@ async function run(config) {
   event('watchdog_started',{pid:process.pid,port:config.port});
   const check=async()=>{
     if(closing)return;
+    const stopPath=path.join(config.logDirectory,'stop-request.json');
+    if(fs.existsSync(stopPath)){
+      const request=JSON.parse(fs.readFileSync(stopPath,'utf8'));
+      if(request.configHash===configHash&&request.watchdogPid===process.pid){
+        closing=true;clearInterval(timer);state.status='stopping';state.stopRequestId=request.id;save();event('stop_acknowledged',{id:request.id});
+        // Keep the endpoint available until the requesting runner has observed acknowledgement.
+        const finish=async()=>{if(!fs.existsSync(path.join(config.logDirectory,'stop-confirmed.json')))return;
+          const confirmation=JSON.parse(fs.readFileSync(path.join(config.logDirectory,'stop-confirmed.json'),'utf8'));
+          if(confirmation.id!==request.id)return;
+          clearInterval(stopTimer);await stop();process.exit(0);
+        };
+        const stopTimer=setInterval(()=>void finish().catch(error=>event('shutdown_error',{message:error.message})),100);
+        // A lost runner cannot leave an acknowledged stop alive indefinitely.
+        setTimeout(()=>{void stop().then(()=>process.exit(0));},10000).unref();
+        return;
+      }
+    }
     const eventsPath=path.join(config.dataDirectory,'events.ndjson');
     if(fs.existsSync(eventsPath)){
       const tail=fs.readFileSync(eventsPath,'utf8').trim().split('\n').at(-1);
@@ -87,8 +104,8 @@ async function run(config) {
   };
   let checking=false;
   const timer=setInterval(()=>{if(checking)return;checking=true;void check().catch(error=>event('watchdog_error',{message:error.message})).finally(()=>checking=false);},config.intervalMs);
-  const stop=()=>{closing=true;clearInterval(timer);if(worker&&alive(worker.pid))worker.kill();state.status='idle';save();server.close();fs.unlinkSync(lock);};
-  process.once('SIGTERM',()=>{stop();process.exit(0);});process.once('SIGINT',()=>{stop();process.exit(0);});
+  const stop=async()=>{closing=true;clearInterval(timer);if(worker&&alive(worker.pid)){worker.kill();const deadline=Date.now()+10000;while(alive(worker.pid)&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,100));if(alive(worker.pid))throw Error('Worker refused shutdown');}state.status='stopped';save();await new Promise(resolve=>server.close(resolve));if(fs.existsSync(lock))fs.unlinkSync(lock);event('shutdown_complete',{});};
+  process.once('SIGTERM',()=>{void stop().then(()=>process.exit(0));});process.once('SIGINT',()=>{void stop().then(()=>process.exit(0));});
   return {state,check,stop,worker:()=>worker};
 }
 module.exports={atomic,alive,portAlive,validate,ancestry,run};

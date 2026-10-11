@@ -1,6 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
 const {ancestry,alive,atomic}=require('./validation-watchdog.cjs');
+const {shutdown}=require('./isolation-shutdown.cjs');
 const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const duration=Number(process.argv[3]||900000),began=Date.now();
 const stateFile=path.join(config.logDirectory,'watchdog-state.json');
@@ -44,12 +45,18 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
  report.finishedAt=new Date().toISOString();report.elapsedMs=Date.now()-began;report.final=state();report.finalAncestry=ancestry(report.final.workerPid);
  report.runtimeHashes=fs.readdirSync(config.cwd).filter(n=>n.endsWith('.cjs')).map(n=>({name:n,sha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(config.cwd,n))).digest('hex')}));
  fs.appendFileSync(path.join(config.dataDirectory,'events.ndjson'),JSON.stringify({kind:'finished',at:report.finishedAt,detail:'non-trading deployment acceptance completed'})+'\n');
- await wait(31000);
  execFileSync('schtasks.exe',['/Change','/TN','TradeEd-Isolated-Validation','/Disable'],{windowsHide:true});
+ report.shutdown=await shutdown(config,report.final);
  execFileSync('schtasks.exe',['/End','/TN','TradeEd-Isolated-Validation'],{windowsHide:true});
- await wait(2000);if(alive(report.final.workerPid)){process.kill(report.final.workerPid);await wait(2000);}
- assert.ok(!alive(report.final.workerPid));assert.ok(!alive(report.final.watchdogPid));
+ report.watchdog_force_killed=report.shutdown.watchdog_force_killed;
  report.taskStopped=true;report.taskDisabled=true;report.marketCalls=0;
  atomic(path.join(config.logDirectory,'deployment-verification.json'),report);
+ assert.ok(report.shutdown.passed,JSON.stringify(report.shutdown));
  console.log(JSON.stringify({completed:true,elapsedMs:report.elapsedMs,samples:report.samples.length,taskStopped:true,taskDisabled:true}));
-})().catch(error=>{console.error(error);process.exitCode=1;});
+})().catch(async error=>{console.error(error);process.exitCode=1;
+ try{execFileSync('schtasks.exe',['/Change','/TN','TradeEd-Isolated-Validation','/Disable'],{windowsHide:true});
+ const final=state(),result=await shutdown(config,final);
+ atomic(path.join(config.logDirectory,'deployment-verification.json'),{passed:false,error:error.stack,configHash:final.configHash,final,shutdown:result,watchdog_force_killed:result.watchdog_force_killed});
+ execFileSync('schtasks.exe',['/End','/TN','TradeEd-Isolated-Validation'],{windowsHide:true});
+ }catch(cleanupError){console.error('Automatic teardown failed',cleanupError);}
+});

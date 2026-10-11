@@ -24,5 +24,5 @@ test('production watchdog preserves evidence, alerts, restarts after two failure
     const recoveryPid=watchdog.worker().pid;fs.writeFileSync(flag,'close');await new Promise(resolve=>setTimeout(resolve,300));await watchdog.check();assert.equal(watchdog.state.failures,1);assert.equal(watchdog.worker().pid,recoveryPid);
     fs.unlinkSync(flag);await watchdog.check();assert.notEqual(watchdog.worker().pid,recoveryPid);await new Promise(resolve=>setTimeout(resolve,600));await watchdog.check();assert.equal(watchdog.state.failures,0);
     if(process.platform==='win32'){assert.ok(fs.existsSync(path.join(config.logDirectory,'incidents',incident,'Application-events.xml')));assert.ok(fs.existsSync(path.join(config.logDirectory,'incidents',incident,'System-events.xml')));}
-  }finally{watchdog.stop();}
+  }finally{await watchdog.stop();}
 });
