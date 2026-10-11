@@ -15,7 +15,7 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
  assert.equal((await heartbeat(config.workerPort)).pid,initial.workerPid);
  const report={startedAt:new Date(began).toISOString(),configHash:initial.configHash,initial,ancestry:parents,recoveries:[],samples:[]};
  const before=readCount();process.kill(initial.workerPid);
- await until(()=>state().failures===1);
+ await until(()=>state().failures===1&&fs.existsSync(path.join(config.logDirectory,'ALERTS.txt')));
  const firstIncident=fs.readdirSync(path.join(config.logDirectory,'incidents')).sort().at(-1);
  assert.ok(fs.existsSync(path.join(config.logDirectory,'incidents',firstIncident,'checkpoint.json')));
  assert.ok(fs.existsSync(path.join(config.logDirectory,'ALERTS.txt')));

@@ -6,6 +6,16 @@ on:
   pull_request:
 
 jobs:
+  isolation-regression:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.0
+      - name: Verify dependency-free isolation and recovery
+        run: node --test apps/memecoined/tools/validation-watchdog.test.cjs
   regression-suite:
     runs-on: windows-latest
     timeout-minutes: 45
