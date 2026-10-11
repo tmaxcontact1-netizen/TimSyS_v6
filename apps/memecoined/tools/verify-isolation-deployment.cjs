@@ -1,0 +1,43 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
+const {execFileSync}=require('node:child_process');
+const {ancestry,alive,atomic}=require('./validation-watchdog.cjs');
+const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+const duration=Number(process.argv[3]||900000),began=Date.now();
+const stateFile=path.join(config.logDirectory,'watchdog-state.json');
+const state=()=>JSON.parse(fs.readFileSync(stateFile,'utf8'));
+const readCount=()=>JSON.parse(fs.readFileSync(path.join(config.dataDirectory,'checkpoint.json'),'utf8')).count;
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const until=async(fn,timeout=150000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await fn())return;await wait(1000);}throw Error('Timed out awaiting deployed recovery');};
+const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${port}`);assert.equal(response.status,200);return response.json();};
+(async()=>{
+ const initial=state();assert.ok(alive(initial.watchdogPid)&&alive(initial.workerPid));
+ const parents=ancestry(initial.workerPid);assert.ok(!parents.some(p=>/launcher|codex/i.test(p.name)));
+ assert.equal((await heartbeat(config.workerPort)).pid,initial.workerPid);
+ const report={startedAt:new Date(began).toISOString(),configHash:initial.configHash,initial,ancestry:parents,recoveries:[],samples:[]};
+ const before=readCount();process.kill(initial.workerPid);
+ await until(()=>state().failures===1);
+ const firstIncident=fs.readdirSync(path.join(config.logDirectory,'incidents')).sort().at(-1);
+ assert.ok(fs.existsSync(path.join(config.logDirectory,'incidents',firstIncident,'checkpoint.json')));
+ assert.ok(fs.existsSync(path.join(config.logDirectory,'ALERTS.txt')));
+ await until(async()=>{const s=state();if(s.workerPid===initial.workerPid||s.failures)return false;try{return (await heartbeat(config.workerPort)).pid===s.workerPid;}catch{return false;}});
+ const after=state();assert.ok(readCount()>=before);assert.equal(after.configHash,initial.configHash);
+ report.recoveries.push({kind:'worker_death',from:initial.workerPid,to:after.workerPid,retainedCount:before,recoveredCount:readCount(),evidenceDirectory:firstIncident});
+ console.log(JSON.stringify(report.recoveries.at(-1)));
+ const flag=path.join(config.dataDirectory,'close-port');fs.writeFileSync(flag,'acceptance only');
+ await until(()=>state().failures===1);fs.unlinkSync(flag);
+ await until(async()=>{const s=state();if(s.workerPid===after.workerPid||s.failures)return false;try{return (await heartbeat(config.workerPort)).pid===s.workerPid;}catch{return false;}});
+ report.recoveries.push({kind:'live_worker_lost_port',from:after.workerPid,to:state().workerPid,at:new Date().toISOString()});
+ console.log(JSON.stringify(report.recoveries.at(-1)));
+ while(Date.now()-began<duration){const s=state(),h=await heartbeat(config.workerPort);assert.equal(h.pid,s.workerPid);assert.equal(s.configHash,initial.configHash);assert.equal(s.failures,0);report.samples.push({at:new Date().toISOString(),workerPid:s.workerPid,lastCheck:s.lastCheck,count:readCount()});console.log(JSON.stringify(report.samples.at(-1)));await wait(30000);}
+ report.finishedAt=new Date().toISOString();report.elapsedMs=Date.now()-began;report.final=state();report.finalAncestry=ancestry(report.final.workerPid);
+ report.runtimeHashes=fs.readdirSync(config.cwd).filter(n=>n.endsWith('.cjs')).map(n=>({name:n,sha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(config.cwd,n))).digest('hex')}));
+ fs.appendFileSync(path.join(config.dataDirectory,'events.ndjson'),JSON.stringify({kind:'finished',at:report.finishedAt,detail:'non-trading deployment acceptance completed'})+'\n');
+ await wait(31000);
+ execFileSync('schtasks.exe',['/End','/TN','TradeEd-Isolated-Validation'],{windowsHide:true});
+ execFileSync('schtasks.exe',['/Change','/TN','TradeEd-Isolated-Validation','/Disable'],{windowsHide:true});
+ await wait(2000);if(alive(report.final.workerPid)){process.kill(report.final.workerPid);await wait(2000);}
+ assert.ok(!alive(report.final.workerPid));assert.ok(!alive(report.final.watchdogPid));
+ report.taskStopped=true;report.taskDisabled=true;report.marketCalls=0;
+ atomic(path.join(config.logDirectory,'deployment-verification.json'),report);
+ console.log(JSON.stringify({completed:true,elapsedMs:report.elapsedMs,samples:report.samples.length,taskStopped:true,taskDisabled:true}));
+})().catch(error=>{console.error(error);process.exitCode=1;});
