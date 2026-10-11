@@ -11,4 +11,7 @@ if(Test-Path -LiteralPath $isolationStatePath){
 $isolationStamp=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $isolationChild=Start-Process -FilePath $isolationConfig.executable -ArgumentList @(('"'+$Runtime+'"'),('"'+$Configuration+'"')) -WorkingDirectory $isolationConfig.cwd -WindowStyle Hidden -RedirectStandardOutput (Join-Path $isolationConfig.logDirectory "watchdog-$isolationStamp.stdout.log") -RedirectStandardError (Join-Path $isolationConfig.logDirectory "watchdog-$isolationStamp.stderr.log") -PassThru
 $isolationChild.WaitForExit()
-exit $isolationChild.ExitCode
+# Windows PowerShell may expose a null ExitCode after WaitForExit. Any return
+# while the task is enabled is unexpected: deliberately stopped runs disable
+# the task first. Always request Task Scheduler recovery, never coerce null to 0.
+exit 1

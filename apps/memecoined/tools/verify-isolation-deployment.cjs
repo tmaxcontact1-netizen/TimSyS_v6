@@ -28,13 +28,17 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
  await until(async()=>{const s=state();if(s.workerPid===after.workerPid||s.failures)return false;try{return (await heartbeat(config.workerPort)).pid===s.workerPid;}catch{return false;}});
  report.recoveries.push({kind:'live_worker_lost_port',from:after.workerPid,to:state().workerPid,at:new Date().toISOString()});
  console.log(JSON.stringify(report.recoveries.at(-1)));
- while(Date.now()-began<duration){const s=state(),h=await heartbeat(config.workerPort);assert.equal(h.pid,s.workerPid);assert.equal(s.configHash,initial.configHash);assert.equal(s.failures,0);report.samples.push({at:new Date().toISOString(),workerPid:s.workerPid,lastCheck:s.lastCheck,count:readCount()});console.log(JSON.stringify(report.samples.at(-1)));await wait(30000);}
+ const ownerBefore=state();atomic(path.join(config.logDirectory,'before-supervisor-failure.json'),{state:ownerBefore,count:readCount()});process.kill(ownerBefore.watchdogPid);
+ await until(async()=>{const s=state();if(s.watchdogPid===ownerBefore.watchdogPid||!alive(s.watchdogPid))return false;try{return (await heartbeat(config.port)).pid===ownerBefore.workerPid;}catch{return false;}});
+ assert.equal(state().workerPid,ownerBefore.workerPid);report.recoveries.push({kind:'task_scheduler_supervisor_recovery',from:ownerBefore.watchdogPid,to:state().watchdogPid,workerRetained:state().workerPid,at:new Date().toISOString()});console.log(JSON.stringify(report.recoveries.at(-1)));
+ const healthySince=Date.now();report.healthySince=new Date(healthySince).toISOString();
+ while(Date.now()-healthySince<duration){const s=state(),h=await heartbeat(config.workerPort);assert.ok(alive(s.watchdogPid));assert.ok(Date.now()-Date.parse(s.lastCheck)<90000);assert.equal((await heartbeat(config.port)).pid,s.workerPid);assert.equal(h.pid,s.workerPid);assert.equal(s.configHash,initial.configHash);assert.equal(s.failures,0);report.samples.push({at:new Date().toISOString(),workerPid:s.workerPid,lastCheck:s.lastCheck,count:readCount()});console.log(JSON.stringify(report.samples.at(-1)));await wait(30000);}
  report.finishedAt=new Date().toISOString();report.elapsedMs=Date.now()-began;report.final=state();report.finalAncestry=ancestry(report.final.workerPid);
  report.runtimeHashes=fs.readdirSync(config.cwd).filter(n=>n.endsWith('.cjs')).map(n=>({name:n,sha256:crypto.createHash('sha256').update(fs.readFileSync(path.join(config.cwd,n))).digest('hex')}));
  fs.appendFileSync(path.join(config.dataDirectory,'events.ndjson'),JSON.stringify({kind:'finished',at:report.finishedAt,detail:'non-trading deployment acceptance completed'})+'\n');
  await wait(31000);
- execFileSync('schtasks.exe',['/End','/TN','TradeEd-Isolated-Validation'],{windowsHide:true});
  execFileSync('schtasks.exe',['/Change','/TN','TradeEd-Isolated-Validation','/Disable'],{windowsHide:true});
+ execFileSync('schtasks.exe',['/End','/TN','TradeEd-Isolated-Validation'],{windowsHide:true});
  await wait(2000);if(alive(report.final.workerPid)){process.kill(report.final.workerPid);await wait(2000);}
  assert.ok(!alive(report.final.workerPid));assert.ok(!alive(report.final.watchdogPid));
  report.taskStopped=true;report.taskDisabled=true;report.marketCalls=0;
