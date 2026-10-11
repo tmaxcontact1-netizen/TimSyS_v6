@@ -43,4 +43,8 @@ The first repeat failed on the verification runner's null fresh-heartbeat assert
 
 Watchdog runtime SHA-256: `72f5ff684b9300b07b5a2c524af2b432cef1848b29d9b4f229b7f72f5cdeb00e`; shutdown helper `42f12b8359313ca1874f76a3cebabaff485591323fe5230dbe2a68e7bbb0b23f`; task host `fda7ced0eda0ddce22a35644bef32958b02fbcc055d3b1caabf5329038da13ae`.
 
-Subsequent reporting-only guard correction prevents a failed force-kill outcome from being overwritten by a second cleanup. It changes no deployed watchdog/worker bytes; the failed-outcome JSON and exit path require their separate regression evidence, rather than borrowing the successful-run result.
+Subsequent reporting-only guard correction prevents a failed force-kill outcome from being overwritten by a second cleanup. It changes no deployed watchdog/worker bytes. Its shared report writer is exercised by the refusal regression: failed return value and persisted `watchdog_force_killed=true` are asserted. The runner returns non-zero directly after writing that failed outcome rather than re-entering cleanup.
+
+Final code/reporting commit: `51eb2e1dc34cf6df6bccea7654f9ed39a7b4a3d9`. **Full remote CI green** for that commit: https://github.com/tmaxcontact1-netizen/TimSyS_v6/actions/runs/38161233531 . Both isolation and complete workspace regression/build jobs passed. Local app suite: 146 files / 866 tests; dependency-free isolation suite: 3 tests, including completion-before-stop and durable forced-failure reporting.
+
+Nothing merged or published. Final task remains Disabled; no fixture process remains. Playbook profiles remain design-only and no new trading window or market-data soak was started.
