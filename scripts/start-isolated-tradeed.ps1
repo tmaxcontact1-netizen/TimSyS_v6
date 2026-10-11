@@ -1,0 +1,15 @@
+param([Parameter(Mandatory=$true)][string]$Configuration,[Parameter(Mandatory=$true)][string]$Runtime,[switch]$RegisterOnly)
+$ErrorActionPreference='Stop'
+$Configuration=(Resolve-Path -LiteralPath $Configuration).Path
+$Runtime=(Resolve-Path -LiteralPath $Runtime).Path
+if($Configuration -match 'timsys-launcher|\\backups\\|\\Temp\\' -or $Runtime -match 'timsys-launcher|\\backups\\|\\Temp\\'){throw 'Use a durable independent runtime and configuration'}
+$config=Get-Content -LiteralPath $Configuration -Raw | ConvertFrom-Json
+if($config.cwd -notmatch 'tradeed-validation[\\/]runtime-' -or $Runtime -notmatch 'tradeed-validation[\\/]runtime-'){throw 'Prepare a frozen runtime copy under tradeed-validation/runtime-<version> before registration'}
+$node=$config.executable
+$action=New-ScheduledTaskAction -Execute $node -Argument ('"'+$Runtime+'" "'+$Configuration+'"') -WorkingDirectory $config.cwd
+$principal=New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
+$settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+$trigger=New-ScheduledTaskTrigger -AtLogOn -User $principal.UserId
+Register-ScheduledTask -TaskName 'TradeEd-Isolated-Validation' -Action $action -Principal $principal -Settings $settings -Trigger $trigger -Force | Out-Null
+if(-not $RegisterOnly){Start-ScheduledTask -TaskName 'TradeEd-Isolated-Validation'}
+Write-Output 'Registered independent Task Scheduler ownership: TradeEd-Isolated-Validation'

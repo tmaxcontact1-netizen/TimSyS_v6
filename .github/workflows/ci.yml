@@ -2,7 +2,7 @@ name: TimSyS CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, adapter-crypto-playbook]
   pull_request:
 
 jobs:
@@ -22,3 +22,5 @@ jobs:
         run: node scripts/workspace.mjs install
       - name: Run tests and production builds
         run: npm run verify
+      - name: Verify isolated validation watchdog recovery
+        run: node --test apps/memecoined/tools/validation-watchdog.test.cjs

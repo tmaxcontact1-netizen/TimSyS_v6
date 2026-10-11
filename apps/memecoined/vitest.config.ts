@@ -117,6 +117,7 @@ export default defineConfig({
       "tests/integration/worker-entrypoint.test.ts",
       "tests/integration/runtime-facts.test.ts",
       "tests/integration/migrations.test.ts",
+      "tests/integration/soak-checkpoint.test.ts",
       "tests/integration/observation-ingestion.test.ts",
       "tests/integration/runtime-fact-publishing.test.ts",
       "tests/integration/runtime-fact-publisher-worker.test.ts",
