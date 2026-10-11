@@ -37,7 +37,7 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
  report.recoveries.push({kind:'live_worker_lost_port',from:after.workerPid,to:state().workerPid,at:new Date().toISOString()});
  console.log(JSON.stringify(report.recoveries.at(-1)));
  const ownerBefore=state();atomic(path.join(config.logDirectory,'before-supervisor-failure.json'),{state:ownerBefore,count:readCount()});process.kill(ownerBefore.watchdogPid);
- await until(async()=>{const s=state();if(s.watchdogPid===ownerBefore.watchdogPid||!alive(s.watchdogPid)||Date.parse(s.lastCheck)<=Date.parse(ownerBefore.lastCheck)||s.status!=='active')return false;try{return (await heartbeat(config.port)).pid===ownerBefore.workerPid;}catch{return false;}});
+ await until(async()=>{const s=state();if(s.watchdogPid===ownerBefore.watchdogPid||!alive(s.watchdogPid)||!Number.isFinite(Date.parse(s.lastCheck))||Date.parse(s.lastCheck)<=Date.parse(ownerBefore.lastCheck)||s.status!=='active')return false;try{return (await heartbeat(config.port)).pid===ownerBefore.workerPid;}catch{return false;}});
  assert.equal(state().workerPid,ownerBefore.workerPid);report.recoveries.push({kind:'task_scheduler_supervisor_recovery',from:ownerBefore.watchdogPid,to:state().watchdogPid,workerRetained:state().workerPid,at:new Date().toISOString()});console.log(JSON.stringify(report.recoveries.at(-1)));
  }
  const healthySince=Date.now();report.healthySince=new Date(healthySince).toISOString();
