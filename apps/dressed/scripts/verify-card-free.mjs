@@ -1,7 +1,7 @@
 // Real PostgreSQL + built HTTP application acceptance. Never uses the user's cluster.
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
-import {mkdtemp,mkdir,writeFile,readFile,access} from 'node:fs/promises';
+import {mkdtemp,mkdir,writeFile,readFile,access,readdir} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {resolve,join} from 'node:path';
 import {once} from 'node:events';
@@ -27,8 +27,18 @@ const photo=await fixture(),flat=await fixture(true);
 await writeFile(join(work,'garment.png'),photo);await writeFile(join(work,'low-contrast.png'),flat);
 try{
  const state=await manager.start();
+ const legacy=join(work,'legacy-migrations');await mkdir(legacy);
+ for(const name of (await readdir(join(app,'migrations'))).filter(n=>/^000\d_.*\.sql$/.test(n))){
+  const sql=await readFile(join(app,'migrations',name),'utf8');const lf=sql.replace(/\r\n/g,'\n');
+  await writeFile(join(legacy,name),sql.includes('\r\n')?lf:lf.replace(/\n/g,'\r\n'));
+ }
+ await migrate({connectionString:state.migrationUrl,migrationDirectory:legacy});
+ check('Existing schema with opposite line endings created');
  const migrations=await migrate({connectionString:state.migrationUrl,migrationDirectory:join(app,'migrations')});assert(migrations.includes('0010_card_free_intake.sql'));
  assert.deepEqual(await migrate({connectionString:state.migrationUrl,migrationDirectory:join(app,'migrations')}),[]);
+ const foundation=join(legacy,'0000_foundation.sql');await writeFile(foundation,(await readFile(foundation,'utf8'))+'\nSELECT 42;\n');
+ await assert.rejects(migrate({connectionString:state.migrationUrl,migrationDirectory:legacy}),/Applied migration changed: 0000_foundation.sql/);
+ check('Real SQL modification still blocked after successful upgrade');
  await manager.grantSchemaPrivileges('dressed');pool=new pg.Pool({connectionString:state.runtimeUrl});await startServer();
  assert.equal((await request('/api/health')).status,200);check('Fresh migrations, replay and built API health');
  const categories=(await request('/api/categories')).data.items,uses=(await request('/api/garment-uses')).data.items;

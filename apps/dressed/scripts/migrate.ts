@@ -9,6 +9,13 @@ import { loadConfig } from "../src/infrastructure/config/load-config.js";
 
 const MIGRATION = /^\d{4}_[a-z0-9_]+\.sql$/;
 
+// Accept exact LF/CRLF serializations without rewriting recorded history.
+export function migrationHashes(sql: string): readonly string[] {
+  const lf = sql.replace(/\r\n/g, "\n");
+  return [...new Set([sql, lf, lf.replace(/\n/g, "\r\n")]
+    .map(text => createHash("sha256").update(text).digest("hex")))];
+}
+
 export async function migrate(input: {
   readonly connectionString: string;
   readonly migrationDirectory: string;
@@ -32,7 +39,7 @@ export async function migrate(input: {
       });
       const previous = existing.rows[0]?.content_hash;
       if (previous !== undefined) {
-        if (previous !== hash) throw new Error(`Applied migration changed: ${name}`);
+        if (!migrationHashes(sql).includes(previous)) throw new Error(`Applied migration changed: ${name}`);
         continue;
       }
       await client.query(sql);
