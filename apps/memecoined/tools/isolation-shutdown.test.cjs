@@ -1,6 +1,6 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {spawn}=require('node:child_process');
-const {shutdown}=require('./isolation-shutdown.cjs');
+const {shutdown,writeShutdownReport}=require('./isolation-shutdown.cjs');
 test('durable stop is acknowledged and releases both processes and ports',async()=>{
  const root=path.resolve(__dirname,'../../../../verification/shutdown-'+Date.now());fs.mkdirSync(root,{recursive:true});
  const config={port:18396,workerPort:18397,intervalMs:200,cwd:__dirname,executable:process.execPath,args:[path.join(__dirname,'isolation-deployment-fixture.cjs')],dataDirectory:path.join(root,'data'),logDirectory:path.join(root,'logs')};
@@ -23,4 +23,6 @@ test('nonresponsive supervisor is force-killed, incident persisted, and acceptan
  const p=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});
  const result=await shutdown({port:18496,workerPort:18497,logDirectory:root},{watchdogPid:p.pid,workerPid:null,configHash:'fixture'},300);
  assert.equal(result.passed,false);assert.equal(result.watchdog_force_killed,true);assert.ok(fs.existsSync(path.join(root,'shutdown-force-kill.json')));
+ assert.equal(writeShutdownReport({logDirectory:root},{shutdown:result}),false);
+ assert.equal(JSON.parse(fs.readFileSync(path.join(root,'deployment-verification.json'))).watchdog_force_killed,true);
 });

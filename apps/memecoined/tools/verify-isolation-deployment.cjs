@@ -1,7 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
 const {ancestry,alive,atomic}=require('./validation-watchdog.cjs');
-const {shutdown}=require('./isolation-shutdown.cjs');
+const {shutdown,writeShutdownReport}=require('./isolation-shutdown.cjs');
 const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
 const duration=Number(process.argv[3]||900000),began=Date.now();
 const stateFile=path.join(config.logDirectory,'watchdog-state.json');
@@ -50,8 +50,11 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
  execFileSync('schtasks.exe',['/End','/TN','TradeEd-Isolated-Validation'],{windowsHide:true});
  report.watchdog_force_killed=report.shutdown.watchdog_force_killed;
  report.taskStopped=true;report.taskDisabled=true;report.marketCalls=0;
- atomic(path.join(config.logDirectory,'deployment-verification.json'),report);
- assert.ok(report.shutdown.passed,JSON.stringify(report.shutdown));
+ const passed=writeShutdownReport(config,report);
+ // Teardown has already run and its authoritative outcome is on disk. Do not
+ // throw into the error cleanup and overwrite a true force-kill flag with the
+ // result of a second teardown against an already-dead supervisor.
+ if(!passed){console.error(JSON.stringify(report.shutdown));process.exitCode=1;return;}
  console.log(JSON.stringify({completed:true,elapsedMs:report.elapsedMs,samples:report.samples.length,taskStopped:true,taskDisabled:true}));
 })().catch(async error=>{console.error(error);process.exitCode=1;
  try{execFileSync('schtasks.exe',['/Change','/TN','TradeEd-Isolated-Validation','/Disable'],{windowsHide:true});

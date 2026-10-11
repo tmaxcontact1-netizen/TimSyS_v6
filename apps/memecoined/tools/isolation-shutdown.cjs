@@ -27,4 +27,9 @@ async function shutdown(config,state,graceMs=45000){
   result.passed=result.acknowledged&&!result.watchdog_force_killed&&!result.worker_force_killed&&result.watchdogAbsent&&result.workerAbsent&&result.watchdogPortReleased&&result.workerPortReleased;
   return result;
 }
-module.exports={shutdown,portReleased};
+function writeShutdownReport(config,report){
+  report.watchdog_force_killed=Boolean(report.shutdown.watchdog_force_killed);
+  atomic(path.join(config.logDirectory,'deployment-verification.json'),report);
+  return report.shutdown.passed;
+}
+module.exports={shutdown,portReleased,writeShutdownReport};
