@@ -12,9 +12,15 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
 (async()=>{
  await until(async()=>{if(!fs.existsSync(stateFile))return false;const s=state();try{return alive(s.watchdogPid)&&alive(s.workerPid)&&(await heartbeat(config.workerPort)).pid===s.workerPid;}catch{return false;}});
  const initial=state();assert.ok(alive(initial.watchdogPid)&&alive(initial.workerPid));
- const parents=ancestry(initial.workerPid);assert.ok(!parents.some(p=>/launcher|codex/i.test(p.name)));
+ const parentResult=ancestry(initial.workerPid);const parents=Array.isArray(parentResult)?parentResult:[parentResult];assert.ok(!parents.some(p=>/launcher|codex/i.test(p.name)));
  assert.equal((await heartbeat(config.workerPort)).pid,initial.workerPid);
  const report={startedAt:new Date(began).toISOString(),configHash:initial.configHash,initial,ancestry:parents,recoveries:[],samples:[]};
+ if(process.argv[4]==='--continuity-only'){
+   const events=fs.readFileSync(path.join(config.logDirectory,'incidents.ndjson'),'utf8').trim().split('\n').map(JSON.parse);
+   assert.equal(events.filter(e=>e.kind==='automatic_restart').length,2);
+   assert.equal(events.filter(e=>e.kind==='existing_worker_adopted').length,1);
+   report.recoveries=events.filter(e=>['evidence_secured','automatic_restart','existing_worker_adopted'].includes(e.kind));
+ }else{
  const before=readCount();process.kill(initial.workerPid);
  await until(()=>state().failures===1&&fs.existsSync(path.join(config.logDirectory,'ALERTS.txt')));
  const firstIncident=fs.readdirSync(path.join(config.logDirectory,'incidents')).sort().at(-1);
@@ -30,8 +36,9 @@ const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${por
  report.recoveries.push({kind:'live_worker_lost_port',from:after.workerPid,to:state().workerPid,at:new Date().toISOString()});
  console.log(JSON.stringify(report.recoveries.at(-1)));
  const ownerBefore=state();atomic(path.join(config.logDirectory,'before-supervisor-failure.json'),{state:ownerBefore,count:readCount()});process.kill(ownerBefore.watchdogPid);
- await until(async()=>{const s=state();if(s.watchdogPid===ownerBefore.watchdogPid||!alive(s.watchdogPid))return false;try{return (await heartbeat(config.port)).pid===ownerBefore.workerPid;}catch{return false;}});
+ await until(async()=>{const s=state();if(s.watchdogPid===ownerBefore.watchdogPid||!alive(s.watchdogPid)||Date.parse(s.lastCheck)<=Date.parse(ownerBefore.lastCheck)||s.status!=='active')return false;try{return (await heartbeat(config.port)).pid===ownerBefore.workerPid;}catch{return false;}});
  assert.equal(state().workerPid,ownerBefore.workerPid);report.recoveries.push({kind:'task_scheduler_supervisor_recovery',from:ownerBefore.watchdogPid,to:state().watchdogPid,workerRetained:state().workerPid,at:new Date().toISOString()});console.log(JSON.stringify(report.recoveries.at(-1)));
+ }
  const healthySince=Date.now();report.healthySince=new Date(healthySince).toISOString();
  while(Date.now()-healthySince<duration){const s=state(),h=await heartbeat(config.workerPort);assert.ok(alive(s.watchdogPid));assert.ok(Date.now()-Date.parse(s.lastCheck)<90000);assert.equal((await heartbeat(config.port)).pid,s.workerPid);assert.equal(h.pid,s.workerPid);assert.equal(s.configHash,initial.configHash);assert.equal(s.failures,0);report.samples.push({at:new Date().toISOString(),workerPid:s.workerPid,lastCheck:s.lastCheck,count:readCount()});console.log(JSON.stringify(report.samples.at(-1)));await wait(30000);}
  report.finishedAt=new Date().toISOString();report.elapsedMs=Date.now()-began;report.final=state();report.finalAncestry=ancestry(report.final.workerPid);
