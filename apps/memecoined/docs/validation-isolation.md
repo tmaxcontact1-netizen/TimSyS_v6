@@ -1,6 +1,6 @@
 # Trade'Ed validation isolation
 
-Status: implemented and verified with disposable process fixtures on 11 October 2026. No new market-data validation started.
+Status: implemented and verified with disposable process fixtures on 11 October 2026. No new market-data validation started. Deployed acceptance additionally tests a hidden independent console host; the initial direct-node task returned 0xC000013A and is not counted as a pass.
 
 ## Ownership and deployment
 
@@ -34,3 +34,5 @@ The workspace-root `AGENTS.md` contains the standing isolation order, applying a
 - Tests are registered in the standard Vitest include list and Windows GitHub Actions workflow. They have been run locally; remote CI has not run because this work is not published.
 
 Before the next actual epoch: verify the copied runtime hash, configuration hash, actual task ancestry, actual heartbeat port ownership, first log/checkpoint writes, and a 15-minute idle/healthy supervision period. No further Trade'Ed validation is authorized by this document alone.
+
+`isolation-task-host.ps1` must accompany the watchdog. Task Scheduler waits on this host, which creates Node in its own hidden console and captures watchdog stdout/stderr. Windows workers use a separate process group, so terminating a worker does not intentionally signal its supervisor's console. The initial Ctrl-C termination's originating sender was not captured; console isolation is verified by the repeat deployment test, not asserted as a proven explanation for that earlier termination.

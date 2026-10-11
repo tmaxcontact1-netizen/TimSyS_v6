@@ -55,7 +55,7 @@ async function run(config) {
     const stamp=Date.now();
     const out=fs.openSync(path.join(config.logDirectory,`worker-${stamp}.stdout.log`),'a');
     const err=fs.openSync(path.join(config.logDirectory,`worker-${stamp}.stderr.log`),'a');
-    worker=spawn(config.executable,config.args,{cwd:config.cwd,windowsHide:true,stdio:['ignore',out,err],env:{...process.env,...config.env,CRYPTOED_SOAK_OUTPUT:config.dataDirectory,CRYPTOED_HEARTBEAT_PORT:String(config.workerPort)}});
+    worker=spawn(config.executable,config.args,{cwd:config.cwd,windowsHide:true,detached:process.platform==='win32',stdio:['ignore',out,err],env:{...process.env,...config.env,CRYPTOED_SOAK_OUTPUT:config.dataDirectory,CRYPTOED_HEARTBEAT_PORT:String(config.workerPort)}});
     fs.closeSync(out);fs.closeSync(err);state.workerPid=worker.pid;state.failures=0;save();event('worker_started',{pid:worker.pid});
     worker.on('error',error=>event('worker_spawn_error',{message:error.message}));
   };
