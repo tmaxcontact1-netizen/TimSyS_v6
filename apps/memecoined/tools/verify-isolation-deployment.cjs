@@ -10,6 +10,7 @@ const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const until=async(fn,timeout=150000)=>{const start=Date.now();while(Date.now()-start<timeout){if(await fn())return;await wait(1000);}throw Error('Timed out awaiting deployed recovery');};
 const heartbeat=async(port)=>{const response=await fetch(`http://127.0.0.1:${port}`);assert.equal(response.status,200);return response.json();};
 (async()=>{
+ await until(async()=>{if(!fs.existsSync(stateFile))return false;const s=state();try{return alive(s.watchdogPid)&&alive(s.workerPid)&&(await heartbeat(config.workerPort)).pid===s.workerPid;}catch{return false;}});
  const initial=state();assert.ok(alive(initial.watchdogPid)&&alive(initial.workerPid));
  const parents=ancestry(initial.workerPid);assert.ok(!parents.some(p=>/launcher|codex/i.test(p.name)));
  assert.equal((await heartbeat(config.workerPort)).pid,initial.workerPid);

@@ -11,6 +11,7 @@ $action=New-ScheduledTaskAction -Execute 'powershell.exe' -Argument ('-NoProfile
 $principal=New-ScheduledTaskPrincipal -UserId ([System.Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
 $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
 $trigger=New-ScheduledTaskTrigger -AtLogOn -User $principal.UserId
-Register-ScheduledTask -TaskName 'TradeEd-Isolated-Validation' -Action $action -Principal $principal -Settings $settings -Trigger $trigger -Force | Out-Null
+$recoveryTrigger=New-ScheduledTaskTrigger -Once -At ((Get-Date).AddMinutes(1)) -RepetitionInterval (New-TimeSpan -Minutes 1)
+Register-ScheduledTask -TaskName 'TradeEd-Isolated-Validation' -Action $action -Principal $principal -Settings $settings -Trigger @($trigger,$recoveryTrigger) -Force | Out-Null
 if(-not $RegisterOnly){Start-ScheduledTask -TaskName 'TradeEd-Isolated-Validation'}
 Write-Output 'Registered independent Task Scheduler ownership: TradeEd-Isolated-Validation'
