@@ -1,6 +1,6 @@
 # Trade'Ed playbook validation contract
 
-Status: 12 October 2026 — accepted constants recorded; **1b respecification blocked pending clarification**. No profile implementation, runtime activation, backtest, epoch, merge or publication.
+Status: 12 October 2026 — clarification rulings recorded; **1b v2 and backward retrieval authorized, results pending**. No profile implementation, runtime activation, backtest, epoch, merge or publication.
 
 This is the canonical parameter ledger for the forthcoming profiles. “Installed” below means installed in this design/validation contract, not in a running strategy: those profiles do not yet exist.
 
@@ -40,7 +40,7 @@ Mappings are ratified. **Pivot lookback remains PENDING** corrected 1b and Tim's
 | Confirmation expiry | 4 bars, installed in contract | Frozen hypothesis, outcome-blind derived | 1a v1 pooled p90 | 0 / 1 |
 | Volatility | BTC 232.2812569236644 / ETH 309.8626898215825 bps | Frozen hypothesis, outcome-blind derived | 1c v1; per-instrument p40; policy ratified | 0 / 1 |
 | Pivot definition | Strict 2L/2R native pivots | Frozen detector definition | Accepted manual definition | Not a tuning budget |
-| Pivot lookback | **PENDING**; mapping candidates 32×15m / 24×1h | Frozen hypothesis, session-derived candidate | Replacement 1b spec not yet runnable | 0 / 1 |
+| Pivot lookback | **PENDING**; mapping candidates 32×15m / 24×1h | Frozen hypothesis, session-derived candidate | Corrected selection-dependence spec v2 | 0 / 1 |
 | Stop anchor | Sweep low minus one metadata tick | Empirically anchored venue geometry | Approved constants, no level-anchor substitution | Fixed |
 | Book freshness | ≤1 second | Empirically anchored | Approved 130–190ms soak-latency basis | Fixed |
 | Authorization-to-fill | ≤30 seconds; requote/revalidate on violation | Empirically anchored | Approved constants | Fixed |
@@ -55,28 +55,28 @@ Mappings are ratified. **Pivot lookback remains PENDING** corrected 1b and Tim's
 
 Exactly one revision ever per frozen-hypothesis parameter, only between backtest completion and paper start, requires a documented specific failure mode; never choose a value using better P&L or a parameter sweep. Sensitivity variants are annotations only and cannot update deployed values. No revision has been consumed by this work.
 
-## Replacement 1b — scope and pending decisions
+## Replacement 1b — ruled definitions
 
 Use the unchanged 1a event set and dataset. Compare the pool of confirmed actionable lower levels, not invariant pivot existence. Required outputs are selection-difference rates, distance distributions, no-level rates and directional/R annotations. Do not retune if a robustness gate fails.
 
 Intended comparisons retain 12/24/36 and bracket the ratified 15m candidate: proposed **12/24/32/36/48 for 15m**, **12/24/36 for 1h**. The final executable/statistical definition must be committed before the rerun. No new comparison has been run.
 
-The replacement instruction's calendar requirements currently conflict:
+The replacement instruction's former calendar conflict is resolved by Tim:
 
-1. Assign a pivot to the month containing native-inclusive-close **+1 ms**.
-2. Treat previous audit numbers as binding, although those were explicitly calculated using **inclusive close without +1 ms**.
+1. Assign a pivot to the month containing native-inclusive-close **+1 ms**, once only.
+2. Previous audit numbers calculated using **inclusive close without +1 ms** are rescinded as binding counts; retain diagnostic references only.
 
-Example: BTC 15m pivot centered 2026-07-31 23:15, second right bar closes 23:59:59.999, available 2026-08-01 00:00:00.000. It belongs to August under availability grouping and July under the audit grouping. Both cannot be binding simultaneously. April 19-day exposure and no warmup-date leakage are unambiguous and accepted.
+Example: BTC 15m pivot centered 2026-07-31 23:15, second right bar closes 23:59:59.999, available 2026-08-01 00:00:00.000. It belongs to August under the binding availability rule. April exposure is 19 days; warmup opening dates are excluded.
 
-Also specify the price/instant anchoring “nearest actionable,” the exact eligibility predicate, and the diagnostic R price proxy before observing selection statistics. With a fixed reference price and the same event's sweep-low-minus-tick stop, R is invariant across lookbacks; do not silently move the stop to the selected level to manufacture an informative R statistic.
+Tim ratified reclaim-close as the fixed reference, pivots confirmed by sweep-close, and the same-event >10bps pierce/reclaim predicate. Rank nearest, most recently confirmed, timeframe ID. R is reference price minus the same sweep-low-minus-tick stop, invariant across lookbacks; do not move the stop to the selected level. Complete statistical definitions and STOP gates are committed in `docs/derivation/04-selection-spec-v2.md` before execution.
 
 ## Backward-extension holdout — pending retrieval gate
 
-Intended requested periods: the original April 12–October 11 2026 data is in-sample; earlier October 2025–April 2026 data is the time-separated retrospective holdout. No calibration statistic may be recomputed on the holdout, and no alternative split is installed based on P&L.
+Intended exact periods: [2025-10-01,2026-04-10) evaluated retrospective holdout; [2025-09-29,2025-10-01) its earlier startup history; [2026-04-10,2026-04-12) approved strip excluded from BOTH evaluated periods; [2026-04-12,2026-10-12) evaluated in-sample. No calibration statistic may be recomputed on the holdout, and no alternative split is installed based on P&L.
 
 Exact retrieval dates and provenance hashes must be recorded and verified before committing the final split. Retrieval has **not started**. Native production adapters, both symbols, all five intervals; same integrity rules. Gaps or incompatible venue/API behavior must be reported before any backtest; fallback input overlap requires Tim's written acceptance, never silent relabeling.
 
-Full 1h lookback 36 plus four confirmation bars needs 40 hours before the first comparison event; the existing one-day warmup is insufficient to guarantee identical discard counts. The backward extension can supply that history, but any calibration-consumed warmup must be explicitly excluded from the holdout's evaluated core to avoid unnoticed input overlap. Proposed minimum embargo/warmup buffer: two complete days preceding April 12. This is pending review, not a committed split.
+Full 1h lookback 36 plus four confirmation bars needs 40 hours. Tim approved April 10–11 as the non-evaluated strip supplying in-sample startup history; holdout startup comes from September 29–30, not the strip. Provenance/integrity remains a gate before declaring the intended split usable.
 
 ## Boundaries
 
