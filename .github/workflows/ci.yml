@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.0
-      - run: node --test apps/memecoined/tools/playbook-measurements.test.cjs
+      - run: node --test apps/memecoined/tools/playbook-measurements.test.cjs apps/memecoined/tools/playbook-selection.test.cjs
   isolation-regression:
     runs-on: windows-latest
     timeout-minutes: 5
