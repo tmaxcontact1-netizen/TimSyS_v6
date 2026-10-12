@@ -49,7 +49,9 @@ async function main(){
   counts.push({symbol,interval,rows:rows.length,expected:(end-start)/step[interval],missing,invalid,duplicate});if(missing||invalid||duplicate)issues.push(counts.at(-1));
   const overlapStart=Date.parse('2026-04-11T00:00:00Z'),newOverlap=rows.filter(r=>r[0]>=overlapStart),oldRows=load(original,originalManifest.pages,symbol,interval),oldOverlap=oldRows.filter(r=>r[0]<end);
   if(JSON.stringify(newOverlap)!==JSON.stringify(oldOverlap))overlapIssues.push({symbol,interval,oldRows:oldOverlap.length,newRows:newOverlap.length});
-  if(['15m','1h'].includes(interval))series[symbol][interval]=[...rows.filter(r=>r[0]<Date.parse('2026-04-11T00:00:00Z')),...oldRows];
+  // Held-out candles undergo grid/integrity checks only. Do not even run the
+  // pivot detector on the evaluated holdout during calibration.
+  if(['15m','1h'].includes(interval))series[symbol][interval]=[...rows.filter(r=>r[0]>=Date.parse(config.periods.strip.start)&&r[0]<Date.parse('2026-04-11T00:00:00Z')),...oldRows];
   await yieldLoop();
  }}
  write('extension-integrity',{manifestHash,originalManifestHash:config.originalManifestHash,periods:config.periods,counts,overlapIssues,issues,verified:issues.length===0&&overlapIssues.length===0,holdoutStatisticsComputed:false});

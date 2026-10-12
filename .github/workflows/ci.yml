@@ -42,3 +42,5 @@ jobs:
         run: npm run verify
       - name: Verify isolated validation watchdog recovery
         run: node --test apps/memecoined/tools/validation-watchdog.test.cjs apps/memecoined/tools/isolation-shutdown.test.cjs
+      - name: Verify outcome-blind retrieval-to-selection pipeline
+        run: node --test apps/memecoined/tools/selection-extension.integration.test.cjs
