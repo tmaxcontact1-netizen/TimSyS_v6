@@ -1160,6 +1160,7 @@ td small {
 }
 
 /* Card-free intake and review */
+.garment-details{margin-top:24px}.material-list{padding:12px;margin:12px 0;border:1px solid var(--ts-border)}.material-row{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) auto;gap:8px;align-items:end}.material-row button{margin-bottom:12px}.intake-columns .gift-check{flex-direction:row;align-items:center}.gift-check input{width:auto}
 .intake-modal{width:min(1180px,96vw);max-width:1180px;box-sizing:border-box;overflow-wrap:anywhere}.intake-modal header p{max-width:780px}.intake-modal fieldset{min-width:0}.intake-modal input,.intake-modal select{max-width:100%;box-sizing:border-box}
 .intake-columns{display:grid;grid-template-columns:minmax(240px,.9fr) minmax(320px,1.1fr);gap:28px}.intake-columns>section{min-width:0}
 .intake-columns label{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}.intake-columns small{color:var(--muted,#a9b5c6);font-size:.78rem}

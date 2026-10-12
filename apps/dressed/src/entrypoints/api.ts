@@ -123,7 +123,7 @@ export function createDressedServer(input: {
         return json(response, 200, createApplicationHealth({
           status: "healthy",
           application: "dressed",
-          version: "0.1.0",
+          version: "0.2.0",
           database: "ready",
           observedAt: now().toISOString(),
           components: [
@@ -143,7 +143,7 @@ export function createDressedServer(input: {
         id: "dressed",
         name: "Dress'Ed",
         phase: 9,
-        version: "0.1.0",
+        version: "0.2.0",
         operationalFeatures: ["wardrobe-catalogue", "configurable-categories", "multi-use-garment-classification", "use-filtered-outfit-generation", "garment-metadata", "card-free-intake", "editable-appearance-review", "in-app-crop", "appearance-uncertainty", "calibration-profiles", "image-quality-gate", "visual-fingerprint", "editable-field-suggestions", "styling-rules", "explanations", "ensemble-generation", "saved-outfits", "manual-grade-overrides", "combination-overrides", "calendar-planning", "rotation-policies", "planned-versus-worn", "immutable-wear-history", "garment-care", "cost-per-wear", "wardrobe-insights", "user-preferences"],
         message: "Upload photographs without a colour card, adjust the garment area, and confirm an editable appearance review.",
       });

@@ -1,5 +1,9 @@
 # Card-free intake prototype
 
+Version 0.2.0 uses one editor for Add garment and Edit. Both include photo upload/selection, appearance, category, use, season, brand, product, SKU, fit, size, material percentages, tailoring notes, acquisition details, restrictions and notes. Appearance and details save in one transaction. Historical clients may omit details to preserve existing metadata. Opening/cancelling a blank editor creates no record; uploading an original creates its owning record, and the discard prompt explains that uploaded originals are retained. The browser protects closing with unsaved edits. Purchase dates are returned as date-only strings to avoid timezone shifts on reopening.
+
+Button acceptance covers add with and without photographs, edit/reopen, reanalysis, material add/remove, cancel/keep editing/discard, archive and delete. The database driver verifies full metadata retention and invalid-edit rollback as well as the existing image-to-outfit pipeline.
+
 One JPEG or PNG is sufficient. Upload stores the original bytes unchanged. Detection reads an oriented sRGB working image and uses background separation, or the user's in-app rectangle. It offers approximate colour families and conservative appearance suggestions. Category is a shape-based suggestion requiring review; formality, use, season and texture remain manual judgements. This is not general-purpose garment recognition or calibrated fabric measurement.
 
 Detection failure keeps the review usable and recommends a clearer photograph, a tighter selection or manual entry. All presented fields are editable and unknown values are allowed. Saving creates an atomic review and current fingerprint, preserves unrelated garment metadata, and checks the garment version and source-photo snapshot. Reanalysis does not replace confirmed choices. Replacing a source photograph retains history and requires confirmation before new outfit generation.

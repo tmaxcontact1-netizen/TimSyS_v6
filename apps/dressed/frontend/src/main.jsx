@@ -318,27 +318,6 @@ const sections = [
   "Settings",
 ];
 const seasons = ["spring", "summer", "autumn", "winter", "all-season"];
-const blank = {
-  categoryId: "",
-  name: "",
-  brand: "",
-  productName: "",
-  sku: "",
-  notes: "",
-  formality: "",
-  fit: "",
-  size: "",
-  materials: "",
-  seasons: [],
-  useIds: [],
-  restrictions: "",
-  condition: "",
-  purchaseDate: "",
-  purchasePrice: "",
-  currency: "",
-  source: "",
-  isGift: false,
-};
 async function api(url, options) {
   let response;
   try {
@@ -383,348 +362,6 @@ async function api(url, options) {
         "The request could not be completed.",
     );
   return value;
-}
-function data(form) {
-  return {
-    categoryId: form.categoryId,
-    name: form.name,
-    brand: form.brand || null,
-    productName: form.productName || null,
-    sku: form.sku || null,
-    notes: form.notes || null,
-    formality: form.formality === "" ? null : Number(form.formality),
-    fit: form.fit || null,
-    size: form.size || null,
-    tailoringNotes: null,
-    materials: form.materials
-      .split(",")
-      .map((material) => material.trim())
-      .filter(Boolean)
-      .map((material) => ({ material, percentage: null })),
-    seasons: form.seasons,
-    useIds: form.useIds,
-    restrictions: form.restrictions
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean),
-    acquisition: {
-      condition: form.condition || null,
-      purchaseDate: form.purchaseDate || null,
-      purchasePriceMinor:
-        form.purchasePrice === ""
-          ? null
-          : Math.round(Number(form.purchasePrice) * 100),
-      currency: form.currency.trim().toUpperCase() || null,
-      originalRetailPriceMinor: null,
-      source: form.source || null,
-      isGift: form.isGift,
-      notes: null,
-    },
-  };
-}
-function from(item) {
-  return {
-    categoryId: item.categoryId,
-    name: item.name,
-    brand: item.brand || "",
-    productName: item.productName || "",
-    sku: item.sku || "",
-    notes: item.notes || "",
-    formality: item.formality ?? "",
-    fit: item.fit || "",
-    size: item.size || "",
-    materials: item.materials.map((entry) => entry.material).join(", "),
-    seasons: item.seasons,
-    useIds: item.uses.map((use) => use.id),
-    restrictions: item.restrictions.join("\n"),
-    condition: item.acquisition.condition || "",
-    purchaseDate: item.acquisition.purchaseDate?.slice(0, 10) || "",
-    purchasePrice:
-      item.acquisition.purchasePriceMinor == null
-        ? ""
-        : String(item.acquisition.purchasePriceMinor / 100),
-    currency: item.acquisition.currency || "",
-    source: item.acquisition.source || "",
-    isGift: item.acquisition.isGift,
-  };
-}
-function GarmentForm({ categories, uses, editing, suggestion, close, saved }) {
-  const selectable = categories.filter(
-    (entry) =>
-      entry.parentCategoryId ||
-      !categories.some((child) => child.parentCategoryId === entry.id),
-  );
-  const draft = useDraft(
-    `dressed:garment:${editing?.id || "new"}`,
-    editing
-      ? { ...from(editing), ...(suggestion?.values || {}) }
-      : { ...blank, categoryId: selectable[0]?.id || "" },
-  );
-  const form = draft.value;
-  const setForm = draft.setValue;
-  const [error, setError] = useState("");
-  const change = (key, value) =>
-    setForm((current) => ({ ...current, [key]: value }));
-  const submit = async (event) => {
-    event.preventDefault();
-    try {
-      const payload = data(form);
-      const result = editing
-        ? await api(`/api/garments/${editing.id}`, {
-            method: "PUT",
-            body: JSON.stringify({ ...payload, version: editing.version }),
-          })
-        : await api("/api/garments", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-      if (suggestion) {
-        const fields = ["category", "formality", "seasons"];
-        const accepted = fields.filter((field) =>
-          field === "category"
-            ? result.categoryId === suggestion.values.categoryId
-            : field === "formality"
-              ? result.formality === suggestion.values.formality
-              : JSON.stringify([...result.seasons].sort()) ===
-                JSON.stringify([...(suggestion.values.seasons || [])].sort()),
-        );
-        await api(`/api/fingerprints/${suggestion.fingerprintId}/decision`, {
-          method: "POST",
-          body: JSON.stringify({
-            accepted,
-            rejected: fields.filter((field) => !accepted.includes(field)),
-          }),
-        });
-      }
-      draft.clear();
-      saved(result);
-    } catch (cause) {
-      setError(cause.message);
-    }
-  };
-  return (
-    <div className="modal-backdrop">
-      <section className="modal" role="dialog" aria-modal="true">
-        <header>
-          <div>
-            <p className="eyebrow">GARMENT RECORD</p>
-            <h2>{editing ? "Edit garment" : "Add garment"}</h2>
-          </div>
-          <button className="quiet" onClick={close}>
-            Close
-          </button>
-        </header>
-        <form onSubmit={submit}>
-          <div className="form-grid">
-            <label>
-              Category
-              <select
-                required
-                value={form.categoryId}
-                onChange={(e) => change("categoryId", e.target.value)}
-              >
-                <option value="">Select…</option>
-                {selectable.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Name
-              <input
-                required
-                value={form.name}
-                onChange={(e) => change("name", e.target.value)}
-              />
-            </label>
-            <label>
-              Brand
-              <input
-                value={form.brand}
-                onChange={(e) => change("brand", e.target.value)}
-              />
-            </label>
-            <label>
-              Product/model
-              <input
-                value={form.productName}
-                onChange={(e) => change("productName", e.target.value)}
-              />
-            </label>
-            <label>
-              SKU/reference
-              <input
-                value={form.sku}
-                onChange={(e) => change("sku", e.target.value)}
-              />
-            </label>
-            <label>
-              Formality
-              <select
-                value={form.formality}
-                onChange={(e) => change("formality", e.target.value)}
-              >
-                <option value="">Unspecified</option>
-                {[1, 2, 3, 4, 5].map((x) => (
-                  <option key={x}>{x}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Fit
-              <input
-                value={form.fit}
-                onChange={(e) => change("fit", e.target.value)}
-              />
-            </label>
-            <label>
-              Size
-              <input
-                value={form.size}
-                onChange={(e) => change("size", e.target.value)}
-              />
-            </label>
-            <label className="wide">
-              Materials <small>comma separated</small>
-              <input
-                value={form.materials}
-                onChange={(e) => change("materials", e.target.value)}
-              />
-            </label>
-            <fieldset className="wide">
-              <legend>Season suitability</legend>
-              <div className="checks">
-                {seasons.map((x) => (
-                  <label key={x}>
-                    <input
-                      type="checkbox"
-                      checked={form.seasons.includes(x)}
-                      onChange={() =>
-                        change(
-                          "seasons",
-                          form.seasons.includes(x)
-                            ? form.seasons.filter((v) => v !== x)
-                            : [...form.seasons, x],
-                        )
-                      }
-                    />
-                    {x}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <fieldset className="wide">
-              <legend>Uses</legend>
-              <p className="muted">Choose every setting where this garment may be used. Outfit Builder will only combine garments marked for the selected use.</p>
-              <div className="checks">
-                {uses.map((use) => (
-                  <label key={use.id}>
-                    <input
-                      type="checkbox"
-                      checked={form.useIds.includes(use.id)}
-                      onChange={() =>
-                        change(
-                          "useIds",
-                          form.useIds.includes(use.id)
-                            ? form.useIds.filter((id) => id !== use.id)
-                            : [...form.useIds, use.id],
-                        )
-                      }
-                    />
-                    {use.name}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <label>
-              Condition
-              <select
-                value={form.condition}
-                onChange={(e) => change("condition", e.target.value)}
-              >
-                <option value="">Unspecified</option>
-                <option value="new">New</option>
-                <option value="used">Used</option>
-              </select>
-            </label>
-            <label>
-              Purchase date
-              <input
-                type="date"
-                value={form.purchaseDate}
-                onChange={(e) => change("purchaseDate", e.target.value)}
-              />
-            </label>
-            <label>
-              Purchase price
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.purchasePrice}
-                onChange={(e) => change("purchasePrice", e.target.value)}
-              />
-            </label>
-            <label>
-              Currency
-              <input
-                maxLength="3"
-                value={form.currency}
-                onChange={(e) => change("currency", e.target.value)}
-              />
-            </label>
-            <label>
-              Source/store
-              <input
-                value={form.source}
-                onChange={(e) => change("source", e.target.value)}
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={form.isGift}
-                onChange={(e) => change("isGift", e.target.checked)}
-              />
-              Gift
-            </label>
-            <label className="wide">
-              Restrictions <small>one per line</small>
-              <textarea
-                value={form.restrictions}
-                onChange={(e) => change("restrictions", e.target.value)}
-              />
-            </label>
-            <label className="wide">
-              Notes
-              <textarea
-                value={form.notes}
-                onChange={(e) => change("notes", e.target.value)}
-              />
-            </label>
-          </div>
-          {error && <p className="error">{error}</p>}
-          <div className="form-actions">
-            <small className="draft-status">
-              {draft.savedAt
-                ? `Draft saved ${draft.savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                : draft.isDirty
-                  ? "Saving draft…"
-                  : "Draft protection active"}
-            </small>
-            <button type="button" className="quiet" onClick={close}>
-              Cancel
-            </button>
-            <button className="primary">
-              {editing ? "Save changes" : "Add garment"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
 }
 function CategoryForm({ categories, close, saved }) {
   const [name, setName] = useState("");
@@ -1954,29 +1591,7 @@ function ModernApp() {
       setCalibrationDeleteBusy(false);
     }
   };
-  const photoIntake = async () => {
-    try {
-      const uncategorised = categories.find(
-        (item) => item.slug === "uncategorised",
-      );
-      if (!uncategorised)
-        throw new Error("The intake category is unavailable.");
-      const item = await api("/api/garments", {
-        method: "POST",
-        body: JSON.stringify(
-          data({
-            ...blank,
-            categoryId: uncategorised.id,
-            name: `New garment ${new Date().toLocaleDateString()}`,
-          }),
-        ),
-      });
-      setModal({ type: "photos", item });
-      await load();
-    } catch (cause) {
-      setError(cause.message);
-    }
-  };
+  const photoIntake = () => setModal({ type: "garment" });
   const healthy = ["ok", "healthy"].includes(health?.status);
   const status = (
     <StatusBadge tone={error ? "danger" : healthy ? "success" : "warning"}>
@@ -2069,12 +1684,7 @@ function ModernApp() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <Button
-                        onClick={() => setModal({ type: "photos", item })}
-                      >
-                        Photos
-                      </Button>
-                      <Button
+<Button
                         onClick={() => setModal({ type: "garment", item })}
                       >
                         Edit
@@ -2203,9 +1813,9 @@ function ModernApp() {
           >
             <div className="dressed-task-grid">
               <button onClick={photoIntake}>
-                <strong>Add from photographs</strong>
+                <strong>Add garment</strong>
                 <span>
-                  Create the record first, then review suggested details.
+                  Add photos and all garment details in one place.
                 </span>
               </button>
               <button onClick={() => setModal({ type: "ensemble" })}>
@@ -2249,7 +1859,7 @@ function ModernApp() {
                 description="Add the first garment to begin creating outfits and building your wear history."
                 action={
                   <Button variant="primary" onClick={photoIntake}>
-                    Add from photographs
+                    Add garment
                   </Button>
                 }
               />
@@ -2302,7 +1912,7 @@ function ModernApp() {
                 {uses.map((use) => <option key={use.id} value={use.id}>{use.name}</option>)}
               </select>
             </>}
-            actions={<Button onClick={photoIntake}>Add from photos</Button>}
+            
           />
           {wardrobeTable}
         </>
@@ -2405,7 +2015,7 @@ function ModernApp() {
             ) : (
               <div className="calibration-summary calibration-summary--empty">
                 <StatusBadge tone="warning">Not set up</StatusBadge>
-                <div><strong>No colour card required</strong><p>Start in Wardrobe → Add from photographs. You can also complete details manually.</p></div>
+                <div><strong>No colour card required</strong><p>Start in Wardrobe → Add garment. You can also complete details manually.</p></div>
               </div>
             )}
 
@@ -2472,19 +2082,7 @@ function ModernApp() {
           </Panel>
         </>
       )}
-      {modal?.type === "garment" && (
-        <GarmentForm
-          categories={categories}
-          uses={uses}
-          editing={modal.item}
-          suggestion={modal.suggestion}
-          close={() => setModal(null)}
-          saved={async () => {
-            setModal(null);
-            await load();
-          }}
-        />
-      )}{" "}
+
       {modal?.type === "category" && (
         <CategoryForm
           categories={categories}
@@ -2514,8 +2112,8 @@ function ModernApp() {
         onConfirm={confirmCalibrationDelete}
         onCancel={() => setCalibrationDeleteTarget(null)}
       />
-      {modal?.type === "photos" && (
-        <PhotoIntake garment={modal.item} categories={categories} uses={uses} api={api} close={() => setModal(null)} saved={load} />
+      {(modal?.type === "photos" || modal?.type === "garment") && (
+        <PhotoIntake key={modal.item?.id || "new"} garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
       )}{" "}
       {modal?.type === "styling" && (
         <StylingLab garments={catalogue.items} close={() => setModal(null)} />

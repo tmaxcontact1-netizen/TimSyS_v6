@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { garmentInputSchema } from "./garment.js";
 import type { VisualFingerprint, PaletteEntry } from "./visual-fingerprint.js";
 
 export const colours = ["unknown","black","white","grey","navy","blue","brown","beige","red","burgundy","green","yellow","orange","purple","pink"] as const;
@@ -18,6 +19,7 @@ export const reviewSchema = z.object({
   formality:z.number().int().min(1).max(5).nullable(),
   seasons:z.array(z.enum(["spring","summer","autumn","winter","all-season"])).max(5),
   useIds:z.array(z.string().uuid()).max(30), appearance:appearanceSchema,
+  details:garmentInputSchema.optional(),
 }).strict().refine(v=>new Set(v.useIds).size===v.useIds.length&&new Set(v.seasons).size===v.seasons.length,"Uses and seasons must be unique");
 export type AppearanceReview = z.infer<typeof reviewSchema>;
 

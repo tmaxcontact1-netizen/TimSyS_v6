@@ -37,7 +37,7 @@ describe("Dress'Ed Phase 1 API", () => {
       protocol: "timsys.application.v1",
       status: "healthy",
       application: "dressed",
-      version: "0.1.0",
+      version: "0.2.0",
       database: "ready",
       observedAt: "2026-08-28T12:00:00.000Z",
       components: expect.arrayContaining([expect.objectContaining({ id: "database", status: "healthy" })]),

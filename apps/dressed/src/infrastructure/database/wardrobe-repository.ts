@@ -45,7 +45,7 @@ function garment(row: GarmentRow) {
 }
 
 const garmentSelect = `
-  SELECT g.*, c.name AS category_name,
+  SELECT g.*, g.purchase_date::text AS purchase_date, c.name AS category_name,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('material',m.material,'percentage',m.percentage) ORDER BY m.material) FROM dressed.garment_materials m WHERE m.garment_id=g.garment_id),'[]'::jsonb) AS materials,
     COALESCE((SELECT jsonb_agg(s.season ORDER BY s.season) FROM dressed.garment_seasons s WHERE s.garment_id=g.garment_id),'[]'::jsonb) AS seasons,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.use_id,'slug',u.slug,'name',u.name) ORDER BY u.sort_order,u.name) FROM dressed.garment_uses gu JOIN dressed.garment_use_types u ON u.use_id=gu.use_id WHERE gu.garment_id=g.garment_id),'[]'::jsonb) AS uses,

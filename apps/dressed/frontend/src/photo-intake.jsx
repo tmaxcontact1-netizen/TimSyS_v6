@@ -1,4 +1,5 @@
 import React, {useEffect,useRef,useState} from "react";
+import GarmentDetails,{detailsFrom,detailsPayload} from "./garment-details.jsx";
 
 const options={
  primaryColour:["unknown","black","white","grey","navy","blue","brown","beige","red","burgundy","green","yellow","orange","purple","pink"],
@@ -11,27 +12,42 @@ const title=value=>value==="unknown"?"Unknown / unsure":value.charAt(0).toUpperC
 const message=error=>({review_version_conflict:"This garment changed. Close and reopen the review before saving your corrections.",review_analysis_stale:"A photograph changed after this analysis. Analyse the current photograph again, or choose manual entry.",image_not_current:"That photograph was replaced. Select the current photograph."}[error.message]||error.message);
 
 export default function PhotoIntake({garment,categories,uses,api,close,saved}){
- const [record,setRecord]=useState(garment),[photos,setPhotos]=useState([]),[selected,setSelected]=useState(null),[role,setRole]=useState("whole");
+ const [record,setRecord]=useState(garment??null),[photos,setPhotos]=useState([]),[selected,setSelected]=useState(null),[role,setRole]=useState("whole");
+ const [details,setDetails]=useState(detailsFrom()),[discard,setDiscard]=useState(false);
  const [analysis,setAnalysis]=useState(null),[previous,setPrevious]=useState(null),[crop,setCrop]=useState(null),[draft,setDraft]=useState(null);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[manual,setManual]=useState(false),[dirty,setDirty]=useState(new Set());
  const fileInput=useRef(null),drag=useRef(null),hasReview=useRef(false),dirtyRef=useRef(new Set());
+ const recordRef=useRef(garment??null);
+ const changeDetails=(key,value)=>{dirtyRef.current.add("details");setDirty(new Set(dirtyRef.current));setDetails(d=>({...d,[key]:value}));};
+ const finish=()=>{if(dirtyRef.current.size)setDiscard(true);else close();};
  const active=photos.find(p=>p.id===selected);
  const change=(key,value)=>{dirtyRef.current.add(key);setDirty(new Set(dirtyRef.current));setDraft(d=>({...d,[key]:value}));};
  const changeAppearance=(key,value)=>{dirtyRef.current.add(key);setDirty(new Set(dirtyRef.current));setDraft(d=>({...d,appearance:{...d.appearance,[key]:value}}));};
  const toggle=(key,value)=>change(key,draft[key].includes(value)?draft[key].filter(x=>x!==value):[...draft[key],value]);
  async function refresh(initial=false){
-  const [latest,imageState,state]=await Promise.all([api(`/api/garments/${garment.id}`),api(`/api/garments/${garment.id}/images`),api(`/api/garments/${garment.id}/intake`)]);
-  setRecord(latest);setPhotos(imageState.items);setPrevious(state.review);hasReview.current=Boolean(state.review);
+  const id=recordRef.current?.id;if(!id)return;
+  const [latest,imageState,state]=await Promise.all([api(`/api/garments/${recordRef.current.id}`),api(`/api/garments/${recordRef.current.id}/images`),api(`/api/garments/${recordRef.current.id}/intake`)]);
+  recordRef.current=latest;setRecord(latest);setPhotos(imageState.items);setPrevious(state.review);hasReview.current=Boolean(state.review);
   if(initial){
+   setDetails(detailsFrom(latest));
    const image=imageState.items.find(x=>x.isCurrent&&x.role==="whole")||imageState.items.find(x=>x.isCurrent&&x.role==="detail");setSelected(image?.id??null);
    const currentIds=imageState.items.filter(x=>x.isCurrent&&["whole","detail"].includes(x.role)).map(x=>x.id).sort();
    const latestAnalysis=state.analysis&&JSON.stringify([...state.analysis.source_image_ids].sort())===JSON.stringify(currentIds)?state.analysis:null;
+   if(latestAnalysis?.crops?.imageId)setSelected(latestAnalysis.crops.imageId);
    setAnalysis(latestAnalysis);setCrop(latestAnalysis?.crops?.crop??null);
    setDraft({name:latest.name,categoryId:latest.categoryId,formality:latest.formality??"",seasons:latest.seasons,useIds:latest.uses.map(x=>x.id),appearance:state.review?.values.appearance??latestAnalysis?.result.appearance??{...emptyAppearance}});
   }
   return latest;
  }
- useEffect(()=>{void refresh(true).catch(e=>setError(message(e)));},[garment.id]);
+ useEffect(()=>{
+  if(garment)void refresh(true).catch(e=>setError(message(e)));
+  else setDraft({name:"",categoryId:categories.find(c=>c.slug==="uncategorised")?.id??categories[0]?.id??"",formality:"",seasons:[],useIds:[],appearance:{...emptyAppearance}});
+ },[garment?.id]);
+ async function ensureRecord(payload){
+  if(recordRef.current)return recordRef.current;
+  const created=await api("/api/garments",{method:"POST",body:JSON.stringify(payload??{name:draft.name.trim()||"New garment",categoryId:draft.categoryId})});
+  recordRef.current=created;setRecord(created);return created;
+ }
  function applyDetection(result,explicit=false){
   if(explicit){for(const key of Object.keys(result.appearance))dirtyRef.current.add(key);setDirty(new Set(dirtyRef.current));}
   setDraft(d=>{
@@ -40,30 +56,34 @@ export default function PhotoIntake({garment,categories,uses,api,close,saved}){
    for(const [key,value] of Object.entries(result.appearance))if(explicit||(!hasReview.current&&!dirtyRef.current.has(key)))appearance[key]=value;
    const suggestion=categories.find(x=>x.slug===result.suggestedCategory);
    const existing=categories.find(x=>x.id===d.categoryId);
-   return {...d,appearance,categoryId:suggestion&&(explicit||(!hasReview.current&&!dirtyRef.current.has("categoryId")&&existing?.slug==="uncategorised"))?suggestion.id:d.categoryId};
+   return {...d,appearance,categoryId:suggestion&&!hasReview.current&&!dirtyRef.current.has("categoryId")&&existing?.slug==="uncategorised"?suggestion.id:d.categoryId};
   });
  }
  async function detect(imageId=selected,selection=crop){
   setError("");setNotice("");setBusy(true);
-  try{const result=await api(`/api/garments/${garment.id}/intake/analyse`,{method:"POST",body:JSON.stringify({imageId,crop:selection})});setAnalysis(result);setManual(false);applyDetection(result.result);setNotice(hasReview.current?"New suggestions are available. Your confirmed choices have been kept.":"Detection finished. Check or edit every suggested detail below.");}
+  try{const result=await api(`/api/garments/${recordRef.current.id}/intake/analyse`,{method:"POST",body:JSON.stringify({imageId,crop:selection})});setAnalysis(result);setManual(false);applyDetection(result.result);setNotice(hasReview.current?"New suggestions are available. Your confirmed choices have been kept.":"Detection finished. Check or edit every suggested detail below.");}
   catch(e){setError(message(e));setManual(true);}
   finally{setBusy(false);}
  }
  async function upload(event){
   const file=event.target.files?.[0];if(!file)return;setBusy(true);setError("");setNotice("");
   try{
+   await ensureRecord();
    const query=new URLSearchParams({role,filename:file.name});
-   const response=await fetch(`/api/garments/${garment.id}/images?${query}`,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file});
+   const response=await fetch(`/api/garments/${recordRef.current.id}/images?${query}`,{method:"POST",headers:{"content-type":file.type||"application/octet-stream"},body:file});
    const result=await response.json();if(!response.ok)throw Error(result.error==="unsupported_or_invalid_image"?"This image could not be decoded. Choose a JPEG or PNG, or continue with manual details.":result.error);
    await refresh();setSelected(result.image.id);setCrop(null);setAnalysis(null);
+   dirtyRef.current.add("photo");setDirty(new Set(dirtyRef.current));
    await detect(result.image.id,null);
   }catch(e){setError(message(e));setManual(true);}finally{setBusy(false);if(fileInput.current)fileInput.current.value="";}
  }
  async function submit(event){
   event.preventDefault();setBusy(true);setError("");
   try{
-   await api(`/api/garments/${garment.id}/intake/review`,{method:"POST",body:JSON.stringify({...draft,version:record.version,analysisId:manual?null:analysis?.id??null,formality:draft.formality===""?null:Number(draft.formality)})});
-   await refresh();dirtyRef.current.clear();setDirty(new Set());setNotice("Review saved. Confirmed choices will be kept when you analyse another photograph.");await saved?.();
+   const base={name:draft.name,categoryId:draft.categoryId,formality:draft.formality===""?null:Number(draft.formality),seasons:draft.seasons,useIds:draft.useIds};
+   const current=await ensureRecord({...base,...detailsPayload(details)});
+   await api(`/api/garments/${recordRef.current.id}/intake/review`,{method:"POST",body:JSON.stringify({...draft,details:{...base,...detailsPayload(details)},version:current.version,analysisId:manual?null:analysis?.id??null,formality:draft.formality===""?null:Number(draft.formality)})});
+   await refresh();dirtyRef.current.clear();setDirty(new Set());setNotice("Garment saved. Photos, appearance and all garment details are available here whenever you edit.");await saved?.();
   }catch(e){setError(message(e));}finally{setBusy(false);}
  }
  function point(event){const bounds=event.currentTarget.getBoundingClientRect();return {x:Math.max(0,Math.min(1,(event.clientX-bounds.left)/bounds.width)),y:Math.max(0,Math.min(1,(event.clientY-bounds.top)/bounds.height))};}
@@ -75,15 +95,16 @@ export default function PhotoIntake({garment,categories,uses,api,close,saved}){
  const leaves=categories.filter(x=>!categories.some(child=>child.parentCategoryId===x.id));
  const status=key=>dirty.has(key)?"Changed in this draft — check before saving":draft?.appearance[key]==="unknown"?"Undetected — choose or leave uncertain":previous?"Previously confirmed":!analysis?"Enter your judgement":"Suggested — check against the garment";
  return <div className="modal-backdrop"><section className="modal intake-modal" role="dialog" aria-modal="true" aria-labelledby="intake-title">
-  <header><div><p className="eyebrow">UPLOAD · DETECT · REVIEW</p><h2 id="intake-title">Photographs and garment details</h2><p>Keep the original. Select the garment here, then confirm or correct the suggestions. No colour card required.</p></div><button className="quiet" disabled={busy} onClick={close}>Close</button></header>
+  <header><div><p className="eyebrow">UPLOAD · DETECT · REVIEW</p><h2 id="intake-title">{garment?"Edit garment":"Add garment"}</h2><p>Keep the original. Select the garment here, then confirm or correct the suggestions. No colour card required.</p></div><button className="quiet" disabled={busy} onClick={finish}>Close</button></header>
+  {discard&&<div className="intake-findings" role="alert"><p>Discard unsaved details? Uploaded originals are already stored with the garment.</p><button type="button" onClick={()=>setDiscard(false)}>Keep editing</button> <button type="button" onClick={close}>Discard unsaved details</button></div>}
   {error&&<p className="error banner" role="alert">{error}</p>}{notice&&<p className="success banner" role="status">{notice}</p>}
   <div className="intake-columns"><section aria-label="Photograph selection">
    <label>Photograph type<select value={role} onChange={e=>setRole(e.target.value)} disabled={busy}><option value="whole">Whole garment</option><option value="detail">Detail / close-up (optional)</option></select></label>
-   <label className="intake-upload">Upload original photograph<input ref={fileInput} type="file" accept="image/jpeg,image/png" disabled={busy} onChange={upload}/></label>
+   <label className="intake-upload">Upload original photograph<input ref={fileInput} type="file" accept="image/jpeg,image/png" disabled={busy||!draft} onChange={upload}/></label>
    <p className="muted">Use even light and avoid filters or glare. Cropping happens below after upload.</p>
    {photos.some(p=>p.isCurrent)&&<label>Current photograph<select value={selected??""} disabled={busy} onChange={e=>{setSelected(e.target.value);setCrop(null);setAnalysis(null);setManual(true);}}>{photos.filter(p=>p.isCurrent).map(p=><option key={p.id} value={p.id}>{p.role} — {p.originalFilename}</option>)}</select></label>}
    {active&&<>
-    <div className="intake-photo"><img src={`/api/images/${active.id}/content`} alt={`Original photograph of ${record.name}`}/><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Drag to select the garment area" onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>{shown&&<rect x={shown.x*100} y={shown.y*100} width={shown.width*100} height={shown.height*100} fill="none" stroke={crop?"#f0c674":"#74dfbd"} strokeWidth="0.6" strokeDasharray={crop?undefined:"2 1"}/>}</svg></div>
+    <div className="intake-photo"><img src={`/api/images/${active.id}/content`} alt={`Original photograph of ${record?.name??"new garment"}`}/><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Drag to select the garment area" onPointerDown={begin} onPointerMove={move} onPointerUp={end} onPointerCancel={end}>{shown&&<rect x={shown.x*100} y={shown.y*100} width={shown.width*100} height={shown.height*100} fill="none" stroke={crop?"#f0c674":"#74dfbd"} strokeWidth="0.6" strokeDasharray={crop?undefined:"2 1"}/>}</svg></div>
     <p className="muted">{crop?"Your selection":"Dashed outline: estimated garment area"}. Drag a rectangle or adjust the percentages below, then select Detect from selected area to update suggestions. The original stays unchanged.</p>
     <div className="intake-crop-controls">{["x","y","width","height"].map(key=><label key={key}>{({x:"Left",y:"Top",width:"Width",height:"Height"})[key]} %<input aria-label={`Selection ${key} percent`} type="number" min={key==="x"||key==="y"?0:.1} max={100} step="0.1" disabled={busy} value={Math.round((crop??{x:0,y:0,width:1,height:1})[key]*1000)/10} onChange={e=>cropValue(key,e.target.value)}/></label>)}</div>
     <div className="row-actions"><button type="button" disabled={busy} onClick={()=>void detect()}>{busy?"Analysing…":"Detect from selected area"}</button><button type="button" disabled={busy} onClick={()=>{setCrop(null);void detect(selected,null);}}>Detect area automatically</button></div>
@@ -103,6 +124,7 @@ export default function PhotoIntake({garment,categories,uses,api,close,saved}){
    </div>
    <fieldset className="intake-checks"><legend>Use — select every applicable use</legend>{uses.map(use=><label key={use.id}><input type="checkbox" checked={draft.useIds.includes(use.id)} onChange={()=>toggle("useIds",use.id)}/>{use.name}</label>)}</fieldset>
    <fieldset className="intake-checks"><legend>Seasons — leave blank if unsure</legend>{["spring","summer","autumn","winter","all-season"].map(season=><label key={season}><input type="checkbox" checked={draft.seasons.includes(season)} onChange={()=>toggle("seasons",season)}/>{title(season)}</label>)}</fieldset>
+   <GarmentDetails value={details} change={changeDetails}/>
    <div className="intake-findings"><strong>Before saving</strong><ul>
     <li>Colours remain approximate; confirming a family does not calibrate the photograph.</li>
     {Object.entries(draft.appearance).filter(([,v])=>v==="unknown").map(([key])=><li key={key}>{labels[key]} is uncertain and will be flagged in outfit suggestions.</li>)}
@@ -111,8 +133,8 @@ export default function PhotoIntake({garment,categories,uses,api,close,saved}){
     {!draft.useIds.length&&<li>Select a use to include this garment in outfit generation.</li>}
     {categories.find(c=>c.id===draft.categoryId)?.slug==="uncategorised"&&<li>Choose a garment category before generating outfits.</li>}
    </ul></div>
-   <button className="primary" type="submit">{busy?"Working…":"Confirm and save review"}</button>
-   <p className="muted">Brand, size, materials and purchase information remain available under Edit garment. This review preserves them.</p>
+   <button className="primary" type="submit">{busy?"Working…":"Save garment"}</button>
+   <button type="button" className="quiet" onClick={finish}>Cancel</button>
    </fieldset></form>}
   </section></div>
  </section></div>;
