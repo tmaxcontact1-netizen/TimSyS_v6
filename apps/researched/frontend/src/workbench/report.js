@@ -13,3 +13,11 @@ export function reportHtml({tool,draft,run,session,machine,instrument,project}){
 export function downloadReport(data){const url=URL.createObjectURL(new Blob([reportHtml(data)],{type:'text/html;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=(data.draft.title.replace(/[^\w -]/g,'').trim()||'ResearchEd')+'.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 
 function coverageHtml(c){return '<dl>'+Object.entries(coverageLabels).map(([key,label])=>`<dt>${label}</dt><dd>${c[key]}</dd>`).join('')+'</dl><p>Deterministic retrieval is not semantic classification. Pending and failed units have not received a retained semantic assessment.</p>';}
+
+export async function downloadPdfReport(data){
+ const response=await fetch('/api/reports/pdf',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({html:reportHtml(data)})});
+ if(!response.ok){const problem=await response.json().catch(()=>({}));throw Error(problem.error||'PDF export failed. Please try again.');}
+ const blob=await response.blob();
+ if(blob.type!=='application/pdf')throw Error('The server did not return a PDF.');
+ const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=(data.draft.title.replace(/[^\w -]/g,'').trim()||'ResearchEd')+'.pdf';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
