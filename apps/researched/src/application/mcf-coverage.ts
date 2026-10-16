@@ -1,3 +1,4 @@
+import {competencyEvidenceCounts} from '../domain/mcf-evidence.js';
 import type {Pool,PoolClient} from 'pg';
 import {semanticCoverage} from '../domain/mcf-coverage.js';
 export async function runEvidence(db:Pick<Pool,'query'>|PoolClient,sessionId:string,runId:string|null){
@@ -7,5 +8,5 @@ export async function runEvidence(db:Pick<Pool,'query'>|PoolClient,sessionId:str
  const candidates=runId?(await db.query('SELECT * FROM researched.mcf_deterministic_candidates WHERE run_id=$1 ORDER BY unit_id',[runId])).rows:[];
  const tasks=runId?(await db.query('SELECT id,ordinal,status,error,unit_ids FROM researched.mcf_ai_tasks WHERE run_id=$1 ORDER BY ordinal',[runId])).rows:[];
  const attempts=runId?(await db.query('SELECT a.* FROM researched.mcf_semantic_attempts a JOIN researched.mcf_ai_tasks t ON t.id=a.task_id WHERE t.run_id=$1 ORDER BY a.started_at,a.id',[runId])).rows:[];
- return {proposals,candidates,tasks,attempts,coverage:semanticCoverage(units,proposals,candidates,tasks,units.filter(u=>u.reviewed).map(u=>u.id))};
+ return {evidentialCounts:competencyEvidenceCounts(proposals),proposals,candidates,tasks,attempts,coverage:semanticCoverage(units,proposals,candidates,tasks,units.filter(u=>u.reviewed).map(u=>u.id))};
 }

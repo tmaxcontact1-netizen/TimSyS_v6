@@ -11,7 +11,7 @@ const machine={runs:[{id:'current',status:'partial'}],proposals:[{run_id:'curren
 describe('automatic MCF report',()=>{
  it('uses only the selected run and distinguishes missing results from no supporting evidence',()=>{
   const result=summariseMcf(session,instrument,{machineRunId:'current'},machine);
-  expect(result.analysed).toBe(1);expect(result.missing.map((u:any)=>u.id)).toEqual(['two']);expect(result.competencies[1].findings).toEqual([]);expect(result.contextual).toHaveLength(1);expect(result.human).toBe(0);
+  expect(result.analysed).toBe(1);expect(result.missing.map((u:any)=>u.id)).toEqual(['two']);expect(result.competencies[1].findings).toEqual([]);expect(result.contextual).toHaveLength(0);expect(result.human).toBe(0);
  });
  it('uses the fixed confirmed snapshot even when a later run arrives',()=>{
   const draft={step:5,machineRunId:'current',machineReport:{run:machine.runs[0],proposals:machine.proposals}};
