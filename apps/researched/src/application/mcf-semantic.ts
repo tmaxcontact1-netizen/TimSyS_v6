@@ -9,7 +9,7 @@ import {runGroundedAiAnalysis,type AiAnalysisProvider} from './ai-analysis.js';
 import {deterministicMcf,DETERMINISTIC_CONFIG,DETERMINISTIC_HASH} from './mcf-deterministic.js';
 import {proposalResponse,validateProposals} from './mcf-ai.js';
 
-export const SEMANTIC_POLICY=Object.freeze({version:2,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:90000,maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:1});
+export const SEMANTIC_POLICY=Object.freeze({version:3,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:90000,maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:1});
 export function transientSemanticError(error:string){return /abort|timeout|timed out|429|(?:^|[_\s])5\d\d(?:$|\b)|fetch failed|network|econn|socket/i.test(error);}
 const identity=(p:AiAnalysisProvider|null)=>p?{id:p.id,model:p.model,connectionId:p.configurationId??null}:null;
 export class SemanticWorker{
@@ -63,11 +63,11 @@ export class SemanticWorker{
    await c.query("UPDATE researched.mcf_ai_tasks SET error='Semantic pending: stopped by researcher.' WHERE run_id=$1 AND status='queued'",[id]);
   });return{cancelled:true};
  }
- async settle(){await this.repo.db.query("UPDATE researched.mcf_ai_runs r SET status='completed',finished_at=now() WHERE r.configuration->>'semanticProtocol' IN ('2','3') AND r.status IN ('queued','running') AND NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status<>'completed')");}
+ async settle(){await this.repo.db.query("UPDATE researched.mcf_ai_runs r SET status=CASE WHEN NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status<>'completed') THEN 'completed' WHEN EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status='completed') THEN 'partial' ELSE 'failed' END,finished_at=now() WHERE r.configuration->>'semanticProtocol' IN ('2','3') AND r.status IN ('queued','running') AND NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status IN ('queued','running'))");}
  async process(){
   if(this.stopped)return;
-  const task=(await this.repo.db.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_semantic_tasks s ON s.task_id=t.id JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE t.status='queued' AND r.status IN ('queued','running') AND s.next_attempt_at<=now() AND NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks earlier WHERE earlier.run_id=r.id AND earlier.ordinal<t.ordinal AND earlier.status<>'completed') ORDER BY r.created_at,t.ordinal FOR UPDATE OF t SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running',error=NULL FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];if(!task)return;
-  const started=new Date(),attemptId=randomUUID();let attempt=0,cycle=0;let policy=SEMANTIC_POLICY;
+  const task=(await this.repo.db.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_semantic_tasks s ON s.task_id=t.id JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE t.status='queued' AND r.status IN ('queued','running') AND s.next_attempt_at<=now() AND NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks busy WHERE busy.run_id=r.id AND busy.status='running') ORDER BY r.created_at,t.ordinal FOR UPDATE OF t SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running',error=NULL FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];if(!task)return;
+  const started=new Date(),attemptId=randomUUID();let attempt=0,cycle=0,responsePhase=false;let policy=SEMANTIC_POLICY;
   try{
    const run=(await this.repo.db.query('SELECT * FROM researched.mcf_ai_runs WHERE id=$1',[task.run_id])).rows[0],session=await this.repo.session(run.session_id);policy=run.configuration.semanticPolicy;
    await this.repo.transaction(async c=>{await this.repo.writable(session.dataset_id,c);await this.repo.active('sessions',session.id,c);});
@@ -84,6 +84,7 @@ export class SemanticWorker{
    const pool=modern?(await this.repo.db.query('SELECT u.*,us.record_id FROM researched.mcf_units u JOIN researched.mcf_unit_sets us ON us.id=u.unit_set_id WHERE u.unit_set_id=$1 AND u.id=ANY($2::uuid[]) ORDER BY u.ordinal',[units[0].unit_set_id,run.configuration.contextUnitIds])).rows:units;
    if(modern&&(units.some(u=>u.unit_set_id!==units[0].unit_set_id)||units.some(u=>!pool.some(x=>x.id===u.id))))throw Error('Invalid same-review context population.');
    if(modern&&pool.reduce((n,u)=>n+u.original_text.length,0)>run.configuration.contextPolicy.maximumCharacters)throw Error('Review exceeds the permitted context budget. No context was truncated; assessment remains unresolved.');
+   responsePhase=true;
    const answer=await runGroundedAiAnalysis(provider,{requestId:attemptId,timeoutMs:policy.timeoutMs,analysisType:modern?'mcf-evidential-proposals.v2':run.configuration.classificationConfig.promptVersion,instructions:`${run.configuration.classificationConfig.rules}\nMode: ${session.mode}. ${modern?'TARGET unit IDs: '+JSON.stringify(units.map(u=>u.id)):'Return exactly one entry per supplied section.'} Frozen MCF instrument: ${JSON.stringify(MCF)}`,evidence:pool.map(u=>({segmentId:u.id,sourceId:u.unit_set_id,content:u.original_text})),outputSchema:z.toJSONSchema(modern?evidentialResponse:proposalResponse)});
    let proposals:any[];
    if(modern){
@@ -96,6 +97,7 @@ export class SemanticWorker{
     });
    }else proposals=validateProposals(answer.value,units,session.mode,answer.evidenceSegmentIds);
    proposals=proposals.map(p=>({...p,method:'ai',pathway:p.codes.length?'semantic_success':'semantic_zero_code'}));
+   responsePhase=false;
    await this.repo.transaction(async c=>{
     await this.repo.writable(session.dataset_id,c);await this.repo.active('sessions',session.id,c);
     await c.query('SELECT id FROM researched.mcf_ai_runs WHERE id=$1 FOR UPDATE',[run.id]);
@@ -110,10 +112,10 @@ export class SemanticWorker{
    await this.repo.transaction(async c=>{
     const run=(await c.query('SELECT status FROM researched.mcf_ai_runs WHERE id=$1 FOR UPDATE',[task.run_id])).rows[0];if(!run)return;
     await c.query("UPDATE researched.mcf_semantic_attempts SET finished_at=now(),duration_ms=$2,outcome='semantic_failed',error=$3 WHERE id=$1 AND outcome='running'",[attemptId,Date.now()-started.getTime(),message]);
-    const retry=!this.stopped&&['queued','running'].includes(run.status)&&attempt>0&&attempt<policy.maximumAttempts&&transientSemanticError(message);
+    const retry=!this.stopped&&['queued','running'].includes(run.status)&&attempt>0&&attempt<policy.maximumAttempts&&(transientSemanticError(message)||(responsePhase&&!/401|403|429|provider.*unavailable|provider.*changed/i.test(message)));
     await c.query('UPDATE researched.mcf_ai_tasks SET status=$2,error=$3 WHERE id=$1 AND status=\'running\'',[task.id,retry?'queued':'failed',message]);
     if(retry)await c.query("UPDATE researched.mcf_semantic_tasks SET next_attempt_at=now()+$2*interval '1 millisecond' WHERE task_id=$1",[task.id,policy.retryDelaysMs[attempt-1]]);
-    else await c.query("UPDATE researched.mcf_ai_runs SET status=CASE WHEN EXISTS(SELECT 1 FROM researched.mcf_ai_outputs WHERE run_id=$1) THEN 'partial' ELSE 'failed' END,finished_at=now() WHERE id=$1 AND status IN ('queued','running')",[task.run_id]);
+    else if(!responsePhase||/401|403|429|provider.*unavailable|provider.*changed/i.test(message))await c.query("UPDATE researched.mcf_ai_runs SET status=CASE WHEN EXISTS(SELECT 1 FROM researched.mcf_ai_outputs WHERE run_id=$1) THEN 'partial' ELSE 'failed' END,finished_at=now() WHERE id=$1 AND status IN ('queued','running')",[task.run_id]);
    });
   }
   await this.settle();

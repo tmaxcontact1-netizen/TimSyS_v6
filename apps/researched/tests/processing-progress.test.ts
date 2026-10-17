@@ -6,6 +6,12 @@ import {renderToStaticMarkup} from 'react-dom/server';
 // @ts-ignore browser runtime
 import React from 'react';
 describe('processing progress',()=>{
+ it('never labels a stopped or retrying partial semantic run complete',()=>{
+  const coverage={semanticAssessed:306,substantivePopulationUnits:2772,semanticPending:2460,semanticFailed:6};
+  for(const status of ['partial','failed','cancelled'])expect(analysisProgress('mcf',{status,coverage}).label).toBe('Semantic analysis incomplete');
+  expect(analysisProgress('mcf',{status:'running',coverage}).label).toBe('Semantic analysis in progress');
+  expect(analysisProgress('mcf',{status:'completed',coverage:{...coverage,semanticAssessed:2772,semanticPending:0,semanticFailed:0}}).label).toBe('Semantic analysis complete');
+ });
  it('counts semantic successes including zero-code results without counting deterministic candidates or failures',()=>{
   const p=analysisProgress('mcf',{coverage:{semanticAssessed:300,substantivePopulationUnits:2772,semanticPending:2460,semanticFailed:12,deterministicCandidateMatches:2472}});
   expect(p.completed).toBe(300);expect(p.total).toBe(2772);expect(p.detail).toContain('12 failed');

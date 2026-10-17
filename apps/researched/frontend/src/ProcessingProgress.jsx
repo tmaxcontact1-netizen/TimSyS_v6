@@ -9,7 +9,7 @@ export function analysisProgress(tool,run){
  }
  if(run.kind==='interpretation')return {completed:run.completed??0,total:run.total??0,label:'Explanation requests completed',detail:''};
  const c=run.coverage;
- return c?{completed:c.semanticAssessed,total:c.substantivePopulationUnits,label:'Passages semantically assessed',detail:`${c.semanticPending} pending · ${c.semanticFailed} failed. Local candidate matches do not count as semantic completion.`}:null;
+ return c?{completed:c.semanticAssessed,total:c.substantivePopulationUnits,label:c.semanticAssessed===c.substantivePopulationUnits?'Semantic analysis complete':['queued','running'].includes(run.status)?'Semantic analysis in progress':'Semantic analysis incomplete',detail:`${c.semanticPending} pending · ${c.semanticFailed} failed. Local candidate matches do not count as semantic completion.`}:null;
 }
 
 export default function ProcessingProgress({label='Processing',completed,total,detail,active=true}){
