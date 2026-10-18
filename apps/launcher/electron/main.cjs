@@ -11,6 +11,9 @@ const { createRuntimeLayout } = require('./runtime-layout.cjs');
 const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
 const { AiCredentialVault } = require('./ai-credential-vault.cjs');
 const { UpdateManager } = require('./update-manager.cjs');
+const { applyAppUpdate } = require('./app-update-runtime.cjs');
+let applyingUpdate = false;
+let updateRestartScheduled = false;
 const { AppWindowRegistry } = require('./app-window-registry.cjs');
 
 // The launcher UI does not require GPU acceleration; disabling it improves compatibility on headless and older Windows systems.
@@ -452,6 +455,7 @@ function requireLauncherWindow(event) {
 
 ipcMain.handle('updates:ready', async (event) => {
   requireLauncherWindow(event);
+  if (applyingUpdate) return false;
   await updateManager.confirmPending();
   return true;
 });
@@ -465,19 +469,44 @@ ipcMain.handle('updates:check', async (event) => {
 ipcMain.handle('updates:install', async (event) => {
   requireLauncherWindow(event);
   if (!app.isPackaged) throw new Error('Updates can only be installed by the packaged Launcher');
+  if (applyingUpdate) throw new Error('An update is already being applied.');
+  applyingUpdate = true;
   const sender = event.sender;
-  const result = await updateManager.install(progress => {
-    if (!sender.isDestroyed()) sender.send('updates:progress', progress);
-  });
-  if (!result.restartRequired) return result;
-  setTimeout(async () => {
-    await supervisedApps.stopAll().catch(() => {});
-    if (postgres?.state) await postgres.backup().catch(() => {});
-    await postgres?.stop().catch(() => {});
-    app.relaunch();
-    app.exit(0);
-  }, 500);
-  return { ...result, restartScheduled: true };
+  const progress = value => { if (!sender.isDestroyed()) sender.send('updates:progress', value); };
+  try {
+    const result = await updateManager.install(progress);
+    if (!result.restartRequired) return result;
+    const applied = await applyAppUpdate(result, {
+      status: id => { try { return supervisedApps.status(id); } catch { return {state:'stopped'}; } },
+      stop: id => supervisedApps.stop(id),
+      refreshRoots: async ids => { const roots=updateManager.activeRoots(); layout=Object.freeze({...layout,...Object.fromEntries(ids.map(id=>[id+'Root',roots[id]||path.join(process.resourcesPath,'apps',id)]))}); },
+      start: id => id==='researched' ? startResearched() : startDressed(),
+      reload: async id => { const window=activeAppWindow(id); if(window&&!window.isDestroyed()) await window.loadURL(supervisedApps.dashboardUrl(id)); },
+      confirm: () => updateManager.confirmPending(),
+      rollback: reason => updateManager.rollbackPending(reason),
+      progress: message => progress({phase:'complete',percent:100,message}),
+    });
+    if (applied) {
+      // Refresh older launcher UIs too, clearing their obsolete restart spinner.
+      setTimeout(() => { if(mainWindow&&!mainWindow.isDestroyed()) mainWindow.reload(); }, 500);
+      return applied;
+    }
+    updateRestartScheduled=true;
+    // Shared-runtime updates require a restart, not an unconditional full DB dump.
+    setTimeout(async () => {
+      try {
+        await supervisedApps.stopAll();
+        await postgres?.stop();
+        app.relaunch();
+        app.exit(0);
+      } catch(error) {
+        updateRestartScheduled=false;
+        applyingUpdate=false;
+        progress({phase:'error',percent:100,message:'Restart failed: '+error.message});
+      }
+    }, 500);
+    return { ...result, restartScheduled: true };
+  } finally { if(!updateRestartScheduled) applyingUpdate=false; }
 });
 
 ipcMain.handle('platform:session', async () => {

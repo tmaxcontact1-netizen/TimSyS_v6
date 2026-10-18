@@ -30,7 +30,8 @@ export default function UpdatePrompt() {
     try {
       const result = await window.electronAPI.updates.install();
       if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.');
-      reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' });
+      reportActionFeedback({ method: 'POST', phase: 'success', message: result.appliedWithoutRestart ? 'App updated. Other applications stayed running.' : 'Update installed and verified. Restarting TimSyS…' });
+      if(result.appliedWithoutRestart || !result.restartRequired) {setBusy(false);setDismissed(true);}
     } catch (failure) {
       setBusy(false);
       setError(failure.message || 'The update could not be installed.');
@@ -55,7 +56,7 @@ export default function UpdatePrompt() {
         </div>
         {progress.totalBytes > 0 && <p className="mt-2 text-xs text-gray-500">{size(progress.downloadedBytes)} of {size(progress.totalBytes)} downloaded</p>}
       </div>}
-      <p className="mt-4 text-xs leading-5 text-gray-500">The launcher will restart after installation. Your records, photos, documents and settings will not be replaced.</p>
+      <p className="mt-4 text-xs leading-5 text-gray-500">Independent app updates restart only the updated app. Shared-service updates may restart the launcher. Your records and settings are preserved.</p>
       <footer className="mt-6 flex justify-end gap-3">
         <button type="button" disabled={busy} onClick={() => setDismissed(true)} className="rounded-lg border border-gray-700 px-4 py-2 text-sm font-semibold text-gray-300 hover:bg-gray-800 disabled:opacity-50">Not now</button>
         <button type="button" disabled={busy} onClick={install} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-500 disabled:cursor-wait disabled:opacity-60">{busy ? 'Installing…' : 'Install update'}</button>

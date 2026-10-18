@@ -125,7 +125,7 @@ class UpdateManager {
       nextState.updatedAt = new Date().toISOString();
       await this.writeState(nextState);
       this.state = nextState;
-      report('complete', 100, 'Update installed. Restarting TimSyS…');
+      report('complete', 100, 'Update verified. Applying changes…');
       return { installed: wanted.map(({ id, version }) => ({ id, version })), restartRequired: true };
     } finally { await fsp.rm(transaction, { recursive: true, force: true }).catch(() => {}); }
   }
