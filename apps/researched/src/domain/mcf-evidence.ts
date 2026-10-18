@@ -1,3 +1,4 @@
+import {suspectedCompilation} from './review-boundaries.js';
 import {evidenceCounts} from './evidence-summary.js';
 export {evidenceCounts} from './evidence-summary.js';
 import {z} from 'zod';
@@ -6,7 +7,7 @@ export const EVIDENTIAL_PROTOCOL=2;
 export const EVIDENTIAL_RULES=`Assess all 21 competencies for every TARGET unit. Explicit means the target alone contains sufficient meaning; its application remains defensible without surrounding text. Contextual means the target supports the application only when interpreted with relevant permitted units from the SAME individual review. These are equally valid supported applications, never confidence levels. Use antecedents, pronouns, contrasts, examples and cumulative narrative where relevant. For Contextual cite every additional unit actually relied on and explain what it establishes. Never infer an application merely because another unit discusses a competency. Do not cross review boundaries. Return codes only for supported applications; omitted competencies mean No application after assessing the target and all supplied permitted context. Return exactly the requested TARGET IDs, not context-only units. Preserve valence independently. Evidence must be an exact target quotation. Context quotations must be exact substrings of their cited units.`;
 export const contextReference=z.object({unitId:z.uuid(),quote:z.string().min(1)}).strict();
 export const evidentialResponse=z.object({units:z.array(z.object({unitId:z.uuid(),codes:z.array(z.object({competencyId:z.enum(MCF.competencies.map(c=>c.id) as [string,...string[]]),evidenceStrength:z.enum(['Explicit','Contextual']),context:z.array(contextReference),valence:z.enum(['positive','negative','neutral-descriptive','mixed-ambiguous']).nullable(),rationale:z.string().trim().min(1).max(5000),evidence:z.string().min(1).max(20000)}).strict()).max(21),valence:z.enum(['positive','negative','neutral-descriptive','mixed-ambiguous']).nullable(),notes:z.string().max(10000)}).strict()).min(1).max(6)}).strict();
-export function confirmedReview(record:any,configuration:any){return !!record?.locator?.profile||configuration?.reviewBoundariesConfirmed===true;}
+export function confirmedReview(record:any,configuration:any){return !!record?.locator?.profile||(!suspectedCompilation(record?.original_text??'')&&configuration?.reviewBoundariesConfirmed===true);}
 export function validateContext(codes:any[],target:any,pool:any[]){
  for(const code of codes){
   if(code.evidenceProtocol!==2)continue;

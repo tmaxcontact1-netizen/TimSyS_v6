@@ -47,3 +47,9 @@ describe("AI analysis boundary",()=>{
     expect(await inspectAiConnection({protocol:"generic-json",model:"custom",baseUrl:"https://models.example.test/analyse"})).toMatchObject({status:"unsupported",models:[]});
   });
 });
+
+it('retains bounded HTTP diagnostics without provider prose or echoed secrets',async()=>{
+ const provider=new OpenAiResponsesAnalysisProvider('test',{baseUrl:'https://example.test',fetch:async()=>new Response(JSON.stringify({error:{code:'bridge_unavailable',type:'gateway_error',message:'secret-key and corpus content'}}),{status:502,headers:{'x-request-id':'request-123'}})});
+ const error:any=await provider.analyse({requestId:source,analysisType:'test',instructions:'Test',evidence:[]}).catch(e=>e);
+ expect(error.message).toBe('ai_provider_http_502');expect(error.diagnostics).toMatchObject({httpStatus:502,requestId:'request-123',upstreamCode:'bridge_unavailable',upstreamType:'gateway_error'});expect(error.diagnostics.bodyPrefixDigest).toMatch(/^[a-f0-9]{64}$/);expect(JSON.stringify(error)).not.toContain('secret-key');expect(JSON.stringify(error)).not.toContain('corpus content');
+});

@@ -17,7 +17,13 @@ const resultSchema=(value:Record<string,unknown>={type:"object",additionalProper
 const systemInstruction="Use only the supplied evidence. Return valid JSON matching the requested schema. Cite only supplied segmentId values. State limitations rather than guessing.";
 function safeEndpoint(baseUrl:string,path:string,protocol:AiProtocol){const endpoint=new URL(path,baseUrl),local=["localhost","127.0.0.1","::1","[::1]"].includes(endpoint.hostname);if(endpoint.protocol!=="https:"&&!(local&&endpoint.protocol==="http:"))throw new Error("ai_provider_requires_https_or_loopback");if(protocol==="generic-json"&&endpoint.pathname==="/")throw new Error("generic_ai_endpoint_path_required");return endpoint}
 function jsonText(value:string){return groundedAnalysisResponse.parse(JSON.parse(value.trim().replace(/^```(?:json)?\s*/i,"").replace(/\s*```$/, "")))}
-async function boundedJson(response:Response){if(!response.ok)throw new Error(`ai_provider_http_${response.status}`);const declared=Number(response.headers.get("content-length")??0);if(declared>2_000_000)throw new Error("ai_provider_response_too_large");const text=await response.text();if(Buffer.byteLength(text)>2_000_000)throw new Error("ai_provider_response_too_large");try{return JSON.parse(text)}catch{throw new Error("ai_provider_invalid_json")}}
+async function boundedJson(response:Response){if(!response.ok){
+ const safe=(v:unknown)=>typeof v==='string'&&/^[a-zA-Z0-9_.:-]{1,160}$/.test(v)?v:null;
+ // Never retain arbitrary provider prose, echoed evidence, credentials or URLs.
+ let body='';const reader=response.body?.getReader();if(reader){try{let size=0;while(size<8192){const next=await reader.read();if(next.done)break;const chunk=next.value.subarray(0,8192-size);size+=chunk.length;body+=new TextDecoder().decode(chunk);}}finally{await reader.cancel().catch(()=>{});}}
+ let detail:any;try{detail=JSON.parse(body);}catch{}
+ const error=Object.assign(new Error(`ai_provider_http_${response.status}`),{diagnostics:{httpStatus:response.status,requestId:safe(response.headers.get('x-request-id')??response.headers.get('request-id')),upstreamCode:safe(detail?.error?.code),upstreamType:safe(detail?.error?.type),bodyPrefixDigest:body?createHash('sha256').update(body).digest('hex'):null,message:'Provider rejected the request; free-text response omitted for privacy.'}});throw error;
+ }const declared=Number(response.headers.get("content-length")??0);if(declared>2_000_000)throw new Error("ai_provider_response_too_large");const text=await response.text();if(Buffer.byteLength(text)>2_000_000)throw new Error("ai_provider_response_too_large");try{return JSON.parse(text)}catch{throw new Error("ai_provider_invalid_json")}}
 function discoveryRequest(configuration:AiProviderConfiguration){
   if(configuration.protocol==="generic-json") return null;
   const anthropic=configuration.protocol==="anthropic-messages";

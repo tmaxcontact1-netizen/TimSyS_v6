@@ -1,3 +1,5 @@
+import directorProfile from '../../analysis-config/compiled-review/director-1.0.json' with {type:'json'};
+import {suspectedCompilation} from '../domain/review-boundaries.js';
 import profile from '../../analysis-config/compiled-review/1.0.json' with {type:'json'};
 import JSZip from 'jszip';
 import {load} from 'cheerio';
@@ -30,9 +32,11 @@ export async function inspectCompiledDocx(bytes:Buffer):Promise<StructuralPrevie
  });
  if(blocks.reduce((n,b)=>n+b.text.length,0)>5_000_000)throw Error('import_record_limit');
  if($('w\\:drawing,w\\:pict,w\\:altChunk,w\\:ins,w\\:del,w\\:tbl w\\:tbl').length)warnings.push('nonstandard_content_requires_original_document_review');
- const header=new RegExp(QUESTIONNAIRE_PROFILE.heading,'i'),editorial=new RegExp(QUESTIONNAIRE_PROFILE.editorial,'i');
+ const directorMatch=(b:DocBlock)=>b.kind==='table'&&directorProfile.labels.every(label=>(b.rows??[]).flat().flatMap(c=>c.split(/\r?\n/)).map(normal).includes(label));
+ const selected=blocks.some(directorMatch)?directorProfile:QUESTIONNAIRE_PROFILE;
+ const header=new RegExp(selected.heading,'i'),editorial=new RegExp(QUESTIONNAIRE_PROFILE.editorial,'i');
  const anchors:number[]=[];
- for(const b of blocks){if(b.kind!=='table'||normal(blocks[b.index+1]?.text??'')!==QUESTIONNAIRE_PROFILE.comments)continue;
+ for(const b of blocks){if(selected.id===directorProfile.id){if(directorMatch(b)){anchors.push(b.index);b.component='questionnaire';}else if(b.kind==='paragraph'&&directorProfile.narrativeHeadings.includes(normal(b.text)))b.component='marker';continue;}if(b.kind!=='table'||normal(blocks[b.index+1]?.text??'')!==QUESTIONNAIRE_PROFILE.comments)continue;
   const labels=b.rows?.map(r=>normal(r[0]??''))??[];
   const signature=QUESTIONNAIRE_PROFILE.labels.every(label=>labels.includes(label));
   const previous=blocks.slice(Math.max(0,b.index-3),b.index);
@@ -42,12 +46,14 @@ export async function inspectCompiledDocx(bytes:Buffer):Promise<StructuralPrevie
  const starts=anchors.map((a,i)=>{let start=a;for(let j=a-1;j>(anchors[i-1]??-1);j--){const t=normal(blocks[j]!.text);if(!t||editorial.test(t)){start=j;continue;}if(header.test(t)){start=j;blocks[j]!.component='heading';}break;}return start;});
  if(starts.length&&starts[0]!>0){warnings.push('leading_content_requires_boundary_review');starts[0]=0;}
  for(const b of blocks)if(b.kind==='paragraph'&&editorial.test(normal(b.text))&&anchors.some(a=>b.index<a&&starts[anchors.indexOf(a)]!<=b.index))b.component='editorial';
- const candidates=starts.map((start,i)=>describeCandidate(blocks,start,starts[i+1]??blocks.length));
+ let candidates=starts.map((start,i)=>describeCandidate(blocks,start,starts[i+1]??blocks.length));
+ if(selected.id===directorProfile.id)for(const c of candidates){if(c.warnings.every(w=>w==='missing_review_heading'))c.confidence='high';const q=blocks.slice(c.start,c.end).find(b=>b.component==='questionnaire');if(directorProfile.optionalLabels.some(label=>!(q?.rows??[]).flat().flatMap(t=>t.split(/\r?\n/)).map(normal).includes(label))){c.warnings.push('optional_questionnaire_fields_missing');c.confidence='review-required';}}
  if(!candidates.length)warnings.push('no_matching_review_candidates');
  if(blocks.some(b=>b.text.includes('\uFFFD')))warnings.push('replacement_characters_preserved');
  if(candidates.some(c=>!c.heading))warnings.push('missing_headings_require_researcher_review');
  warnings.push('Institution identity is not inferred from narrative mentions. Heading names and periods retain their source meaning without author/date assumptions.');
- const payload={profile:QUESTIONNAIRE_PROFILE,blocks,candidates,warnings};
+ let chosen=selected;if(!candidates.length&&suspectedCompilation(blocks.map(b=>b.text).join('\n'))){chosen={...QUESTIONNAIRE_PROFILE,id:'manual-review-boundaries'};candidates=[describeCandidate(blocks,0,blocks.length)];warnings.push('suspected_compilation_requires_manual_boundaries');}
+ const payload={profile:chosen,blocks,candidates,warnings};
  return{...payload,hash:createHash('sha256').update(JSON.stringify(payload)).digest('hex')};
 }
 
@@ -78,7 +84,7 @@ export function mapCompiledRecords(preview:StructuralPreview,input:z.infer<typeo
  let next=0;
  const records=input.records.map((r,i)=>{
   if(r.start!==next||r.end<=r.start||r.end>preview.blocks.length)throw Error('boundaries_must_partition_all_source_blocks');next=r.end;
-  const metadata=describeCandidate(preview.blocks,r.start,r.end),components=preview.blocks.slice(r.start,r.end),spans:{block:number;start:number;end:number}[]=[];let text='';
+  const metadata=describeCandidate(preview.blocks,r.start,r.end),components=preview.blocks.slice(r.start,r.end);if(components.filter(b=>b.component==='questionnaire').length>1||suspectedCompilation(components.map(b=>b.text).join('\n')))throw Error('Each mapped record must contain one individual review; split the remaining compiled reviews.');const spans:{block:number;start:number;end:number}[]=[];let text='';
   for(const b of components){if(!(r.include as string[]).includes(b.component)||!b.text)continue;if(text)text+='\n\n';const start=text.length;text+=b.text;spans.push({block:b.index,start,end:text.length});}
   if(!text.trim())throw Error('selected_components_have_no_text');if(text.includes('\0'))throw Error('text_contains_null_character');
   return{text,institution:r.institution.name,reviewIdentifier:metadata.originalReviewNumber??`source-block:${r.start+1}`,reviewCategory:category,

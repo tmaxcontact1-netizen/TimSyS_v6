@@ -7,7 +7,7 @@ const p=(s:string)=>`<w:p><w:r><w:t xml:space="preserve">${escape(s)}</w:t></w:r
 const table=()=>'<w:tbl>'+['Academic integrity of school','Effectiveness of administration','Academic and disciplinary support provided',"Director's involvement in academics",'Average Score for Review'].map(s=>`<w:tr><w:tc>${p(s)}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`).join('')+'</w:tbl>';
 const review=(header:string|null,text='A shared narrative.')=>(header?p(header):'')+table()+p('Comments:')+p(text);
 async function doc(body:string){const zip=new JSZip();zip.file('word/document.xml',`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`);return inspectCompiledDocx(await zip.generateAsync({type:'nodebuffer'}));}
-function mapping(d:Awaited<ReturnType<typeof doc>>){return structuralMappingInput.parse({profile:'legacy-questionnaire@1.0',hash:d.hash,previousMappingId:null,reason:'Pilot',records:d.candidates.map(c=>({start:c.start,end:c.end,confirmed:true,institution:{state:'unassigned',name:''},include:['narrative']}))});}
+function mapping(d:Awaited<ReturnType<typeof doc>>){return structuralMappingInput.parse({profile:`${d.profile.id}@${d.profile.version}`,hash:d.hash,previousMappingId:null,reason:'Pilot',records:d.candidates.map(c=>({start:c.start,end:c.end,confirmed:true,institution:{state:'unassigned',name:''},include:['narrative']}))});}
 
 describe('legacy questionnaire profile',()=>{
  it('extracts a headed review without assigning author or publication date',async()=>{const d=await doc(review('Review 07)  A Person  2020  -  2021'));expect(d.candidates[0]).toMatchObject({originalReviewNumber:'07',headingNameRaw:'A Person',periodRaw:'2020  -  2021',confidence:'high'});expect(d.candidates[0]).not.toHaveProperty('author');});
@@ -29,3 +29,17 @@ describe('legacy questionnaire profile',()=>{
  it('ignores unrelated tables and preserves unmatched leading content for review',async()=>{const d=await doc(p('Compilation introduction.')+review(null));expect(d.warnings).toContain('leading_content_requires_boundary_review');expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toContain('Compilation introduction.');});
  it('does not split a narrative sentence mentioning a review number',async()=>{const d=await doc(review('Review 1) 2020')+p('I disagree with Review 2) and its description.')+review(null));expect(d.candidates).toHaveLength(2);expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toContain('I disagree');});
 });
+
+const directorTable=()=>'<w:tbl>'+['Characteristics:','Fair','Genuine','Flexible','Consistent','Transparent','A Person of Integrity','A Person who acts with respect','Overall Rating to nearest number','Experience with this Director'].map(s=>`<w:tr><w:tc>${p(s)}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`).join('')+'</w:tbl>';
+describe('Director questionnaire and boundary guard',()=>{
+ it('detects headed and unheaded reviews without a Comments marker, preserving repeated wording',async()=>{
+  const d=await doc(p('Review 1) Person 2020')+directorTable()+p('After the Interview')+p('A shared narrative.')+directorTable()+p('Additional Comments, most outstanding characteristic of this director, etc.')+p('A shared narrative.'));
+  expect(d.profile.id).toBe('director-questionnaire');expect(d.candidates).toHaveLength(2);expect(d.candidates[1]?.originalReviewNumber).toBeNull();
+  const records=mapCompiledRecords(d,mapping(d),'Director');expect(records.map(r=>r.text)).toEqual(['A shared narrative.','A shared narrative.']);expect(records.every(r=>r.locator.institution.state==='unassigned')).toBe(true);
+  expect(d.blocks.filter(b=>b.component==='questionnaire')).toHaveLength(2);expect(d.blocks.filter(b=>b.component==='marker')).toHaveLength(2);
+ });
+ it('blocks a researcher merge that would recreate a compiled context boundary',async()=>{const d=await doc(directorTable()+p('First.')+directorTable()+p('Second.')),m=mapping(d);m.records=[{...m.records[0]!,end:d.blocks.length}];expect(()=>mapCompiledRecords(d,m,'Director')).toThrow('one individual review');});
+ it('keeps unmatched structures for manual splitting rather than declaring a single review',async()=>{const d=await doc(p('Characteristics:')+p('First.')+p('Characteristics:')+p('Second.'));expect(d.profile.id).toBe('manual-review-boundaries');expect(d.warnings).toContain('suspected_compilation_requires_manual_boundaries');expect(()=>mapCompiledRecords(d,mapping(d),'')).toThrow('one individual review');});
+});
+
+it('recognises the Director questionnaire when its optional rating row is absent',async()=>{const d=await doc(directorTable().replace(`<w:tr><w:tc>${p('Overall Rating to nearest number')}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`,'')+p('Narrative.')+directorTable()+p('Other narrative.'));expect(d.candidates).toHaveLength(2);expect(d.candidates[0]?.warnings).toContain('optional_questionnaire_fields_missing');expect(mapCompiledRecords(d,mapping(d),'Director')).toHaveLength(2);});

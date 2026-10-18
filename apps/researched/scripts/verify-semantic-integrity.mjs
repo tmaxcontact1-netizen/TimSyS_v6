@@ -53,6 +53,35 @@ try{
  const recoveringWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>recoveringProvider),recovered=await recoveringWorker.enqueue(session.id,'classification',actor,[],false);
  for(let i=0;i<5;i++){await db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[recovered.id]);await recoveringWorker.process();}
  const recoveredView=(await recoveringWorker.overview(session.id)).runs.find(r=>r.id===recovered.id);assert.equal(recoveredView.status,'completed');assert.equal(recoveredView.coverage.semanticAssessed,14);assert.equal(recoveredView.attempts.filter(a=>a.outcome==='semantic_failed').length,2);assert.equal(Math.max(...recoveredView.attempts.map(a=>a.attempt)),3);pass('Malformed AI schemas recover within three attempts and only fully assessed runs become complete');
+
+ // Systemic provider failure: only the first batch is allowed to establish readiness.
+ let gatewayCalls=0;const gatewayProvider={...provider,async analyse(){gatewayCalls++;throw Object.assign(Error('ai_provider_http_502'),{diagnostics:{httpStatus:502,requestId:'synthetic-request',upstreamCode:'fixture_gateway'}});}};
+ const gatewayWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>gatewayProvider),gatewayRun=await gatewayWorker.enqueue(session.id,'classification',actor,[],false);
+ for(let i=0;i<7;i++){await db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[gatewayRun.id]);await gatewayWorker.process();}
+ const gatewayView=(await gatewayWorker.overview(session.id)).runs.find(r=>r.id===gatewayRun.id);
+ assert.equal(gatewayCalls,3);assert.equal(gatewayView.status,'failed');assert.equal(gatewayView.coverage.semanticFailed,6);assert.equal(gatewayView.coverage.semanticPending,8);assert.equal(gatewayView.coverage.semanticAssessed,0);assert.equal(gatewayView.attempts.length,3);assert.ok(gatewayView.attempts.every(a=>a.failure_category==='provider'&&a.diagnostics.httpStatus===502));
+ pass('Three gateway failures stop the run after the first batch; remaining units stay pending and diagnostics survive export');
+ const failureAudit=JSON.stringify(gatewayView.attempts);await worker.resume(session.id,gatewayRun.id,actor);await worker.process();await worker.process();await worker.process();
+ const gatewayRecovered=(await worker.overview(session.id)).runs.find(r=>r.id===gatewayRun.id);assert.equal(gatewayRecovered.coverage.semanticAssessed,14);assert.equal(JSON.stringify(gatewayRecovered.attempts.filter(a=>a.cycle===1)),failureAudit);
+ pass('Explicit recovery retains every failed attempt and assesses only unresolved work');
+
+ let laterCalls=0;const laterProvider={...provider,async analyse(request){if(laterCalls++===0)return provider.analyse(request);throw Error('ai_provider_http_502');}};
+ const laterWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>laterProvider),laterRun=await laterWorker.enqueue(session.id,'classification',actor,[],false);await laterWorker.process();
+ const savedSuccess=(await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE run_id=$1',[laterRun.id])).rows;
+ for(let i=0;i<7;i++){await db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[laterRun.id]);await laterWorker.process();}
+ const laterView=(await laterWorker.overview(session.id)).runs.find(r=>r.id===laterRun.id);assert.equal(laterCalls,4);assert.equal(laterView.status,'partial');assert.equal(laterView.coverage.semanticAssessed,6);assert.equal(laterView.coverage.semanticFailed+laterView.coverage.semanticPending,8);
+ await worker.resume(session.id,laterRun.id,actor);await worker.process();await worker.process();assert.equal((await worker.overview(session.id)).runs.find(r=>r.id===laterRun.id).coverage.semanticAssessed,14);assert.deepEqual((await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE id=$1',[savedSuccess[0].id])).rows,savedSuccess);
+ pass('Provider outage after readiness pauses at three consecutive failures and retains successful results byte-for-byte through resume');
+ const badProvider={...provider,async analyse(){return{value:{units:[]},confidence:1,evidenceSegmentIds:originalUnits.map(u=>u.id),limitations:[]};}},badWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>badProvider),badRun=await badWorker.enqueue(session.id,'classification',actor,[],false);
+ for(let i=0;i<6;i++){await db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[badRun.id]);await badWorker.process();}
+ const badView=(await badWorker.overview(session.id)).runs.find(r=>r.id===badRun.id);assert.equal(badView.attempts.length,3);assert.equal(badView.coverage.semanticPending,8);assert.equal(badView.status,'failed');
+ pass('A provider that cannot return a valid initial structured result never releases the rest of the corpus');
+ // Simulate a historical population whose record was imported using the old generic path.
+ const oldDataset=await call('/api/mcf/datasets',{title:'Old compiled audit fixture',mode:'general',reviewCategory:'',actor},201);
+ const oldText='Characteristics:\nFirst review.\nExperience with this Director\nCharacteristics:\nSecond review.\nExperience with this Director';
+ const oldUpload=await fetch(base+'/api/mcf/datasets/'+oldDataset.id+'/imports?filename=old.txt&actor='+encodeURIComponent(actor),{method:'POST',body:oldText}),oldImport=await oldUpload.json();
+ const blocked=await fetch(base+'/api/mcf/imports/'+oldImport.id+'/map',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({actor})});assert.ok(blocked.status>=400);assert.match(JSON.stringify(await blocked.json()),/Review boundaries required/);
+ pass('Compiled source cannot fall through generic mapping before population creation');
  const frozen=await readFile(join(root,'instruments/mcf/1.0.json'));const digest=createHash('sha256').update(frozen).digest('hex');
  await call('/api/workbench/'+project.id+'/delete',{revision:confirmed.revision});assert.equal((await db.query('SELECT count(*)::int AS n FROM researched.mcf_semantic_attempts')).rows[0].n,0);assert.equal((await db.query('SELECT count(*)::int AS n FROM researched.mcf_report_snapshots')).rows[0].n,0);pass('Permanent project deletion also removes candidate, retry and report-snapshot records');
  await writeFile(join(output,'verification.json'),JSON.stringify({passedAt:new Date().toISOString(),checks,externalModelCalls:0,liveDatabaseAccess:false,DirectorRerun:false,instrumentFileSha256:digest,successfulSyntheticRequestDurationsMs:partial.attempts.filter(a=>a.outcome==='semantic_success').map(a=>a.duration_ms)},null,2));
