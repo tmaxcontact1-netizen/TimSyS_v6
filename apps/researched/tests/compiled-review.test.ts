@@ -43,3 +43,20 @@ describe('Director questionnaire and boundary guard',()=>{
 });
 
 it('recognises the Director questionnaire when its optional rating row is absent',async()=>{const d=await doc(directorTable().replace(`<w:tr><w:tc>${p('Overall Rating to nearest number')}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`,'')+p('Narrative.')+directorTable()+p('Other narrative.'));expect(d.candidates).toHaveLength(2);expect(d.candidates[0]?.warnings).toContain('optional_questionnaire_fields_missing');expect(mapCompiledRecords(d,mapping(d),'Director')).toHaveLength(2);});
+import {nextUnchecked,reconcileReviewBreaks} from '../frontend/src/workbench/review-navigation.js';
+const principalTable=()=>'<w:tbl>'+['Fair & equitable with all staff','Good listener, easily approachable','Provides disciplinary support','Displays effective leadership','Delegates responsibility well','Demonstrates curriculum knowledge','Fosters positive, supportive climate','Strong ability to relate to kids',"Principal's level of responsibility"].map(s=>`<w:tr><w:tc>${p(s)}</w:tc><w:tc>${p('')}</w:tc></w:tr>`).join('')+'</w:tbl>';
+it('splits mixed Director and Principal questionnaires and excludes headings and ratings from narrative',async()=>{
+ const d=await doc(directorTable()+p('Director narrative.')+principalTable()+p('Management style')+p('Principal narrative.')+directorTable()+p('Final narrative.'));
+ expect(d.profile.version).toBe('1.1');expect(d.candidates).toHaveLength(3);expect(d.candidates.every(c=>c.confidence==='high')).toBe(true);
+ expect(mapCompiledRecords(d,mapping(d),'').map(r=>r.text)).toEqual(['Director narrative.','Principal narrative.','Final narrative.']);
+ const m=mapping(d);m.records=[{...m.records[0]!,end:m.records[1]!.end},m.records[2]!];expect(()=>mapCompiledRecords(d,m,'')).toThrow('one individual review');
+ const repaired=reconcileReviewBreaks(m.records,d);expect(repaired.map(r=>r.confirmed)).toEqual([false,false,true]);expect(nextUnchecked(repaired)).toBe(0);expect(nextUnchecked([{confirmed:true},{confirmed:false},{confirmed:true},{confirmed:false}],1)).toBe(3);expect(nextUnchecked([{confirmed:false},{confirmed:true}],1)).toBe(0);
+ expect(reconcileReviewBreaks(repaired,d)).toEqual(repaired);
+});
+it('does not invent missing rating data or make it a boundary blocker',async()=>{
+ const d=await doc(directorTable().replace(`<w:tr><w:tc>${p('Overall Rating to nearest number')}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`,'')+p('Narrative.'));
+ expect(d.candidates[0]?.confidence).toBe('high');expect(d.candidates[0]?.warnings).toContain('optional_questionnaire_fields_missing');expect(d.blocks[0]?.text).not.toContain('Overall Rating');
+});
+it('retains unrecognised tables as review-required rather than guessing a Principal boundary',async()=>{
+ const d=await doc(directorTable()+p('Narrative.')+'<w:tbl><w:tr><w:tc>'+p('Management style')+'</w:tc></w:tr></w:tbl>');expect(d.candidates).toHaveLength(1);expect(d.candidates[0]?.confidence).toBe('review-required');
+});
