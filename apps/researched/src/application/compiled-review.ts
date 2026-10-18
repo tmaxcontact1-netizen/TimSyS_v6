@@ -82,6 +82,7 @@ export function describeCandidate(blocks:DocBlock[],start:number,end:number):Can
 export function mapCompiledRecords(preview:StructuralPreview,input:z.infer<typeof structuralMappingInput>,category:string){
  if(preview.hash!==input.hash)throw Error('stale_structural_preview');
  if(input.profile!==`${preview.profile.id}@${preview.profile.version}`)throw Error('structural_profile_mismatch');
+ if(input.documentComponents&&input.records.some(r=>[...r.include].sort().join()!==[...input.documentComponents!].sort().join()))throw Error('Use the same content selection for every review in this document.');
  let next=0;
  const records=input.records.map((r,i)=>{
   if(r.start!==next||r.end<=r.start||r.end>preview.blocks.length)throw Error('boundaries_must_partition_all_source_blocks');next=r.end;

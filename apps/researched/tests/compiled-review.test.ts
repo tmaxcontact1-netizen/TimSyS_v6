@@ -60,3 +60,8 @@ it('does not invent missing rating data or make it a boundary blocker',async()=>
 it('retains unrecognised tables as review-required rather than guessing a Principal boundary',async()=>{
  const d=await doc(directorTable()+p('Narrative.')+'<w:tbl><w:tr><w:tc>'+p('Management style')+'</w:tc></w:tr></w:tbl>');expect(d.candidates).toHaveLength(1);expect(d.candidates[0]?.confidence).toBe('review-required');
 });
+import {documentComponents,applyDocumentComponents} from '../frontend/src/workbench/review-navigation.js';
+it('defaults to narrative and questionnaire for every review and applies document choices uniformly',async()=>{
+ const d=await doc(directorTable()+p('First.')+directorTable()+p('Second.'));const records=reconcileReviewBreaks(undefined,d);expect(documentComponents(records)).toEqual(['narrative','questionnaire']);records[1]!.include=['narrative'];expect(documentComponents(records)).toBeNull();const all=applyDocumentComponents(records,['narrative','questionnaire']);expect(all.every(r=>r.include.includes('questionnaire'))).toBe(true);expect(records[1]!.include).toEqual(['narrative']);expect(all[0]!.confirmed).toBe(records[0]!.confirmed);
+ const m=mapping(d);m.documentComponents=['narrative','questionnaire'];expect(()=>mapCompiledRecords(d,m,'')).toThrow('same content selection');m.records=all.map(r=>({...r,confirmed:true})) as typeof m.records;expect(mapCompiledRecords(d,m,'').every(r=>r.text.includes('Fair\t7'))).toBe(true);
+});
