@@ -1,3 +1,5 @@
+import {McfValidation} from '../application/mcf-validation.js';
+import {validationPlan,validationJudgement} from '../domain/mcf-validation.js';
 import {competencyEvidenceCounts} from '../domain/mcf-evidence.js';
 import {machineReport} from '../application/mcf-report.js';
 import {McfAiWorker} from '../application/mcf-ai.js';
@@ -15,7 +17,7 @@ import {McfRepository} from '../infrastructure/mcf-repository.js';
 async function bytes(q:IncomingMessage,maximum=2_000_000){const chunks:Buffer[]=[];let size=0;for await(const part of q){const b=Buffer.from(part);size+=b.length;if(size>maximum)throw Error('request_too_large');chunks.push(b);}return Buffer.concat(chunks);}
 async function body(q:IncomingMessage){try{return JSON.parse((await bytes(q)).toString('utf8'));}catch(e){if(e instanceof Error&&e.message==='request_too_large')throw e;throw Error('invalid_json');}}
 export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:string,getProvider:()=>AiAnalysisProvider|null=()=>null,background=false){
- const repo=new McfRepository(database,storageRoot),lifecycle=new McfLifecycle(repo),worker=new McfAiWorker(repo,getProvider);
+ const repo=new McfRepository(database,storageRoot),validation=new McfValidation(repo),lifecycle=new McfLifecycle(repo),worker=new McfAiWorker(repo,getProvider);
  if(background)void worker.start().catch(e=>{worker.error=e.message;});
  const send=(r:ServerResponse,status:number,value:unknown)=>{r.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});r.end(JSON.stringify(value));};
  const handle=async(q:IncomingMessage,r:ServerResponse):Promise<boolean>=>{
@@ -49,6 +51,18 @@ export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:s
    if(resource==='records'){
     if(!action&&method==='GET'){send(r,200,await repo.record(id,url.searchParams.has('unitSet')?z.uuid().parse(url.searchParams.get('unitSet')):undefined));return true;}
     if(action==='segment'&&method==='POST'){send(r,201,await repo.segment(id,segmentInput.parse(await body(q))));return true;}
+   }
+   if(resource==='sessions'&&action==='review-report'&&method==='GET'){send(r,200,await validation.reviewReport(id,z.uuid().parse(url.searchParams.get('runId'))));return true;}
+   if(resource==='sessions'&&action==='validation'){
+    if(method==='GET'){send(r,200,await validation.list(id));return true;}
+    if(method==='POST'){const value=z.object({runId:z.uuid(),plan:validationPlan,preview:z.boolean()}).strict().parse(await body(q));send(r,value.preview?200:201,value.preview?await validation.preview(id,value.runId,value.plan):await validation.create(id,value.runId,value.plan));return true;}
+   }
+   if(resource==='validation'){
+    if(method==='POST'&&action==='reveal'){const v=z.object({actor}).strict().parse(await body(q));send(r,200,await validation.reveal(id,v.actor));return true;}
+    if(method==='DELETE'){const v=z.object({actor}).strict().parse(await body(q));send(r,200,await validation.remove(id,v.actor));return true;}
+
+    if(method==='GET'){send(r,200,await validation.view(id));return true;}
+    if(method==='POST'&&action==='judgements'&&child){send(r,201,await validation.judge(id,child,validationJudgement.parse(await body(q))));return true;}
    }
    if(resource==='sessions'&&action==='ai'){
     if(method==='GET'){send(r,200,{...await worker.overview(id),workerError:worker.error});return true;}
