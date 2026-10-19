@@ -43,3 +43,8 @@ Read-only inspection on 2026-10-18 identified 76 Director candidates: 74 clear, 
 Three finite attempts use 120/180/210-second deadlines and unchanged 30/120-second retry delays. The shared AI bridge remains capped at 240 seconds. Explicit resume upgrades older execution limits with a previous/new-policy audit entry, without changing successful tasks or their results. Evidential protocol and MCF v1.0 remain frozen. See RELEASE_0.9.5.md for measured durations and rationale.
 
 Machine responses may repeat a contextual reference. Remove only exact (unit ID, quotation) duplicates within a competency; record each removed reference and its index in provenance. Retain distinct quotations from the same permitted unit with their exact offsets. All remaining evidential validation applies unchanged. No historical payload is normalized retrospectively.
+
+
+## Operational policy 6 (Research’Ed 0.9.7)
+
+Supersedes the first-batch gate and consecutive-provider-failure breaker described above. Every batch independently receives up to three attempts (120/180/210-second deadlines, 30/120-second retry delays). Ready later batches can proceed while earlier retries wait. Exhausted provider or response failures affect only their batch; the run settles as partial or failed after all remaining work settles. Authentication, changed/unavailable provider configuration and integrity/retention failures still require intervention. No deterministic substitution occurs. Explicit resume upgrades the scheduling policy only for unresolved work; successful outputs and attempt history remain unchanged. Installing this release never resumes a paused run.
