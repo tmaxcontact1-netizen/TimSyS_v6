@@ -8,6 +8,12 @@ export const EVIDENTIAL_RULES=`Assess all 21 competencies for every TARGET unit.
 export const contextReference=z.object({unitId:z.uuid(),quote:z.string().min(1)}).strict();
 export const evidentialResponse=z.object({units:z.array(z.object({unitId:z.uuid(),codes:z.array(z.object({competencyId:z.enum(MCF.competencies.map(c=>c.id) as [string,...string[]]),evidenceStrength:z.enum(['Explicit','Contextual']),context:z.array(contextReference),valence:z.enum(['positive','negative','neutral-descriptive','mixed-ambiguous']).nullable(),rationale:z.string().trim().min(1).max(5000),evidence:z.string().min(1).max(20000)}).strict()).max(21),valence:z.enum(['positive','negative','neutral-descriptive','mixed-ambiguous']).nullable(),notes:z.string().max(10000)}).strict()).min(1).max(6)}).strict();
 export function confirmedReview(record:any,configuration:any){return !!record?.locator?.profile||(!suspectedCompilation(record?.original_text??'')&&configuration?.reviewBoundariesConfirmed===true);}
+// Normalise transport repetition only, never invent, merge or discard distinct quotations.
+export function normalizeMachineContext(codes:any[]){
+ const removed:any[]=[];
+ const normalized=codes.map(code=>{const seen=new Set<string>();return{...code,context:(code.context??[]).filter((ref:any,index:number)=>{const key=JSON.stringify([ref.unitId,ref.quote]);if(seen.has(key)){removed.push({competencyId:code.competencyId,index,unitId:ref.unitId,quote:ref.quote});return false;}seen.add(key);return true;})};});
+ return{codes:normalized,normalization:{version:1,removedExactDuplicates:removed}};
+}
 export function validateContext(codes:any[],target:any,pool:any[]){
  for(const code of codes){
   if(code.evidenceProtocol!==2)continue;
@@ -15,7 +21,7 @@ export function validateContext(codes:any[],target:any,pool:any[]){
   const refs=code.context??[];
   if(code.evidenceStrength==='Contextual'&&(!refs.length||!code.rationale?.trim()))throw Error('Contextual application requires contextual evidence and a rationale.');
   if(code.evidenceStrength==='Explicit'&&refs.length)throw Error('Explicit application must be supported by the target alone.');
-  if(new Set(refs.map((r:any)=>r.unitId)).size!==refs.length)throw Error('Duplicate contextual unit.');
+  if(new Set(refs.map((r:any)=>JSON.stringify([r.unitId,r.quote]))).size!==refs.length)throw Error('Duplicate contextual quotation.');
   for(const ref of refs){const u=pool.find(u=>u.id===ref.unitId);if(!u||u.id===target.id||u.unit_set_id!==target.unit_set_id||!ref.quote||!u.original_text.includes(ref.quote))throw Error('Context must cite exact text from another permitted unit in the same review and segmentation version.');}
  }
 }

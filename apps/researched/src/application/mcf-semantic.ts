@@ -1,5 +1,5 @@
 import {semanticFailureCategory,safeFailureDiagnostics} from '../domain/semantic-failure.js';
-import {EVIDENTIAL_RULES,evidentialResponse,confirmedReview,retainContext} from '../domain/mcf-evidence.js';
+import {EVIDENTIAL_RULES,evidentialResponse,confirmedReview,retainContext,normalizeMachineContext} from '../domain/mcf-evidence.js';
 import {decisionInput,validateDecision} from '../domain/mcf.js';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
@@ -10,7 +10,8 @@ import {runGroundedAiAnalysis,type AiAnalysisProvider} from './ai-analysis.js';
 import {deterministicMcf,DETERMINISTIC_CONFIG,DETERMINISTIC_HASH} from './mcf-deterministic.js';
 import {proposalResponse,validateProposals} from './mcf-ai.js';
 
-export const SEMANTIC_POLICY=Object.freeze({version:4,providerFailureLimit:3,firstBatchGate:true,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:90000,maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:1});
+export const SEMANTIC_POLICY=Object.freeze({version:5,providerFailureLimit:3,firstBatchGate:true,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:1});
+export function semanticAttemptTimeout(policy:{timeoutMs:number;attemptTimeoutsMs?:readonly number[]},attempt:number){return policy.attemptTimeoutsMs?.[attempt-1]??policy.timeoutMs;}
 export function transientSemanticError(error:string){return /abort|timeout|timed out|429|(?:^|[_\s])5\d\d(?:$|\b)|fetch failed|network|econn|socket/i.test(error);}
 const identity=(p:AiAnalysisProvider|null)=>p?{id:p.id,model:p.model,connectionId:p.configurationId??null}:null;
 export class SemanticWorker{
@@ -53,8 +54,10 @@ export class SemanticWorker{
    if((await c.query("SELECT 1 FROM researched.mcf_ai_tasks WHERE run_id=$1 AND status='running'",[id])).rowCount)throw Error('Wait for the interrupted request to settle before resuming.');
    await c.query("UPDATE researched.mcf_semantic_tasks s SET cycle=cycle+1,next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE t.id=s.task_id AND t.run_id=$1 AND t.status<>'completed'",[id]);
    await c.query("UPDATE researched.mcf_ai_tasks SET status='queued',error=NULL WHERE run_id=$1 AND status<>'completed'",[id]);
-   await c.query("UPDATE researched.mcf_ai_runs SET status='queued',finished_at=NULL,configuration=jsonb_set(configuration,'{provider}',$2::jsonb) WHERE id=$1",[id,JSON.stringify(identity(provider))]);
-   await this.repo.audit(c,session.dataset_id,'mcf_semantic_resumed',id,actor,{policy:run.configuration.semanticPolicy,provider:identity(provider)});
+   // Upgrade execution limits only on explicit resume. Completed tasks and their outputs are immutable.
+   const policy=run.configuration.semanticPolicy.version<SEMANTIC_POLICY.version?{...run.configuration.semanticPolicy,version:SEMANTIC_POLICY.version,timeoutMs:SEMANTIC_POLICY.timeoutMs,attemptTimeoutsMs:SEMANTIC_POLICY.attemptTimeoutsMs}:run.configuration.semanticPolicy;
+   await c.query("UPDATE researched.mcf_ai_runs SET status='queued',finished_at=NULL,configuration=jsonb_set(jsonb_set(configuration,'{provider}',$2::jsonb),'{semanticPolicy}',$3::jsonb) WHERE id=$1",[id,JSON.stringify(identity(provider)),JSON.stringify(policy)]);
+   await this.repo.audit(c,session.dataset_id,'mcf_semantic_resumed',id,actor,{previousPolicy:run.configuration.semanticPolicy,policy,provider:identity(provider),successfulResultsPreserved:true});
   });return{resumed:true,id};
  }
  async cancel(sessionId:string,id:string){
@@ -87,15 +90,15 @@ export class SemanticWorker{
    if(modern&&(units.some(u=>u.unit_set_id!==units[0].unit_set_id)||units.some(u=>!pool.some(x=>x.id===u.id))))throw Error('Invalid same-review context population.');
    if(modern&&pool.reduce((n,u)=>n+u.original_text.length,0)>run.configuration.contextPolicy.maximumCharacters)throw Error('Review exceeds the permitted context budget. No context was truncated; assessment remains unresolved.');
    responsePhase=true;
-   const answer=await runGroundedAiAnalysis(provider,{requestId:attemptId,timeoutMs:policy.timeoutMs,analysisType:modern?'mcf-evidential-proposals.v2':run.configuration.classificationConfig.promptVersion,instructions:`${run.configuration.classificationConfig.rules}\nMode: ${session.mode}. ${modern?'TARGET unit IDs: '+JSON.stringify(units.map(u=>u.id)):'Return exactly one entry per supplied section.'} Frozen MCF instrument: ${JSON.stringify(MCF)}`,evidence:pool.map(u=>({segmentId:u.id,sourceId:u.unit_set_id,content:u.original_text})),outputSchema:z.toJSONSchema(modern?evidentialResponse:proposalResponse)});
+   const answer=await runGroundedAiAnalysis(provider,{requestId:attemptId,timeoutMs:semanticAttemptTimeout(policy,attempt),analysisType:modern?'mcf-evidential-proposals.v2':run.configuration.classificationConfig.promptVersion,instructions:`${run.configuration.classificationConfig.rules}\nCitation formatting: do not repeat an identical unit ID and quotation within a competency. Distinct exact quotations from the same permitted contextual unit may be cited separately.\nMode: ${session.mode}. ${modern?'TARGET unit IDs: '+JSON.stringify(units.map(u=>u.id)):'Return exactly one entry per supplied section.'} Frozen MCF instrument: ${JSON.stringify(MCF)}`,evidence:pool.map(u=>({segmentId:u.id,sourceId:u.unit_set_id,content:u.original_text})),outputSchema:z.toJSONSchema(modern?evidentialResponse:proposalResponse)});
    let proposals:any[];
    if(modern){
     const parsed=evidentialResponse.parse(answer.value);
     if(parsed.units.length!==units.length||new Set(parsed.units.map(u=>u.unitId)).size!==units.length||parsed.units.some(p=>!units.some(u=>u.id===p.unitId)))throw Error('incomplete_mcf_response');
-    proposals=parsed.units.map(p=>{const target=pool.find(u=>u.id===p.unitId);const codes=p.codes.map(c=>({...c,evidenceProtocol:2 as const}));const decision=decisionInput.parse({previousId:null,codes,valence:p.valence,notes:p.notes,reviewedNoCode:!codes.length,actor:'Machine proposal'});validateDecision(decision,target.original_text,session.mode);
+    proposals=parsed.units.map(p=>{const target=pool.find(u=>u.id===p.unitId);const {codes,normalization}=normalizeMachineContext(p.codes.map(c=>({...c,evidenceProtocol:2 as const})));const decision=decisionInput.parse({previousId:null,codes,valence:p.valence,notes:p.notes,reviewedNoCode:!codes.length,actor:'Machine proposal'});validateDecision(decision,target.original_text,session.mode);
      if(codes.length&&!answer.evidenceSegmentIds.includes(target.id))throw Error('unsupported_mcf_citation');
      if(codes.flatMap(c=>c.context).some(r=>!answer.evidenceSegmentIds.includes(r.unitId)))throw Error('unsupported_context_citation');
-     return{unitId:p.unitId,recordId:target.record_id,evidenceProtocol:2,codes:retainContext(codes,target,pool),noApplicationCompetencyIds:MCF.competencies.filter(c=>!codes.some(x=>x.competencyId===c.id)).map(c=>c.id),valence:p.valence,notes:p.notes,reviewedNoCode:!codes.length,provenance:{runId:run.id,attemptId,provider:identity(provider)}};
+     return{unitId:p.unitId,recordId:target.record_id,evidenceProtocol:2,codes:retainContext(codes,target,pool),noApplicationCompetencyIds:MCF.competencies.filter(c=>!codes.some(x=>x.competencyId===c.id)).map(c=>c.id),valence:p.valence,notes:p.notes,reviewedNoCode:!codes.length,provenance:{runId:run.id,attemptId,provider:identity(provider),normalization,semanticPolicyVersion:policy.version,timeoutMs:semanticAttemptTimeout(policy,attempt)}};
     });
    }else proposals=validateProposals(answer.value,units,session.mode,answer.evidenceSegmentIds);
    proposals=proposals.map(p=>({...p,method:'ai',pathway:p.codes.length?'semantic_success':'semantic_zero_code'}));

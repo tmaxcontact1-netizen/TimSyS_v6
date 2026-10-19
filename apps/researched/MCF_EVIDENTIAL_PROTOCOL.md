@@ -6,7 +6,7 @@ Explicit: target alone is sufficient. Contextual: target plus cited same-review 
 
 Confirm that each record is one individual review before new analysis. Confirmed structural mappings already establish boundaries. Generic imports require an explicit session-level researcher confirmation. Institution metadata does not define boundaries. Context uses all approved units in the frozen segmentation of the same record; excluded coding units are not silently reintroduced. Blind samples can access approved population context, without other researcher decisions or machine proposals.
 
-Requests contain at most six targets, plus the permitted same-review context. Reviews over 200,000 characters remain unresolved with an explicit error; context is never silently truncated. Existing finite retry/timeout policy remains unchanged. Model classification is not guaranteed correct; the software enforces scope, citations and retention.
+Requests contain at most six targets, plus the permitted same-review context. Reviews over 200,000 characters remain unresolved with an explicit error; context is never silently truncated. Operational retry limits are separately versioned (see policy 5 below). Model classification is not guaranteed correct; the software enforces scope, citations and retention.
 
 Context references retain unit IDs, exact quotations, review ID, segmentation set ID and UTF-16 offsets. Run/output links retain provider, model, attempt and run provenance. Manual decisions retain actor, timestamp and append-only revision provenance.
 
@@ -15,6 +15,8 @@ Historical Explicit/Implicit codes retain their original labels and protocol. Th
 Counts are competency applications at target evidence locations, not independent observations or institution/domain scores. Total supported = Explicit + Contextual. Percentages use this total; empty denominators are N/A. All 21 competencies remain separate.
 
 ## Batch recovery (Research’Ed 0.9.1)
+
+The following describes historical policy 4; policy 5 below supersedes its request deadlines on new runs or explicit resume.
 
 Each batch has at most three attempts per explicit resume cycle, with 30-second and 120-second retry delays and the existing 90-second request timeout. Invalid response schemas, quotations and citations are rejected and retried, never repaired or accepted without validation. Other ready batches continue while retries wait; exhausted response failures remain unresolved and do not block other batches. Authentication, exhausted rate limits, unavailable/changed providers and local integrity failures pause the run because they require intervention. Terminal status is complete only when all tasks succeeded; otherwise it is partial or failed. Resume targets only unresolved tasks and retains successful outputs unchanged. This execution repair applies when an updated worker is next started; it does not rewrite historical run configuration or findings. Attempts remain individually logged.
 
@@ -35,3 +37,9 @@ Known compiled sources cannot use generic mapping, create a new population from 
 For the existing Director failed pilot, retain the failed run for audit. When a new analysis is authorised: create a new MCF work item and upload the source; the profile is detected automatically. On Clean, review the proposed boundaries, accept the clear boundaries together and individually inspect the ambiguous cases. Choose which components enter analysis; the default is narrative only. Questionnaire responses and section markers remain preserved separately. Institutions may remain unassigned. Preparing this mapping must precede any new analytical population. Do not resume the historical document-level population.
 
 Read-only inspection on 2026-10-18 identified 76 Director candidates: 74 clear, two requiring review (one missing rating row; one containing an unrecognised table). All 76 lack standard review headings. These are observations from the document, not hard-coded expected counts. No mapping was saved and no Director analysis or validation sample was run as part of verification.
+
+## Operational policy 5 (Research’Ed 0.9.5)
+
+Three finite attempts use 120/180/210-second deadlines and unchanged 30/120-second retry delays. The shared AI bridge remains capped at 240 seconds. Explicit resume upgrades older execution limits with a previous/new-policy audit entry, without changing successful tasks or their results. Evidential protocol and MCF v1.0 remain frozen. See RELEASE_0.9.5.md for measured durations and rationale.
+
+Machine responses may repeat a contextual reference. Remove only exact (unit ID, quotation) duplicates within a competency; record each removed reference and its index in provenance. Retain distinct quotations from the same permitted unit with their exact offsets. All remaining evidential validation applies unchanged. No historical payload is normalized retrospectively.
