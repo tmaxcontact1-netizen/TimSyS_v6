@@ -15,7 +15,11 @@ function run(executable, args, options = {}) {
     child.once('error', reject);
     child.once('exit', (code) => {
       if (code === 0) resolve({ stdout, stderr });
-      else reject(new Error(`${path.basename(executable)} exited with ${code}: ${stderr.trim() || stdout.trim()}`));
+      else {
+        const error = new Error(`${path.basename(executable)} exited with ${code}: ${stderr.trim() || stdout.trim()}`);
+        error.exitCode = code;
+        reject(error);
+      }
     });
   });
 }
@@ -168,10 +172,18 @@ class LocalPostgresManager {
     try {
       await this.execute(this.executable('pg_ctl'), ['-D', this.clusterRoot, '-w', '-m', 'fast', 'stop']);
     } catch (error) {
-      if (!/not running|no server running/i.test(error.message)) throw error;
-    } finally {
-      this.state = null;
+      // A second stop (including a missing PID file) is harmless only when
+      // pg_ctl confirms this cluster is stopped. Do not parse localised prose
+      // or hide permission errors, an inaccessible cluster, or a live server.
+      let stopped = false;
+      try {
+        await this.execute(this.executable('pg_ctl'), ['-D', this.clusterRoot, 'status']);
+      } catch (statusError) {
+        stopped = statusError.exitCode === 3;
+      }
+      if (!stopped) throw error;
     }
+    this.state = null;
   }
 
   async backup() {
