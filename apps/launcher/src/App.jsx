@@ -11,6 +11,7 @@ import AppDashboard from './pages/AppDashboard';
 import { useAnyPermission } from './utils/permissions';
 import ErrorBoundary from './components/ErrorBoundary';
 import UpdatePrompt from './components/UpdatePrompt';
+import AssistantPanel from './components/AssistantPanel';
 
 function ProtectedRoute({ children }) {
   const isInitializing = useAuthStore((s) => s.isInitializing);
@@ -43,6 +44,7 @@ function App() {
   const { initialize: initApps } = useAppStore();
   const { status, check, startPolling } = useConnectionStore();
   const [wasOnline, setWasOnline] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   useEffect(() => {
     void window.electronAPI?.updates?.rendererReady?.();
@@ -81,6 +83,9 @@ function App() {
 
   return (
     <ErrorBoundary>
+      {window.location.pathname === '/assistant' ? <AssistantPanel /> : <>
+      {!window.electronAPI?.assistant && <button className="ai-launch" onClick={() => setAssistantOpen(true)}>✦ Ask AI</button>}
+      {assistantOpen && <div className="ai-browser-pane"><AssistantPanel onClose={() => setAssistantOpen(false)} /></div>}
       <UpdatePrompt />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
@@ -98,6 +103,7 @@ function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </>}
     </ErrorBoundary>
   );
 }

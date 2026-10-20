@@ -30,7 +30,8 @@ export default function UpdatePrompt() {
     try {
       const result = await window.electronAPI.updates.install();
       if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.');
-      reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' });
+      reportActionFeedback({ method: 'POST', phase: 'success', message: result.restartRequired ? 'Compatible updates installed. Restarting TimSyS…' : 'Incompatible updates held back. You can continue using TimSyS.' });
+      if (!result.restartRequired) { setBusy(false); setDismissed(true); }
     } catch (failure) {
       setBusy(false);
       setError(failure.message || 'The update could not be installed.');

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuthStore from '../store/authStore';
 import useAppStore from '../store/appStore';
@@ -8,6 +8,15 @@ function AppSelectorPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { apps } = useAppStore();
+  const [aiError, setAiError] = useState('');
+
+  const openAiSettings = async () => {
+    setAiError('');
+    try {
+      if (window.electronAPI?.assistant?.openSettings) await window.electronAPI.assistant.openSettings();
+      else window.location.assign('/assistant?settings=connections');
+    } catch (error) { setAiError(error.message || 'Unable to open AI integration settings.'); }
+  };
 
   const handleAppClick = (appId) => {
     navigate(`/login/${appId}`);
@@ -45,7 +54,15 @@ function AppSelectorPage() {
               <p className="text-gray-400 text-sm">{app.description}</p>
             </button>
           ))}
+          <button
+            onClick={openAiSettings}
+            className="bg-gray-900 border border-gray-800 rounded-lg p-6 text-left hover:border-timsys-primary hover:bg-gray-850 transition-colors"
+          >
+            <h3 className="text-xl font-bold text-white mb-2">AI Integration</h3>
+            <p className="text-gray-400 text-sm">Connect OpenAI or Gemini, manage API keys, and choose the AI used across TimSyS.</p>
+          </button>
         </div>
+        {aiError && <p role="alert" className="text-red-400 mt-4">{aiError}</p>}
         <UpdatePanel />
       </main>
     </div>

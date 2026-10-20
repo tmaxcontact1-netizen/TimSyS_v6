@@ -21,7 +21,7 @@ export default function UpdatePanel() {
     setState(current => ({ ...current, checking: true, error: '' }));
     setProgress({ percent: 0, message: 'Starting installation…', downloadedBytes: 0, totalBytes: state.result?.available?.reduce((sum, item) => sum + item.size, 0) ?? 0 });
     reportActionFeedback({ method: 'POST', phase: 'working', message: 'Installing the verified update…' });
-    try { const result = await window.electronAPI.updates.install(); if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.'); reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' }); }
+    try { const result = await window.electronAPI.updates.install(); if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.'); reportActionFeedback({ method: 'POST', phase: 'success', message: result.restartRequired ? 'Compatible updates installed. Restarting TimSyS…' : 'Incompatible updates held back. You can continue using TimSyS.' }); if (!result.restartRequired) { setProgress(null); await check(); } }
     catch (error) { setState(current => ({ ...current, checking: false, error: error.message })); reportActionFeedback({ method: 'POST', phase: 'error', message: 'The update could not be installed. Review the error in the Updates panel.' }); }
   };
   if (state.result?.development) return null;
@@ -36,7 +36,8 @@ export default function UpdatePanel() {
       <div className="h-3 overflow-hidden rounded-full bg-gray-800" role="progressbar" aria-label="Update installation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress.percent}><div className="h-full rounded-full bg-timsys-primary transition-[width] duration-200" style={{ width: `${progress.percent}%` }} /></div>
       {progress.totalBytes > 0 && <p className="mt-2 text-xs text-gray-500">{size(progress.downloadedBytes)} of {size(progress.totalBytes)} downloaded</p>}
     </div>}
-    {state.result && !state.result.updateAvailable && <p className="mt-4 text-sm text-emerald-300">Everything is up to date.</p>}
+    {state.result && !state.result.updateAvailable && <p className="mt-4 text-sm text-emerald-300">{state.result.deferred?.length ? 'All compatible updates are installed.' : 'Everything is up to date.'}</p>}
+    {!!state.result?.deferred?.length && <div className="mt-4 text-sm text-amber-200"><p>Held back to preserve your AI integration. Other app updates can still install.</p>{state.result.deferred.map(item => <p key={item.id}>{names[item.id] || item.id}: awaiting a compatible release.</p>)}</div>}
     {state.result?.updateAvailable && <div className="mt-4">
       <p className="text-sm text-white">Release {state.result.releaseVersion} is ready.</p>
       {state.result.notes && <p className="mt-1 text-sm text-gray-400">{state.result.notes}</p>}
