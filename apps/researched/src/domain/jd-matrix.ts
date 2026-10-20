@@ -1,3 +1,4 @@
+import {documentaryRelationships} from './jd-documentary-relationships.js';
 import type {RoleEquivalence} from './jd-role-equivalence.js';
 import type {JdDocument,DocumentaryKind} from '../application/jd-documents.js';
 export const SPECIAL_ED_TERMS='AEA; Child Study Team; CST; RAG; referral; referrals; refer; intervention; interventions; accommodation; accommodations; parent; parents; learning support';
@@ -17,7 +18,8 @@ export function jdMatrix(documents:JdDocument[],review:JdReview,search=''){
   .filter(p=>!terms.length||terms.some(t=>(p.text+' '+p.dimension).toLowerCase().includes(t)));
  const labels=[...new Set(documents.map(d=>review.roles[d.id]||d.role).filter(Boolean))];
  const escape=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
- const mentions=rows.flatMap(p=>labels.filter(role=>role!==p.role&&new RegExp(`\\b${escape(role)}\\b`,'i').test(p.text)).map(role=>({passageId:p.id,sourceRole:p.role,mentionedRole:role,text:p.text,status:'Named role in passage; no handoff or authority inferred'})));
+ const literal=documentaryRelationships(rows.filter(p=>documents.find(d=>d.id===p.documentId)?.extracted.slice(p.start,p.end)===p.text),labels);
+ const mentions=rows.flatMap(p=>labels.filter(role=>role!==p.role&&new RegExp(`\\b${escape(role)}\\b`,'i').test(p.text)).map(role=>({passageId:p.id,sourceRole:p.role,mentionedRole:role,text:p.text,status:'Role mention; no relationship established by this occurrence'}))).filter(m=>!literal.documentedRelationships.some(r=>r.passageId===m.passageId&&(r.counterpart.toLowerCase()===m.mentionedRole.toLowerCase()||r.actor.toLowerCase()===m.mentionedRole.toLowerCase()))&&!literal.documentaryBoundaries.some(b=>b.passageId===m.passageId&&b.fullSourceSentence.toLowerCase().includes(m.mentionedRole.toLowerCase())));
  const unresolvedFields:{documentId:string;passageId:string;text:string;reason:string}[]=[];
  const relationships=documents.flatMap(d=>{
   const result:{documentId:string;role:string;label:string;target:string;passageIds:string[];evidence:{passageId:string;text:string;location:string;start:number;end:number}[]}[]=[];
@@ -50,5 +52,5 @@ export function jdMatrix(documents:JdDocument[],review:JdReview,search=''){
   }
   return{start,documentId:d.id,links,unresolved:reason};
  });
- return{contract:'researched.jd-matrix.v1',search,terms,rows,relationships,unresolvedFields,reportingChains,mentions,explicitPhrases,notice:'Original dimensions are retained. Search terms are retrieval aids, not replacement dimensions. Mentions do not establish handoffs. All matching passages remain visible; sequence, missing authority and unstated connections are unresolved. No AI, role equivalence or inferred hierarchy is applied.'};
+ return{contract:'researched.jd-matrix.v1',search,terms,rows,relationships,unresolvedFields,reportingChains,mentions,explicitPhrases,...literal,notice:'Original dimensions are retained. Search terms are retrieval aids, not replacement dimensions. Mentions do not establish handoffs. All matching passages remain visible; sequence, missing authority and unstated connections are unresolved. No AI, role equivalence or inferred hierarchy is applied.'};
 }

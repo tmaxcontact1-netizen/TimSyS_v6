@@ -52,8 +52,9 @@ export function reconstructJdLines(lines:PhysicalLine[],isHeading:(text:string)=
   const hanging=bullet.test(first.text.trim())&&l.x>first.x+3&&l.x<first.x+45;
   const fieldContinuation=field.test(first.text.trim())&&l.x>first.x+25;
   const close=samePage&&gap>0&&gap<=Math.max(prev.height,l.height)*1.48;
+  const unfinishedBullet=samePage&&hanging&&/\b(?:and|or)\s*$/i.test(prev.text)&&/^[a-z]/.test(t)&&prev.font===l.font&&gap>0&&gap<=Math.max(prev.height,l.height)*1.85;
   const crossPage= !samePage&& !/[.!?:]$/.test(prev.text.trim())&&(hanging||sameIndent)&&Math.abs(prev.height-l.height)<1;
-  if((close&&(sameIndent||hanging||fieldContinuation))||crossPage){buffer.push(l);continue;}
+  if((close&&(sameIndent||hanging||fieldContinuation))||unfinishedBullet||crossPage){buffer.push(l);continue;}
   flush();buffer=[l];
  }
  flush();
