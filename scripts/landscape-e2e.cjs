@@ -63,7 +63,7 @@ let server,browser;
   await app.getByRole('searchbox',{name:'Search the documents'}).fill('Career Week');
   const result=app.getByRole('region',{name:'Search results'}).getByRole('button').filter({hasText:'Student Affairs'});
   await result.waitFor();await result.click();
-  assert.match(await inspector.locator('h2').innerText(),/Student Affairs/);
+  assert.match(await inspector.getByRole('region',{name:'Documentary context'}).innerText(),/Student Affairs/);
   assert.match(await inspector.locator('blockquote').innerText(),/Career Week/);
   await app.screenshot({path:path.join(out,'05-career-week.png')});
   await trail.getByRole('button',{name:'← Back',exact:true}).click();
@@ -91,6 +91,7 @@ let server,browser;
   await app.getByRole('region',{name:'Search results'}).getByRole('button').first().click();
   await inspector.scrollIntoViewIfNeeded();assert.equal(await inspector.isVisible(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await require('./landscape-ux-acceptance.cjs')({page,app,model,project,root});
   assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
   assert.deepEqual(fs.readFileSync(corpus),original);
   const summary={passed:true,documents:model.containers.length,statements:model.statements.size,sections:model.sections.size,revision:response.snapshot.revision,

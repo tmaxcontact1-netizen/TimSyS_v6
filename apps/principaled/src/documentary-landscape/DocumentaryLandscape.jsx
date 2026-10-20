@@ -1,24 +1,36 @@
 import React,{useEffect,useMemo,useRef,useState} from 'react';
-import {ancestors,detailLevel,home,layout,visible} from './model.ts';
+import {ancestors,detailLevel,home,layout,visible,sectionPresentation,statementLabel,reframe,closeInspector} from './model.ts';
 import {readDocumentary} from './read';
 import './landscape.css';
 
 const short=text=>text.length>100?text.slice(0,100)+'…':text;
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 export default function DocumentaryLandscape({model,sourceReader=readDocumentary}) {
-  const [frame,setFrame]=useState(home),[history,setHistory]=useState([]),[selected,setSelected]=useState(null);
+  const [frame,setFrame]=useState(home),[history,setHistory]=useState([]);
   const [query,setQuery]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(0);
   const [matches,setMatches]=useState([]),[searchReady,setSearchReady]=useState(false),[searchError,setSearchError]=useState('');
   const [size,setSize]=useState({width:1000,height:600}),[source,setSource]=useState(null),[sourceError,setSourceError]=useState('');
-  const viewport=useRef(null),sourceContext=useRef(null),drag=useRef(null),moved=useRef(false),worker=useRef(null),latestSearch=useRef(''),zoomHandler=useRef(null),initialView=useRef(false);
-  const {context,camera}=frame;
+  const viewport=useRef(null),workspace=useRef(null),sourceContext=useRef(null),drag=useRef(null),moved=useRef(false),worker=useRef(null),latestSearch=useRef(''),zoomHandler=useRef(null),initialView=useRef(false),selectionTimer=useRef(null);
+  const {context,camera,selection:selected}=frame;
   const containers=useMemo(()=>new Map(model.containers.map(c=>[c.id,c])),[model]);
   const matchIds=useMemo(()=>new Set(matches.flatMap(s=>[s.id,s.sectionId,s.containerId])),[matches]);
   const tiles=useMemo(()=>layout(model,context),[model,context.containerId,context.sectionId]);
   const shown=visible(tiles,camera,size.width,size.height);
   const container=containers.get(context.containerId),section=model.sections.get(context.sectionId),statement=model.statements.get(context.statementId);
-  const title=id=>containers.get(id)?.title||model.sections.get(id)?.title||model.statements.get(id)?.text||'';
+  const title=id=>containers.get(id)?.title||(model.sections.has(id)?sectionPresentation(model,model.sections.get(id)).title:null)||model.statements.get(id)?.text||'';
+  const selectedStatement=model.statements.get(selected),selectedSection=model.sections.get(selected)||model.sections.get(selectedStatement?.sectionId);
+  const selectedContainer=containers.get(selected)||containers.get(selectedSection?.containerId);
+  const inspectorVisible=Boolean(frame.inspectorOpen&&selectedContainer);
+  const selectedLabel=selectedStatement?statementLabel(selectedContainer,selectedStatement,selectedSection):
+    selectedSection?sectionPresentation(model,selectedSection).label:selectedContainer?.labels.container;
+  const close=()=>{
+    clearTimeout(selectionTimer.current);
+    setFrame(f=>closeInspector(f));
+    // Return keyboard focus to the landscape without moving its scroll position.
+    viewport.current?.focus({preventScroll:true});
+  };
   useEffect(()=>{const timer=setTimeout(()=>{setSearch(query);setPage(0);},120);return()=>clearTimeout(timer);},[query]);
+  useEffect(()=>()=>clearTimeout(selectionTimer.current),[]);
   useEffect(()=>{
     const task=new Worker(new URL('./search-worker.ts',import.meta.url),{type:'module'});worker.current=task;
     task.onmessage=({data})=>{
@@ -35,13 +47,11 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
       const bounds={width:entry.contentRect.width,height:entry.contentRect.height};setSize(bounds);
       if(!initialView.current&&bounds.width){initialView.current=true;setFrame({context:{},camera:fitCamera({},bounds)});}
       else setFrame(f=>{
-        if(!f.context.statementId)return f;
-        const tile=layout(model,f.context).find(t=>t.id===f.context.statementId);
+        if(!f.inspectorOpen||!f.selection)return f;
+        const tile=layout(model,f.context).find(t=>t.id===f.selection);
         if(!tile)return f;
-        const c=f.camera;
-        const x=tile.x*c.zoom+c.x<0||(tile.x+tile.width)*c.zoom+c.x>bounds.width?32-tile.x*c.zoom:c.x;
-        const y=tile.y*c.zoom+c.y<0||(tile.y+tile.height)*c.zoom+c.y>bounds.height?32-tile.y*c.zoom:c.y;
-        return x===c.x&&y===c.y?f:{...f,camera:{...c,x,y}};
+        const next=reframe(tile,f.camera,bounds.width,bounds.height);
+        return same(next,f.camera)?f:{...f,camera:next};
       });
     });
     observer.observe(viewport.current);return()=>observer.disconnect();
@@ -64,18 +74,27 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
   },[source]);
   function fitCamera(next,bounds=size) {
     const all=layout(model,next);
-    if(!all.length||all.length>12||bounds.width<800)return home().camera;
-    return {x:32,y:32,zoom:Math.min(1,(bounds.width-64)/Math.max(...all.map(t=>t.x+t.width)),(bounds.height-64)/Math.max(...all.map(t=>t.y+t.height)))};
+    const width=bounds===size?(workspace.current?.clientWidth||bounds.width):bounds.width;
+    if(!all.length||all.length>12||width<800)return home().camera;
+    return {x:32,y:32,zoom:Math.min(1,(width-64)/Math.max(...all.map(t=>t.x+t.width)),(bounds.height-64)/Math.max(...all.map(t=>t.y+t.height)))};
   }
   function go(next,nextCamera=fitCamera(next)) {
-    if(same(next,context))return;
-    setHistory(h=>[...h,frame]);setFrame({context:next,camera:nextCamera});setSelected(null);
+    clearTimeout(selectionTimer.current);
+    if(same(next,context)){
+      if(next.statementId)setFrame(f=>({...f,selection:next.statementId,inspectorOpen:true,undockedCamera:f.undockedCamera||f.camera}));
+      return;
+    }
+    setHistory(h=>[...h,frame]);
+    const sameLandscape=next.containerId===context.containerId&&next.sectionId===context.sectionId;
+    setFrame({context:next,camera:nextCamera,selection:next.statementId,inspectorOpen:Boolean(next.statementId),
+      undockedCamera:next.statementId?(frame.inspectorOpen&&sameLandscape?frame.undockedCamera:nextCamera):undefined});
   }
   function back() {
+    clearTimeout(selectionTimer.current);
     if(!history.length)return;
-    setFrame(history[history.length-1]);setHistory(h=>h.slice(0,-1));setSelected(null);
+    setFrame(history[history.length-1]);setHistory(h=>h.slice(0,-1));
   }
-  function reset(){setFrame({context:{},camera:fitCamera({})});setHistory([]);setSelected(null);setQuery('');setSearch('');}
+  function reset(){clearTimeout(selectionTimer.current);setFrame({context:{},camera:fitCamera({})});setHistory([]);setQuery('');setSearch('');}
   function enter(id) {
     const c=containers.get(id),s=model.sections.get(id),p=model.statements.get(id);
     if(c)go({containerId:c.id});
@@ -87,7 +106,7 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
     const tile=layout(model,next).find(t=>t.id===s.id);
     const targetCamera={x:32-tile.x,y:32-tile.y,zoom:1};
     // Back restores where the user actually searched from, not fabricated ancestor visits.
-    go(next,targetCamera);setSelected(s.id);
+    go(next,targetCamera);
   }
   function zoomBy(factor,point={x:size.width/2,y:size.height/2}) {
     const z=Math.min(2.2,Math.max(.35,camera.zoom*factor));
@@ -102,7 +121,13 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
     if(z<=.48&&context.containerId){if(history.length)back();else go({});return;}
     setFrame(f=>({...f,camera:next}));
   }
-  function select(id) {if(moved.current)return;setSelected(id);if(model.statements.has(id))enter(id);}
+  function select(id) {
+    if(moved.current)return;
+    if(model.statements.has(id)){enter(id);return;}
+    const tile=tiles.find(t=>t.id===id);
+    setFrame(f=>({...f,selection:id,inspectorOpen:true,undockedCamera:f.inspectorOpen?f.undockedCamera:f.camera,
+      camera:f.inspectorOpen&&tile?reframe(tile,f.camera,size.width,size.height):f.camera}));
+  }
   zoomHandler.current=zoomBy;
   const crumbs=ancestors(context);
   const crumbLabel=(c,i)=>i===0?'Organisation':c.statementId?short(title(c.statementId)):title(c.sectionId||c.containerId);
@@ -123,14 +148,14 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
     {search&&<section className="dl-results" aria-label="Search results">
       <div className="dl-result-heading"><strong>{matches.length} {matches.length===1?'match':'matches'}</strong><span>Original documentary locations are preserved.</span></div>
       {matches.slice(page*8,page*8+8).map(s=>{const c=containers.get(s.containerId);return <button key={s.id} onClick={()=>jump(s)}>
-        <small>{c.source.documentType} · {c.source.filename}</small><strong>{c.title} → {model.sections.get(s.sectionId).title}</strong><span>{short(s.text)}</span>
+        <small>{c.source.documentType} · {c.source.filename}</small><strong>{c.title} → {title(s.sectionId)}</strong><span>{short(s.text)}</span>
       </button>;})}
       {matches.length>8&&<div><button disabled={!page} onClick={()=>setPage(p=>p-1)}>Previous results</button><span> Page {page+1} of {Math.ceil(matches.length/8)} </span><button disabled={(page+1)*8>=matches.length} onClick={()=>setPage(p=>p+1)}>Next results</button></div>}
       {!matches.length&&<p>{searchReady?'No matching documentary text. Try a shorter phrase.':'Preparing search…'}</p>}
     </section>}
-    <div className={`dl-workspace ${statement?'dl-with-inspector':''}`}>
+    <div ref={workspace} className={`dl-workspace ${inspectorVisible?'dl-with-inspector':''}`}>
       <section className="dl-stage" aria-label="Spatial documentary navigation">
-        <div className="dl-stage-heading"><div><small>{section?container.labels.section:container?container.labels.container:'Organisation'}</small><h2>{section?.title||container?.title||'The documentary landscape'}</h2></div>
+        <div className="dl-stage-heading"><div><small>{section?sectionPresentation(model,section).label:container?container.labels.container:'Organisation'}</small><h2>{section?title(section.id):container?.title||'The documentary landscape'}</h2></div>
           <div className="dl-camera"><button aria-label="Zoom out" onClick={()=>zoomBy(1/1.3)}>−</button><span>{Math.round(camera.zoom*100)}%</span><button aria-label="Zoom in" onClick={()=>zoomBy(1.3)}>+</button><button onClick={()=>setFrame(f=>({...f,camera:home().camera}))}>Reset view</button></div></div>
         <p className="dl-guidance">Select to inspect · Open or double-click to enter · Drag or use arrow keys to pan · Scroll to zoom</p>
         <div className="dl-viewport" ref={viewport} tabIndex={0} aria-label={`${activeLabel} landscape`}
@@ -144,13 +169,17 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
             {shown.map(t=>{
               const c=containers.get(t.id),s=model.sections.get(t.id),p=model.statements.get(t.id);
               const preview=detailLevel(camera.zoom)==='preview';
-              return <button key={t.id} className={`dl-tile ${c?'dl-container':s?'dl-section':'dl-statement'} ${t.id===(context.statementId||selected)?'dl-selected':''} ${search&&!matchIds.has(t.id)?'dl-dim':''} ${search&&matchIds.has(t.id)?'dl-match':''}`}
-                style={{left:t.x,top:t.y,width:t.width,height:t.height}} aria-label={title(t.id)} aria-pressed={t.id===(context.statementId||selected)}
-                onClick={()=>select(t.id)} onDoubleClick={()=>{if(!moved.current)enter(t.id);}}>
-                <small>{c?c.source.documentType:s?container.labels.section:p.kind==='descriptor'?'Source description':container.labels.statement}{search&&matchIds.has(t.id)?' · Search match':''}</small>
+              return <button key={t.id} data-object-id={t.id} data-address={`${t.x},${t.y}`} className={`dl-tile ${c?'dl-container':s?'dl-section':'dl-statement'} ${t.id===selected?'dl-selected':''} ${search&&!matchIds.has(t.id)?'dl-dim':''} ${search&&matchIds.has(t.id)?'dl-match':''}`}
+                style={{left:t.x,top:t.y,width:t.width,height:t.height}} aria-label={title(t.id)} aria-pressed={t.id===selected}
+                onClick={event=>{
+                  clearTimeout(selectionTimer.current);
+                  if(p||event.detail===0)select(t.id);
+                  else {setFrame(f=>({...f,selection:t.id}));selectionTimer.current=setTimeout(()=>select(t.id),250);}
+                }} onDoubleClick={()=>{clearTimeout(selectionTimer.current);if(!moved.current)enter(t.id);}}>
+                <small>{c?c.source.documentType:s?sectionPresentation(model,s).label:statementLabel(container,p,section)}{search&&matchIds.has(t.id)?' · Search match':''}</small>
                 <strong>{p?short(p.text):title(t.id)}</strong>
                 {c&&<span className="dl-document-name">{c.source.filename}</span>}
-                {preview&&c&&<span className="dl-preview">{c.sectionIds.slice(0,2).map(id=>model.sections.get(id).title).join(' · ')}{c.sectionIds.length>2?' …':''}</span>}
+                {preview&&c&&<span className="dl-preview">{c.sectionIds.slice(0,2).map(id=>title(id)).join(' · ')}{c.sectionIds.length>2?' …':''}</span>}
                 {preview&&s&&<span className="dl-preview">{short(model.statements.get(s.statementIds[0])?.text||'')}</span>}
                 {p&&<span className="dl-document-name">{p.location}</span>}
               </button>;
@@ -159,15 +188,24 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
           {!tiles.length&&<p className="dl-empty">No documentary statements in this location.</p>}
         </div>
         <footer className="dl-stage-footer"><span>Spatial positions aid navigation; they do not indicate authority or relationships.</span>
-          {selected&&!model.statements.has(selected)&&<button className="dl-primary" onClick={()=>enter(selected)}>Open {short(title(selected))} →</button>}
+          {selected&&!inspectorVisible&&!model.statements.has(selected)&&<button className="dl-primary" onClick={()=>enter(selected)}>Open {short(title(selected))} →</button>}
         </footer>
       </section>
-      {statement&&<aside className="dl-inspector" aria-label="Source inspector">
-        <p className="dl-eyebrow">{container.labels.statement.toUpperCase()} · EXACT WORDING</p>
-        <h2>{container.title}</h2><p className="dl-dimension">{section.title}</p>
-        <blockquote>{statement.text}</blockquote>
-        <dl><dt>Source document</dt><dd>{container.source.filename}</dd><dt>Source location</dt><dd>{statement.location}</dd><dt>Document type</dt><dd>{container.source.documentType}</dd></dl>
-        {!context.source?<button className="dl-primary" onClick={()=>go({...context,source:true},camera)}>View Source</button>:
+      {inspectorVisible&&<aside className="dl-inspector" aria-label="Source inspector">
+        <div className="dl-inspector-top"><p className="dl-eyebrow">{selectedLabel}</p><button aria-label="Close inspector" onClick={close}>Close</button></div>
+        {selectedStatement?<blockquote className="dl-selected-wording">{selectedStatement.text}</blockquote>:<h2>{title(selected)}</h2>}
+        <section className="dl-inspector-context" aria-label="Documentary context"><h3>Context</h3>
+          <dl>{selected!==selectedContainer.id&&<><dt>{selectedContainer.labels.container}</dt><dd>{selectedContainer.title}</dd></>}
+          {selectedStatement&&<><dt>{sectionPresentation(model,selectedSection).label}</dt><dd>{title(selectedSection.id)}</dd></>}
+          {selected===selectedContainer.id&&<><dt>Collection</dt><dd>{model.title}</dd></>}</dl>
+        </section>
+        <section className="dl-inspector-provenance" aria-label="Source provenance"><h3>Source</h3>
+          <dl><dt>Document</dt><dd>{selectedContainer.source.filename}</dd>
+          {selectedStatement&&<><dt>Location</dt><dd>{selectedStatement.location}</dd></>}
+          <dt>Document type</dt><dd>{selectedContainer.source.documentType}</dd></dl>
+        </section>
+        {!selectedStatement?<button className="dl-primary" onClick={()=>enter(selected)}>Open {short(title(selected))} →</button>:
+          !context.source?<button className="dl-primary" onClick={()=>go({...context,source:true},camera)}>View Source</button>:
           <section className="dl-source" aria-label="Source context"><h3>In the source</h3><p>The retained document text, with this passage highlighted.</p>
             {sourceError?<p role="alert">{sourceError}</p>:source?<pre ref={sourceContext} tabIndex={0} aria-label="Retained source text">{source.startTruncated?'…\n':''}{source.before}<mark>{source.text}</mark>{source.after}{source.endTruncated?'\n…':''}</pre>:<p role="status">Loading source context…</p>}
           </section>}

@@ -1,10 +1,10 @@
 /** Renderer contract: documentary containment only. It has no relationship or workflow fields. */
 export type Source = {documentId:string; filename:string; documentType:string; revision:string; sha256:string};
-export type Statement = {id:string; sectionId:string; containerId:string; text:string; location:string; passageId:string; originalSection:string; kind:string};
+export type Statement = {id:string; sectionId:string; containerId:string; text:string; location:string; passageId:string; originalSection:string; kind:string; ambiguity?:string};
 export type Section = {id:string; containerId:string; title:string; statementIds:string[]};
 export type Container = {id:string; title:string; source:Source; sectionIds:string[]; labels:{container:string;section:string;statement:string}};
 export type Landscape = {id:string; title:string; revision:string; containers:Container[]; sections:Map<string,Section>; statements:Map<string,Statement>};
-export type Passage = {id:string;text:string;dimension:string;kind:string;location:string};
+export type Passage = {id:string;text:string;dimension:string;kind:string;location:string;ambiguity?:string};
 export type Snapshot = {id:string;title:string;revision:string;review:{roles:Record<string,string>;excluded:string[];structure?:Record<string,{kind:string;dimension:string}>};documents:{id:string;filename:string;role:string;sha256:string;passages:Passage[]}[]};
 
 /** Mirrors only the frozen reviewedPassages projection; never calls extraction/analysis. */
@@ -31,7 +31,7 @@ export function fromJd(snapshot:Snapshot):Landscape {
         section={id:`${id}/section/${p.id}`,containerId:id,title:dimension,statementIds:[]};
         result.sections.set(section.id,section);container.sectionIds.push(section.id);
       }
-      const statement:Statement={id:`${id}/statement/${p.id}`,sectionId:section.id,containerId:id,text:p.text,location:p.location,passageId:p.id,originalSection:p.dimension,kind};
+      const statement:Statement={id:`${id}/statement/${p.id}`,sectionId:section.id,containerId:id,text:p.text,location:p.location,passageId:p.id,originalSection:p.dimension,kind,...(p.ambiguity?{ambiguity:p.ambiguity}:{})};
       if(result.statements.has(statement.id)) throw Error('Duplicate documentary identity');
       result.statements.set(statement.id,statement);section.statementIds.push(statement.id);
     }
@@ -68,7 +68,7 @@ function grams(text:string):Set<string> {const result=new Set<string>();for(let 
 
 export type Context={containerId?:string;sectionId?:string;statementId?:string;source?:boolean};
 export type Camera={x:number;y:number;zoom:number};
-export type Frame={context:Context;camera:Camera};
+export type Frame={context:Context;camera:Camera;selection?:string;inspectorOpen?:boolean;undockedCamera?:Camera};
 export const home=():Frame=>({context:{},camera:{x:32,y:32,zoom:1}});
 export function ancestors(context:Context):Context[] {
   return [{},...(context.containerId?[{containerId:context.containerId}]:[]),
@@ -82,12 +82,18 @@ export function contextItems(model:Landscape,context:Context):string[] {
 }
 export type Tile={id:string;x:number;y:number;width:number;height:number};
 const layouts=new WeakMap<Landscape,Map<string,Tile[]>>();
-/** Fixed four-column documentary shelves: screen size never reshuffles geography. */
+/** Balanced parent-local addresses, independent of viewport, search, camera or selection. */
 export function layout(model:Landscape,context:Context):Tile[] {
   let cache=layouts.get(model);if(!cache){cache=new Map();layouts.set(model,cache);}
   const key=context.sectionId||context.containerId||'home';
   let tiles=cache.get(key);
-  if(!tiles){tiles=contextItems(model,context).map((id,i)=>({id,x:(i%4)*330,y:Math.floor(i/4)*210,width:290,height:166}));cache.set(key,tiles);}
+  if(!tiles){
+    const ids=contextItems(model,context);
+    const [width,height,gap]=context.sectionId?[254,132,38]:context.containerId?[278,138,48]:[310,152,62];
+    const columns=Math.max(1,Math.ceil(Math.sqrt(ids.length*(height+gap)/(width+gap))));
+    tiles=ids.map((id,i)=>({id,x:(i%columns)*(width+gap),y:Math.floor(i/columns)*(height+gap),width,height}));
+    cache.set(key,tiles);
+  }
   return tiles;
 }
 export function visible(tiles:Tile[],camera:Camera,width:number,height:number):Tile[] {
@@ -96,3 +102,36 @@ export function visible(tiles:Tile[],camera:Camera,width:number,height:number):T
     (t.y+t.height)*camera.zoom+camera.y>=-margin&&t.y*camera.zoom+camera.y<=height+margin);
 }
 export function detailLevel(zoom:number):'overview'|'preview' {return zoom>=1.25?'preview':'overview';}
+
+const undimensioned=(title:string)=>!title.trim()||/^Unassigned\s*[—-]/i.test(title);
+function descriptionLabel(c:Container) {
+  return c.source.documentType==='Job description'?'Role description':c.source.documentType==='Policy'?'Policy description':'Source description';
+}
+/** Presentation only: original section titles, classifications and source text are not replaced. */
+export function sectionPresentation(model:Landscape,section:Section):{title:string;label:string} {
+  const c=model.containers.find(c=>c.id===section.containerId)!;
+  if(!undimensioned(section.title))return {title:section.title,label:c.labels.section};
+  const known=section.statementIds.length>0&&section.statementIds.every(id=>{
+    const s=model.statements.get(id)!;
+    return s.kind==='descriptor'&&!s.ambiguity&&!/heading not extracted/i.test(section.title);
+  });
+  return {title:known?descriptionLabel(c):'Unresolved source structure',label:'Documentary material'};
+}
+export function statementLabel(c:Container,s:Statement,section:Section):string {
+  if(undimensioned(section.title)&&(s.ambiguity||s.kind!=='descriptor'||/heading not extracted/i.test(section.title)))return 'Unresolved source structure';
+  if(s.kind==='descriptor')return undimensioned(section.title)?descriptionLabel(c):'Source description';
+  return c.source.documentType==='Policy'?'Policy statement':c.labels.statement;
+}
+/** Minimal translation; reduce zoom only if the selected footprint cannot fit the docked viewport. */
+export function reframe(tile:Tile,camera:Camera,width:number,height:number):Camera {
+  const pad=24,zoom=Math.min(camera.zoom,Math.max(.15,(width-2*pad)/tile.width),Math.max(.15,(height-2*pad)/tile.height));
+  let x=camera.x,y=camera.y;
+  if(tile.x*zoom+x<pad)x=pad-tile.x*zoom;
+  else if((tile.x+tile.width)*zoom+x>width-pad)x=width-pad-(tile.x+tile.width)*zoom;
+  if(tile.y*zoom+y<pad)y=pad-tile.y*zoom;
+  else if((tile.y+tile.height)*zoom+y>height-pad)y=height-pad-(tile.y+tile.height)*zoom;
+  return {x,y,zoom};
+}
+export function closeInspector(frame:Frame):Frame {
+  return {...frame,inspectorOpen:false,camera:frame.undockedCamera||frame.camera,undockedCamera:undefined};
+}

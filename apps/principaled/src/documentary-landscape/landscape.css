@@ -13,3 +13,28 @@
 @media(prefers-reduced-motion:reduce){.dl-world,.dl-tile{transition:none}}
 .dl-inspector{max-height:none;overflow:visible}
 .dl-source pre{position:relative;max-height:250px;overflow:auto;padding:10px;background:#f6f7ef;border-radius:6px}
+/* Documentary level changes footprint/elevation, never organisational importance. */
+.dl{container-type:inline-size}
+.dl .dl-tile{padding:16px 18px;border-radius:4px 10px 6px 4px;border-top-width:1px;border-left:5px solid #668d7d;background:linear-gradient(110deg,#f2f5ec 0 9px,#fffefa 9px);box-shadow:4px 5px 0 #d7e2d5,8px 10px 0 -2px #e6ece1,10px 15px 18px #263f3512}
+.dl .dl-section{border-left-width:4px;border-left-color:#9c8661;background:linear-gradient(110deg,#f1eee4 0 7px,#fffefa 7px);box-shadow:3px 4px 0 #e0ddce,7px 9px 13px #263f3510}
+.dl .dl-statement{border-left-width:3px;border-left-color:#819996;background:#fffefa;box-shadow:2px 3px 0 #dfe6df,4px 6px 10px #263f3510;padding:13px 16px}
+.dl-container strong{font-size:18px;margin:7px 0 4px;line-height:1.25}
+.dl-section strong{font-size:16px;margin:7px 0 4px}
+.dl-statement strong{font-size:13px;line-height:1.35;margin:6px 0 4px}
+.dl-tile .dl-document-name{font-size:10px}
+.dl-tile .dl-preview{font-size:9px}
+.dl-workspace.dl-with-inspector{grid-template-columns:minmax(0,68fr) minmax(300px,32fr);align-items:start}
+.dl-inspector{position:sticky;top:12px;align-self:start;max-height:calc(100dvh - 40px);overflow:auto;border-radius:5px 12px 12px 5px;border-left:3px solid #becdc2;padding:20px;background:#fffefa}
+.dl-inspector-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:15px}
+.dl-inspector-top .dl-eyebrow{text-transform:uppercase;letter-spacing:1px;margin:0}
+.dl-inspector-top button{font-size:12px;min-height:36px}
+.dl .dl-selected-wording{font-size:17px;line-height:1.65;margin:0 0 24px;padding:0;border:0}
+.dl-inspector-context,.dl-inspector-provenance{border-top:1px solid var(--line);margin-top:20px;padding-top:10px}
+.dl-inspector-context h3,.dl-inspector-provenance h3{font-size:11px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);margin:4px 0 10px}
+.dl-inspector dd{font-size:13px;line-height:1.5}
+.dl-inspector dt{margin-top:10px}
+.dl-stage-heading{flex-wrap:wrap}
+@container(max-width:900px){
+  .dl-workspace.dl-with-inspector{grid-template-columns:minmax(0,1fr)}
+  .dl-inspector{position:relative;top:0;max-height:580px;border-left:1px solid var(--line);border-top:3px solid #becdc2}
+}
