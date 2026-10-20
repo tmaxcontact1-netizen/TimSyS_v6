@@ -41,7 +41,7 @@ let server,browser;
   await page.getByRole('searchbox',{name:'Find a page'}).fill('Nervous Breakdown');
   await page.getByRole('navigation',{name:'Application',exact:true}).getByRole('button',{name:'Nervous Breakdown',exact:true}).click();
   const content=page.locator('#school-content');
-  await content.getByText('No responsibility model is currently installed.',{exact:true}).waitFor();
+  await content.getByText('No documentary collection is available. Job descriptions prepared in Research’Ed will appear here for read-only exploration.',{exact:true}).waitFor();
   assert.equal(await content.getByRole('tab').count(),0);
   checks.push('Nervous Breakdown remains empty with no retired model controls');
   assert.deepEqual(errors,[]);

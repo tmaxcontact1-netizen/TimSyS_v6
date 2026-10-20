@@ -1,0 +1,25 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const api=require('../platform/modules/nervous_breakdown');
+test('read-only source bridge preserves files, fences snapshots and exposes GET routes only',async()=>{
+  const out=fs.mkdtempSync(path.resolve(__dirname,'../diagnostics/landscape-api-'));
+  const {jdFixture}=await import('./landscape-fixtures.mjs'),project=jdFixture(2,12);
+  process.env.NB_DOCUMENTARY_ROOT=out;
+  const dir=path.join(out,project.id);fs.mkdirSync(dir);
+  const target=path.join(dir,'project.json'),bytes=JSON.stringify(project);fs.writeFileSync(target,bytes);
+  const collections=await api.collections();assert.equal(collections.collections.length,1);
+  const data=await api.landscape({params:{id:project.id}});
+  assert.equal(data.success,true);assert.equal(data.snapshot.documents[0].extracted,undefined);
+  assert.equal(data.snapshot.relationships,undefined);
+  const d=project.documents[0],p=d.passages[0],req={params:{id:project.id,documentId:d.id,passageId:p.id},query:{revision:data.snapshot.revision}};
+  assert.equal((await api.source(req)).source.text,p.text);
+  assert.equal((await api.source({...req,query:{revision:'stale'}})).success,false);
+  assert.equal((await api.landscape({params:{id:'../../elsewhere'}})).success,false);
+  assert.equal(fs.readFileSync(target,'utf8'),bytes);
+  project.documents[0].passages[0].text='unmatched source text';
+  fs.writeFileSync(target,JSON.stringify(project));
+  assert.equal((await api.landscape({params:{id:project.id}})).success,false);
+  const manifest=require('../platform/modules/nervous_breakdown/module.json');
+  assert.ok(manifest.routes.every(r=>r.method==='GET'&&r.auth_required&&r.permissions.length));
+  assert.equal(manifest.schema.tables.length,0);
+  delete process.env.NB_DOCUMENTARY_ROOT;
+});

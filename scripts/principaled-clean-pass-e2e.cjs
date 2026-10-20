@@ -18,7 +18,7 @@ const platform=require(process.env.PRINCIPALED_VERIFY_PLATFORM||'../platform');l
  await content.getByRole('button',{name:'New project',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('execution_selection')).instance),'');
  await go('Nervous Breakdown');await content.getByRole('heading',{name:'Nervous Breakdown',exact:true}).waitFor();
- await content.getByText('No responsibility model is currently installed.',{exact:true}).waitFor();
+ await content.getByText('No documentary collection is available. Job descriptions prepared in Research’Ed will appear here for read-only exploration.',{exact:true}).waitFor();
  assert.equal(await content.getByRole('tab').count(),0);assert.equal(await content.getByRole('button').count(),0);
  await page.screenshot({path:path.join(out,'empty-nervous-breakdown.png'),fullPage:true});
  for(let i=1;i<=55;i++)await request('/students',{student_id:`PICK-${String(i).padStart(3,'0')}`,first_name:`Person${String(i).padStart(3,'0')}`,last_name:'Isolated',date_of_birth:'2013-01-01',sex:'Male',enrollment_date:'2026-09-01'});

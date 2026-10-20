@@ -50,12 +50,13 @@ test('retirement refuses an installation whose records have not been audited and
   } finally { db.close(); }
 });
 
-test('empty destination exposes no model API, capabilities or intelligence projection', () => {
+test('retired model stays absent; replacement exposes only read-only documentary navigation', () => {
   const manifest = require('../../modules/nervous_breakdown/module.json');
-  expect(manifest.routes).toEqual([]);
-  expect(manifest.functions).toEqual([]);
+  expect(manifest.routes).toHaveLength(3);
+  expect(manifest.routes.every(route => route.method === 'GET' && route.auth_required)).toBe(true);
+  expect(manifest.routes.every(route => route.path.startsWith('/nervous-breakdown/collections'))).toBe(true);
   expect(manifest.provides).toEqual([]);
   expect(manifest.schema.tables).toEqual([]);
   expect(fs.existsSync(path.join(dir,'component.json'))).toBe(false);
-  expect(Object.keys(require('../../modules/nervous_breakdown')).sort()).toEqual(['boot','teardown']);
+  expect(Object.keys(require('../../modules/nervous_breakdown')).sort()).toEqual(['boot','collections','landscape','source','teardown']);
 });
