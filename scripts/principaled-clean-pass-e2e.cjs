@@ -8,7 +8,7 @@ const platform=require(process.env.PRINCIPALED_VERIFY_PLATFORM||'../platform');l
  server=await platform.bootPlatform();const origin=`http://127.0.0.1:${server.address().port}`;
  const {token}=await fetch(origin+'/api/auth/dev-login',{method:'POST',headers:{'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},body:'{}'}).then(r=>r.json());
  const request=async(url,data)=>{const r=await fetch(origin+url,{method:data?'POST':'GET',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json','X-Requested-With':'XMLHttpRequest'},...(data?{body:JSON.stringify(data)}:{})});const result=await r.json();assert.ok(r.ok,JSON.stringify(result));return result;};
- assert.equal((await request('/students')).total,0);assert.equal((await request('/nervous-breakdown/workspace')).records.length,0);
+ assert.equal((await request('/students')).total,0);assert.equal((await fetch(origin+'/nervous-breakdown/workspace',{headers:{Authorization:`Bearer ${token}`}})).status,404);
  browser=await chromium.launch({channel:'msedge',headless:true});const page=await browser.newPage({viewport:{width:1440,height:1000}});const errors=[];
  page.on('pageerror',e=>errors.push(e.message));await page.addInitScript(token=>localStorage.setItem('jwt_token',token),token);
  await page.goto(origin+'/app/principal-ed');const content=page.locator('#school-content');
@@ -17,11 +17,10 @@ const platform=require(process.env.PRINCIPALED_VERIFY_PLATFORM||'../platform');l
  await go('Projects & tasks');await content.getByText('That project no longer exists. Choose a project or create a new one.',{exact:true}).waitFor();
  await content.getByRole('button',{name:'New project',exact:true}).waitFor();
  assert.equal(await page.evaluate(()=>JSON.parse(sessionStorage.getItem('execution_selection')).instance),'');
- await go('Responsibilities');await content.getByRole('heading',{name:'Nervous Breakdown',exact:true}).waitFor();
- assert.equal(await content.getByRole('option',{name:'Synthetic test records'}).count(),0);
- await content.getByRole('tab',{name:'Govern',exact:true}).click();await content.getByRole('button',{name:'Create record',exact:true}).click();
- assert.equal(await content.getByLabel('Synthetic test data',{exact:true}).count(),0);await content.getByRole('button',{name:'Discard draft',exact:true}).click();
- const dialog=page.getByRole('alertdialog');if(await dialog.count())await dialog.getByRole('button',{name:'Discard draft',exact:true}).click();
+ await go('Nervous Breakdown');await content.getByRole('heading',{name:'Nervous Breakdown',exact:true}).waitFor();
+ await content.getByText('No responsibility model is currently installed.',{exact:true}).waitFor();
+ assert.equal(await content.getByRole('tab').count(),0);assert.equal(await content.getByRole('button').count(),0);
+ await page.screenshot({path:path.join(out,'empty-nervous-breakdown.png'),fullPage:true});
  for(let i=1;i<=55;i++)await request('/students',{student_id:`PICK-${String(i).padStart(3,'0')}`,first_name:`Person${String(i).padStart(3,'0')}`,last_name:'Isolated',date_of_birth:'2013-01-01',sex:'Male',enrollment_date:'2026-09-01'});
  const event=(await request('/events',{title:'Isolated school event',event_type:'academic',purpose:'Browser verification',owner_type:'user',owner_id:'1',starts_at:'2026-11-01T09:00:00',ends_at:'2026-11-01T10:00:00'})).event;
  const session=(await request('/attendance/sessions',{title:'Isolated attendance',subject_component:'event_record',subject_type:'event',subject_id:event.event_code})).session;

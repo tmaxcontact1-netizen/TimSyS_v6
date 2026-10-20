@@ -49,7 +49,7 @@ import {
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
   execution: { id: "execution", label: "Projects & tasks", widget: ExecutionWidget, requiresAdmin: false },
-  nervous_breakdown: { id: "nervous_breakdown", label: "Responsibilities", widget: NervousBreakdownWidget, requiresAdmin: true },
+  nervous_breakdown: { id: "nervous_breakdown", label: "Nervous Breakdown", widget: NervousBreakdownWidget, requiresAdmin: true },
   // Existing operational modules (non-admin)
   student_registry: {
     id: "students",
@@ -240,7 +240,7 @@ const MODULE_TO_VIEW = {
 };
 
 const WORKSPACES = {
-  organisation: { label: "Organisation", icon: "N", description: "Responsibilities and shared projects", modules: ["nervous_breakdown", "execution"] },
+  organisation: { label: "Organisation", icon: "N", description: "Organisation and shared projects", modules: ["nervous_breakdown", "execution"] },
   people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
   learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
   planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
@@ -251,7 +251,7 @@ const WORKSPACES = {
 
 const VIEW_DESCRIPTIONS = {
   execution: "Plan shared work, inspect dependencies and see what requires you",
-  nervous_breakdown: "Nervous Breakdown: explore and govern the responsibility network",
+  nervous_breakdown: "Nervous Breakdown",
   students: "Student records and enrolment", student_profiles: "Complete student information", staff: "Staff records and employment", staff_profiles: "Complete staff information", student_exits: "Live student movement", late_entries: "Late arrival and attendance changes",
   assessment_evaluator: "Check what an assessment measures", gradebook: "Class evidence, grades and reports", attendance: "Attendance at events",
   calendar: "School dates and commitments", scheduler: "Timetable configuration and review", programme_manager: "Activities, electives and enrichment", teacher_preferences: "Advisory staff preferences", cover: "Absence cover recommendations", event_record: "Event records", event_planner: "Plan complete events",

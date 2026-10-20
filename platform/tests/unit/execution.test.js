@@ -14,7 +14,7 @@ beforeEach(async()=>{
  db.exec(fs.readFileSync(path.join(__dirname,'../../modules/execution/migrations/001_execution.sql'),'utf8'));
  db.exec('CREATE TABLE academic_years(id INTEGER,app_id TEXT,name TEXT,status TEXT,starts_on TEXT)');
  db.exec("CREATE TABLE users(id INTEGER PRIMARY KEY,external_id TEXT UNIQUE,display_name TEXT,status TEXT DEFAULT 'active'); INSERT INTO users(id) VALUES(1),(2),(3); CREATE TABLE audit_log(timestamp INTEGER,user_id TEXT,action TEXT,entity_type TEXT,entity_id TEXT,old_value TEXT,new_value TEXT,ip_address TEXT)");
- db.exec(`CREATE TABLE staff(staff_id TEXT,user_id INTEGER,first_name TEXT,last_name TEXT,employment_status TEXT); INSERT INTO staff VALUES('S1',1,'Lead','One','active'),('S2',2,'Teacher','Two','active'),('S3',3,'Other','Three','active'); CREATE TABLE documents(id INTEGER,app_id TEXT,title TEXT);CREATE TABLE document_versions(id INTEGER,document_id INTEGER,version_number INTEGER,sha256 TEXT);CREATE TABLE nb_records(id TEXT,app_id TEXT,kind TEXT,data_json TEXT);CREATE TABLE nb_revisions(record_id TEXT,revision INTEGER,snapshot_json TEXT);`);
+ db.exec(`CREATE TABLE staff(staff_id TEXT,user_id INTEGER,first_name TEXT,last_name TEXT,employment_status TEXT); INSERT INTO staff VALUES('S1',1,'Lead','One','active'),('S2',2,'Teacher','Two','active'),('S3',3,'Other','Three','active'); CREATE TABLE documents(id INTEGER,app_id TEXT,title TEXT);CREATE TABLE document_versions(id INTEGER,document_id INTEGER,version_number INTEGER,sha256 TEXT);`);
  ctx={auth,db:{query(sql,params=[]){const s=db.prepare(sql);return s.reader?{rows:s.all(params)}:{rows:[],...s.run(params)};},transaction(fn){return db.transaction(fn)();}}};
  db.exec('ALTER TABLE staff ADD COLUMN updated_at TEXT');
  const r=await mod.create(req({command_id:randomUUID(),title:'Synthetic Career Week',timezone:'Asia/Riyadh',lead_staff_id:'S1'}),ctx);expect(r.success).toBe(true);instance=r.instance;
@@ -60,14 +60,11 @@ test('record-level access, unique identity binding and inactive staff fail close
  db.prepare("INSERT INTO staff(staff_id,user_id,first_name,last_name,employment_status) VALUES('duplicate',2,'Duplicate','Binding','active')").run();expect((await mod.workspace(req({},staff),ctx)).identity).toMatchObject({staff_id:null,ambiguous:true});expect((await command('task.complete',{task_id:a},staff)).statusCode).toBe(404);
  db.prepare("DELETE FROM staff WHERE staff_id='duplicate'").run();db.prepare("UPDATE staff SET employment_status='terminated' WHERE staff_id='S2'").run();expect((await command('task.complete',{task_id:a})).statusCode).toBe(409);
 });
-test('required evidence and pinned provisional Layer 1 remain independent and permission-filtered',async()=>{
+test('required evidence works without the retired model and obsolete links are rejected',async()=>{
  const a=await add('A',{required_evidence:true});await ok('instance.activate');expect((await command('task.complete',{task_id:a})).success).toBe(false);
  await ok('link.add',{task_id:a,kind:'evidence',note:'Verified with coordinator'},staff);await ok('task.complete',{task_id:a},staff);
- const record={id:'R1',revision:1,data:{name:'Draft responsibility',normalized_statement:'Exact wording',status:'draft',review_status:'draft',evidence:'inferred',is_fixture:false}};
- db.prepare('INSERT INTO nb_records VALUES(?,?,?,?)').run('R1','principal-ed','responsibility',JSON.stringify(record.data));db.prepare('INSERT INTO nb_revisions VALUES(?,?,?)').run('R1',1,JSON.stringify(record));
- const before=db.prepare('SELECT snapshot_json FROM nb_revisions').get().snapshot_json;
- await ok('link.add',{task_id:a,kind:'responsibility',responsibility_id:'R1',revision:1});const other=await mod.get(req({},staff),ctx);expect(other.instance.links.find(l=>l.kind==='responsibility')).toMatchObject({restricted:true});expect(db.prepare('SELECT snapshot_json FROM nb_revisions').get().snapshot_json).toBe(before);
- const link=instance.links.find(l=>l.kind==='responsibility');expect((await mod.context({...req(),query:{link_id:link.id}},ctx)).record.data).toMatchObject({review_status:'draft',evidence:'inferred'});expect((await mod.context({...req({},staff),query:{link_id:link.id}},ctx)).statusCode).toBe(404);
+ expect((await command('link.add',{task_id:a,kind:'responsibility',responsibility_id:'R1',revision:1})).success).toBe(false);
+ expect((await mod.references(req(),ctx)).success).toBe(true);
 });
 test('milestones, cancellation and closure retain history',async()=>{
  const a=await add('A');await ok('milestone.add',{title:'Opening',task_ids:[a],target_on:'2027-02-16'});const m=instance.milestones[0].id;await ok('instance.activate');expect((await command('milestone.achieve',{milestone_id:m})).success).toBe(false);await ok('task.complete',{task_id:a});await ok('milestone.achieve',{milestone_id:m});await ok('task.reopen',{task_id:a,reason:'Correction'});expect(instance.milestones[0].status).toBe('pending');await ok('instance.cancel',{reason:'Event cancelled'});expect(instance.exceptions.filter(e=>e.state==='open')).toHaveLength(0);expect((await command('task.reinstate',{task_id:a,reason:'No'})).success).toBe(false);

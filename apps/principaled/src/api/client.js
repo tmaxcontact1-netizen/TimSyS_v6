@@ -42,14 +42,6 @@ export const createExecutionInstance = data => client.post('/execution/instances
 export const executionCommand = (id,data) => client.post(`/execution/instances/${id}/commands`,data);
 export const executionPreview = (id,task_id) => client.get(`/execution/instances/${id}/preview`,{params:{task_id}});
 export const executionHistory = (id,before) => client.get(`/execution/instances/${id}/history`,{params:{before}});
-export const getNervousBreakdownWorkspace = params => client.get('/nervous-breakdown/workspace', { params });
-export const getNervousBreakdownTopology = params => client.get('/nervous-breakdown/topology', { params });
-export const getNervousBreakdownDetail = (id, params) => client.get(`/nervous-breakdown/records/${id}/detail`, { params });
-export const saveNervousBreakdownRecord = data => client.post('/nervous-breakdown/records', data);
-export const importNervousBreakdown = data => client.post('/nervous-breakdown/import', data);
-export const exportNervousBreakdown = () => client.get('/nervous-breakdown/export');
-export const getNervousBreakdownHistory = id => client.get(`/nervous-breakdown/records/${id}/history`);
-export const getNervousBreakdownGraph = params => client.get('/nervous-breakdown/graph', { params });
 export const getGradebookManifest = () => client.get("/gradebook/manifest");
 export const getGradebookInsights = () => client.get("/gradebook/insights");
 export const listGradebooks = (params = {}) => client.get("/gradebooks", { params });
