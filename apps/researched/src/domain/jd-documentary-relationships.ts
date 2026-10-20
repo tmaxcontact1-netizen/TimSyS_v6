@@ -1,22 +1,32 @@
 import type {Passage} from '../application/jd-documents.js';
 export type DocumentaryRow=Passage&{documentId:string;filename:string;role:string};
-const actorNoun='(?:principals?|coordinators?|directors?|teachers?|counsel(?:l)?ors?|parents?|students?|staff|administrators?|families|family|teams?|committees?|supervisors?|leaders?|nurses?|specialists?|personnel|heads?|school administration|interventionists?|departments?|faculty|partners?|agencies|academic leadership|school leadership|leadership|student council)';
+const actorNoun='(?:principals?|coordinators?|directors?|teachers?|counsel(?:l)?ors?|parents?|students?|staff|administrators?|families|family|teams?|committees?|supervisors?|leaders?|nurses?|specialists?|personnel|heads?|school administration|interventionists?|departments?|faculty|partners?|agencies|academic leadership|school leadership|leadership|student council|learning support)';
 const actorEnd=new RegExp('\\b'+actorNoun+'(?:\\s*\\([^)]*\\))?$','i');
-const negation=/\b(?:does? not|do not|cannot|can not|must not|may not|is not|are not|not permitted|never|no authority|remain(?:s)? (?:with|the responsibility of)|sit with|not discipline|outside (?:the|their|its) (?:role|authority)|beyond (?:the|their|its) (?:role|authority))\b/i;
 // Closed literal grammar. No synonym expansion, role equivalence or semantic matching.
-const verbs=/\b(?:reports?(?:\s+(?:findings|outcomes|progress|concerns))?\s+to|reporting to|line[ -]manages?|works?\s+(?:closely\s+)?(?:with|alongside)|collaborat(?:e|es)\s+(?:closely\s+|effectively\s+)?with|coordinat(?:e|es) with|in coordination with|provides? (?:professional )?guidance to|supports?|assists?|advises?|refers?(?:\s+[^.!?;]{1,80}?)?\s+to|escalat(?:e|es)(?:\s+[^.!?;]{1,80}?)?\s+to|shares?(?:\s+(?:findings|outcomes|progress|concerns))?\s+with|communicat(?:e|es) with|(?:serves? as (?:the )?)?primary contact for|(?:as )?directed by|(?:as )?supervised by|(?:as )?assigned by|approved by|accountable to)\b/gi;
-const imperative=/^(?:manage|manages|perform|performs|supervise|supervises|demonstrate|demonstrates|deal|deals|work|works|collaborate|collaborates|coordinate|coordinates|provide|provides|support|supports|assist|assists|advise|advises|refer|refers|escalate|escalates|share|shares|communicate|communicates|serve|serves|report|reports|line[ -]manage|line[ -]manages|document|documents|conduct|conducts|keep|keeps|maintain|maintains|monitor|monitors|attend|attends|participate|participates|create|creates|implement|implements)\b/i;
+const verbs=/\b(?:(?:directly\s+)?reports?(?:\s+[^.!?;]{1,100}?)?\s+to|reporting to|line[ -]manages?|work(?:s|ing)?\s+(?:closely\s+)?(?:with|alongside)|(?:in\s+)?collaboration\s+with|collaborat(?:e|es)\s+(?:closely\s+|effectively\s+)?with|coordinat(?:e|es) with|(?:in )?coordination with|provides? (?:professional )?guidance to|(?:professional )?guidance from|provides? support to|provides? assistance to|assistance to|supports?|assists?|advises?|refers?(?:\s+[^.!?;]{1,80}?)?\s+to|escalat(?:e|es)(?:\s+[^.!?;]{1,80}?)?\s+to|shar(?:e|es|ed)(?:\s+[^.!?;]{1,100}?)?\s+with|communicat(?:e|es) with|(?:serves? as (?:the )?)?primary contact for|(?:as )?(?:agree|agreed) with|(?:as )?direct(?:ed)? by|under the supervision of|(?:as )?supervis(?:e|ed) by|(?:as )?assign(?:ed)? by|approved by|accountable to)\b/gi;
+const imperative=/^(?:teach|teaches|differentiate|differentiates|contribute|contributes|receive|receives|offer|offers|act|acts|manage|manages|perform|performs|supervise|supervises|demonstrate|demonstrates|deal|deals|work|works|collaborate|collaborates|coordinate|coordinates|provide|provides|support|supports|assist|assists|advise|advises|refer|refers|escalate|escalates|share|shares|communicate|communicates|serve|serves|report|reports|line[ -]manage|line[ -]manages|document|documents|conduct|conducts|keep|keeps|maintain|maintains|monitor|monitors|attend|attends|participate|participates|create|creates|implement|implements)\b/i;
+function boundaryPhrase(sentence:string,labels:string[]){
+ const clean=sentence.replace(/^[•●▪◦\s]+/,'').trim();
+ const reservation=sentence.match(/\b(?:remain(?:s)? (?:with|the responsibility of)|sit with)\b/i);
+ if(reservation&&/\b(?:responsibility|authority|decisions?|sanctions?|planning|management|plans?|documentation)\b/i.test(sentence.slice(0,reservation.index!)+reservation[0]))return reservation[0];
+ const imperativeNegative=/^(?:do not|does not|must not|may not|cannot|never|not permitted to)\b/i.exec(clean);if(imperativeNegative)return imperativeNegative[0];
+ const negative=/\b(?:does? not|cannot|must not|may not|is not|are not|has no authority|is only permitted to|may only|must only)\b/i.exec(clean);
+ if(negative){const subject=clean.slice(0,negative.index).trim();if(isActor(subject,labels)&&!/\b(?:students?|parents?|families)\b/i.test(subject))return negative[0];}
+ if(/^(?:the )?[A-Za-z -]+(?:'s|’s) role\b/i.test(clean)&&/\bnot on\b/i.test(clean))return 'not on';
+ if(/\bnot discipline\b/i.test(clean)&&/^(?:the )?[A-Za-z -]+ (?:provides?|offers?)\b/i.test(clean))return 'not discipline';
+ return null;
+}
 const trimActor=(s:string)=>s.replace(/^(?:the|a|an)\s+/i,'').trim();
-function isActor(s:string,labels:string[]){const t=trimActor(s);return labels.some(x=>x.toLowerCase()===t.toLowerCase())||(!/\b(?:if|when|where|unless|while|who|that|not|will|must|may|can|to|with|works|provides|supports|assists|ensures|implements|shares|refers|reports|facilitate|facilitates|recruit|recruits|hire|hires|retain|retains|develop|develops|led)\b/i.test(t)&&t.split(/\s+/).length<=12&&(actorEnd.test(t)||/^(?:Deputy\s+)?(?:Director|Head) of [A-Za-z ]+$/i.test(t)));}
+function isActor(s:string,labels:string[]){const t=trimActor(s);if(/^(?:coordination|supervision|collaboration) of\b|^(?:support|provide|manage|teach|differentiate|contribute)\s+(?:the|a|an)\b/i.test(t))return false;return labels.some(x=>x.toLowerCase()===t.toLowerCase())||(!/\b(?:if|when|where|unless|while|who|that|not|will|must|may|can|to|with|works|provides|supports|assists|ensures|implements|shares|refers|reports|facilitate|facilitates|recruit|recruits|hire|hires|retain|retains|develop|develops|led)\b/i.test(t)&&t.split(/\s+/).length<=12&&(actorEnd.test(t)||/^(?:Deputy\s+)?(?:Director|Head) of [A-Za-z ]+$/i.test(t)));}
 function counterparts(text:string,labels:string[]){
  if(/^[,;:.!?]/.test(text)||/^(?:to|for|with|in|of|on|by|and|or)\b/i.test(text))return[];
- const end=text.search(/\s+(?:to|for|with|who|which|that|where|when|unless|as|through|regarding|concerning|seeking|enrolled|in order to)\b|,\s*(?:recruit|hire|retain|support|provide|communicate|work|facilitate)\b|(?:^|\s+)(?:and|or)\s+(?:holds?|has|maintains?|retains?|performs?|facilitat(?:e|es)|works?|provides?|supports?|assists?|ensures?|shares?|refers?|reports?|communicat(?:e|es))\b|[;.!?]/i);
+ const end=text.search(/\s+(?:to|for|with|who|which|that|where|when|unless|as|through|regarding|concerning|seeking|enrolled|in order to)\b|,\s*(?:recruit|hire|retain|support|provide|communicate|work|facilitate)\b|(?:^|\s+)(?:and|or)\s+(?:directly\s+)?(?:document(?:s|ed)?|holds?|has|maintains?|retains?|performs?|facilitat(?:e|es)|works?|provides?|supports?|assists?|ensures?|shares?|refers?|reports?|communicat(?:e|es))\b|[;.!?]/i);
  const clause=(end<0?text:text.slice(0,end)).trim().replace(/[,\s]+$/,'');
  const parts:{text:string;index:number}[]=[];
  for(const m of clause.matchAll(/[^,]+/g)){
   const chunk=m[0],offset=m.index!;
   const conjunctions=[...chunk.matchAll(/\s+(?:and|or)\s+/gi)];let divided=false;
-  for(const join of conjunctions){const left=chunk.slice(0,join.index),right=chunk.slice(join.index!+join[0].length);if(isActor(left.trim(),labels)&&isActor(right.trim(),labels)){parts.push({text:left,index:offset},{text:right,index:offset+join.index!+join[0].length});divided=true;break;}}
+  for(const join of conjunctions){const left=chunk.slice(0,join.index),right=chunk.slice(join.index!+join[0].length);if(isActor(left.trim(),labels)){parts.push({text:left,index:offset},{text:right,index:offset+join.index!+join[0].length});divided=true;break;}}
   if(!divided)parts.push({text:chunk,index:offset});
  }
  const candidates=parts.map(p=>{const leading=p.text.match(/^\s*(?:(?:and|or)\s+)?/)![0];const wording=p.text.slice(leading.length).trim();return{wording,index:p.index+leading.length};});const result:typeof candidates=[];for(const candidate of candidates){if(!isActor(candidate.wording,labels))break;result.push(candidate);}return result;
@@ -24,9 +34,11 @@ function counterparts(text:string,labels:string[]){
 function resolveActor(prefix:string,sentence:string,sourceRole:string,labels:string[],phrase:string){
  const clean=prefix.replace(/^[•●▪◦\s]+/,'').trim();
  if(!clean)return{actor:sourceRole,basis:'JD responsibility subject'};
+ if(/^(?:when|where|if|unless)\b[^,;]+,\s*$/i.test(clean)&&imperative.test(phrase))return{actor:sourceRole,basis:'JD imperative following explicit condition'};
+ const assigned=/^(?:the\s+)?([^,]+?)(?:,\s*with\s+[^,]+,)?\s+(?:is assigned to|can also be designated to)\s*$/i.exec(clean);if(assigned&&isActor(assigned[1]!,labels))return{actor:trimActor(assigned[1]!),basis:'Explicit sentence subject of assigned action'};
  const explicit=clean.replace(/\s+(?:will|must|shall|may|can|also|is|are)\s*$/i,'').trim();
  if(isActor(explicit,labels))return{actor:trimActor(explicit),basis:'Explicit sentence subject'};
- if(/^(?:in coordination with|(?:as )?(?:directed|supervised|assigned) by)$/i.test(phrase)){const root=/^(?:the\s+)?(.+?)\s+(?:provides?|supports?|works?|conducts?|documents?|keeps?|maintains?|monitors?|serves?)\b/i.exec(clean);if(root&&isActor(root[1]!,labels))return{actor:trimActor(root[1]!),basis:'Explicit subject with stated condition'};if(imperative.test(clean)&&!new RegExp('\\b'+actorNoun+'\\s+(?:who|that|will|must|can|may|works?|supports?)\\b','i').test(clean))return{actor:sourceRole,basis:'JD responsibility with stated condition'};}
+ if(/^(?:(?:in )?(?:coordination|collaboration) with|(?:as )?(?:agree|agreed) with|(?:as )?(?:direct|directed|supervise|supervised|assign|assigned) by|under the supervision of|(?:professional )?guidance from|assistance to)$/i.test(phrase)){const root=/^(?:the\s+)?(.+?)\s+(?:provides?|supports?|works?|conducts?|documents?|keeps?|maintains?|monitors?|serves?)\b/i.exec(clean);if(root&&isActor(root[1]!,labels))return{actor:trimActor(root[1]!),basis:'Explicit subject with stated condition'};if(imperative.test(clean)&&!new RegExp('\\b'+actorNoun+'\\s+(?:who|that|will|must|can|may|works?|supports?)\\b','i').test(clean))return{actor:sourceRole,basis:'JD responsibility with stated condition'};}
  // A second coordinated predicate may inherit an already stated subject, never a nearby title.
  const finalSubject=clean.split(',').at(-1)?.trim();if(finalSubject&&isActor(finalSubject,labels))return{actor:trimActor(finalSubject),basis:'Explicit subject after stated condition'};
  if(/^in coordination with [^,]+,\s*$/i.test(clean))return{actor:sourceRole,basis:'JD responsibility following stated coordination condition'};
@@ -48,7 +60,8 @@ export function documentaryRelationships(rows:DocumentaryRow[],labels:string[]){
  for(const row of rows){
   for(const sentenceMatch of row.text.matchAll(/[^.!?;]+(?:[.!?;]|$)/g)){
    const sentence=sentenceMatch[0],start=sentenceMatch.index!,ev=evidence(row,sentence,start,start+sentence.length);
-   if(negation.test(sentence)){boundaries.push({...ev,id:row.id+':boundary:'+start,status:'documentary_boundary',phrase:sentence.match(negation)![0],condition:sentence.match(/\b(?:unless|except|when|where|while)\b[\s\S]*/i)?.[0]??''});continue;}
+   const boundary=boundaryPhrase(sentence,labels);
+   if(boundary){boundaries.push({...ev,id:row.id+':boundary:'+start,status:'documentary_boundary',phrase:boundary,condition:sentence.match(/\b(?:unless|except|when|where|while)\b[\s\S]*/i)?.[0]??''});continue;}
    for(const match of sentence.matchAll(verbs)){
     if(documented.some(r=>r.passageId===row.id&&r.counterpartSpan.start<=row.start+start+match.index!&&r.counterpartSpan.end>row.start+start+match.index!))continue;
     const phrase=match[0],at=match.index!,prefix=sentence.slice(0,at),tail=sentence.slice(at+phrase.length),trim=tail.length-tail.trimStart().length,base=at+phrase.length+trim;
@@ -58,7 +71,7 @@ export function documentaryRelationships(rows:DocumentaryRow[],labels:string[]){
     for(const target of targets){
      const targetStart=start+base+target.index,targetEnd=targetStart+target.wording.length;
      const rest=sentence.slice(base+Math.max(...targets.map(t=>t.index+t.wording.length))).replace(/^[,\s]+/,'');
-     const object=phrase.match(/^(?:refers?|escalat(?:e|es)|reports?|shares?)\s+(.+?)\s+(?:to|with)$/i)?.[1]??prefix.match(/\bdocument\s+([^,;]+?)\s+and\s*$/i)?.[1]??'';
+     const object=phrase.match(/^(?:directly\s+)?(?:refers?|escalat(?:e|es)|reports?|shar(?:e|es|ed))\s+(.+?)\s+(?:to|with)$/i)?.[1]??prefix.match(/\bdocument\s+([^,;]+?)\s+and\s*$/i)?.[1]??'';
      documented.push({...ev,id:row.id+':relationship:'+start+':'+at+':'+targetStart,status:'documented_relationship',actor:actor.actor,actorBasis:actor.basis,counterpart:trimActor(target.wording),counterpartWording:target.wording,phrase,phraseSpan:{start:row.start+start+at,end:row.start+start+at+phrase.length},counterpartSpan:{start:row.start+targetStart,end:row.start+targetEnd},statedObject:object,purposeOrCondition:/^[.;!?]*$/.test(rest)?'':rest,statedCondition:sentence.match(/^\s*(?:[•●▪◦]\s*)?(?:where|when|if|unless)\b[^,;]+,/i)?.[0]??'',polarity:'positive',sequenceEstablished:false});
     }
    }

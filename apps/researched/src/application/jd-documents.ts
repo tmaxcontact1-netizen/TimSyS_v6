@@ -4,7 +4,7 @@ import {createHash,randomUUID} from 'node:crypto';
 import {readMcfImport} from './mcf-import.js';
 import {readJdPdf,type JdChunk,type PhysicalLine,type SourceSpan} from './jd-pdf-layout.js';
 
-export const JD_RULES='jd-literal-structure.v2';
+export const JD_RULES='jd-literal-structure.v3';
 export type DocumentaryKind='heading'|'statement'|'descriptor'|'metadata'|'qualification'|'approval';
 export type Passage={id:string;text:string;start:number;end:number;location:string;kind:DocumentaryKind;dimension:string;sourceSpans?:SourceSpan[];ambiguity?:string};
 export type JdDocument={id:string;filename:string;sha256:string;extracted:string;role:string;warnings:string[];passages:Passage[];rawExtracted?:string;physicalLines?:PhysicalLine[];extractionRules?:string};
@@ -62,6 +62,8 @@ export async function extractJd(bytes:Buffer,filename:string):Promise<JdDocument
   let kind:DocumentaryKind=h?'heading':furniture||isField?'metadata':section;
   if(!h&&!isField&&!furniture&&!c.bullet&&!/^[•●▪◦]/.test(clean)&&section==='statement'&&hasBullets)kind='descriptor';
   if(!h&&section==='metadata'&&dimension==='Unassigned — check source'&&clean.length>150)kind='descriptor';
+  // Document-organisation subjects are not role actions.
+  if(!h&&!isField&&section==='statement'&&/^(?:the\s+)?(?:(?:\d+|[a-z-]+)\s+)?(?:standards|domains|sections)\s+(?:below|that follow|listed below)\s+(?:define|describe|set out|outline)\b/i.test(clean)&&following.length===0&&nextHeading>=0)kind='descriptor';
   if(!h&&!c.bullet&&(c.sourceSpans?.[0]?.x??0)>180&&section==='qualification'&&chunks[index+1]?.text.match(/^(Approved|Acknowledged)\b/i))kind='approval';
   const ambiguity=c.ambiguous??(c.sourceSpans&&/^Section-Level Programme Delivery$/i.test(dimension)&&!h?'Table cell associations are unresolved; retained as metadata, not individual responsibilities.':undefined);
   if(ambiguity&&!c.ambiguous&&!warnings.some(w=>w.includes(ambiguity)))warnings.push(`${c.location}: ${ambiguity}`);
