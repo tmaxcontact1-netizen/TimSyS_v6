@@ -46,9 +46,9 @@ SQLite online backup includes committed WAL content. Backup and final store pass
 
 ## Release and isolation
 
-Release: **2026.10.20.1**. The package uses the installed `48f4a31f458de2c1ac1548d8` platform as its verified snapshot baseline, preserving the later isolation repair absent from the older published platform zip. Unchanged files were copied and hashed; modified backend files were checked against the reviewed source base. Only the obsolete import-size branch was removed from the otherwise-preserved platform entry point.
+Release: **2026.10.20.2**. The package uses the installed `48f4a31f458de2c1ac1548d8` platform as its verified snapshot baseline, preserving the later isolation repair absent from the older published platform zip. Unchanged files were copied and hashed; modified backend files were checked against the reviewed source base. Only the obsolete import-size branch was removed from the otherwise-preserved platform entry point.
 
-The update replaces platform and launcher UI bundles. The latest Research'Ed bundle remains unchanged; other installed application bundles remain untouched. Package manifest and verification evidence are under `dist-updates/nb-retirement-2026.10.20.1`.
+The update replaces platform and launcher UI bundles. The latest Research'Ed bundle remains unchanged; other installed application bundles remain untouched. Package manifest and verification evidence are under `dist-updates/nb-retirement-2026.10.20.2`.
 
 Trade'Ed changed from failed/stopped to an active independent run during this work. The active-store command stopped at that transition before deletion. Before proceeding, worker 24216 → watchdog 21380 → scheduled owner 24120 → Windows service ancestry was verified, excluding Launcher. Ports 18860/18861 and runtime/data/log paths under `tradeed-validation` are separate. Heartbeats were healthy and the incident log showed only startup events. This task did not restart, stop or modify any Trade'Ed process or files.
 
