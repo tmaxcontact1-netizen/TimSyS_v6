@@ -1,3 +1,4 @@
+import {createJdApi} from './jd-api.js';
 import {createWorkbenchApi} from './workbench-api.js';
 import {createReportPdfApi} from './report-pdf-api.js';
 import {createAssistantApi} from './assistant-api.js';
@@ -300,6 +301,7 @@ export function createResearchServer(input: {
   };
   let queueWorkerError: string | null = null;
   const workbenchApi=createWorkbenchApi(input.database as ContentDatabase,storageRoot);
+  const jdApi=createJdApi(storageRoot);
   const reportPdfApi=createReportPdfApi();
   const assistantApi=createAssistantApi(input.database,input.assistantToken);
   const mcfApi = createMcfApi(input.database as ContentDatabase, storageRoot,()=>aiProvider,Boolean(input.backgroundQueue));
@@ -309,6 +311,7 @@ export function createResearchServer(input: {
       url = new URL(q.url ?? "/", "http://127.0.0.1"),
       path = url.pathname;
     try {
+      if(await jdApi(q,r))return;
       if(await assistantApi(q,r))return;
       if(path==='/api/ai/status'&&method==='GET')return json(r,200,{configured:Boolean(aiProvider),managed:Boolean(input.aiManaged),provider:aiProvider?{id:aiProvider.id,model:aiProvider.model}:null,unavailableReason:aiProvider?null:input.aiUnavailableReason??null,deterministicAvailable:true});
       if(input.aiManaged&&['/api/ai/connection','/api/ai/inspect','/api/content/provider'].includes(path)&&method!=='GET')return json(r,409,{error:'ai_managed_by_launcher',detail:'Use TimSyS AI Integration, then close and reopen ResearchEd to apply connection changes.'});

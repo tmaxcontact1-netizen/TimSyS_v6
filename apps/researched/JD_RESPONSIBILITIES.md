@@ -1,0 +1,25 @@
+# Roles and responsibilities — Research’Ed 0.10.0
+
+## Scope and methodology
+
+A deterministic, separate JD tool; no AI, MCF instrument change, semantic classification, automatic role equivalence or inferred handoff. Upload DOCX, text-layer PDF, TXT or a ZIP of supported files. Each document retains its original bytes and SHA-256, extracted text, passage IDs and offsets, page/paragraph location, original dimensions and extraction warnings. Responsibility bullets remain intact where text-layer structure identifies them; unknown structure is available for researcher checking. PDF reading order is not guaranteed and no OCR/repair is silently applied.
+
+The parser uses versioned structural rules (jd-literal-structure.v1). It detects common JD field labels, Standard/Domain headings and named section headings. It is not a universal layout recogniser. Researchers can classify a passage as statement/other text or recognise an original heading using its exact source wording and reassign it only to a dimension already present in that document; immutable extracted text and original dimension remain retained. Role-title corrections are separate from source text. Exclusions are reversible. Confirmation is required before exports.
+
+The role column identifies the source JD owner, not an inferred grammatical actor; passages may explicitly describe other roles. The matrix preserves the original dimensions instead of creating a new thematic framework. Editable literal search terms are retrieval aids. The special-education preset retrieves AEA, CST, intervention, referral, accommodation and parent-related passages; it is not a relevance classifier or complete decision procedure. All matches remain visible regardless of whether a connection is documented.
+
+Reporting chains use only explicit Reporting To fields, with whitespace/case-insensitive exact title joins between uniquely named supplied JDs. Principal and Section Principal are not silently merged. Unmatched counterpart wording, duplicate title ambiguity and cycles are exposed. Collaboration and professional guidance retain their own labels. These reporting chains do not establish intervention sequence or approval authority. Operational relationship phrases retain complete evidence rather than guessing actor/target. Two passages can be compared without inventing a handoff. Missing connections remain unresolved, with later duties still shown; the tool does not generate a normative missing-link list from unstated expectations.
+
+## Workflow
+
+From Research’Ed home select Roles and responsibilities (opens within Research’Ed; background analysis continues). New collection → upload ZIP/documents → Check extraction. Select each source, inspect original headings/text and download the original where needed. Save optional checks, or Confirm extraction and explore. Choose the special-education retrieval preset or enter semicolon-separated terms. Use Responsibility matrix and Relationships and gaps; inspect exact reporting chains and compare passages. Download JSON, HTML and CSV together. CSV neutralises spreadsheet formula prefixes without changing retained source text. JSON includes all source text, provenance, review decisions, revision history and the selected retrieval terms; originals remain separately downloadable.
+
+Edit extraction, Undo and Redo are explicit. Permanent source deletion removes its original and extracted content, clears undo/redo snapshots to prevent resurrection, and invalidates confirmation. Collection deletion removes the complete folder. Deletion is confirmed and intentionally cannot be undone.
+
+## Isolation and persistence
+
+The new /api/jd routes use a dedicated jd-responsibilities folder beneath Research’Ed storageRoot. Each collection has UUID paths, original binary files and an atomically replaced project.json with revision checks and review history. Serialized requests prevent competing updates. No SQL schema/migration, database access, AI call, MCF queue or shared runtime change is introduced by the tool. Source-size/expanded-archive limits, supported-format checks and same-origin mutation checks apply. Test storage is disposable and separate from the live app. Publication does not install the update or restart processing.
+
+## Acceptance evidence
+
+The supplied nine-JD ZIP is exercised only in local ignored verification artifacts; source documents are not committed or included in the update. Tests verify original-byte hashes and every passage offset, distinct role titles, original dimensions, AEA parent-contact/enrolment/referral passages, AEA Teacher → AEA Coordinator → Head of Schools, and no Principal/Section Principal identity inference. Browser/API checks cover confirmation, comparisons, all three exports, undo/redo, stale revisions, cross-origin rejection and physical deletion. Existing workflow and semantic regression suites also run with disposable databases. A rejecting database stub confirms JD operations make no database calls (the existing host has a separate startup recovery call).
