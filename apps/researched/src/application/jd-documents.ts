@@ -2,26 +2,31 @@ import JSZip from 'jszip';
 import {load} from 'cheerio';
 import {createHash,randomUUID} from 'node:crypto';
 import {readMcfImport} from './mcf-import.js';
+import {readJdPdf,type JdChunk,type PhysicalLine,type SourceSpan} from './jd-pdf-layout.js';
 
-export const JD_RULES='jd-literal-structure.v1';
-export type Passage={id:string;text:string;start:number;end:number;location:string;kind:'heading'|'statement'|'metadata';dimension:string};
-export type JdDocument={id:string;filename:string;sha256:string;extracted:string;role:string;warnings:string[];passages:Passage[]};
+export const JD_RULES='jd-literal-structure.v2';
+export type DocumentaryKind='heading'|'statement'|'descriptor'|'metadata'|'qualification'|'approval';
+export type Passage={id:string;text:string;start:number;end:number;location:string;kind:DocumentaryKind;dimension:string;sourceSpans?:SourceSpan[];ambiguity?:string};
+export type JdDocument={id:string;filename:string;sha256:string;extracted:string;role:string;warnings:string[];passages:Passage[];rawExtracted?:string;physicalLines?:PhysicalLine[];extractionRules?:string};
 const heading=/^(?:Standard\s+\d+\s*:|Domain\s+\d+\s*:|(?:\d+\s*[.)]\s*)?(?:Responsibility of Support|For the student|For the parent|Student Management|Personnel Management|Instructional and Program Management|Professional Development|Key Responsibilities(?: and Primary Duties)?|General Expectations|Specific Responsibilities|In Class Assistance|Clerical\/Technical Assistance and General Duties|Scope of Authority|Confidentiality and Safeguarding Boundaries|AEA and Student Support Coordination|Records, Documentation, and Data Protection|Referral Pathway|Expected Outcomes|Professional Ethics and Boundaries|Section-Level Programme Delivery|Qualifications(?: and Requirements)?|Appointment and Performance Review|Appointment and Reappointment|Performance Review|Selection and Appointment Process|Approved (?:and Acknowledged|By)|Acknowledged By|Job Summary|Job Scope|Position Overview|Appendix:.*))$/i;
 const field=/^(Job Title|Position Title|Reporting To|Works Closely With|Professional Guidance|Department|Applicable Sections|Appraised By|Evaluated By|Document Status|Appraisal Cycle|Framework Reference|Appointment Term)$/i;
 export function isHeading(text:string){const t=text.replace(/\s+/g,' ').replace(/^\d+\s*\.\s*/,'').replace(/:$/,'').trim();return /^(Standard|Domain)\s+\d+\s*:/i.test(t)||heading.test(t)||/^Career Guidance \(.+\)$/.test(t);}
 const administrative=/^(Qualifications|Appointment|Performance Review|Selection and Appointment|Approved|Acknowledged|Appendix|Position Overview)/i;
 
 export async function extractJd(bytes:Buffer,filename:string):Promise<JdDocument>{
- const warnings:string[]=[];const chunks:{text:string;location:string;heading:boolean}[]=[];
+ const warnings:string[]=[];const chunks:JdChunk[]=[];let rawExtracted:string|undefined,physicalLines:PhysicalLine[]|undefined;
  if(/\.docx$/i.test(filename)){
   const zip=await JSZip.loadAsync(bytes);checkZip(zip);const part=zip.file('word/document.xml');if(!part)throw Error('Invalid DOCX');
   const $=load(await part.async('string'),{xml:true});
   $('w\\:body w\\:p').each((i,p)=>{
    const text=$(p).find('w\\:t,w\\:tab,w\\:br').map((_,n)=>n.tagName==='w:t'?$(n).text():n.tagName==='w:tab'?'\t':'\n').get().join('');
    if(!text.trim())return;const style=$(p).find('w\\:pStyle').attr('w:val')??'';
-   chunks.push({text,location:`DOCX paragraph ${i+1}`,heading:/^Heading[1-6]$/i.test(style)});
+   chunks.push({text,location:`DOCX paragraph ${i+1}`,heading:/^Heading[1-6]$/i.test(style),bullet:$(p).find('w\\:numPr').length>0});
   });
- }else if(/\.(pdf|txt)$/i.test(filename)){
+ }else if(/\.pdf$/i.test(filename)){
+  const pdf=await readJdPdf(bytes,isHeading);chunks.push(...pdf.chunks);rawExtracted=pdf.rawExtracted;physicalLines=pdf.physicalLines;
+  warnings.push('PDF units reconstructed from physical line geometry, bullet markers and headings. Original line text and coordinates are retained; no OCR or text repair is applied.');
+ }else if(/\.txt$/i.test(filename)){
   const raw=await readMcfImport(bytes,filename);warnings.push(...raw.warnings);
   // Text-layer whitespace is retained. Bullet and line boundaries are candidates, never silently corrected.
   const pages=raw.blocks.length?raw.blocks.map(b=>({text:raw.text.slice(b.start,b.end),page:Number(b.location.page)})):[{text:raw.text,page:0}];
@@ -39,31 +44,32 @@ export async function extractJd(bytes:Buffer,filename:string):Promise<JdDocument
   }
   if(/\.pdf$/i.test(filename))warnings.push('PDF reading order and wrapped bullets require checking against the original; no OCR or text repair is applied.');
  }else throw Error('Use DOCX, text-layer PDF, TXT or a ZIP containing these formats.');
- if(/\.pdf$/i.test(filename)&&chunks.some(c=>c.text.trim()==='Position Overview')){
-  const fieldStart=/^(Job Title|Position Title|Reporting To|Works Closely With|Professional Guidance|Department|Applicable Sections|Appraised By|Evaluated By|Document Status|Appraisal Cycle|Framework Reference|Appointment Term)\s+/i;
-  for(let i=0;i<chunks.length;i++){
-   if(!fieldStart.test(chunks[i]!.text.trim()))continue;
-   while(i+1<chunks.length){
-    const next=chunks[i+1]!,t=next.text.trim();
-    if(next.location!==chunks[i]!.location||fieldStart.test(t)||field.test(t)||isHeading(t)||/^[•●]|^(For internal use only|Bahrain Bayan School \|)/i.test(t))break;
-    chunks[i]!.text+='\n'+next.text;chunks.splice(i+1,1);
-   }
-  }
- }
- const passages:Passage[]=[];let extracted='',dimension='Unassigned — check source',role='',pendingRole=false,metadata=true;
- for(const c of chunks){
-  const text=c.text,clean=text.trim(),start=extracted.length;extracted+=text+'\n\n';
+ const passages:Passage[]=[];let extracted='',dimension='Unassigned — check source',role='',pendingRole=false,section:DocumentaryKind='metadata';
+ for(let index=0;index<chunks.length;index++){
+  const c=chunks[index]!,text=c.text,clean=text.trim(),start=extracted.length;extracted+=text+'\n\n';
   const inlineRole=/^(?:Job Title|Position Title)\s+(.+)$/i.exec(clean);
   if(inlineRole&&!role)role=inlineRole[1]!.trim();
-  if(pendingRole&&!role){role=clean;pendingRole=false;}
+  if(pendingRole&&!role){if(!field.test(clean)&&!isHeading(clean))role=clean;pendingRole=false;}
   if(/^(Job Title|Position Title)$/i.test(clean))pendingRole=true;
-  const h=c.heading||isHeading(clean);
-  if(h){dimension=clean;metadata=administrative.test(clean);}
-  passages.push({id:randomUUID(),text,start,end:start+text.length,location:c.location,kind:h?'heading':field.test(clean)||metadata||/^(For internal use only|Bahrain Bayan School \||\d+\s*\/\s*\d+$|\d+$)/i.test(clean)?'metadata':'statement',dimension});
+  const h=c.heading||isHeading(clean),normal=clean.replace(/^\d+\s*[.)]\s*/,'');
+  if(h){dimension=clean;section=/^Qualifications?/i.test(normal)?'qualification':/^(Approved|Acknowledged|Signatures?)/i.test(normal)?'approval':administrative.test(normal)||/^Section-Level Programme Delivery$/i.test(normal)?'metadata':/^(Job Summary|Job Scope)$/i.test(normal)?'descriptor':'statement';}
+  if(c.sectionBreak){dimension='Unassigned — heading not extracted';section=/^[•●▪◦]?\s*(?:BA\/BS|B[AS]c?|Master[’']?s|Bachelor[’']?s|Minimum of)\b/i.test(clean)?'qualification':'metadata';warnings.push(`${c.location}: ${c.ambiguous}`);}
+  const nextHeading=chunks.findIndex((x,i)=>i>index&&(x.heading||isHeading(x.text)));
+  const following=chunks.slice(index+1,nextHeading<0?undefined:nextHeading);
+  const hasBullets=following.some(x=>x.bullet||/^[•●▪◦]/.test(x.text.trim()));
+  const furniture=/^(For internal use only|Bahrain Bayan School\s*\||\d+\s*\/\s*\d+$|\d+$)/i.test(clean);
+  const isField=field.test(clean)||/^(Job Title|Position Title|Reporting To|Works Closely With|Professional Guidance|Department|Applicable Sections|Appraised By|Evaluated By|Document Status|Appraisal Cycle|Framework Reference|Appointment Term)\s+/i.test(clean);
+  let kind:DocumentaryKind=h?'heading':furniture||isField?'metadata':section;
+  if(!h&&!isField&&!furniture&&!c.bullet&&!/^[•●▪◦]/.test(clean)&&section==='statement'&&hasBullets)kind='descriptor';
+  if(!h&&section==='metadata'&&dimension==='Unassigned — check source'&&clean.length>150)kind='descriptor';
+  if(!h&&!c.bullet&&(c.sourceSpans?.[0]?.x??0)>180&&section==='qualification'&&chunks[index+1]?.text.match(/^(Approved|Acknowledged)\b/i))kind='approval';
+  const ambiguity=c.ambiguous??(c.sourceSpans&&/^Section-Level Programme Delivery$/i.test(dimension)&&!h?'Table cell associations are unresolved; retained as metadata, not individual responsibilities.':undefined);
+  if(ambiguity&&!c.ambiguous&&!warnings.some(w=>w.includes(ambiguity)))warnings.push(`${c.location}: ${ambiguity}`);
+  passages.push({id:randomUUID(),text,start,end:start+text.length,location:c.location,kind,dimension,...(c.sourceSpans?{sourceSpans:c.sourceSpans}:{}),...(ambiguity?{ambiguity}:{})});
  }
  if(!role)warnings.push('Role title was not identified reliably. Confirm it from the original JD.');
  if(passages.some(p=>/[\uFFFD\u0000]/.test(p.text)))warnings.push('Possible text corruption detected; retained without repair.');
- return{id:randomUUID(),filename,sha256:createHash('sha256').update(bytes).digest('hex'),extracted,role,warnings,passages};
+ return{id:randomUUID(),filename,sha256:createHash('sha256').update(bytes).digest('hex'),extracted,role,warnings,passages,...(rawExtracted!==undefined?{rawExtracted,physicalLines:physicalLines!}:{}),extractionRules:JD_RULES};
 }
 function checkZip(zip:JSZip){
  const entries=Object.values(zip.files);if(entries.length>2000)throw Error('Too many archive entries');

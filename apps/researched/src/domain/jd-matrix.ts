@@ -1,6 +1,7 @@
-import type {JdDocument} from '../application/jd-documents.js';
+import type {RoleEquivalence} from './jd-role-equivalence.js';
+import type {JdDocument,DocumentaryKind} from '../application/jd-documents.js';
 export const SPECIAL_ED_TERMS='AEA; Child Study Team; CST; RAG; referral; referrals; refer; intervention; interventions; accommodation; accommodations; parent; parents; learning support';
-export type JdReview={roles:Record<string,string>;excluded:string[];confirmed:boolean;structure?:Record<string,{kind:'statement'|'metadata'|'heading';dimension:string}>|undefined};
+export type JdReview={roles:Record<string,string>;excluded:string[];confirmed:boolean;roleEquivalences?:RoleEquivalence[]|undefined;structure?:Record<string,{kind:DocumentaryKind;dimension:string}>|undefined};
 export function reviewedPassages(d:JdDocument,review:JdReview){
  let headingOverride:string|null=null;
  return d.passages.map(p=>{
@@ -12,7 +13,7 @@ export function reviewedPassages(d:JdDocument,review:JdReview){
 }
 export function jdMatrix(documents:JdDocument[],review:JdReview,search=''){
  const terms=search.split(';').map(t=>t.trim().toLowerCase()).filter(Boolean);
- const rows=documents.flatMap(d=>reviewedPassages(d,review).filter(p=>p.kind==='statement'&&!review.excluded.includes(p.id)).map(p=>({...p,documentId:d.id,filename:d.filename,originalRole:d.role,role:review.roles[d.id]||d.role||'Role not established'})))
+ const rows=documents.flatMap(d=>reviewedPassages(d,review).filter(p=>(p.kind==='statement'||p.kind==='descriptor')&&!review.excluded.includes(p.id)).map(p=>({...p,documentId:d.id,filename:d.filename,originalRole:d.role,role:review.roles[d.id]||d.role||'Role not established'})))
   .filter(p=>!terms.length||terms.some(t=>(p.text+' '+p.dimension).toLowerCase().includes(t)));
  const labels=[...new Set(documents.map(d=>review.roles[d.id]||d.role).filter(Boolean))];
  const escape=(s:string)=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');

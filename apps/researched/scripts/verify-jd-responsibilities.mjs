@@ -49,5 +49,16 @@ try{
  await Promise.all([page.waitForResponse(r=>r.request().method()==='DELETE'&&r.url().includes('/documents/')),page.getByRole('button',{name:'Delete source',exact:true}).click()]);p=await req('/'+p.id);assert.equal(p.documents.length,8);assert.equal(p.undo.length,0);assert.equal((await fetch(base+`/api/jd/${p.id}/source/${removed}`)).status,400);await assert.rejects(stat(join(temp,'jd-responsibilities',p.id,removed+'.bin')));
  await page.getByRole('button',{name:'Delete collection',exact:true}).click();await page.getByRole('button',{name:'New collection',exact:true}).waitFor();await assert.rejects(stat(join(temp,'jd-responsibilities',p.id)));assert.equal((await req()).items.length,0);assert.equal(dbCalls,0);assert.deepEqual(errors,[]);
  pass('Permanent source/collection deletion removes bytes and undo history; no database, MCF or AI calls');
+ let aliasProject=await req('','POST',{title:'Isolated equivalence model check'});
+ for(const role of ['Middle School Principal','Section Principal']){const response=await fetch(base+`/api/jd/${aliasProject.id}/documents?filename=role.txt&revision=${aliasProject.revision}`,{method:'POST',body:`Position Overview\nJob Title\n${role}\nKey Responsibilities\nSupports staff.`});assert.equal(response.status,200);aliasProject=await response.json();}
+ const declaration={id:crypto.randomUUID(),left:'Middle School Principal',right:'Section Principal',reason:'Researcher-confirmed identity for this collection',origin:'researcher',recordedAt:''};
+ aliasProject=await req('/'+aliasProject.id+'/review','POST',{revision:aliasProject.revision,review:{...aliasProject.review,roleEquivalences:[declaration]}});
+ assert.ok(aliasProject.review.roleEquivalences[0].recordedAt);assert.equal(aliasProject.history.at(-1).roleEquivalences[0].origin,'researcher');
+ aliasProject=await req('/'+aliasProject.id+'/undo','POST',{revision:aliasProject.revision});assert.equal(aliasProject.review.roleEquivalences,undefined);assert.ok(aliasProject.history.some(h=>h.roleEquivalences?.length===1));
+ aliasProject=await req('/'+aliasProject.id+'/redo','POST',{revision:aliasProject.revision});assert.equal(aliasProject.review.roleEquivalences.length,1);
+ const changed=await fetch(base+'/api/jd/'+aliasProject.id+'/review',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({revision:aliasProject.revision,review:{...aliasProject.review,roleEquivalences:[{...aliasProject.review.roleEquivalences[0],reason:'Rewrite history'}]}})});assert.equal(changed.status,400);
+ await req('/'+aliasProject.id,'DELETE',{revision:aliasProject.revision,confirm:true});assert.equal(dbCalls,0);
+ pass('Researcher equivalence model preserves origin, server timestamp, decision history and undo/redo; immutable decisions cannot be rewritten');
+
  await writeFile(join(out,'verification.json'),JSON.stringify({at:new Date().toISOString(),checks,fixtureHash:createHash('sha256').update(await readFile(fixture)).digest('hex')},null,2));
 }finally{await browser?.close();await new Promise(r=>server.close(r));}
