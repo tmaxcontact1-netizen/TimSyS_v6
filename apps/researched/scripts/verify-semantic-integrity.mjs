@@ -53,8 +53,22 @@ try{
  let malformed=0;const recoveringProvider={...provider,async analyse(request){if(malformed++<2)return{value:{units:'invalid schema'},confidence:1,evidenceSegmentIds:request.evidence.map(e=>e.segmentId),limitations:[]};return provider.analyse(request);}};
  const recoveringWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>recoveringProvider),recovered=await recoveringWorker.enqueue(session.id,'classification',actor,[],false);
  for(let i=0;i<5;i++){await db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[recovered.id]);await recoveringWorker.process();}
- const recoveredView=(await recoveringWorker.overview(session.id)).runs.find(r=>r.id===recovered.id);assert.equal(recoveredView.status,'completed');assert.equal(recoveredView.coverage.semanticAssessed,14);assert.equal(recoveredView.attempts.filter(a=>a.outcome==='semantic_failed').length,2);assert.equal(Math.max(...recoveredView.attempts.map(a=>a.attempt)),3);pass('Malformed AI schemas recover within three attempts and only fully assessed runs become complete');
+ const recoveredView=(await recoveringWorker.overview(session.id)).runs.find(r=>r.id===recovered.id);assert.equal(recoveredView.status,'completed');assert.equal(recoveredView.coverage.semanticAssessed,14);assert.equal(recoveredView.attempts.filter(a=>a.outcome==='semantic_failed').length,2);assert.equal(Math.max(...recoveredView.attempts.map(a=>a.attempt)),2);pass('Malformed AI schemas recover within three attempts and only fully assessed runs become complete');
 
+ // Expired backoff must not let early failures jump ahead of untouched work.
+ const roundCalls=[],roundCounts=new Map();
+ const roundProvider={...provider,async analyse(request){const ids=JSON.parse(request.instructions.split('TARGET unit IDs: ')[1].split(' Frozen MCF')[0]);const batch=ids.includes(originalUnits[0].id)?1:ids.includes(originalUnits[6].id)?2:3;const count=(roundCounts.get(batch)??0)+1;roundCounts.set(batch,count);roundCalls.push(batch);if(batch===1&&count===1||batch===3&&count<3)throw Error('ai_provider_http_502');return provider.analyse(request);}};
+ const roundWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>roundProvider),roundRun=await roundWorker.enqueue(session.id,'classification',actor);
+ const ready=()=>db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[roundRun.id]);
+ await roundWorker.process();await ready();await roundWorker.process();
+ const roundSaved=(await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE run_id=$1 ORDER BY id',[roundRun.id])).rows;assert.equal(roundSaved.length,1);
+ await ready();await roundWorker.process();assert.deepEqual(roundCalls,[1,2,3]);
+ assert.equal((await roundWorker.overview(session.id)).runs.find(r=>r.id===roundRun.id).status,'running');
+ // No resume call, run rewrite or retry-budget reset: normal ticks finish retry rounds.
+ for(let i=0;i<3;i++){await ready();await roundWorker.process();}
+ assert.deepEqual(roundCalls,[1,2,3,1,3,3]);const roundView=(await roundWorker.overview(session.id)).runs.find(r=>r.id===roundRun.id);assert.equal(roundView.status,'completed');assert.equal(roundView.coverage.semanticAssessed,14);assert.equal(roundView.coverage.semanticPending+roundView.coverage.semanticFailed,0);
+ assert.deepEqual((await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE id=ANY($1::uuid[]) ORDER BY id',[roundSaved.map(o=>o.id)])).rows,roundSaved);
+ pass('Untouched batches precede expired retries; retry rounds finish automatically without resume and preserve successful output bytes');
  // Every batch receives its own finite retry budget, including when the first fails.
  let gatewayCalls=0;const gatewayProvider={...provider,async analyse(){gatewayCalls++;throw Object.assign(Error('ai_provider_http_502'),{diagnostics:{httpStatus:502,requestId:'synthetic-request',upstreamCode:'fixture_gateway'}});}};
  const gatewayWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>gatewayProvider),gatewayRun=await gatewayWorker.enqueue(session.id,'classification',actor,[],false);
@@ -83,7 +97,7 @@ try{
  for(const id of [originalUnits[0].id,originalUnits[6].id])assert.deepEqual(timeoutCalls.filter(c=>c.ids.includes(id)).map(c=>c.timeout),[120000,180000,210000]);
  const pinned=(await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE run_id=$1 ORDER BY id',[timeoutRun.id])).rows;
  await db.query("UPDATE researched.mcf_ai_runs SET configuration=jsonb_set(configuration,'{semanticPolicy}',(configuration->'semanticPolicy') || '{\"version\":5,\"firstBatchGate\":true,\"providerFailureLimit\":3}'::jsonb) WHERE id=$1",[timeoutRun.id]);
- await worker.resume(session.id,timeoutRun.id,actor);const upgraded=(await worker.overview(session.id)).runs.find(r=>r.id===timeoutRun.id);assert.equal(upgraded.configuration.semanticPolicy.version,6);assert.equal(upgraded.configuration.semanticPolicy.firstBatchGate,false);
+ await worker.resume(session.id,timeoutRun.id,actor);const upgraded=(await worker.overview(session.id)).runs.find(r=>r.id===timeoutRun.id);assert.equal(upgraded.configuration.semanticPolicy.version,7);assert.equal(upgraded.configuration.semanticPolicy.firstBatchGate,false);
  await worker.process();await worker.process();assert.equal((await worker.overview(session.id)).runs.find(r=>r.id===timeoutRun.id).status,'completed');assert.deepEqual((await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE id=ANY($1::uuid[]) ORDER BY id',[pinned.map(o=>o.id)])).rows,pinned);
  pass('Timeouts continue across batches, receive all three deadlines, and v5 explicit resume upgrades scheduling without touching successes');
  const badProvider={...provider,async analyse(){return{value:{units:[]},confidence:1,evidenceSegmentIds:originalUnits.map(u=>u.id),limitations:[]};}},badWorker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>badProvider),badRun=await badWorker.enqueue(session.id,'classification',actor,[],false);
