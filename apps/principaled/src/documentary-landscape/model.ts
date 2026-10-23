@@ -1,4 +1,5 @@
-/** Renderer contract: documentary containment only. It has no relationship or workflow fields. */
+import type {Arrival} from './connections';
+/** Documentary containment remains independent of transient one-hop navigation. */
 export type Source = {documentId:string; filename:string; documentType:string; revision:string; sha256:string};
 export type Statement = {id:string; sectionId:string; containerId:string; text:string; location:string; passageId:string; originalSection:string; kind:string; ambiguity?:string};
 export type Section = {id:string; containerId:string; title:string; statementIds:string[]};
@@ -68,7 +69,7 @@ function grams(text:string):Set<string> {const result=new Set<string>();for(let 
 
 export type Context={containerId?:string;sectionId?:string;statementId?:string;source?:boolean};
 export type Camera={x:number;y:number;zoom:number};
-export type Frame={context:Context;camera:Camera;selection?:string;inspectorOpen?:boolean;undockedCamera?:Camera};
+export type Frame={context:Context;camera:Camera;selection?:string;inspectorOpen?:boolean;undockedCamera?:Camera;connectionsOpen?:boolean;connectionId?:string;connectionPage?:number;arrival?:Arrival};
 export const home=():Frame=>({context:{},camera:{x:32,y:32,zoom:1}});
 export function ancestors(context:Context):Context[] {
   return [{},...(context.containerId?[{containerId:context.containerId}]:[]),

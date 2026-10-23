@@ -34,6 +34,21 @@
 .dl-inspector dd{font-size:13px;line-height:1.5}
 .dl-inspector dt{margin-top:10px}
 .dl-stage-heading{flex-wrap:wrap}
+/* Selection-local documentary annotations; no graph layout or organisational arrows. */
+.dl-portals{margin:0 16px 12px;padding:10px 12px;border-left:2px solid #8caaa0;background:#f1f5f0;border-radius:5px}
+.dl-portals>small{display:block;font-size:11px;color:var(--muted)}
+.dl-portals>div{display:flex;flex-wrap:wrap;gap:8px;margin:7px 0}
+.dl-portals button{display:flex;flex:1 1 180px;flex-direction:column;text-align:left;min-height:64px;padding:9px 12px;max-width:100%;white-space:normal}
+.dl-portals button span,.dl-portals button small{font-size:11px}.dl-portals button strong{font-size:13px;margin:4px 0}
+.dl-arrival{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-bottom:12px;padding:10px 14px;border-left:2px solid #8caaa0;background:#f1f5f0;font-size:12px}
+.dl-arrival small{width:100%;color:var(--muted)}.dl-arrival span{max-width:420px}
+.dl-connection-control{border-top:1px solid var(--line);margin-top:20px;padding-top:14px}.dl-connection-control p{font-size:12px}
+.dl-connections{border-top:1px solid var(--line);margin-top:16px;padding-top:12px}.dl-connections h3{font-size:14px}.dl-connections p{font-size:12px;line-height:1.5}
+.dl-connections ul{list-style:none;padding:0;margin:0}.dl-connections li{border-top:1px solid var(--line);padding:12px 0}
+.dl-connection-inspect{width:100%;display:flex;flex-direction:column;text-align:left;min-height:64px;padding:10px;gap:6px;white-space:normal}
+.dl-connection-inspect[aria-pressed=true]{outline:2px solid #537b6d;outline-offset:1px}.dl-connection-inspect small{font-size:10px;color:var(--muted)}
+.dl-referenced{padding-left:10px;border-left:2px solid #bfc8bd}.dl-connection-pages{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}
+.dl-connection-evidence{margin-top:20px;border-top:2px solid #8caaa0;padding-top:12px}.dl-connection-evidence blockquote{margin:10px 0;font-size:13px;line-height:1.6}
 @container(max-width:900px){
   .dl-workspace.dl-with-inspector{grid-template-columns:minmax(0,1fr)}
   .dl-inspector{position:relative;top:0;max-height:580px;border-left:1px solid var(--line);border-top:3px solid #becdc2}

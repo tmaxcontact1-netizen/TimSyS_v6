@@ -19,7 +19,7 @@ const start=performance.now(),sample=jdFixture(unresolved?1:large?200:50,unresol
 if(unresolved){sample.documents[0].passages[0].kind='descriptor';sample.documents[0].passages[0].dimension='Unassigned — heading not extracted';sample.documents[0].passages[0].ambiguity='Unresolved synthetic source structure';}
 const model=policy?policyFixture():fromJd(sample);
 window.fixture={roles:model.containers.length,statements:model.statements.size,adaptMs:performance.now()-start};
-const sourceReader=async(url)=>({source:{before:'Synthetic source context.\\n',text:[...model.statements.values()].find(s=>s.passageId===decodeURIComponent(new URL(url,'http://fixture').pathname.split('/').pop())).text,after:'\\nSynthetic source context.'}});
+const sourceReader=async(url)=>url.includes('/connections/')?{revision:model.revision,records:[]}:({source:{before:'Synthetic source context.\\n',text:[...model.statements.values()].find(s=>s.passageId===decodeURIComponent(new URL(url,'http://fixture').pathname.split('/').pop())).text,after:'\\nSynthetic source context.'}});
 createRoot(document.getElementById('root')).render(<Landscape model={model} sourceReader={sourceReader}/>);
 `);
 await build({configFile:false,root:harness,resolve:{alias:{react:path.join(root,'apps/launcher/node_modules/react'),'react-dom':path.join(root,'apps/launcher/node_modules/react-dom')},dedupe:['react','react-dom']},build:{outDir:path.join(harness,'dist')}});

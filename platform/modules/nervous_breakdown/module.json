@@ -1,6 +1,6 @@
 {
   "name": "nervous_breakdown",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "author": "admin",
   "dependencies": [
     "db",
@@ -11,12 +11,14 @@
   "routes": [
     {"path":"/nervous-breakdown/collections","method":"GET","handler":"nervous_breakdown_collections","auth_required":true,"permissions":["admin:documents:read"]},
     {"path":"/nervous-breakdown/collections/:id","method":"GET","handler":"nervous_breakdown_landscape","auth_required":true,"permissions":["admin:documents:read"]},
-    {"path":"/nervous-breakdown/collections/:id/source/:documentId/:passageId","method":"GET","handler":"nervous_breakdown_source","auth_required":true,"permissions":["admin:documents:read"]}
+    {"path":"/nervous-breakdown/collections/:id/source/:documentId/:passageId","method":"GET","handler":"nervous_breakdown_source","auth_required":true,"permissions":["admin:documents:read"]},
+    {"path":"/nervous-breakdown/collections/:id/connections/:documentId/:passageId","method":"GET","handler":"nervous_breakdown_connections","auth_required":true,"permissions":["admin:documents:read"]}
   ],
   "functions": [
     {"name":"nervous_breakdown_collections","exports":"collections"},
     {"name":"nervous_breakdown_landscape","exports":"landscape"},
-    {"name":"nervous_breakdown_source","exports":"source"}
+    {"name":"nervous_breakdown_source","exports":"source"},
+    {"name":"nervous_breakdown_connections","exports":"connections"}
   ],
   "schema": {
     "tables": [],

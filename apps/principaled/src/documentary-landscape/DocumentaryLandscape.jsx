@@ -2,6 +2,7 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import {ancestors,detailLevel,home,layout,visible,sectionPresentation,statementLabel,reframe,closeInspector} from './model.ts';
 import {readDocumentary} from './read';
 import './landscape.css';
+import {useDocumentedConnections,ConnectionPortals,ConnectionInspector} from './DocumentedConnections';
 
 const short=text=>text.length>100?text.slice(0,100)+'…':text;
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -21,6 +22,8 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
   const selectedStatement=model.statements.get(selected),selectedSection=model.sections.get(selected)||model.sections.get(selectedStatement?.sectionId);
   const selectedContainer=containers.get(selected)||containers.get(selectedSection?.containerId);
   const inspectorVisible=Boolean(frame.inspectorOpen&&selectedContainer);
+  const relationshipState=useDocumentedConnections(model,inspectorVisible?selectedStatement:null,sourceReader);
+  const activeConnections=frame.connectionsOpen&&inspectorVisible&&selectedStatement?relationshipState.connections:[];
   const selectedLabel=selectedStatement?statementLabel(selectedContainer,selectedStatement,selectedSection):
     selectedSection?sectionPresentation(model,selectedSection).label:selectedContainer?.labels.container;
   const close=()=>{
@@ -87,8 +90,19 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
     setHistory(h=>[...h,frame]);
     const sameLandscape=next.containerId===context.containerId&&next.sectionId===context.sectionId;
     setFrame({context:next,camera:nextCamera,selection:next.statementId,inspectorOpen:Boolean(next.statementId),
-      undockedCamera:next.statementId?(frame.inspectorOpen&&sameLandscape?frame.undockedCamera:nextCamera):undefined});
+      undockedCamera:next.statementId?(frame.inspectorOpen&&sameLandscape?frame.undockedCamera:nextCamera):undefined,
+      arrival:frame.arrival,...(next.statementId&&next.statementId===context.statementId?{connectionsOpen:frame.connectionsOpen,connectionId:frame.connectionId,connectionPage:frame.connectionPage}:{})});
   }
+  function followConnection(r) {
+    clearTimeout(selectionTimer.current);
+    const target=model.containers.find(c=>c.id===r.destinationId),tile=layout(model,{}).find(t=>t.id===r.destinationId);
+    if(!target||!tile)return;
+    const destinationCamera={x:32-tile.x,y:32-tile.y,zoom:1};
+    setHistory(h=>[...h,frame]);
+    setFrame({context:{},camera:destinationCamera,selection:target.id,inspectorOpen:true,undockedCamera:destinationCamera,
+      arrival:{originId:selectedStatement.id,originTitle:selectedContainer.title,originText:selectedStatement.text,phrase:r.phrase,counterpart:r.counterpart,connectionId:r.id}});
+  }
+  const inspectConnection=id=>setFrame(f=>({...f,connectionId:id}));
   function back() {
     clearTimeout(selectionTimer.current);
     if(!history.length)return;
@@ -145,6 +159,11 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
       <ol>{crumbs.map((c,i)=><li key={i}><button title={crumbLabel(c,i)} aria-current={same(c,context)?'location':undefined} onClick={()=>go(c,c.statementId?camera:fitCamera(c))}>{crumbLabel(c,i)}</button></li>)}
       {context.source&&<li><button aria-current="location" onClick={()=>{}}>Source</button></li>}</ol>
     </nav>
+    {frame.arrival&&<aside className="dl-arrival" aria-label="Arrived via">
+      <small>Arrived via · documentary navigation</small><strong>{frame.arrival.originTitle}</strong>
+      <span>{short(frame.arrival.originText)}</span><span>{frame.arrival.phrase} · {frame.arrival.counterpart}</span>
+      <button onClick={back}>Back to previous location</button>
+    </aside>}
     {search&&<section className="dl-results" aria-label="Search results">
       <div className="dl-result-heading"><strong>{matches.length} {matches.length===1?'match':'matches'}</strong><span>Original documentary locations are preserved.</span></div>
       {matches.slice(page*8,page*8+8).map(s=>{const c=containers.get(s.containerId);return <button key={s.id} onClick={()=>jump(s)}>
@@ -158,6 +177,7 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
         <div className="dl-stage-heading"><div><small>{section?sectionPresentation(model,section).label:container?container.labels.container:'Organisation'}</small><h2>{section?title(section.id):container?.title||'The documentary landscape'}</h2></div>
           <div className="dl-camera"><button aria-label="Zoom out" onClick={()=>zoomBy(1/1.3)}>−</button><span>{Math.round(camera.zoom*100)}%</span><button aria-label="Zoom in" onClick={()=>zoomBy(1.3)}>+</button><button onClick={()=>setFrame(f=>({...f,camera:home().camera}))}>Reset view</button></div></div>
         <p className="dl-guidance">Select to inspect · Open or double-click to enter · Drag or use arrow keys to pan · Scroll to zoom</p>
+        {activeConnections.length>0&&<ConnectionPortals connections={activeConnections} onFollow={followConnection} onInspect={inspectConnection}/>}
         <div className="dl-viewport" ref={viewport} tabIndex={0} aria-label={`${activeLabel} landscape`}
           onPointerDown={e=>{if(e.button!==0)return;moved.current=false;drag.current={x:e.clientX,y:e.clientY,camera};}}
           onPointerMove={e=>{if(!drag.current)return;const dx=e.clientX-drag.current.x,dy=e.clientY-drag.current.y;if(Math.hypot(dx,dy)>5){moved.current=true;e.currentTarget.setPointerCapture(e.pointerId);setFrame(f=>({...f,camera:{...drag.current.camera,x:drag.current.camera.x+dx,y:drag.current.camera.y+dy}}));}}}
@@ -209,6 +229,13 @@ export default function DocumentaryLandscape({model,sourceReader=readDocumentary
           <section className="dl-source" aria-label="Source context"><h3>In the source</h3><p>The retained document text, with this passage highlighted.</p>
             {sourceError?<p role="alert">{sourceError}</p>:source?<pre ref={sourceContext} tabIndex={0} aria-label="Retained source text">{source.startTruncated?'…\n':''}{source.before}<mark>{source.text}</mark>{source.after}{source.endTruncated?'\n…':''}</pre>:<p role="status">Loading source context…</p>}
           </section>}
+        {selectedStatement&&<div className="dl-connection-control">
+          {relationshipState.loading?<p role="status">Checking documented connections…</p>:relationshipState.error?<p role="status">Documented connections unavailable: {relationshipState.error}</p>:
+            relationshipState.connections.length?<button aria-expanded={Boolean(frame.connectionsOpen)} onClick={()=>setFrame(f=>({...f,connectionsOpen:!f.connectionsOpen,connectionId:undefined}))}>{frame.connectionsOpen?'Hide connections':'Show connections'}</button>:
+            <p>No documented connections in this statement.</p>}
+          {relationshipState.rejected.length>0&&<p role="alert">{relationshipState.rejected.length} connection record(s) could not be displayed because their documentary evidence did not match.</p>}
+        </div>}
+        {activeConnections.length>0&&<ConnectionInspector connections={activeConnections} selectedId={frame.connectionId} onInspect={inspectConnection} onFollow={followConnection} onSource={()=>go({...context,source:true},camera)} page={frame.connectionPage||0} onPage={connectionPage=>setFrame(f=>({...f,connectionPage}))}/>}
       </aside>}
     </div>
     <p className="dl-bottom">Read-only view of {model.title}. Documentary wording and structure are maintained in Research’Ed.</p>

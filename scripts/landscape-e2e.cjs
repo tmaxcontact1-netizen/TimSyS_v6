@@ -92,6 +92,7 @@ let server,browser;
   await inspector.scrollIntoViewIfNeeded();assert.equal(await inspector.isVisible(),true);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await require('./landscape-ux-acceptance.cjs')({page,app,model,project,root});
+  if(process.env.NB_PHASE2A_ACCEPTANCE)await require('./landscape-phase2a-acceptance.cjs')({page,app,model,project,root});
   assert.deepEqual(errors,[]);assert.deepEqual(writes,[]);
   assert.deepEqual(fs.readFileSync(corpus),original);
   const summary={passed:true,documents:model.containers.length,statements:model.statements.size,sections:model.sections.size,revision:response.snapshot.revision,

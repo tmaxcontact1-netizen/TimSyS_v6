@@ -66,4 +66,11 @@ async function source(req) {
       startTruncated:start>0,endTruncated:end<d.extracted.length,revision}};
   } catch (e) { return failure(e.message); }
 }
-module.exports = {boot(ctx) {ctx.log.info('Nervous Breakdown: read-only documentary landscape');},teardown(){},collections,landscape,source};
+async function connections(req) {
+  try {
+    const {data,revision}=await project(req.params.id);
+    if(req.query.revision!==revision)return failure('The documentary collection changed. Reload before inspecting connections.');
+    return {success:true,revision,...await require('./documentary-connections').connections(data,req.params.documentId,req.params.passageId)};
+  } catch(e) {return failure(e.message);}
+}
+module.exports = {boot(ctx) {ctx.log.info('Nervous Breakdown: read-only documentary landscape');},teardown(){},collections,landscape,source,connections};
