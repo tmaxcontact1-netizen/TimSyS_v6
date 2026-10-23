@@ -10,11 +10,11 @@ The smallest extension adds pure review aggregation and stratified sampling modu
 
 ## Reporting specification v1
 
-Enable **Show review-level analysis (version 1)** on a completed run. Existing passage findings and their Explicit/Contextual counts remain unchanged. Review-level counts use unique existing source-record IDs only. Eligible reviews have at least one substantive unit in the pinned population, including reviews whose assessed units are all zero-code. No director/school identifiers are generated, inferred or grouped.
+Review-level analysis appears automatically immediately after Evidence-location analysis on completed reports. Existing passage findings and their Explicit/Contextual counts remain unchanged. Review-level counts use unique existing source-record IDs only. Eligible reviews have at least one substantive unit in the pinned population, including reviews whose assessed units are all zero-code. No director/school identifiers are generated, inferred or grouped.
 
 For each competency: locations; unique represented reviews; prevalence using the eligible-review denominator; explicit reviews; contextual-only reviews; locations per represented review; and finding-level valence distribution. Missing valence is separately unassigned. Density is N/A with no represented reviews; prevalence is N/A with no eligible reviews. There are no numerical weights, roll-ups, independence assumptions, composite scores or inferential estimators.
 
-The privacy notice appears alongside prevalence in UI, HTML/PDF and the separately versioned review JSON. Every row exposes represented review IDs and unit IDs; the JSON includes the denominator review IDs and evidence-location trail. The existing confirmed snapshot is never rewritten. The extended view is opt-in, with its own version, while original exports remain available. Review JSON/HTML/PDF use confirmed human decisions where present, without changing the frozen machine candidate used for validation.
+The privacy notice appears alongside prevalence in UI, HTML/PDF and the separately versioned review JSON. Every row exposes represented review IDs and unit IDs; the JSON includes the denominator review IDs and evidence-location trail. The existing confirmed snapshot is never rewritten. The extended view is included by default, with its own version; the evidence-location table remains unchanged. Review JSON/HTML/PDF use confirmed human decisions where present, without changing the frozen machine candidate used for validation.
 
 ## Validation workflow
 
@@ -37,3 +37,9 @@ A separate derived review report was produced from that JSON without changing it
 ## Verification
 
 200 unit tests across 34 suites; TypeScript/Vite builds; 16 isolated semantic/persistence/export checks; 28 browser/workflow checks. Synthetic tests cover denominator handling, multiple findings per review, explicit/contextual overlap, null valence, trace IDs, deterministic sampling, intersecting filters, overlap choices, blind isolation, append-only corrections, stale revision rejection, reveal, undo, deletion, zero AI calls, and unchanged candidate outputs. The semantic instrument, prompts, classification/valence rules, segmentation, structural parser, context retrieval and zero-code engine are unchanged. Tradeâ€™Ed remains isolated on its original worker/watchdog with no restart or database access by this work.
+
+## 0.10.6 retrospective reporting verification — 23 October 2026
+
+Removed the review-report opt-in gate in the UI and HTML/PDF export; added review aggregation to the main JSON export. The eligible distinct review denominator and formula are explicit, and density displays two decimals. Missing review IDs are reported as unavailable rather than inferred. No schema, classifier, instrument or validation-methodology change.
+
+326 tests pass; TypeScript and production frontend builds pass. Existing saved run verification covers 2,020 substantive units, 77 review IDs and 2,082 same-review context references. All 21 partitions reconcile, original evidence counts match, and the original HTML evidence-location section is byte-for-byte unchanged. The stored candidate passes the read-only validation candidate check. HTML/JSON/PDF checks pass and the PDF review table was visually inspected. No semantic run or validation sample was created.
