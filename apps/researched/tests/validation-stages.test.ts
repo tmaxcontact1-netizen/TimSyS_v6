@@ -45,3 +45,12 @@ describe('staged validation: human initial, AI advice, human final',()=>{
   const view=await new McfValidation(repo).view('old');expect(view.contract).toBe('researched.validation-review.v1');expect(view.history).toEqual(legacy);expect(view.history[0].after_value).not.toHaveProperty('phase');
  });
 });
+
+describe('ambiguity stage persistence',()=>{
+ it('retains append-only ambiguity revisions without rewriting the candidate or leaking after reveal',async()=>{
+ const {service,events,source}=fixture(),before=JSON.stringify(source);const ambiguity={version:1,status:'unresolved',reason:'Two readings are possible.',evidenceUnitIds:[u1],alternatives:[{competencyId:'D2',interpretation:'Alternative only.',evidenceUnitIds:[u2]}]};
+ await service.save('sample',u1,initial({ambiguity}));const first=structuredClone(events[0]);await service.save('sample',u2,initial());await service.reveal('sample','Researcher');
+ await service.save('sample',u1,{...initial({ambiguity}),phase:'final',outcome:'unresolved'});const v=await service.view('sample');expect(v.ambiguityReports.initial.unresolved).toBe(1);expect(v.ambiguityReports.final?.unresolved).toBe(1);expect(events[0]).toEqual(first);expect(JSON.stringify(source)).toBe(before);
+ await expect(service.save('sample',u1,initial({ambiguity,previousId:first.id}))).rejects.toThrow('locked');
+ });
+});

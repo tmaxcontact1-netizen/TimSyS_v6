@@ -1,3 +1,4 @@
+import {ambiguityReport} from '../domain/mcf-ambiguity.js';
 import {McfRepository} from '../infrastructure/mcf-repository.js';
 import {latestStage,stageProgress,stagedJudgement,retainHumanContext} from '../domain/validation-stages.js';
 const action='validation_stage_appended';
@@ -12,7 +13,7 @@ export class ValidationStages{
   return{s,source,history,reveal,units};
  }
  async view(id:string){const {s,source,history,reveal,units}=await this.state(id);
-  return{contract:'researched.validation-review.v2',version:2,id,title:s.title,blind:!reveal,reveal,units,contextUnits:source.contextUnits,reviewScope:source.reviewScope,history,progress:stageProgress(units,history),candidateRunId:s.configuration.candidateRunId,candidateHash:s.configuration.candidateHash,
+  return{contract:'researched.validation-review.v2',version:2,id,title:s.title,blind:!reveal,reveal,units,ambiguityReports:{initial:ambiguityReport(units,history,'initial'),...(reveal?{final:ambiguityReport(units,history,'final')}:{})},contextUnits:source.contextUnits,reviewScope:source.reviewScope,history,progress:stageProgress(units,history),candidateRunId:s.configuration.candidateRunId,candidateHash:s.configuration.candidateHash,
    ...(reveal?{proposals:source.report.proposals.filter((p:any)=>units.some((u:any)=>u.id===p.unit_id)),plan:source.plan}:{}),
    notice:'Single-researcher validation. Initial coding, recorded AI advice and final decisions are separate. No analysis is rerun. Completed initial coding affirms that all 21 competencies were considered; unselected competencies are not supported.'};
  }
