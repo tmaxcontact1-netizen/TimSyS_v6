@@ -1,4 +1,4 @@
-import {SemanticWorker} from './mcf-semantic.js';
+import {SemanticWorker,SEMANTIC_POLICY} from './mcf-semantic.js';
 import {runEvidence} from './mcf-coverage.js';
 import {randomUUID,createHash} from 'node:crypto';
 import {z} from 'zod';
@@ -15,7 +15,7 @@ export function validateProposals(value:unknown,units:{id:string;original_text:s
 export function codingSnapshot(session:any){return{decisions:session.units.filter((u:any)=>u.decision).map((u:any)=>({unitId:u.id,decisionId:u.decision.id,codes:u.decision.codes,valence:u.decision.valence,reviewedNoCode:u.decision.reviewed_no_code,text:u.original_text})),representations:session.representations,instrumentHash:session.instrument_hash,totalUnits:session.units.filter((u:any)=>u.original_text.trim()).length};}
 export const snapshotHash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export class McfAiWorker{
- private timer:ReturnType<typeof setInterval>|null=null;private busy=false;private stopped=false;error:string|null=null;
+ private timer:ReturnType<typeof setInterval>|null=null;private active=new Set<Promise<void>>();private interpretationBusy=false;private stopped=false;error:string|null=null;
  readonly semantic:SemanticWorker;
  constructor(readonly repo:McfRepository,readonly provider:()=>AiAnalysisProvider|null){this.semantic=new SemanticWorker(repo,provider);}
  async resume(sessionId:string,id:string,actor:string){return this.semantic.resume(sessionId,id,actor);}
@@ -35,8 +35,22 @@ export class McfAiWorker{
  async reject(sessionId:string,proposalId:string,actor:string,reason:string){return this.repo.transaction(async c=>{const s=await this.repo.session(sessionId,c);await this.repo.writable(s.dataset_id,c);await this.repo.active('sessions',sessionId,c);const p=(await c.query('SELECT id FROM researched.mcf_ai_proposals WHERE id=$1 AND session_id=$2',[proposalId,sessionId])).rows[0];if(!p)throw Error('proposal_not_found');await c.query("INSERT INTO researched.mcf_ai_reviews(id,proposal_id,outcome,actor,reason) VALUES($1,$2,'rejected',$3,$4)",[randomUUID(),proposalId,actor,reason]);return{rejected:true};});}
  async cancel(sessionId:string,id:string){const run=(await this.repo.db.query('SELECT kind FROM researched.mcf_ai_runs WHERE id=$1 AND session_id=$2',[id,sessionId])).rows[0];if(run?.kind==='classification')return this.semantic.cancel(sessionId,id);await this.repo.db.query("UPDATE researched.mcf_ai_runs SET status='cancelled',finished_at=now() WHERE id=$1 AND session_id=$2 AND status IN ('queued','running')",[id,sessionId]);await this.repo.db.query("UPDATE researched.mcf_ai_tasks SET status='cancelled' WHERE run_id=$1 AND status IN ('queued','running') AND EXISTS(SELECT 1 FROM researched.mcf_ai_runs r WHERE r.id=$1 AND r.session_id=$2 AND r.status='cancelled')",[id,sessionId]);return{cancelled:true};}
  async settle(){await this.repo.db.query("UPDATE researched.mcf_ai_runs r SET status=CASE WHEN NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status='failed') THEN 'completed' WHEN EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status='completed') THEN 'partial' ELSE 'failed' END,finished_at=now() WHERE r.kind='interpretation' AND r.status IN ('queued','running') AND NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks t WHERE t.run_id=r.id AND t.status IN ('queued','running'))");}
- async tick(){if(this.busy||this.stopped)return;this.busy=true;try{await this.process();await this.settle();this.error=null;}catch(e){this.error=e instanceof Error?e.message:String(e);}finally{this.busy=false;}}
- async process(){await this.semantic.process();const task=(await this.repo.db.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE r.kind='interpretation' AND t.status='queued' AND r.status IN ('queued','running') ORDER BY r.created_at,t.ordinal FOR UPDATE OF t SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running' FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];if(!task)return;
+ async tick(){
+  if(this.stopped)return;
+  // Each timer tick refills a free lane even when the other request is still running.
+  while(this.active.size<SEMANTIC_POLICY.concurrency){
+   const job=Promise.resolve().then(async()=>{try{if(!this.stopped){await this.process();await this.settle();this.error=null;}}catch(e){this.error=e instanceof Error?e.message:String(e);}}).finally(()=>this.active.delete(job));
+   this.active.add(job);
+  }
+  await Promise.all([...this.active]);
+ }
+ async process(){
+  await this.semantic.process();
+  if(this.stopped||this.interpretationBusy)return;
+  this.interpretationBusy=true;
+  try{return await this.processInterpretation();}finally{this.interpretationBusy=false;}
+ }
+ private async processInterpretation(){const task=(await this.repo.db.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE r.kind='interpretation' AND t.status='queued' AND r.status IN ('queued','running') ORDER BY r.created_at,t.ordinal FOR UPDATE OF t SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running' FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];if(!task)return;
   try{const run=(await this.repo.db.query('SELECT * FROM researched.mcf_ai_runs WHERE id=$1',[task.run_id])).rows[0];const session=await this.repo.session(run.session_id);if(session.instrument_hash!==MCF_HASH||run.configuration.instrumentHash!==MCF_HASH)throw Error('instrument_version_mismatch');if(this.stopped)throw Error('Analysis stopped');await this.repo.transaction(async c=>{await this.repo.writable(session.dataset_id,c);await this.repo.active('sessions',session.id,c);});const provider=this.provider();
    const providerMatches=provider&&provider.id===run.configuration.provider?.id&&provider.model===run.configuration.provider?.model&&(provider.configurationId??null)===run.configuration.provider?.connectionId;
    if(!providerMatches)throw Error('AI connection unavailable or changed. Reconnect the original provider/model or start a new analysis.');

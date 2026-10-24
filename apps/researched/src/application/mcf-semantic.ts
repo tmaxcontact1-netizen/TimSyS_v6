@@ -10,7 +10,7 @@ import {runGroundedAiAnalysis,type AiAnalysisProvider} from './ai-analysis.js';
 import {deterministicMcf,DETERMINISTIC_CONFIG,DETERMINISTIC_HASH} from './mcf-deterministic.js';
 import {proposalResponse,validateProposals} from './mcf-ai.js';
 
-export const SEMANTIC_POLICY=Object.freeze({version:7,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:1});
+export const SEMANTIC_POLICY=Object.freeze({version:8,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:2});
 export function semanticAttemptTimeout(policy:{timeoutMs:number;attemptTimeoutsMs?:readonly number[]},attempt:number){return policy.attemptTimeoutsMs?.[attempt-1]??policy.timeoutMs;}
 export function transientSemanticError(error:string){return /abort|timeout|timed out|429|(?:^|[_\s])5\d\d(?:$|\b)|fetch failed|network|econn|socket/i.test(error);}
 const identity=(p:AiAnalysisProvider|null)=>p?{id:p.id,model:p.model,connectionId:p.configurationId??null}:null;
@@ -55,7 +55,7 @@ export class SemanticWorker{
    await c.query("UPDATE researched.mcf_semantic_tasks s SET cycle=cycle+1,next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE t.id=s.task_id AND t.run_id=$1 AND t.status<>'completed'",[id]);
    await c.query("UPDATE researched.mcf_ai_tasks SET status='queued',error=NULL WHERE run_id=$1 AND status<>'completed'",[id]);
    // Upgrade execution limits only on explicit resume. Completed tasks and their outputs are immutable.
-   const policy=run.configuration.semanticPolicy.version<SEMANTIC_POLICY.version?{...run.configuration.semanticPolicy,version:SEMANTIC_POLICY.version,timeoutMs:SEMANTIC_POLICY.timeoutMs,attemptTimeoutsMs:SEMANTIC_POLICY.attemptTimeoutsMs,scheduling:SEMANTIC_POLICY.scheduling,firstBatchGate:false}:run.configuration.semanticPolicy;
+   const policy=run.configuration.semanticPolicy.version<SEMANTIC_POLICY.version?{...run.configuration.semanticPolicy,version:SEMANTIC_POLICY.version,timeoutMs:SEMANTIC_POLICY.timeoutMs,attemptTimeoutsMs:SEMANTIC_POLICY.attemptTimeoutsMs,scheduling:SEMANTIC_POLICY.scheduling,firstBatchGate:false,concurrency:SEMANTIC_POLICY.concurrency}:run.configuration.semanticPolicy;
    await c.query("UPDATE researched.mcf_ai_runs SET status='queued',finished_at=NULL,configuration=jsonb_set(jsonb_set(configuration,'{provider}',$2::jsonb),'{semanticPolicy}',$3::jsonb) WHERE id=$1",[id,JSON.stringify(identity(provider)),JSON.stringify(policy)]);
    await this.repo.audit(c,session.dataset_id,'mcf_semantic_resumed',id,actor,{previousPolicy:run.configuration.semanticPolicy,policy,provider:identity(provider),successfulResultsPreserved:true});
   });return{resumed:true,id};
@@ -73,7 +73,12 @@ export class SemanticWorker{
   if(this.stopped)return;
   // Durable attempt counts put untouched batches first, then second/third attempts.
   // Readiness still respects backoff; completed tasks are never eligible.
-  const task=(await this.repo.db.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_semantic_tasks s ON s.task_id=t.id JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE t.status='queued' AND r.status IN ('queued','running') AND s.next_attempt_at<=now() AND (r.configuration->'semanticPolicy'->>'firstBatchGate'='false' OR EXISTS(SELECT 1 FROM researched.mcf_ai_tasks ok WHERE ok.run_id=r.id AND ok.status='completed') OR t.ordinal=(SELECT min(first.ordinal) FROM researched.mcf_ai_tasks first WHERE first.run_id=r.id)) AND NOT EXISTS(SELECT 1 FROM researched.mcf_ai_tasks busy WHERE busy.run_id=r.id AND busy.status='running') ORDER BY r.created_at,(SELECT count(*) FROM researched.mcf_semantic_attempts a WHERE a.task_id=t.id AND a.cycle=s.cycle),t.ordinal FOR UPDATE OF t SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running',error=NULL FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];if(!task)return;
+  // Serialize only the short claim transaction, never provider requests. The second
+  // statement sees claims committed while waiting for the advisory lock.
+  const task=await this.repo.transaction(async c=>{
+   await c.query("SELECT pg_advisory_xact_lock(hashtext('researched.mcf.semantic.claim'),0)");
+  return (await c.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_semantic_tasks s ON s.task_id=t.id JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE t.status='queued' AND r.status IN ('queued','running') AND s.next_attempt_at<=now() AND (r.configuration->'semanticPolicy'->>'firstBatchGate'='false' OR EXISTS(SELECT 1 FROM researched.mcf_ai_tasks ok WHERE ok.run_id=r.id AND ok.status='completed') OR t.ordinal=(SELECT min(first.ordinal) FROM researched.mcf_ai_tasks first WHERE first.run_id=r.id)) AND (SELECT count(*) FROM researched.mcf_ai_tasks busy JOIN researched.mcf_semantic_tasks bs ON bs.task_id=busy.id WHERE busy.status='running')<2 AND (SELECT count(*) FROM researched.mcf_ai_tasks busy WHERE busy.run_id=r.id AND busy.status='running')<LEAST(2,GREATEST(1,COALESCE((r.configuration->'semanticPolicy'->>'concurrency')::int,1))) ORDER BY r.created_at,(SELECT count(*) FROM researched.mcf_semantic_attempts a WHERE a.task_id=t.id AND a.cycle=s.cycle),t.ordinal FOR UPDATE OF t,r SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running',error=NULL FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];
+  });if(!task)return;
   const started=new Date(),attemptId=randomUUID();let attempt=0,cycle=0,responsePhase=false;let policy=SEMANTIC_POLICY;
   try{
    const run=(await this.repo.db.query('SELECT * FROM researched.mcf_ai_runs WHERE id=$1',[task.run_id])).rows[0],session=await this.repo.session(run.session_id);policy=run.configuration.semanticPolicy;
@@ -112,6 +117,9 @@ export class SemanticWorker{
     const output=randomUUID();await c.query('INSERT INTO researched.mcf_ai_outputs(id,run_id,task_id,payload) VALUES($1,$2,$3,$4)',[output,run.id,task.id,JSON.stringify({method:'ai',proposals,limitations:answer.limitations,provider:identity(provider),instrumentHash:MCF_HASH,attemptId})]);
     for(const p of proposals)await c.query('INSERT INTO researched.mcf_ai_proposals(id,output_id,session_id,unit_id,payload) VALUES($1,$2,$3,$4,$5)',[randomUUID(),output,session.id,p.unitId,JSON.stringify(p)]);
     await c.query("UPDATE researched.mcf_ai_tasks SET status='completed',error=NULL WHERE id=$1",[task.id]);
+    // A peer may have paused the run before this in-flight success was retained.
+    // Reflect partial coverage without releasing queued work or undoing cancellation.
+    await c.query("UPDATE researched.mcf_ai_runs SET status='partial' WHERE id=$1 AND status='failed'",[run.id]);
     await c.query("UPDATE researched.mcf_semantic_attempts SET finished_at=now(),duration_ms=$2,outcome='semantic_success' WHERE id=$1",[attemptId,Date.now()-started.getTime()]);
    });
   }catch(error){
