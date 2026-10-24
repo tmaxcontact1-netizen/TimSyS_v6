@@ -120,11 +120,11 @@ try{
  const preview=await call('/api/mcf/sessions/'+session.id+'/validation',{runId:run.id,plan:validationPlan,preview:true});assert.equal(preview.selectedUnitIds.length,2);
  const validation=await call('/api/mcf/sessions/'+session.id+'/validation',{runId:run.id,plan:validationPlan,preview:false},201);
  const blinded=await call('/api/mcf/validation/'+validation.id);assert.equal(blinded.units.length,2);assert.equal(blinded.proposals,undefined);assert.equal(blinded.plan,undefined);assert.equal(blinded.sample,undefined);assert.ok(blinded.units.every(u=>!('institution' in u)));
- const judgement={previousId:null,actor,applications:[{competencyId:'A1',application:'supported',route:'Contextual',valence:'mixed-ambiguous'}],zeroCode:'not-supported',notes:'Independent synthetic judgement'};
+ const judgement={phase:'initial',previousId:null,actor,applications:[{competencyId:'A1',route:'Explicit',valence:'mixed-ambiguous',contextUnitIds:[],rationale:'Independent fixture judgement'}],complete:true,notes:'Independent synthetic judgement'};
  await call('/api/mcf/validation/'+validation.id+'/judgements/'+blinded.units[0].id,judgement,201);
  const first=await call('/api/mcf/validation/'+validation.id);assert.equal(first.history.length,1);
  await call('/api/mcf/validation/'+validation.id+'/judgements/'+blinded.units[0].id,judgement,409);
- await call('/api/mcf/validation/'+validation.id+'/judgements/'+blinded.units[0].id,{...judgement,previousId:first.history[0].id,zeroCode:'supported'},201);
+ await call('/api/mcf/validation/'+validation.id+'/judgements/'+blinded.units[0].id,{...judgement,previousId:first.history[0].id,applications:[]},201);
  assert.equal((await call('/api/mcf/validation/'+validation.id)).history.length,2);
  assert.equal(JSON.stringify((await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE run_id=$1 ORDER BY id',[run.id])).rows),frozenBefore);
  pass('Versioned review report uses source-record breadth; stratified seeded validation pins the complete candidate, hides findings in blind review, appends independent judgements and never changes machine outputs');

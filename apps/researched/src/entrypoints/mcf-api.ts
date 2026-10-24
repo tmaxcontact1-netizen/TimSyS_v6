@@ -1,6 +1,6 @@
 import {reviewAggregation} from '../domain/review-aggregation.js';
 import {McfValidation} from '../application/mcf-validation.js';
-import {validationPlan,validationJudgement} from '../domain/mcf-validation.js';
+import {validationPlan} from '../domain/mcf-validation.js';
 import {competencyEvidenceCounts} from '../domain/mcf-evidence.js';
 import {machineReport} from '../application/mcf-report.js';
 import {McfAiWorker} from '../application/mcf-ai.js';
@@ -63,7 +63,7 @@ export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:s
     if(method==='DELETE'){const v=z.object({actor}).strict().parse(await body(q));send(r,200,await validation.remove(id,v.actor));return true;}
 
     if(method==='GET'){send(r,200,await validation.view(id));return true;}
-    if(method==='POST'&&action==='judgements'&&child){send(r,201,await validation.judge(id,child,validationJudgement.parse(await body(q))));return true;}
+    if(method==='POST'&&action==='judgements'&&child){send(r,201,await validation.judge(id,child,await body(q)));return true;}
    }
    if(resource==='sessions'&&action==='ai'){
     if(method==='GET'){send(r,200,{...await worker.overview(id),workerError:worker.error});return true;}

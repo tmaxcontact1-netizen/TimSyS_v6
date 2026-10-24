@@ -38,8 +38,22 @@ A separate derived review report was produced from that JSON without changing it
 
 200 unit tests across 34 suites; TypeScript/Vite builds; 16 isolated semantic/persistence/export checks; 28 browser/workflow checks. Synthetic tests cover denominator handling, multiple findings per review, explicit/contextual overlap, null valence, trace IDs, deterministic sampling, intersecting filters, overlap choices, blind isolation, append-only corrections, stale revision rejection, reveal, undo, deletion, zero AI calls, and unchanged candidate outputs. The semantic instrument, prompts, classification/valence rules, segmentation, structural parser, context retrieval and zero-code engine are unchanged. Trade’Ed remains isolated on its original worker/watchdog with no restart or database access by this work.
 
-## 0.10.6 retrospective reporting verification � 23 October 2026
+## 0.10.6 retrospective reporting verification — 23 October 2026
 
 Removed the review-report opt-in gate in the UI and HTML/PDF export; added review aggregation to the main JSON export. The eligible distinct review denominator and formula are explicit, and density displays two decimals. Missing review IDs are reported as unavailable rather than inferred. No schema, classifier, instrument or validation-methodology change.
 
 326 tests pass; TypeScript and production frontend builds pass. Existing saved run verification covers 2,020 substantive units, 77 review IDs and 2,082 same-review context references. All 21 partitions reconcile, original evidence counts match, and the original HTML evidence-location section is byte-for-byte unchanged. The stored candidate passes the read-only validation candidate check. HTML/JSON/PDF checks pass and the PDF review table was visually inspected. No semantic run or validation sample was created.
+
+## 0.10.7 staged validation — 24 October 2026
+
+New samples use validationVersion 2. Existing version-1 histories remain unchanged and downloadable; they are never relabelled as blind initial/final coding. No migration is required: separate stage events use the existing append-only audit store and frozen report snapshots.
+
+Open Human validation of this completed run, choose your own seeded sample design, preview and confirm. No sample size or proportions are preselected. The dedicated full-screen workspace makes the surrounding machine report inert. It is a presentation safeguard, not an authorization barrier or a way to undo prior exposure.
+
+Read the continuous frozen review context with the target highlighted. Included/excluded source component labels are shown when available. Select supported competencies, route and optional valence; Contextual applications require additional same-review passages and a rationale when completed. Citations retain the exact frozen text and offsets. Completing initial coding explicitly affirms all 21 competencies were considered; unselected competencies are unsupported, and an empty completed selection is zero-code. Drafts are not completed judgements.
+
+All sampled passages require completed initial coding before reveal. Reveal locks and records the precise initial revision IDs for the entire sample. The server enforces this order under a session row lock; concurrent stale stage revisions are rejected. Reveal cannot be undone because the researcher cannot unsee findings. Pre-reveal initial revisions and final revisions can be undone by appending a draft revision. Samples can be deleted without deleting candidate runs.
+
+After reveal, initial coding and frozen machine findings appear side by side. Optional AI-assisted adjudication is explicit: download this case (target, permitted context, instrument, initial coding and candidate findings), discuss it with an assistant, then record the actual advice with assistant/model/reference and researcher notes. The app does not call a provider for this operation. Advice is separately attributed, timestamped and revisable/withdrawable, never automatically adopted as coding. This is single-researcher validation with AI-assisted adjudication, not independent human intercoder reliability.
+
+Final decisions have their own application list, context citations, outcome and required explanation; unresolved interpretations remain explicitly unresolved. Every final revision links to the locked initial judgement and the then-current advice revision. JSON exports retain all three histories and provenance. No agreement threshold, reliability score, final sample or semantic rerun is created by the release.
