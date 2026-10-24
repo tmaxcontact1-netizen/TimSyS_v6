@@ -21,7 +21,7 @@ try{
  const session=await call('/api/mcf/datasets/'+dataset.id+'/sessions',{title:'Concurrent fixture',kind:'coding',reviewBoundariesConfirmed:true,actor},201);
  const units=(await call('/api/mcf/sessions/'+session.id)).units;assert.equal(units.length,30);
  const calls=[];let live=0,max=0;
- const provider={id:'synthetic',model:'fixture',configurationId:'fixture-connection',async analyse(request){live++;max=Math.max(max,live);let release,fail;const gate=new Promise((resolve,reject)=>{release=resolve;fail=reject;});const ids=JSON.parse(request.instructions.split('TARGET unit IDs: ')[1].split(' Frozen MCF')[0]);calls.push({request,ids,release,fail});try{await gate;return{value:{units:ids.map(unitId=>({unitId,codes:[],valence:null,notes:'Synthetic zero-code fixture'}))},confidence:1,evidenceSegmentIds:ids,limitations:['Synthetic fixture']};}finally{live--;}}};
+ const provider={id:'synthetic',model:'fixture',configurationId:'fixture-connection',async analyse(request){live++;max=Math.max(max,live);let release,fail;const gate=new Promise((resolve,reject)=>{release=resolve;fail=reject;});const ids=JSON.parse(request.instructions.split('TARGET unit IDs: ')[1].split(' Frozen MCF')[0]);calls.push({request,ids,release,fail});try{await gate;return{value:{units:ids.map(unitId=>({unitId,codes:[],valence:null,notes:'Synthetic zero-code fixture',...(request.analysisType==='mcf-evidential-proposals.v3'?{ambiguity:{status:'none',reason:'Synthetic unambiguous fixture',evidence:[],alternatives:[]}}:{})}))},confidence:1,evidenceSegmentIds:ids,limitations:['Synthetic fixture']};}finally{live--;}}};
  const repo=new McfRepository(db,join(temporary,'sources')),workers=Array.from({length:5},()=>new McfAiWorker(repo,()=>provider)),worker=workers[0];
  const view=async id=>(await worker.overview(session.id)).runs.find(r=>r.id===id);
  const ready=async id=>db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[id]);
@@ -38,7 +38,7 @@ try{
  await worker.resume(session.id,run.id,actor);const retry=worker.semantic.process();await wait(()=>calls.length===8);assert.deepEqual(calls.at(-1).ids,units.slice(0,6).map(u=>u.id));calls.at(-1).release();await retry;
  assert.equal((await view(run.id)).status,'completed');assert.equal((await view(run.id)).coverage.semanticAssessed,30);
  assert.deepEqual((await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE id=ANY($1::uuid[]) ORDER BY id',[saved.map(o=>o.id)])).rows,saved);
- for(const c of calls){assert.equal(c.request.evidence.length,30);assert.deepEqual(c.request.evidence.map(e=>e.segmentId),units.map(u=>u.id));assert.equal(c.ids.length,6);assert.equal(c.request.analysisType,'mcf-evidential-proposals.v2');}
+ for(const c of calls){assert.equal(c.request.evidence.length,30);assert.deepEqual(c.request.evidence.map(e=>e.segmentId),units.map(u=>u.id));assert.equal(c.ids.length,6);assert.equal(c.request.analysisType,'mcf-evidential-proposals.v3');}
  assert.equal(max,2);console.log('PASS atomic two-slot claiming across five workers; untouched-first retries; finite independent budgets; unresolved-only resume; unchanged retained successes and same-review request context');
  // Legacy run policy remains serial until an explicit resume upgrades it.
  const legacy=await worker.enqueue(session.id,'classification',actor);await db.query("UPDATE researched.mcf_ai_runs SET configuration=jsonb_set(jsonb_set(configuration,'{semanticPolicy,concurrency}','1'),'{semanticPolicy,version}','7') WHERE id=$1",[legacy.id]);
