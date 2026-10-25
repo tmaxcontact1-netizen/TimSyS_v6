@@ -78,3 +78,9 @@ Old runs keep their original configuration on resume: no ambiguity upgrade, no e
 The analysis UI has an AI ambiguity section and passage filters. JSON, HTML and PDF reports expose assessed/flagged/no-ambiguity/not-assessed counts, alternative mentions, reasons, citations and provenance. AI ambiguity remains separate from researcher annotations. Staged validation reveals AI ambiguity alongside frozen findings only after initial coding is locked; the researcher can accept, amend or leave the interpretation unresolved through the existing independent final judgement.
 
 Verification uses synthetic provider responses and disposable PostgreSQL, including a missing-assessment retry, unchanged retained outputs, old-protocol resume, alternative exclusion, blind-review hiding, UI filters and all report exports. This verifies implementation, not the accuracy/calibration of a real model’s ambiguity judgements. No Director corpus run or live model request is made.
+
+## ISR numerical rating metadata (ambiguity protocol 2)
+
+New runs snapshot researcher-authorised ISR Director rating scale metadata separately from MCF v1.0. Values 1–5 mean strongly negative, negative, midpoint/average, positive, strongly positive respectively. Metadata applies only to recognised, approved questionnaire rating spans in director-questionnaire mappings. It resolves unknown numerical direction only; referent and competency ambiguity remain assessable. Alternatives remain excluded from supported counts. The unchanged semantic protocol is 3, evidence protocol is 2, and the response format remains ambiguity version 1.
+
+Ambiguity is coupled to semantic assessment; there is no ambiguity-only rerun. Existing runs retain their saved protocol, instructions and outputs, including on resume. The next new analysis uses ambiguity protocol 2 with versioned scale metadata in run configuration and finding provenance. No run is started by this change.
