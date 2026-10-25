@@ -18,7 +18,7 @@ export class McfAiWorker{
  private timer:ReturnType<typeof setInterval>|null=null;private active=new Set<Promise<void>>();private interpretationBusy=false;private stopped=false;error:string|null=null;
  readonly semantic:SemanticWorker;
  constructor(readonly repo:McfRepository,readonly provider:()=>AiAnalysisProvider|null){this.semantic=new SemanticWorker(repo,provider);}
- async resume(sessionId:string,id:string,actor:string){return this.semantic.resume(sessionId,id,actor);}
+ async resume(sessionId:string,id:string,actor:string,confirmLegacyProvider=false){return this.semantic.resume(sessionId,id,actor,confirmLegacyProvider);}
  async start(){await this.semantic.start();await this.repo.db.query("UPDATE researched.mcf_ai_tasks SET status='failed',error='Interrupted by restart; start a new analysis to retry.' WHERE status='running' AND run_id IN(SELECT id FROM researched.mcf_ai_runs WHERE kind='interpretation')");await this.settle();this.timer=setInterval(()=>{void this.tick();},1000);this.timer.unref();}
  stop(){this.stopped=true;this.semantic.stopped=true;if(this.timer)clearInterval(this.timer);}
  async enqueue(sessionId:string,kind:'classification'|'interpretation',actor:string,questions:string[]=[],_deterministicFallback=false,localOnly=false){

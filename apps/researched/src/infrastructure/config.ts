@@ -20,5 +20,5 @@ export function loadConfig(env:NodeJS.ProcessEnv){
       else if(!local&&!apiKey)aiUnavailableReason='missing_ai_credentials';
     }catch{aiUnavailableReason='invalid_ai_endpoint';}}
   }
-  return {databaseUrl,port,storageRoot:resolve(env.RESEARCHED_STORAGE_ROOT??"storage"),appRoot:resolve(env.RESEARCHED_APP_ROOT??process.cwd()),assistantToken:env.RESEARCHED_ASSISTANT_TOKEN?.trim(),aiUnavailableReason,ai:rawProtocol&&!aiUnavailableReason?{protocol:rawProtocol as AiProtocol,...(apiKey?{apiKey}:{}),baseUrl,model}:null};
+  return {databaseUrl,port,storageRoot:resolve(env.RESEARCHED_STORAGE_ROOT??"storage"),appRoot:resolve(env.RESEARCHED_APP_ROOT??process.cwd()),assistantToken:env.RESEARCHED_ASSISTANT_TOKEN?.trim(),aiUnavailableReason,ai:rawProtocol&&!aiUnavailableReason?{protocol:rawProtocol as AiProtocol,...(apiKey?{apiKey}:{}),baseUrl,model,...(env.RESEARCHED_AI_MANAGED==='1'&&env.RESEARCHED_AI_PROFILE_ID?.trim()?{managedProfileId:env.RESEARCHED_AI_PROFILE_ID.trim()}:{})}:null};
 }

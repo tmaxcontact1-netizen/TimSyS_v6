@@ -1,3 +1,4 @@
+import {providerIdentity as identity,checkResumeProvider} from './provider-identity.js';
 import {AI_AMBIGUITY_RULES,ambiguityResponse,retainAiAmbiguity} from '../domain/ai-ambiguity.js';
 import {semanticFailureCategory,safeFailureDiagnostics} from '../domain/semantic-failure.js';
 import {EVIDENTIAL_RULES,evidentialResponse,confirmedReview,retainContext,normalizeMachineContext} from '../domain/mcf-evidence.js';
@@ -14,7 +15,6 @@ import {proposalResponse,validateProposals} from './mcf-ai.js';
 export const SEMANTIC_POLICY=Object.freeze({version:8,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:2});
 export function semanticAttemptTimeout(policy:{timeoutMs:number;attemptTimeoutsMs?:readonly number[]},attempt:number){return policy.attemptTimeoutsMs?.[attempt-1]??policy.timeoutMs;}
 export function transientSemanticError(error:string){return /abort|timeout|timed out|429|(?:^|[_\s])5\d\d(?:$|\b)|fetch failed|network|econn|socket/i.test(error);}
-const identity=(p:AiAnalysisProvider|null)=>p?{id:p.id,model:p.model,connectionId:p.configurationId??null}:null;
 export class SemanticWorker{
  stopped=false;
  constructor(readonly repo:McfRepository,readonly provider:()=>AiAnalysisProvider|null){}
@@ -40,7 +40,7 @@ export class SemanticWorker{
    await this.repo.audit(c,session.dataset_id,'mcf_semantic_requested',id,actor,{sessionId,policy:SEMANTIC_POLICY,provider:identity(provider)});
   });return{id};
  }
- async resume(sessionId:string,id:string,actor:string){
+ async resume(sessionId:string,id:string,actor:string,confirmLegacyProvider=false){
   const provider=this.provider();if(!provider)throw Error('Connect AI before resuming semantic analysis.');
   const workspace=await this.repo.workspace(sessionId);if(workspace.records.some((r:any)=>!confirmedReview(r,workspace.configuration)))throw Error('This historical population has unresolved review boundaries. Preserve this run and create a new structurally mapped population; it cannot be resumed.');
   await this.repo.transaction(async c=>{
@@ -49,16 +49,14 @@ export class SemanticWorker{
    if(!run||![2,3].includes(run.configuration.semanticProtocol))throw Error('Historical pilot runs are audit-only and cannot be resumed.');
    if(['queued','running'].includes(run.status))throw Error('Analysis is already running.');
    if(run.status==='completed')throw Error('Semantic analysis is already complete.');
-   if(run.configuration.provider&&JSON.stringify(run.configuration.provider)!==JSON.stringify(identity(provider))){
-    const a=run.configuration.provider,b=identity(provider)!;if(a.id!==b.id||a.model!==b.model||a.connectionId!==b.connectionId)throw Error('Reconnect the original provider and model before resuming.');
-   }
+   checkResumeProvider(run.configuration.provider,identity(provider)!,confirmLegacyProvider);
    if((await c.query("SELECT 1 FROM researched.mcf_ai_tasks WHERE run_id=$1 AND status='running'",[id])).rowCount)throw Error('Wait for the interrupted request to settle before resuming.');
    await c.query("UPDATE researched.mcf_semantic_tasks s SET cycle=cycle+1,next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE t.id=s.task_id AND t.run_id=$1 AND t.status<>'completed'",[id]);
    await c.query("UPDATE researched.mcf_ai_tasks SET status='queued',error=NULL WHERE run_id=$1 AND status<>'completed'",[id]);
    // Upgrade execution limits only on explicit resume. Completed tasks and their outputs are immutable.
    const policy=run.configuration.semanticPolicy.version<SEMANTIC_POLICY.version?{...run.configuration.semanticPolicy,version:SEMANTIC_POLICY.version,timeoutMs:SEMANTIC_POLICY.timeoutMs,attemptTimeoutsMs:SEMANTIC_POLICY.attemptTimeoutsMs,scheduling:SEMANTIC_POLICY.scheduling,firstBatchGate:false,concurrency:SEMANTIC_POLICY.concurrency}:run.configuration.semanticPolicy;
    await c.query("UPDATE researched.mcf_ai_runs SET status='queued',finished_at=NULL,configuration=jsonb_set(jsonb_set(configuration,'{provider}',$2::jsonb),'{semanticPolicy}',$3::jsonb) WHERE id=$1",[id,JSON.stringify(identity(provider)),JSON.stringify(policy)]);
-   await this.repo.audit(c,session.dataset_id,'mcf_semantic_resumed',id,actor,{previousPolicy:run.configuration.semanticPolicy,policy,provider:identity(provider),successfulResultsPreserved:true});
+   await this.repo.audit(c,session.dataset_id,'mcf_semantic_resumed',id,actor,{previousPolicy:run.configuration.semanticPolicy,policy,previousProvider:run.configuration.provider,provider:identity(provider),legacyProviderConfirmed:confirmLegacyProvider,successfulResultsPreserved:true});
   });return{resumed:true,id};
  }
  async cancel(sessionId:string,id:string){

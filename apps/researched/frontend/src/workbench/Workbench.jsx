@@ -1,3 +1,4 @@
+import {resumeAnalysis} from '../resume-analysis.js';
 import ValidationPanel from './ValidationPanel.jsx';
 import {documentComponents,applyDocumentComponents,reconcileReviewBreaks} from './review-navigation.js';
 import ProcessingProgress,{analysisProgress} from '../ProcessingProgress.jsx';
@@ -86,7 +87,7 @@ function Workbench(){
  const selectedRun=machine?.runs.find(r=>r.id===draft?.machineRunId)??machine?.runs[0];
  const active=project?.tool==='content'?run?.status==='running':['queued','running'].includes(selectedRun?.status)||interpretation?.runs.some(r=>['queued','running'].includes(r.status));
  const progress=analysisProgress(project?.tool,project?.tool==='content'?run:selectedRun);
- async function resume(){await api('mcf/sessions/'+draft.sessionId+'/ai-resume/'+selectedRun.id,post({actor}));change({analysisAttempt:(draft.analysisAttempt??0)+1},'Resumed unresolved semantic analysis');setMachine(await api('mcf/sessions/'+draft.sessionId+'/ai'));await model.flush();}
+ async function resume(){if(!await resumeAnalysis(api,'mcf/sessions/'+draft.sessionId+'/ai-resume/'+selectedRun.id,actor))return;change({analysisAttempt:(draft.analysisAttempt??0)+1},'Resumed unresolved semantic analysis');setMachine(await api('mcf/sessions/'+draft.sessionId+'/ai'));await model.flush();}
  async function stop(){if(project.tool==='content')await api('content/runs/'+run.id+'/cancel',post({}));else {const r=machine.runs.find(r=>['queued','running'].includes(r.status));if(r)await api('mcf/sessions/'+draft.sessionId+'/ai-cancel/'+r.id,post({actor}));}change({analysisAttempt:(draft.analysisAttempt??0)+1},'Stopped analysis');await model.flush();setNotice('Stopped. Completed draft findings are kept. Use Resume unfinished analysis to continue unresolved passages.');}
  async function undo(name){if(active)throw Error('Stop the analysis before changing its inputs.');const p=await model.action(name);await readContext(p);setNotice(name==='undo'?'Change undone.':'Change restored.');}
  async function home(){await model.flush();model.load(nullProject);localStorage.removeItem('researched-simple-project');await list();}

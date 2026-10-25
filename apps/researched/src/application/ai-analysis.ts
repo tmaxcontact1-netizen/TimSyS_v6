@@ -3,7 +3,7 @@ import { z } from "zod";
 export const groundedAnalysisResponse=z.object({value:z.unknown(),confidence:z.number().min(0).max(1),evidenceSegmentIds:z.array(z.string().uuid()).min(1),limitations:z.array(z.string()).default([])}).strict();
 export interface AnalysisEvidence{segmentId:string;sourceId:string;content:string}
 export interface AiAnalysisRequest{requestId:string;timeoutMs?:number;analysisType:string;instructions:string;evidence:readonly AnalysisEvidence[];outputSchema?:Record<string,unknown>}
-export interface AiAnalysisProvider{readonly id:string;readonly model:string;readonly configurationId?:string;analyse(request:AiAnalysisRequest):Promise<z.infer<typeof groundedAnalysisResponse>>}
+export interface AiAnalysisProvider{readonly id:string;readonly model:string;readonly configurationId?:string;readonly identityVersion?:number;analyse(request:AiAnalysisRequest):Promise<z.infer<typeof groundedAnalysisResponse>>}
 export type AiProtocol="openai-responses"|"openai-chat"|"anthropic-messages"|"generic-json";
 export const AI_PROVIDER_PROTOCOLS=[
   {id:"openai-responses",name:"OpenAI Responses",description:"OpenAI and services implementing the Responses API.",defaultBaseUrl:"https://api.openai.com",requiresKey:true},
@@ -11,7 +11,7 @@ export const AI_PROVIDER_PROTOCOLS=[
   {id:"anthropic-messages",name:"Anthropic Messages",description:"Anthropic Claude and compatible Messages APIs.",defaultBaseUrl:"https://api.anthropic.com",requiresKey:true},
   {id:"generic-json",name:"TimSyS JSON webhook",description:"Any model or gateway adapted to the documented TimSyS request and response contract.",defaultBaseUrl:null,requiresKey:"provider-dependent"},
 ] as const;
-export interface AiProviderConfiguration{protocol:AiProtocol;model:string;baseUrl:string;apiKey?:string;timeoutMs?:number;fetch?:typeof fetch}
+export interface AiProviderConfiguration{protocol:AiProtocol;model:string;baseUrl:string;apiKey?:string;timeoutMs?:number;managedProfileId?:string;fetch?:typeof fetch}
 export interface AiConnectionDiagnostic{status:"available"|"unavailable"|"unsupported";latencyMs:number|null;models:string[];detail:string}
 const resultSchema=(value:Record<string,unknown>={type:"object",additionalProperties:true})=>({type:"object",additionalProperties:false,required:["value","confidence","evidenceSegmentIds","limitations"],properties:{value,confidence:{type:"number",minimum:0,maximum:1},evidenceSegmentIds:{type:"array",minItems:1,items:{type:"string"}},limitations:{type:"array",items:{type:"string"}}}});
 const systemInstruction="Use only the supplied evidence. Return valid JSON matching the requested schema. Cite only supplied segmentId values. State limitations rather than guessing.";
@@ -47,7 +47,8 @@ export async function inspectAiConnection(configuration:AiProviderConfiguration)
 }
 abstract class HttpAnalysisProvider implements AiAnalysisProvider{
   abstract readonly id:string;
-  get configurationId(){return createHash('sha256').update(JSON.stringify({protocol:this.options.protocol,model:this.model,baseUrl:this.options.baseUrl})).digest('hex');}
+  get identityVersion(){const u=new URL(this.options.baseUrl);return this.options.managedProfileId&&this.id==='openai-responses'&&u.protocol==='http:'&&u.hostname==='127.0.0.1'&&u.pathname==='/'?2:1;}
+  get configurationId(){if(this.identityVersion===2)return createHash('sha256').update(JSON.stringify({protocol:this.options.protocol,model:this.model,managedProfileId:this.options.managedProfileId})).digest('hex');return createHash('sha256').update(JSON.stringify({protocol:this.options.protocol,model:this.model,baseUrl:this.options.baseUrl})).digest('hex');}
   constructor(readonly model:string,protected readonly options:AiProviderConfiguration){}
   protected async post(endpoint:URL,body:unknown,headers:Record<string,string>={},timeoutMs?:number){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeoutMs??this.options.timeoutMs??90_000);try{return await boundedJson(await(this.options.fetch??fetch)(endpoint,{method:"POST",redirect:"error",signal:controller.signal,headers:{"Content-Type":"application/json",Accept:"application/json",...headers},body:JSON.stringify(body)}))}finally{clearTimeout(timer)}}
   abstract analyse(request:AiAnalysisRequest):Promise<z.infer<typeof groundedAnalysisResponse>>;
