@@ -14,6 +14,7 @@ function garment(row: GarmentRow) {
     id: row.garment_id,
     categoryId: row.category_id,
     categoryName: row.category_name,
+    categorySlug: row.category_slug,
     name: row.name,
     brand: row.brand,
     productName: row.product_name,
@@ -23,6 +24,7 @@ function garment(row: GarmentRow) {
     fit: row.fit,
     size: row.size,
     tailoringNotes: row.tailoring_notes,
+    visualStyle: row.visual_style ?? {},
     materials: row.materials,
     seasons: row.seasons,
     uses: row.uses,
@@ -45,7 +47,7 @@ function garment(row: GarmentRow) {
 }
 
 const garmentSelect = `
-  SELECT g.*, g.purchase_date::text AS purchase_date, c.name AS category_name,
+  SELECT g.*, g.purchase_date::text AS purchase_date, c.name AS category_name, c.slug AS category_slug,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('material',m.material,'percentage',m.percentage) ORDER BY m.material) FROM dressed.garment_materials m WHERE m.garment_id=g.garment_id),'[]'::jsonb) AS materials,
     COALESCE((SELECT jsonb_agg(s.season ORDER BY s.season) FROM dressed.garment_seasons s WHERE s.garment_id=g.garment_id),'[]'::jsonb) AS seasons,
     COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.use_id,'slug',u.slug,'name',u.name) ORDER BY u.sort_order,u.name) FROM dressed.garment_uses gu JOIN dressed.garment_use_types u ON u.use_id=gu.use_id WHERE gu.garment_id=g.garment_id),'[]'::jsonb) AS uses,
@@ -105,6 +107,7 @@ export class WardrobeRepository {
     try {
       await client.query("BEGIN");
       await client.query(`INSERT INTO dressed.garments(garment_id,category_id,name,brand,product_name,sku,notes,formality,fit,size,tailoring_notes,acquisition_condition,purchase_date,purchase_price_minor,currency,original_retail_price_minor,source,is_gift,acquisition_notes,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$20)`, [id,input.categoryId,input.name,input.brand ?? null,input.productName ?? null,input.sku ?? null,input.notes ?? null,input.formality ?? null,input.fit ?? null,input.size ?? null,input.tailoringNotes ?? null,input.acquisition.condition ?? null,input.acquisition.purchaseDate ?? null,input.acquisition.purchasePriceMinor ?? null,input.acquisition.currency ?? null,input.acquisition.originalRetailPriceMinor ?? null,input.acquisition.source ?? null,input.acquisition.isGift,input.acquisition.notes ?? null,timestamp]);
+      if (input.visualStyle) await client.query("UPDATE dressed.garments SET visual_style=$2::jsonb WHERE garment_id=$1",[id,JSON.stringify(input.visualStyle)]);
       await replaceCollections(client, id, input);
       await client.query("INSERT INTO dressed.garment_status_history(status_history_id,garment_id,previous_status,new_status,reason,changed_at) VALUES(gen_random_uuid(),$1,NULL,'available','garment_created',$2)", [id,timestamp]);
       await client.query("COMMIT");
@@ -118,6 +121,7 @@ export class WardrobeRepository {
       await client.query("BEGIN");
       const result = await client.query(`UPDATE dressed.garments SET category_id=$2,name=$3,brand=$4,product_name=$5,sku=$6,notes=$7,formality=$8,fit=$9,size=$10,tailoring_notes=$11,acquisition_condition=$12,purchase_date=$13,purchase_price_minor=$14,currency=$15,original_retail_price_minor=$16,source=$17,is_gift=$18,acquisition_notes=$19,version=version+1,updated_at=$20 WHERE garment_id=$1 AND version=$21 AND lifecycle_status<>'archived' RETURNING garment_id`, [id,input.categoryId,input.name,input.brand ?? null,input.productName ?? null,input.sku ?? null,input.notes ?? null,input.formality ?? null,input.fit ?? null,input.size ?? null,input.tailoringNotes ?? null,input.acquisition.condition ?? null,input.acquisition.purchaseDate ?? null,input.acquisition.purchasePriceMinor ?? null,input.acquisition.currency ?? null,input.acquisition.originalRetailPriceMinor ?? null,input.acquisition.source ?? null,input.acquisition.isGift,input.acquisition.notes ?? null,timestamp,input.version]);
       if (result.rowCount !== 1) { await client.query("ROLLBACK"); return null; }
+      if (input.visualStyle) await client.query("UPDATE dressed.garments SET visual_style=$2::jsonb WHERE garment_id=$1",[id,JSON.stringify(input.visualStyle)]);
       await replaceCollections(client, id, input);
       await client.query("COMMIT");
     } catch (error) { await client.query("ROLLBACK"); throw error; } finally { client.release(); }

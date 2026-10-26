@@ -1,3 +1,4 @@
+import { garmentStyles } from "./visual-style.js";
 import { z } from "zod";
 
 const optionalText = (maximum: number) => z.string().trim().min(1).max(maximum).optional().nullable();
@@ -20,6 +21,7 @@ export const garmentInputSchema = z.object({
   fit: optionalText(80),
   size: optionalText(80),
   tailoringNotes: optionalText(2_000),
+  visualStyle: z.object({kind:z.string().refine(v=>v==='auto'||garmentStyles.some(s=>s.id===v),'Unknown garment style').optional(),closure:z.enum(['open','closed']).optional(),cuffs:z.enum(['unknown','button','french']).optional(),side:z.enum(['left','right']).optional()}).strict().optional(),
   materials: z.array(materialSchema).max(20).default([]),
   seasons: z.array(seasonSchema).max(5).default([]),
   useIds: z.array(z.string().uuid()).max(30).default([]),

@@ -2,7 +2,9 @@
 
 Dress'Ed is the TimSyS-hosted, domain-isolated wardrobe management and deterministic outfit-coordination application.
 
-Version 0.1.0 adds a functional card-free intake prototype: upload an original, select the garment in-app, inspect provisional detection, correct every presented field, and confirm before outfit generation. Originals and review history are retained. Colour families are approximate; unknown attributes and approximate ranking are visible in outfit suggestions. This release verifies intake through saved outfit generation, rather than claiming every existing planner and lifecycle feature has been validated.
+Version 0.3.0 adds multiple fixed garments in the outfit builder, category selection and garment dependencies, numerical coordination scores with separate confidence, more varied accessory recommendations, saved outfit management, and duplicate garments with independent wear histories. It includes a rotatable mannequin with garment/accessory styles, smoother shoulders and optional skin colour. Personal-colouring warnings are shown alongside coordination scores; they do not change the score or ranking. Photo estimates remain provisional and confirmed garment details take priority.
+
+Portraits are processed in the browser. The profile stores selected summary values, optional mannequin colour and garment feedback, not the portrait. Grey remains the default mannequin colour. New migrations 0011 and 0012 add visual styles/accessory categories and saved-outfit retirement without changing earlier migrations.
 
 ## Boundaries
 

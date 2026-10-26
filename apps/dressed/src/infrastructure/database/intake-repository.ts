@@ -35,6 +35,7 @@ export class IntakeRepository {
    await client.query("UPDATE dressed.garments SET name=$2,category_id=$3,formality=$4,version=version+1,updated_at=$5 WHERE garment_id=$1",[id,input.name,input.categoryId,input.formality,timestamp]);
    if(input.details){
     const d=input.details,a=d.acquisition;
+    if(d.visualStyle)await client.query("UPDATE dressed.garments SET visual_style=$2::jsonb WHERE garment_id=$1",[id,JSON.stringify(d.visualStyle)]);
     await client.query(`UPDATE dressed.garments SET brand=$2,product_name=$3,sku=$4,notes=$5,fit=$6,size=$7,tailoring_notes=$8,acquisition_condition=$9,purchase_date=$10,purchase_price_minor=$11,currency=$12,original_retail_price_minor=$13,source=$14,is_gift=$15,acquisition_notes=$16 WHERE garment_id=$1`,[id,d.brand??null,d.productName??null,d.sku??null,d.notes??null,d.fit??null,d.size??null,d.tailoringNotes??null,a.condition??null,a.purchaseDate??null,a.purchasePriceMinor??null,a.currency??null,a.originalRetailPriceMinor??null,a.source??null,a.isGift,a.notes??null]);
     await client.query("DELETE FROM dressed.garment_materials WHERE garment_id=$1",[id]);
     for(const m of d.materials)await client.query("INSERT INTO dressed.garment_materials(garment_id,material,percentage) VALUES($1,$2,$3)",[id,m.material,m.percentage??null]);

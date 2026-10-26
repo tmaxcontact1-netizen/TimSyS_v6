@@ -11,7 +11,7 @@ const emptyAppearance={primaryColour:"unknown",secondaryColour:null,lightness:"u
 const title=value=>value==="unknown"?"Unknown / unsure":value.charAt(0).toUpperCase()+value.slice(1);
 const message=error=>({review_version_conflict:"This garment changed. Close and reopen the review before saving your corrections.",review_analysis_stale:"A photograph changed after this analysis. Analyse the current photograph again, or choose manual entry.",image_not_current:"That photograph was replaced. Select the current photograph."}[error.message]||error.message);
 
-export default function PhotoIntake({garment,categories,uses,api,close,saved}){
+export default function PhotoIntake({garment,categories,uses,api,close,saved,inline=false}){
  const [record,setRecord]=useState(garment??null),[photos,setPhotos]=useState([]),[selected,setSelected]=useState(null),[role,setRole]=useState("whole");
  const [details,setDetails]=useState(detailsFrom()),[discard,setDiscard]=useState(false);
  const [analysis,setAnalysis]=useState(null),[previous,setPrevious]=useState(null),[crop,setCrop]=useState(null),[draft,setDraft]=useState(null);
@@ -94,7 +94,7 @@ export default function PhotoIntake({garment,categories,uses,api,close,saved}){
  const shown=crop??analysis?.result.region;
  const leaves=categories.filter(x=>!categories.some(child=>child.parentCategoryId===x.id));
  const status=key=>dirty.has(key)?"Changed in this draft — check before saving":draft?.appearance[key]==="unknown"?"Undetected — choose or leave uncertain":previous?"Previously confirmed":!analysis?"Enter your judgement":"Suggested — check against the garment";
- return <div className="modal-backdrop"><section className="modal intake-modal" role="dialog" aria-modal="true" aria-labelledby="intake-title">
+ return <div className={inline?"garment-inline-editor":"modal-backdrop"}><section className="modal intake-modal" role={inline?"region":"dialog"} aria-modal={inline?undefined:true} aria-labelledby="intake-title">
   <header><div><p className="eyebrow">UPLOAD · DETECT · REVIEW</p><h2 id="intake-title">{garment?"Edit garment":"Add garment"}</h2><p>Keep the original. Select the garment here, then confirm or correct the suggestions. No colour card required.</p></div><button className="quiet" disabled={busy} onClick={finish}>Close</button></header>
   {discard&&<div className="intake-findings" role="alert"><p>Discard unsaved details? Uploaded originals are already stored with the garment.</p><button type="button" onClick={()=>setDiscard(false)}>Keep editing</button> <button type="button" onClick={close}>Discard unsaved details</button></div>}
   {error&&<p className="error banner" role="alert">{error}</p>}{notice&&<p className="success banner" role="status">{notice}</p>}
@@ -118,19 +118,19 @@ export default function PhotoIntake({garment,categories,uses,api,close,saved}){
    {previous&&!previous.is_current&&<p className="intake-findings">The photograph changed. Previous choices are retained below; confirm this review before using the garment in new outfits.</p>}
    {draft&&<form onSubmit={submit}><fieldset disabled={busy}><div className="form-grid">
     <label>Name<input required maxLength={120} value={draft.name} onChange={e=>change("name",e.target.value)}/></label>
-    <label>Category<select required value={draft.categoryId} onChange={e=>change("categoryId",e.target.value)}>{leaves.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Check manually; shape alone cannot identify garment type reliably.</small></label>
+    <label>Category<select required value={draft.categoryId} onChange={e=>{change("categoryId",e.target.value);changeDetails("visualStyle",{...details.visualStyle,kind:"auto"});}}>{leaves.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select><small>Check manually; shape alone cannot identify garment type reliably.</small></label>
     <label>Formality<select value={draft.formality} onChange={e=>change("formality",e.target.value)}><option value="">Unknown / unsure</option>{[1,2,3,4,5].map(n=><option key={n} value={n}>{n} — {['Casual','Relaxed','Smart casual','Business','Formal'][n-1]}</option>)}</select><small>Enter your judgement; not inferred from colour.</small></label>
     {Object.entries(labels).map(([key,label])=><label key={key}>{label}<select value={draft.appearance[key]??"none"} onChange={e=>changeAppearance(key,e.target.value==="none"?null:e.target.value)}>{key==="secondaryColour"&&<option value="none">None</option>}{(options[key]??options.primaryColour).map(value=><option key={value} value={value}>{title(value)}</option>)}</select><small>{status(key)}</small></label>)}
    </div>
    <fieldset className="intake-checks"><legend>Use — select every applicable use</legend>{uses.map(use=><label key={use.id}><input type="checkbox" checked={draft.useIds.includes(use.id)} onChange={()=>toggle("useIds",use.id)}/>{use.name}</label>)}</fieldset>
    <fieldset className="intake-checks"><legend>Seasons — leave blank if unsure</legend>{["spring","summer","autumn","winter","all-season"].map(season=><label key={season}><input type="checkbox" checked={draft.seasons.includes(season)} onChange={()=>toggle("seasons",season)}/>{title(season)}</label>)}</fieldset>
-   <GarmentDetails value={details} change={changeDetails}/>
+   <GarmentDetails value={details} change={changeDetails} categorySlug={categories.find(c=>c.id===draft.categoryId)?.slug}/>
    <div className="intake-findings"><strong>Before saving</strong><ul>
     <li>Colours remain approximate; confirming a family does not calibrate the photograph.</li>
     {Object.entries(draft.appearance).filter(([,v])=>v==="unknown").map(([key])=><li key={key}>{labels[key]} is uncertain and will be flagged in outfit suggestions.</li>)}
     {draft.formality===""&&<li>Formality is unknown; context suitability will be flagged.</li>}
     {!draft.seasons.length&&<li>Season suitability is unknown.</li>}
-    {!draft.useIds.length&&<li>Select a use to include this garment in outfit generation.</li>}
+    {!draft.useIds.length&&<li>No use assigned. This garment is available under All garments; assign uses if you want to filter suggestions.</li>}
     {categories.find(c=>c.id===draft.categoryId)?.slug==="uncategorised"&&<li>Choose a garment category before generating outfits.</li>}
    </ul></div>
    <button className="primary" type="submit">{busy?"Working…":"Save garment"}</button>

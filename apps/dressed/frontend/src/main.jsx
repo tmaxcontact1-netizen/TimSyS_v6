@@ -1,3 +1,8 @@
+import PersonalColouring, {ColouringProvider} from "./personal-colouring.jsx";
+import { accessorySlots } from "../../src/domain/garment/visual-style.ts";
+import OutfitPreview from './outfit-preview.jsx';
+import { evaluationAdvice, explainComparison } from '../../src/domain/outfit/evaluation-advice.ts';
+import { withCompanions, companionSlots, companionReasons } from "../../src/domain/outfit/garment-dependencies.ts";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import PhotoIntake from "./photo-intake.jsx";
 import ReactDOM from "react-dom/client";
@@ -350,11 +355,15 @@ async function api(url, options) {
         ?.map((issue) => `${issue.path}: ${issue.message}`)
         .join("; ") ||
         value.error?.message ||
+        (value.error === "incomplete_outfit" ? `Add ${value.missingSlots.map(slot => ({top:"a shirt or top",bottom:"trousers or bottoms",footwear:"shoes",jacket:"a jacket"}[slot] || slot.replaceAll("_", " "))).join(", ")} before saving this as a complete outfit.` : null) ||
         ({
           calibration_red_not_found: "The red block could not be found clearly. Retake the photograph with the whole card visible in even light.",
           calibration_green_not_found: "The green block could not be found clearly. Retake the photograph with the whole card visible in even light.",
           calibration_blue_not_found: "The blue block could not be found clearly. Retake the photograph with the whole card visible in even light.",
           calibration_photo_too_small: "This photograph is too small to read reliably. Choose a clearer, higher-resolution image.",
+          ensemble_not_saveable: "This combination needs changes before it can be saved. Review the evaluation notes.",
+          garment_not_available_for_use: "One of these garments is no longer available for this use. Refresh and evaluate again.",
+          no_eligible_saved_outfits: "No saved outfit fits these planner settings. Check the context, fixed garments and whether the rotation policy allows this outfit’s rating.",
           selected_garment_not_available_for_use: "That garment is not available for the selected use.",
           version_conflict_or_missing: "This garment changed or was already deleted. Refresh the wardrobe and try again.",
         }[value.error]) ||
@@ -504,28 +513,83 @@ function CalibrationForm({ close, saved }) {
     </div>
   );
 }
-function StylingLab({ garments, close }) {
+function CoordinationScore({ evaluation }) {
+  return <div className="coordination-rating">
+    <div className="ensemble-score"><strong>{evaluation.score.toFixed(1)}<small>/100</small></strong><span>Coordination score</span></div>
+    <p className="muted">Confidence: {evaluation.confidence ? `${evaluation.confidence.label} (${evaluation.confidence.score}/100 evidence coverage)` : "Not assessed"}</p>
+    {evaluation.confidence && <p className="muted">The confidence reflects how much we know about these garments. Unconfirmed shades, pattern sizes and dressiness make the advice less certain; they do not automatically make the outfit worse.</p>}
+    {evaluation.breakdown && <details><summary>Score breakdown</summary>
+      <table><thead><tr><th>Area</th><th>Points</th></tr></thead><tbody>{evaluation.breakdown.map(part => <tr key={part.id}><td>{part.label}</td><td>{part.points.toFixed(1)}{part.maximum ? ` / ${part.maximum}` : " adjustment"}</td></tr>)}</tbody></table>
+      {evaluation.breakdown.map(part => <details key={part.id}><summary>{part.label}: comparisons</summary><ul>{part.checks.length ? part.checks.map((check,index) => <li key={index}>{explainComparison(check.explanation)} <small>Relationship: {Math.round(check.value*100)}/100; evidence coverage: {Math.round(check.confidence*100)}/100.</small></li>) : <li>No specific relationship to compare in this selection; a neutral baseline is used.</li>}</ul></details>)}
+      <p className="muted">The four areas add up to the score. These are styling heuristics, not measurements of how good you will look. Equal scores are legitimate when recorded details are equivalent.</p>
+    </details>}
+  </div>;
+}
+function EvaluationNotes({ evaluation, garments }) {
+  return <div className="evaluation-notes">{evaluationAdvice(evaluation, garments).map(group =>
+    <section className={`evaluation-note-group evaluation-note-group--${group.kind}`} key={group.name}>
+      <h3>{group.name}</h3><ul>{group.items.map((text,index) => <li key={index}><p>{text}</p></li>)}</ul>
+    </section>)}</div>;
+}
+function SavedOutfits({ edit, plan, refreshKey }) {
+  const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[target,setTarget]=useState(null),[busy,setBusy]=useState(false);
+  const load=useCallback(async()=>{setLoading(true);try{setItems((await api('/api/ensembles/saved')).items);setError("");}catch(e){setError(e.message);}finally{setLoading(false);}},[]);
+  useEffect(()=>{void load();},[load,refreshKey]);
+  const remove=async()=>{setBusy(true);try{await api(`/api/ensembles/saved/${target.id}`,{method:'DELETE'});setTarget(null);await load();}catch(e){setError(e.message);}finally{setBusy(false);}};
+  return <Panel title="Saved outfits" description="Your completed combinations, ready to view, edit or plan.">
+    {error&&<p className="error" role="alert">{error}</p>}
+    {loading?<p>Loading saved outfits…</p>:!items.length?<p>No saved outfits yet. Build or evaluate a combination, then save it here.</p>:<div className="ensemble-grid">{items.map(outfit=><article key={outfit.id}>
+      <h3>{outfit.name}</h3><p>{outfit.score.toFixed(1)}/100 · {outfit.contextName}</p>
+      <ul>{groupOutfitGarments(outfit.items).flatMap(group=>group.items.map(g=><li key={g.id}>{g.name}</li>))}</ul>
+      {outfit.notes&&<p>{outfit.notes}</p>}
+      <OutfitPreview garments={outfit.items} api={api}/>
+      <div className="row-actions"><button onClick={()=>edit(outfit)}>Edit outfit</button><button onClick={()=>plan({name:outfit.name,contextId:outfit.contextId,garmentIds:outfit.items.map(g=>g.id)})}>Open in planner</button><button onClick={()=>setTarget(outfit)}>Delete outfit</button></div>
+    </article>)}</div>}
+    <ConfirmationDialog open={!!target} title="Delete saved outfit?" description={target?`Remove “${target.name}” from saved outfits?`:""} consequence="This removes it from your saved list and future planning choices. Your garments, existing plans and wear history are kept." confirmLabel="Delete outfit" destructive busy={busy} onConfirm={remove} onCancel={()=>setTarget(null)}/>
+  </Panel>;
+}
+function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) {
   const [catalogue, setCatalogue] = useState(null),
-    [selected, setSelected] = useState([]),
+    [selected, setSelected] = useState(initialOutfit?.items.map(g => g.id) || []),
+    [outfitName, setOutfitName] = useState(initialOutfit?.name || ""),
+    [outfitNotes, setOutfitNotes] = useState(initialOutfit?.notes || ""),
+    [editingId, setEditingId] = useState(initialOutfit?.id),
+    [savedOutfit, setSavedOutfit] = useState(null),
+    [useId, setUseId] = useState(initialOutfit?.useId || ""),
     [contextId, setContext] = useState(""),
-    [season, setSeason] = useState(""),
+    [season, setSeason] = useState(initialOutfit?.season || ""),
     [result, setResult] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    api("/api/styling/catalogue")
-      .then((value) => {
-        setCatalogue(value);
-        setContext(value.contexts[0]?.id || "");
+    Promise.all([api("/api/styling/catalogue"), api("/api/ensembles/catalogue")])
+      .then(([value, wardrobe]) => {
+        setCatalogue({...value, uses: wardrobe.uses, garments: wardrobe.garments});
+        setContext(initialOutfit?.contextId || value.contexts[0]?.id || "");
       })
       .catch((cause) => setError(cause.message));
   }, []);
-  const toggle = (id) =>
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
-    );
+  const eligibleGarments = (catalogue?.garments || []).filter(g => !useId || g.useIds.includes(useId));
+  const missingItems = selected.filter(id => !eligibleGarments.some(g => g.id === id));
+  const categoryKey = garment => garment.slotId || garment.categorySlug || garment.id;
+  const occupiedCategories = new Set(eligibleGarments.filter(g => selected.includes(g.id)).map(categoryKey));
+  const visibleGarments = eligibleGarments.filter(g => selected.includes(g.id) || !occupiedCategories.has(categoryKey(g)));
+  const changeUse = (nextUse) => {
+    setUseId(nextUse);
+    const allowed = new Set((catalogue?.garments || []).filter(g => !nextUse || g.useIds.includes(nextUse)).map(g => g.id));
+    setSelected(current => current.filter(id => allowed.has(id)));
+    setResult(null);
+    setError("");
+  };
+  const toggle = (id) => {
+    const item = eligibleGarments.find(g => g.id === id);
+    if (!item) return;
+    setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current.filter(value => {
+      const chosen = eligibleGarments.find(g => g.id === value);
+      return !chosen || categoryKey(chosen) !== categoryKey(item);
+    }), id]);
+    setResult(null);
+  };
   const evaluate = async () => {
     setBusy(true);
     setError("");
@@ -546,36 +610,54 @@ function StylingLab({ garments, close }) {
       setBusy(false);
     }
   };
-  const groups = result
-    ? [
-        { name: "Hard failures", items: result.evaluation.hardFailures },
-        { name: "Strengths", items: result.evaluation.strengths },
-        { name: "Cautions", items: result.evaluation.cautions },
-        { name: "Major penalties", items: result.evaluation.majorPenalties },
-      ]
-    : [];
+  // Any change invalidates both the evaluation and the saved-selection marker.
+  useEffect(() => { setSavedOutfit(null); }, [selected, contextId, season, useId, outfitName, outfitNotes]);
+  const selectedGarments = (catalogue?.garments || []).filter(g => selected.includes(g.id));
+  const defaultName = selectedGarments.slice(0, 3).map(g => g.name).join(" + ").slice(0, 120);
+  const save = async (plan = false) => {
+    if (!result?.evaluation.eligible || busy) return;
+    setBusy(true); setError("");
+    try {
+      const saved = savedOutfit || await api("/api/ensembles/save", {
+        method: "POST",
+        body: JSON.stringify({...(editingId ? {replaceId:editingId} : {}), name: (outfitName.trim() || defaultName), garmentIds: selected, contextId, useId: useId || null, season: season || null, notes: outfitNotes.trim() || null}),
+      });
+      setSavedOutfit(saved);
+      if(initialOutfit) setEditingId(saved.id);
+      if (plan) openPlanner({name: saved.name, contextId, garmentIds: [...selected]});
+    } catch (cause) { setError(cause.message); }
+    finally { setBusy(false); }
+  };
   return (
     <div className="modal-backdrop">
       <section className="modal">
         <header>
           <div>
             <p className="eyebrow">OUTFIT CHECK</p>
-            <h2>Check how these garments work together</h2>
+            <h2>{initialOutfit ? "Edit saved outfit" : "Check how these garments work together"}</h2>
             <p className="muted">
-              This scores your selection; it does not generate or save an
-              outfit.
+              Choose your garments, see how they work together, then save the outfit or take it to the planner.
             </p>
           </div>
           <button className="quiet" onClick={close}>
             Close
           </button>
         </header>
+        {initialOutfit && <p className="muted">Save changes to replace this outfit for future use. Existing plans and wear records keep the original version.</p>}
+        {missingItems.length > 0 && <div className="banner"><p>Some saved garments are unavailable or do not match this use. Change the use filter, or remove and replace them before evaluating.</p>{missingItems.map(id => <button key={id} onClick={() => {setSelected(current => current.filter(x => x !== id));setResult(null);}}>Remove {initialOutfit?.items.find(g => g.id === id)?.name || 'unavailable garment'}</button>)}</div>}
         <div className="lab-controls">
+          <label>
+            Use
+            <select value={useId} disabled={busy} onChange={e => changeUse(e.target.value)}>
+              <option value="">All garments (no use filter)</option>
+              {catalogue?.uses.map(use => <option key={use.id} value={use.id}>{use.name}</option>)}
+            </select>
+          </label>
           <label>
             Context
             <select
               value={contextId}
-              onChange={(e) => setContext(e.target.value)}
+              disabled={busy} onChange={(e) => { setContext(e.target.value); setResult(null); }}
             >
               {catalogue?.contexts.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -586,7 +668,7 @@ function StylingLab({ garments, close }) {
           </label>
           <label>
             Season
-            <select value={season} onChange={(e) => setSeason(e.target.value)}>
+            <select value={season} disabled={busy} onChange={(e) => { setSeason(e.target.value); setResult(null); }}>
               <option value="">Not specified</option>
               {["spring", "summer", "autumn", "winter"].map((x) => (
                 <option key={x}>{x}</option>
@@ -594,24 +676,32 @@ function StylingLab({ garments, close }) {
             </select>
           </label>
         </div>
+        <p className="muted">Use filters by the tags saved on your garments; context controls the occasion and formality. Changing use removes selections that do not match.</p>
+        <p className="muted">{visibleGarments.length} shown · {selected.length} selected · {eligibleGarments.length - visibleGarments.length} alternatives hidden</p>
+        {catalogue && !eligibleGarments.length && <p className="banner">No available reviewed garments match this use. Choose another use, select All garments, or update the garment use tags in Edit.</p>}
+        <p className="muted">Selecting an item hides alternatives in its outfit category. Deselect it to show those alternatives again.</p>
         <div className="lab-garments">
-          {garments.map((x) => (
+          {groupOutfitGarments(visibleGarments).map(group => <React.Fragment key={group.slot}>
+            <h3 className="lab-garment-type">{group.label} <small>({group.items.length})</small></h3>
+            {group.items.map((x) => (
             <label key={x.id}>
               <input
                 type="checkbox"
+                disabled={busy}
                 checked={selected.includes(x.id)}
                 onChange={() => toggle(x.id)}
               />
               <span>
                 <strong>{x.name}</strong>
-                <small>{x.categoryName}</small>
+                <small>{garments.find(g => g.id === x.id)?.categoryName || x.categorySlug.replaceAll("-", " ")}</small>
               </span>
             </label>
-          ))}
+            ))}
+          </React.Fragment>)}
         </div>
         <button
           className="primary"
-          disabled={selected.length < 2 || busy}
+          disabled={selected.length < 2 || selected.length > 32 || busy || missingItems.length > 0}
           onClick={evaluate}
         >
           {busy ? "Evaluating…" : "Evaluate selected garments"}
@@ -619,44 +709,47 @@ function StylingLab({ garments, close }) {
         {error && <p className="error banner">{error}</p>}
         {result && (
           <section className="lab-result">
-            <div className="score">
-              <strong>{result.evaluation.grade || "—"}</strong>
-              <span>{result.evaluation.score}/100</span>
-              <small>
-                {result.evaluation.eligible ? "Eligible" : "Ineligible"} ·{" "}
-                {result.ruleSet.name} v{result.ruleSet.version}
-              </small>
-            </div>
-            {groups.map((group) => (
-              <div key={group.name}>
-                <h3>{group.name}</h3>
-                {group.items.length ? (
-                  group.items.map((x) => (
-                    <article key={x.ruleId}>
-                      <strong>
-                        {x.scoreDelta > 0 ? `+${x.scoreDelta}` : x.scoreDelta}
-                      </strong>
-                      <p>{x.explanation}</p>
-                      <code>{x.ruleId}</code>
-                    </article>
-                  ))
-                ) : (
-                  <p className="muted">None</p>
-                )}
+            <CoordinationScore evaluation={result.evaluation} />
+            <p>{result.evaluation.eligible ? "No incompatible garments found. Review the suggestions below; completeness is checked when you save." : "This selection needs changes before it can be worn together."}</p>
+            <OutfitPreview garments={selectedGarments} api={api} />
+            <EvaluationNotes evaluation={result.evaluation} garments={selectedGarments} />
+            <section className="evaluation-save">
+              <h3>Keep this outfit</h3>
+              <p className="muted">Saved outfits are your completed combinations. You can use them in the planner; saving does not record them as worn.</p>
+              <label>Outfit name<input maxLength={120} value={outfitName} placeholder={defaultName} disabled={busy || !!savedOutfit} onChange={e => setOutfitName(e.target.value)} /></label>
+              <label>Notes<textarea maxLength={2000} value={outfitNotes} disabled={busy || !!savedOutfit} onChange={e => setOutfitNotes(e.target.value)} /></label>
+              {savedOutfit && <p role="status">Saved as “{savedOutfit.name}”.</p>}
+              {!result.evaluation.eligible && <p>Resolve the changes listed above before saving.</p>}
+              <div className="row-actions">
+                <button disabled={busy || !!savedOutfit || !result.evaluation.eligible} onClick={() => save(false)}>{savedOutfit ? "Outfit saved" : busy ? "Saving…" : initialOutfit ? "Save changes" : "Save outfit"}</button>
+                <button disabled={busy || !result.evaluation.eligible} onClick={() => save(true)}>{savedOutfit ? "Open in planner" : "Save and open planner"}</button>
+                {savedOutfit && <button onClick={openSaved}>View saved outfits</button>}
               </div>
-            ))}
+            </section>
           </section>
         )}
       </section>
     </div>
   );
 }
+const outfitCategories = [["top","Shirts / tops"],["bottom","Trousers / bottoms"],["footwear","Shoes / boots"],["belt","Belts"],["neckwear","Ties / neckwear"],["pocket_square","Pocket squares"],["outerwear","Jackets / outerwear"],["jacket","Blazers / suit jackets"],["waistcoat","Waistcoats"],["socks","Socks"],["base_layer","Base layers"],["accessory","Other accessories"],...accessorySlots.map(slot=>[slot,({headwear:"Hats / caps",eyewear:"Glasses / sunglasses",tie_clip:"Tie clips",lapel_pin:"Lapel pins"}[slot]||slot.charAt(0).toUpperCase()+slot.slice(1).replaceAll("_"," "))])];
+function groupOutfitGarments(garments) {
+  const groups = new Map();
+  const compare = new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare;
+  for (const garment of garments) {
+    const slot = garment.slotId || garment.categorySlug || 'accessory';
+    if (!groups.has(slot)) groups.set(slot, { slot, label: outfitCategories.find(([id]) => id === slot)?.[1] || slot.replaceAll('_', ' ').replaceAll('-', ' '), items: [] });
+    groups.get(slot).items.push(garment);
+  }
+  return [...groups.values()].sort((a, b) => compare(a.label, b.label)).map(group => ({ ...group, items: group.items.sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id)) }));
+}
 function OutfitBuilder({ close }) {
   const [catalogue, setCatalogue] = useState(null),
-    [anchor, setAnchor] = useState(""),
+    [fixedIds, setFixedIds] = useState([]),
     [contextId, setContext] = useState(""),
     [useId, setUseId] = useState(""),
     [season, setSeason] = useState(""),
+    [selectedSlots, setSelectedSlots] = useState(["top", "bottom", "footwear"]),
     [results, setResults] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -664,9 +757,8 @@ function OutfitBuilder({ close }) {
     try {
       const value = await api("/api/ensembles/catalogue");
       setCatalogue(value);
-      setAnchor((current) => current || value.garments[0]?.id || "");
-      setContext((current) => current || value.contexts[0]?.id || "");
-      setUseId((current) => current || value.uses[0]?.id || "");
+      setContext((current) => current || value.contexts.find(x => x.slug === "smart-casual")?.id || value.contexts[0]?.id || "");
+      // An unassigned use is not a reason to hide reviewed garments.
     } catch (cause) {
       setError(cause.message);
     }
@@ -682,11 +774,12 @@ function OutfitBuilder({ close }) {
         await api("/api/ensembles/generate", {
           method: "POST",
           body: JSON.stringify({
-            selectedGarmentId: anchor,
+            fixedGarmentIds: fixedIds,
             contextId,
-            useId,
+            useId: useId || null,
             season: season || null,
             limitPerGrade: 12,
+            selectedSlotIds: requiredSlots,
           }),
         }),
       );
@@ -703,14 +796,14 @@ function OutfitBuilder({ close }) {
           .slice(0, 3)
           .map((item) => item.name)
           .join(" + ");
-        const name = names || `Outfit ${new Date().toLocaleDateString()}`;
+        const name = (names || `Outfit ${new Date().toLocaleDateString()}`).slice(0, 120);
         await api("/api/ensembles/save", {
           method: "POST",
           body: JSON.stringify({
             name,
             garmentIds: candidate.garments.map((x) => x.id),
             contextId,
-            useId,
+            useId: useId || null,
             season: season || null,
             notes: null,
           }),
@@ -733,26 +826,26 @@ function OutfitBuilder({ close }) {
     }
   };
   const tiers = results
-    ? [
-        ["A", results.a],
-        ["B", results.b],
-        ["C", results.c],
-      ]
+    ? [["Ranked suggestions", [...results.a, ...results.b, ...results.c].sort((a,b) => b.evaluation.score-a.evaluation.score)]]
     : [];
-  const eligibleGarments = catalogue?.garments.filter((garment) => garment.useIds.includes(useId)) || [];
-  useEffect(() => {
-    if (!eligibleGarments.some((garment) => garment.id === anchor)) setAnchor(eligibleGarments[0]?.id || "");
-  }, [useId, catalogue]);
+  const eligibleGarments = catalogue?.garments.filter((garment) => !useId || garment.useIds.includes(useId)) || [];
+  const fixedGarments = (catalogue?.garments || []).filter(g => fixedIds.includes(g.id));
+  const fixedSlots = new Set(fixedGarments.map(g => g.slotId));
+  const unavailableFixed = fixedGarments.filter(g => !eligibleGarments.some(item => item.id === g.id));
+  const requestedSlots = [...new Set([...selectedSlots, ...fixedSlots])];
+  const requiredSlots = withCompanions(requestedSlots);
+  const companionRequired = new Set(requiredSlots.map(slot => companionSlots[slot]).filter(Boolean));
+  const missingSelected = requiredSlots.filter(slot => !eligibleGarments.some(g => g.slotId === slot));
+
   return (
     <div className="modal-backdrop">
       <section className="modal ensemble-modal">
         <header>
           <div>
             <p className="eyebrow">OUTFIT BUILDER</p>
-            <h2>Build around one garment</h2>
+            <h2>Complete your outfit</h2>
             <p className="muted">
-              Choose an anchor. Dress'Ed proposes and explains; you decide what
-              to save, favour, or ban.
+              Keep the garments you have already chosen. Select the categories you want Dress’Ed to add, then compare recommendations.
             </p>
           </div>
           <button className="quiet" onClick={close}>
@@ -761,18 +854,20 @@ function OutfitBuilder({ close }) {
         </header>
         <div className="lab-controls">
           <label>
-            Anchor garment
-            <select value={anchor} onChange={(e) => setAnchor(e.target.value)}>
-              {eligibleGarments.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name} · {x.slotId}
-                </option>
+            Add a fixed garment
+            <select value="" disabled={busy} onChange={(e) => { if(e.target.value) setFixedIds(current => [...current, e.target.value]); setResults(null); }}>
+              <option value="">Choose a garment to keep…</option>
+              {groupOutfitGarments(eligibleGarments.filter(g => !fixedSlots.has(g.slotId))).map(group => (
+                <optgroup key={group.slot} label={group.label}>
+                  {group.items.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </optgroup>
               ))}
             </select>
           </label>
           <label>
             Use
-            <select value={useId} onChange={(e) => setUseId(e.target.value)}>
+            <select value={useId} onChange={(e) => { setUseId(e.target.value); setResults(null); }}>
+              <option value="">All garments (no use filter)</option>
               {catalogue?.uses.map((use) => (
                 <option key={use.id} value={use.id}>{use.name}</option>
               ))}
@@ -782,7 +877,7 @@ function OutfitBuilder({ close }) {
             Context
             <select
               value={contextId}
-              onChange={(e) => setContext(e.target.value)}
+              onChange={(e) => { setContext(e.target.value); setResults(null); }}
             >
               {catalogue?.contexts.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -793,7 +888,7 @@ function OutfitBuilder({ close }) {
           </label>
           <label>
             Season
-            <select value={season} onChange={(e) => setSeason(e.target.value)}>
+            <select value={season} onChange={(e) => { setSeason(e.target.value); setResults(null); }}>
               <option value="">Not specified</option>
               {["spring", "summer", "autumn", "winter"].map((x) => (
                 <option key={x}>{x}</option>
@@ -802,12 +897,33 @@ function OutfitBuilder({ close }) {
           </label>
           <button
             className="primary"
-            disabled={!anchor || !contextId || !useId || busy}
+            disabled={!fixedIds.length || !contextId || busy || unavailableFixed.length > 0 || missingSelected.length > 0 || requiredSlots.length < 2}
             onClick={generate}
           >
             {busy ? "Building…" : "Generate outfits"}
           </button>
         </div>
+        <section className="fixed-outfit-garments" aria-label="Fixed garments">
+          <h3>Garments to keep ({fixedGarments.length})</h3>
+          <p className="muted">Every recommendation keeps these exact items. Remove an item to choose another from its category.</p>
+          {!fixedGarments.length && <p>Choose one or more garments above to start your partial outfit.</p>}
+          <ul>{groupOutfitGarments(fixedGarments).flatMap(group => group.items.map(g => <li key={g.id}><span><strong>{g.name}</strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
+          {unavailableFixed.length > 0 && <p className="banner">These fixed garments do not match the selected use: {unavailableFixed.map(g => g.name).join(', ')}. Change the use filter or remove them before generating.</p>}
+        </section>
+        <fieldset className="outfit-category-checks" disabled={busy}>
+          <legend>Categories to add or keep</legend>
+          <p>Tick the categories you want in the finished combination. Fixed categories are already covered; recommendations fill the others. Required companions are included automatically.</p>
+          <div className="outfit-category-options">{outfitCategories.map(([slot, label]) => {
+            const count = eligibleGarments.filter(g => g.slotId === slot).length;
+            return <label key={slot}><input type="checkbox" checked={requiredSlots.includes(slot)} disabled={fixedSlots.has(slot) || companionRequired.has(slot)} onChange={e => { setSelectedSlots(current => e.target.checked ? [...current, slot] : current.filter(x => x !== slot)); setResults(null); }} />{label} <small>{count} available{fixedSlots.has(slot) ? " · fixed" : companionRequired.has(slot) ? " · required companion" : ""}</small></label>;
+          })}</div>
+        </fieldset>
+        {requiredSlots.filter(slot => companionReasons[slot]).map(slot => <p className="muted" key={slot}>{companionReasons[slot]}</p>)}
+        {requiredSlots.length < 2 && <p className="muted">Select at least two categories to build a combination.</p>}
+        {missingSelected.length > 0 && <p className="banner">No available items for: {missingSelected.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Untick these categories, change the use filter, or add an item.</p>}
+        <p className="muted">Suggestions are ranked by coordination score out of 100. Confidence describes the supporting evidence separately. Equivalent descriptions are grouped, with up to three suggestions per score and two per tie or pocket square unless you fixed that item. Each recommended tie–square pair appears only once; a pair you fixed can accompany different recommendations. Shortlist variety never changes an outfit’s score.</p>
+        <p className="muted">Uses are optional filters. Suggestions use your reviewed colour families and patterns; exact shade and pattern scale remain uncertain.</p>
+        {results?.missingSlots?.length > 0 && <p className="banner">This combination excludes required outfit categories: {results.missingSlots.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Include these before saving a complete outfit.</p>}
         {error && <p className="error banner">{error}</p>}
         {catalogue && !catalogue.garments.length && (
           <div className="empty">
@@ -832,18 +948,15 @@ function OutfitBuilder({ close }) {
         {tiers.map(([grade, items]) => (
           <section className="ensemble-tier" key={grade}>
             <h3>
-              Grade {grade} <span>{items.length}</span>
+              {grade} <span>{items.length}</span>
             </h3>
             {!items.length ? (
-              <p className="muted">No eligible outfits at this grade.</p>
+              <p className="muted">No eligible outfits for this selection.</p>
             ) : (
               <div className="ensemble-grid">
                 {items.map((candidate) => (
                   <article key={candidate.key}>
-                    <div className="ensemble-score">
-                      <strong>{candidate.evaluation.grade}</strong>
-                      <span>{candidate.evaluation.outcomes.some(x=>x.ruleId==="appearance.uncertainty") ? "Approximate ranking" : `${candidate.evaluation.score}/100`}</span>
-                    </div>
+                    <CoordinationScore evaluation={candidate.evaluation} />
                     <div className="ensemble-items">
                       {candidate.garments.map((x) => (
                         <figure key={x.id}>
@@ -862,13 +975,13 @@ function OutfitBuilder({ close }) {
                         </figure>
                       ))}
                     </div>
-                    <p>
-                      {candidate.evaluation.strengths[0]?.explanation ||
-                        candidate.evaluation.cautions[0]?.explanation ||
-                        "Eligible under the active styling rules."}
-                    </p>
+                    <OutfitPreview garments={candidate.garments} api={api} />
+                    <details>
+                      <summary>Why it works and what to improve</summary>
+                      <EvaluationNotes evaluation={candidate.evaluation} garments={candidate.garments} />
+                    </details>
                     <div className="row-actions">
-                      <button onClick={() => act(candidate, "save")}>
+                      <button disabled={!results.isComplete} title={!results.isComplete ? "Add missing required items before saving" : undefined} onClick={() => act(candidate, "save")}>
                         Save
                       </button>
                       <button onClick={() => act(candidate, "favourite")}>
@@ -894,9 +1007,10 @@ function OutfitBuilder({ close }) {
               <article key={x.id}>
                 <strong>{x.name}</strong>
                 <span>
-                  {x.userGrade || x.calculatedGrade} · {x.score}/100 ·{" "}
+                  {x.score}/100 ·{" "}
                   {x.contextName}
                 </span>
+                <OutfitPreview garments={x.items} api={api} />
               </article>
             ))}
           </section>
@@ -905,16 +1019,16 @@ function OutfitBuilder({ close }) {
     </div>
   );
 }
-function Planner({ close }) {
+function Planner({ close, initialOutfit }) {
   const [catalogue, setCatalogue] = useState(null),
     [form, setForm] = useState({
-      name: "Work rotation",
+      name: initialOutfit?.name || "Work rotation",
       startDate: new Date().toISOString().slice(0, 10),
-      endDate: new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10),
+      endDate: new Date(Date.now() + (initialOutfit ? 0 : 6 * 86400000)).toISOString().slice(0, 10),
       weekdays: [0, 1, 2, 3, 4, 5, 6],
-      contextId: "",
+      contextId: initialOutfit?.contextId || "",
       policyId: "",
-      fixedGarmentIds: [],
+      fixedGarmentIds: initialOutfit?.garmentIds || [],
       excludedGarmentIds: [],
     }),
     [error, setError] = useState(""),
@@ -988,6 +1102,7 @@ function Planner({ close }) {
             Close
           </button>
         </header>
+        {initialOutfit && <p className="banner">“{initialOutfit.name}” is saved. Its garments are fixed below. Choose a date and generate the plan to schedule a saved outfit containing these pieces. Nothing is scheduled until you do.</p>}
         <div className="planner-form">
           <label>
             Plan name
@@ -1478,6 +1593,8 @@ function ModernApp() {
   const [useId, setUseId] = useState("");
   const [page, setPage] = useState(0);
   const [modal, setModal] = useState(null);
+  const [duplicatingId, setDuplicatingId] = useState(null);
+  const [duplicateNotice, setDuplicateNotice] = useState("");
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -1544,6 +1661,17 @@ function ModernApp() {
         })),
     [categories],
   );
+  const duplicate = async (item) => {
+    if (duplicatingId) return;
+    setDuplicatingId(item.id); setError(""); setDuplicateNotice("");
+    try {
+      const copy = await api(`/api/garments/${item.id}/duplicate`, {method:"POST",body:JSON.stringify({version:item.version})});
+      await load();
+      setDuplicateNotice(`Created “${copy.name}” with its own wear history, starting at zero. Photos and saved details were copied; check the name and purchase details for this physical item.`);
+      setModal({type:"photos",item:copy});
+    } catch(cause) { setError(cause.message); }
+    finally { setDuplicatingId(null); }
+  };
   const archive = (item) => setArchiveTarget(item);
   const confirmArchive = async () => {
     if (!archiveTarget) return;
@@ -1661,7 +1789,8 @@ function ModernApp() {
             </thead>
             <tbody>
               {catalogue.items.map((item, index) => (
-                <tr key={item.id}>
+                <React.Fragment key={item.id}>
+                <tr aria-expanded={modal?.type === "garment" && modal.item?.id === item.id}>
                   <td>{catalogue.offset + index + 1}</td>
                   <td>
                     <strong>{item.name}</strong>
@@ -1685,9 +1814,13 @@ function ModernApp() {
                   <td>
                     <div className="row-actions">
 <Button
+                        disabled={Boolean(modal?.type === "garment" && modal.item)}
                         onClick={() => setModal({ type: "garment", item })}
                       >
                         Edit
+                      </Button>
+                      <Button disabled={!!duplicatingId || !!modal} onClick={() => duplicate(item)} title="Create a separate identical item with its own wear history">
+                        {duplicatingId === item.id ? "Duplicating…" : "Duplicate"}
                       </Button>
                       <Button variant="danger" onClick={() => archive(item)}>
                         Archive
@@ -1698,6 +1831,14 @@ function ModernApp() {
                     </div>
                   </td>
                 </tr>
+                {view === "wardrobe" && modal?.type === "garment" && modal.item?.id === item.id && (
+                  <tr className="garment-editor-row">
+                    <td colSpan={8}>
+                      <PhotoIntake inline garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -1821,7 +1962,7 @@ function ModernApp() {
               <button onClick={() => setModal({ type: "ensemble" })}>
                 <strong>Build an outfit</strong>
                 <span>
-                  Start from one garment and review eligible combinations.
+                  Keep your chosen garments and get recommendations to complete the outfit.
                 </span>
               </button>
               <button onClick={() => setModal({ type: "planner" })}>
@@ -1873,6 +2014,7 @@ function ModernApp() {
             search={
               <input
                 aria-label="Search wardrobe"
+                disabled={Boolean(modal?.type === "garment" && modal.item)}
                 placeholder="Search garments"
                 value={search}
                 onChange={(event) => {
@@ -1884,6 +2026,7 @@ function ModernApp() {
             filters={<>
               <select
                 aria-label="Filter by category"
+                disabled={Boolean(modal?.type === "garment" && modal.item)}
                 value={categoryId}
                 onChange={(event) => {
                   setCategoryId(event.target.value);
@@ -1907,7 +2050,7 @@ function ModernApp() {
                   ),
                 )}
               </select>
-              <select aria-label="Filter by use" value={useId} onChange={(event) => { setUseId(event.target.value); setPage(0); }}>
+              <select aria-label="Filter by use" disabled={Boolean(modal?.type === "garment" && modal.item)} value={useId} onChange={(event) => { setUseId(event.target.value); setPage(0); }}>
                 <option value="">All uses</option>
                 {uses.map((use) => <option key={use.id} value={use.id}>{use.name}</option>)}
               </select>
@@ -1918,6 +2061,7 @@ function ModernApp() {
         </>
       )}
       {view === "outfits" && (
+        <>
         <Panel
           title="Outfit workspace"
           description="Dress’Ed proposes combinations; you decide what becomes part of your wardrobe record."
@@ -1934,6 +2078,8 @@ function ModernApp() {
             </Button>
           </div>
         </Panel>
+        <SavedOutfits refreshKey={modal} edit={initialOutfit=>setModal({type:"styling",initialOutfit})} plan={initialOutfit=>setModal({type:"planner",initialOutfit})}/>
+        </>
       )}
       {view === "planner" && (
         <>
@@ -1986,6 +2132,7 @@ function ModernApp() {
       )}
       {view === "settings" && (
         <>
+          <PersonalColouring api={api} />
           <Panel
             title="Categories"
             description="Control how garments are organised."
@@ -2112,16 +2259,17 @@ function ModernApp() {
         onConfirm={confirmCalibrationDelete}
         onCancel={() => setCalibrationDeleteTarget(null)}
       />
-      {(modal?.type === "photos" || modal?.type === "garment") && (
+      {(modal?.type === "photos" || (modal?.type === "garment" && !(view === "wardrobe" && modal.item))) && (
         <PhotoIntake key={modal.item?.id || "new"} garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
       )}{" "}
+      {duplicateNotice && <p className="banner" role="status">{duplicateNotice}</p>}
       {modal?.type === "styling" && (
-        <StylingLab garments={catalogue.items} close={() => setModal(null)} />
+        <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);setView("outfits");}} />
       )}{" "}
       {modal?.type === "ensemble" && (
         <OutfitBuilder close={() => setModal(null)} />
       )}{" "}
-      {modal?.type === "planner" && <Planner close={() => setModal(null)} />}{" "}
+      {modal?.type === "planner" && <Planner close={() => setModal(null)} initialOutfit={modal.initialOutfit} />}{" "}
       {modal?.type === "wear" && (
         <WearConfirmation close={() => setModal(null)} />
       )}{" "}
@@ -2136,6 +2284,6 @@ function ModernApp() {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ActionFeedbackHost />
-    <ModernApp />
+    <ColouringProvider api={api}><ModernApp /></ColouringProvider>
   </React.StrictMode>,
 );
