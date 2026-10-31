@@ -26,7 +26,7 @@ describe('semantic analytical integrity',()=>{
  it('uses finite retries only for transient failures',()=>{
   for(const message of ['This operation was aborted','ai_provider_http_429','ai_provider_http_503','fetch failed','timeout'])expect(transientSemanticError(message)).toBe(true);
   for(const message of ['ai_provider_http_401','ai_provider_http_403','incomplete_mcf_response','evidence_must_be_an_exact_unit_substring'])expect(transientSemanticError(message)).toBe(false);
-  expect(SEMANTIC_POLICY).toMatchObject({version:8,scheduling:"untouched-first-retry-rounds",maximumAttempts:3,retryDelaysMs:[30000,120000],timeoutMs:120000,maximumBatchUnits:6,maximumBatchCharacters:10000,concurrency:2});
+  expect(SEMANTIC_POLICY).toMatchObject({version:9,scheduling:"untouched-first-retry-rounds",maximumAttempts:3,retryDelaysMs:[30000,120000],timeoutMs:120000,maximumBatchUnits:6,maximumBatchCharacters:10000,concurrency:2});
  });
  it('uses bounded escalating deadlines below the bridge deadline and preserves legacy policies until resume',()=>{
   expect([1,2,3].map(n=>semanticAttemptTimeout(SEMANTIC_POLICY,n))).toEqual([120000,180000,210000]);

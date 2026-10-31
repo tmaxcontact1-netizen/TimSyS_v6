@@ -42,5 +42,8 @@ describe('stable managed provider identity',()=>{
   expect(updates).toHaveLength(2);expect(updates.every(c=>c.sql.includes("status<>'completed'"))).toBe(true);
   expect(calls.some(c=>/UPDATE researched.mcf_ai_(outputs|proposals)/.test(c.sql))).toBe(false);
   expect(audits[0].at(-1)).toMatchObject({previousProvider:original,legacyProviderConfirmed:true,successfulResultsPreserved:true});
+  const configurationUpdate=calls.find(c=>c.sql.startsWith('UPDATE researched.mcf_ai_runs SET'));
+  expect(JSON.parse(configurationUpdate.args[2]).version).toBe(8);
+  expect(configurationUpdate.sql).not.toContain('classificationConfig');
  });
 });

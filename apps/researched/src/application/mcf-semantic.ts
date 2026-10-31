@@ -1,8 +1,9 @@
+import {CLASSIFICATION_RULES_V9,resumedOperationalPolicy} from '../domain/mcf-semantic-policy.js';
 import {snapshotIsrRatings,isrMetadataForRequest} from '../domain/isr-rating-metadata.js';
 import {providerIdentity as identity,checkResumeProvider} from './provider-identity.js';
-import {AI_AMBIGUITY_RULES,ambiguityResponse,retainAiAmbiguity} from '../domain/ai-ambiguity.js';
+import {ambiguityResponse,retainAiAmbiguity} from '../domain/ai-ambiguity.js';
 import {semanticFailureCategory,safeFailureDiagnostics} from '../domain/semantic-failure.js';
-import {EVIDENTIAL_RULES,evidentialResponse,confirmedReview,retainContext,normalizeMachineContext} from '../domain/mcf-evidence.js';
+import {evidentialResponse,confirmedReview,retainContext,normalizeMachineContext} from '../domain/mcf-evidence.js';
 import {decisionInput,validateDecision} from '../domain/mcf.js';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
@@ -13,7 +14,7 @@ import {runGroundedAiAnalysis,type AiAnalysisProvider} from './ai-analysis.js';
 import {deterministicMcf,DETERMINISTIC_CONFIG,DETERMINISTIC_HASH} from './mcf-deterministic.js';
 import {proposalResponse,validateProposals} from './mcf-ai.js';
 
-export const SEMANTIC_POLICY=Object.freeze({version:8,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:2});
+export const SEMANTIC_POLICY=Object.freeze({version:9,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:2});
 export function semanticAttemptTimeout(policy:{timeoutMs:number;attemptTimeoutsMs?:readonly number[]},attempt:number){return policy.attemptTimeoutsMs?.[attempt-1]??policy.timeoutMs;}
 export function transientSemanticError(error:string){return /abort|timeout|timed out|429|(?:^|[_\s])5\d\d(?:$|\b)|fetch failed|network|econn|socket/i.test(error);}
 export class SemanticWorker{
@@ -35,7 +36,7 @@ export class SemanticWorker{
   let batch:any[]=[],size=0;for(const u of units){if(batch.length&&(batch[0].unit_set_id!==u.unit_set_id||batch.length>=SEMANTIC_POLICY.maximumBatchUnits||size+u.original_text.length>SEMANTIC_POLICY.maximumBatchCharacters)){batches.push(batch);batch=[];size=0;}batch.push(u);size+=u.original_text.length;}if(batch.length)batches.push(batch);
   await this.repo.transaction(async c=>{
    await this.repo.writable(session.dataset_id,c);await this.repo.active('sessions',sessionId,c);
-   await c.query('INSERT INTO researched.mcf_ai_runs(id,session_id,kind,status,configuration,actor,finished_at) VALUES($1,$2,\'classification\',$3,$4,$5,$6)',[id,sessionId,provider?'queued':'partial',JSON.stringify({semanticProtocol:3,evidenceProtocol:2,ambiguityProtocol:2,ambiguitySourceMetadata:snapshotIsrRatings(session.records,session.contextUnits.map((u:any)=>({...u,record_id:session.configuration.unitSets.find((s:any)=>s.id===u.unit_set_id)?.record_id}))),contextPolicy:{boundary:'individual-review',scope:'all approved same-review units',maximumCharacters:200000},contextUnitIds:session.contextUnits.map((u:any)=>u.id),semanticPolicy:SEMANTIC_POLICY,provider:identity(provider),instrumentHash:MCF_HASH,classificationConfig:{...config,version:"3.0",promptVersion:"mcf-evidential-proposals.v3",rules:EVIDENTIAL_RULES+"\n"+AI_AMBIGUITY_RULES},unitSets:session.configuration.unitSets,deterministicConfig:DETERMINISTIC_CONFIG,deterministicHash:DETERMINISTIC_HASH,localOnly,notice:'Deterministic retrieval is support only; pending semantic work is not completed analysis.'}),actor,provider?null:new Date()]);
+   await c.query('INSERT INTO researched.mcf_ai_runs(id,session_id,kind,status,configuration,actor,finished_at) VALUES($1,$2,\'classification\',$3,$4,$5,$6)',[id,sessionId,provider?'queued':'partial',JSON.stringify({semanticProtocol:3,evidenceProtocol:2,ambiguityProtocol:2,ambiguitySourceMetadata:snapshotIsrRatings(session.records,session.contextUnits.map((u:any)=>({...u,record_id:session.configuration.unitSets.find((s:any)=>s.id===u.unit_set_id)?.record_id}))),contextPolicy:{boundary:'individual-review',scope:'all approved same-review units',maximumCharacters:200000},contextUnitIds:session.contextUnits.map((u:any)=>u.id),semanticPolicy:SEMANTIC_POLICY,provider:identity(provider),instrumentHash:MCF_HASH,classificationConfig:{...config,version:"3.1",promptVersion:"mcf-evidential-proposals.v3",rules:CLASSIFICATION_RULES_V9},unitSets:session.configuration.unitSets,deterministicConfig:DETERMINISTIC_CONFIG,deterministicHash:DETERMINISTIC_HASH,localOnly,notice:'Deterministic retrieval is support only; pending semantic work is not completed analysis.'}),actor,provider?null:new Date()]);
    for(const [i,group]of batches.entries()){const task=randomUUID();await c.query("INSERT INTO researched.mcf_ai_tasks(id,run_id,ordinal,unit_ids,status,error) VALUES($1,$2,$3,$4,'queued',$5)",[task,id,i+1,JSON.stringify(group.map(u=>u.id)),provider?null:'Semantic pending: provider unavailable or candidate-only preparation selected.']);await c.query('INSERT INTO researched.mcf_semantic_tasks(task_id) VALUES($1)',[task]);}
    for(const p of deterministicMcf(units,DETERMINISTIC_CONFIG.rules))await c.query('INSERT INTO researched.mcf_deterministic_candidates(run_id,unit_id,payload) VALUES($1,$2,$3)',[id,p.unitId,JSON.stringify(p)]);
    await this.repo.audit(c,session.dataset_id,'mcf_semantic_requested',id,actor,{sessionId,policy:SEMANTIC_POLICY,provider:identity(provider)});
@@ -55,7 +56,7 @@ export class SemanticWorker{
    await c.query("UPDATE researched.mcf_semantic_tasks s SET cycle=cycle+1,next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE t.id=s.task_id AND t.run_id=$1 AND t.status<>'completed'",[id]);
    await c.query("UPDATE researched.mcf_ai_tasks SET status='queued',error=NULL WHERE run_id=$1 AND status<>'completed'",[id]);
    // Upgrade execution limits only on explicit resume. Completed tasks and their outputs are immutable.
-   const policy=run.configuration.semanticPolicy.version<SEMANTIC_POLICY.version?{...run.configuration.semanticPolicy,version:SEMANTIC_POLICY.version,timeoutMs:SEMANTIC_POLICY.timeoutMs,attemptTimeoutsMs:SEMANTIC_POLICY.attemptTimeoutsMs,scheduling:SEMANTIC_POLICY.scheduling,firstBatchGate:false,concurrency:SEMANTIC_POLICY.concurrency}:run.configuration.semanticPolicy;
+   const policy=resumedOperationalPolicy(run.configuration.semanticPolicy,SEMANTIC_POLICY);
    await c.query("UPDATE researched.mcf_ai_runs SET status='queued',finished_at=NULL,configuration=jsonb_set(jsonb_set(configuration,'{provider}',$2::jsonb),'{semanticPolicy}',$3::jsonb) WHERE id=$1",[id,JSON.stringify(identity(provider)),JSON.stringify(policy)]);
    await this.repo.audit(c,session.dataset_id,'mcf_semantic_resumed',id,actor,{previousPolicy:run.configuration.semanticPolicy,policy,previousProvider:run.configuration.provider,provider:identity(provider),legacyProviderConfirmed:confirmLegacyProvider,successfulResultsPreserved:true});
   });return{resumed:true,id};

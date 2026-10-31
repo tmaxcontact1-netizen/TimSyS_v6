@@ -1,7 +1,8 @@
+import {CLASSIFICATION_RULES_V9} from '../src/domain/mcf-semantic-policy.js';
 import {describe,it,expect} from 'vitest';
 import {isrRating,snapshotIsrRatings,isrMetadataForRequest} from '../src/domain/isr-rating-metadata.js';
-import {retainAiAmbiguity,aiAmbiguitySummary,AI_AMBIGUITY_RULES} from '../src/domain/ai-ambiguity.js';
-import {competencyEvidenceCounts,EVIDENTIAL_RULES} from '../src/domain/mcf-evidence.js';
+import {retainAiAmbiguity,aiAmbiguitySummary} from '../src/domain/ai-ambiguity.js';
+import {competencyEvidenceCounts} from '../src/domain/mcf-evidence.js';
 import {MCF,MCF_HASH} from '../src/domain/mcf.js';
 import {SemanticWorker} from '../src/application/mcf-semantic.js';
 const id='11111111-1111-4111-8111-111111111111';
@@ -68,14 +69,14 @@ describe('authoritative ISR numerical valence metadata',()=>{
   const saved={...metadata,instructions:'Frozen source instructions'};
   expect(isrMetadataForRequest({ambiguityProtocol:2,ambiguitySourceMetadata:saved},'set').instructions).toContain('Frozen source instructions');
  });
- it('snapshots only the new ambiguity protocol, leaving semantic/evidential instructions unchanged',async()=>{
+ it('snapshots the source-scale metadata alongside the current reasoning policy without changing evidence/ambiguity protocols',async()=>{
   const {unit,record}=fixture('Transparent 1');let configuration:any;
   const session={dataset_id:'dataset',instrument_hash:MCF_HASH,units:[unit],contextUnits:[unit],records:[record],configuration:{unitSets:[{id:'set',record_id:'review'}]}};
   const c={query:async(sql:string,args:any[])=>{if(sql.startsWith('INSERT INTO researched.mcf_ai_runs'))configuration=JSON.parse(args[3]);return{rows:[]};}};
   const repo:any={workspace:async()=>session,transaction:async(fn:any)=>fn(c),writable:async()=>{},active:async()=>{},audit:async()=>{}};
   await new SemanticWorker(repo,()=>null).enqueue('session','researcher',true);
   expect(configuration).toMatchObject({semanticProtocol:3,evidenceProtocol:2,ambiguityProtocol:2,instrumentHash:MCF_HASH});
-  expect(configuration.classificationConfig.rules).toBe(EVIDENTIAL_RULES+'\n'+AI_AMBIGUITY_RULES);
+  expect(configuration.classificationConfig.rules).toBe(CLASSIFICATION_RULES_V9);
   expect(configuration.classificationConfig.promptVersion).toBe('mcf-evidential-proposals.v3');
   expect(configuration.ambiguitySourceMetadata.ratings[0]).toMatchObject({field:'Transparent',value:1,numericalValence:'negative'});
  });

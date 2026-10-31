@@ -31,6 +31,12 @@ try{
  const worker=new McfAiWorker(new McfRepository(db,join(temporary,'sources')),()=>connected?provider:null);
  const run=await worker.enqueue(session.id,'classification',actor,[],true);await worker.process();
  const retained=(await db.query('SELECT * FROM researched.mcf_ai_outputs WHERE run_id=$1',[run.id])).rows;assert.equal(retained.length,1);
+ const policySnapshot=(await db.query('SELECT configuration FROM researched.mcf_ai_runs WHERE id=$1',[run.id])).rows[0].configuration;
+ const {CLASSIFICATION_RULES_V9}=await load('src/domain/mcf-semantic-policy.js');
+ assert.equal(policySnapshot.semanticPolicy.version,9);assert.equal(policySnapshot.classificationConfig.version,'3.1');assert.equal(policySnapshot.classificationConfig.rules,CLASSIFICATION_RULES_V9);
+ assert.ok(calls[0].instructions.startsWith(CLASSIFICATION_RULES_V9));
+ assert.equal(retained[0].payload.proposals[0].provenance.semanticPolicyVersion,9);
+ pass('New policy v9 is frozen, delivered through the actual worker and retained in output provenance');
  await worker.process();const delayRow=(await db.query("SELECT s.next_attempt_at>now()+interval '25 seconds' AS delayed FROM researched.mcf_semantic_tasks s JOIN researched.mcf_ai_tasks t ON t.id=s.task_id WHERE t.run_id=$1 AND t.ordinal=2",[run.id])).rows[0];assert.equal(delayRow.delayed,true);
  await worker.process();assert.equal(calls.length,3,'unaffected later batch proceeds during retry delay');
  for(let i=0;i<2;i++){await db.query("UPDATE researched.mcf_semantic_tasks s SET next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE s.task_id=t.id AND t.run_id=$1",[run.id]);await worker.process();}
