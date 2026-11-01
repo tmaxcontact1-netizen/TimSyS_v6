@@ -1,0 +1,11 @@
+ALTER TABLE researched.analysis_run_items ALTER COLUMN source_id DROP NOT NULL;
+ALTER TABLE researched.analysis_run_items ADD COLUMN IF NOT EXISTS scope_type text NOT NULL DEFAULT 'source' CHECK(scope_type IN('source','corpus'));
+ALTER TABLE researched.analysis_run_items ADD COLUMN IF NOT EXISTS scope_key text;
+ALTER TABLE researched.analysis_run_items ADD COLUMN IF NOT EXISTS source_ids jsonb NOT NULL DEFAULT '[]';
+UPDATE researched.analysis_run_items SET scope_key=source_id::text,source_ids=jsonb_build_array(source_id) WHERE scope_key IS NULL AND source_id IS NOT NULL;
+UPDATE researched.analysis_run_items SET scope_key='corpus' WHERE scope_key IS NULL;
+ALTER TABLE researched.analysis_run_items ALTER COLUMN scope_key SET NOT NULL;
+ALTER TABLE researched.analysis_run_items DROP CONSTRAINT IF EXISTS analysis_run_items_run_id_source_id_analysis_type_key;
+CREATE UNIQUE INDEX IF NOT EXISTS researched_analysis_job_scope_identity_idx ON researched.analysis_run_items(run_id,scope_type,scope_key,analysis_type);
+DROP INDEX IF EXISTS researched.researched_analysis_result_identity_idx;
+CREATE UNIQUE INDEX researched_analysis_result_identity_idx ON researched.analysis_results(run_id,COALESCE(source_id,'00000000-0000-0000-0000-000000000000'::uuid),analysis_type);

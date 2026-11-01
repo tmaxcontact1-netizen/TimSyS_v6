@@ -1,0 +1,15 @@
+{
+  "name": "@timsys/service-contracts",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./index.cjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js",
+      "require": "./index.cjs"
+    }
+  },
+  "license": "UNLICENSED"
+}

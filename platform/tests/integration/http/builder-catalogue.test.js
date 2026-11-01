@@ -19,7 +19,7 @@ describe('builder application catalogue', function() {
     expect(response.data.data.profileAccess).toEqual(['superuser', 'principal']);
 
     const apps = response.data.data.apps;
-    expect(apps.map(function(app) { return app.id; })).toEqual(['principal-ed', 'memecoined', 'dressed', 'researched']);
+    expect(apps.map(function(app) { return app.id; })).toEqual(['principal-ed', 'tradeed', 'dressed', 'researched']);
     const principal = apps[0];
     expect(principal.essentialServices.map(function(service) { return service.name; })).toEqual(['db', 'cache', 'auth', 'log', 'validate', 'events']);
     expect(principal.modules.length).toBeGreaterThan(0);

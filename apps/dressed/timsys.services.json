@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "protocol": "timsys.services.v1",
+  "appId": "dressed",
+  "host": "timsys",
+  "contracts": [
+    {
+      "serviceId": "runtime",
+      "version": "1.1.0",
+      "operations": [
+        "status"
+      ]
+    },
+    {
+      "serviceId": "wardrobe",
+      "version": "1.0.0",
+      "operations": [
+        "categories",
+        "uses",
+        "list",
+        "get",
+        "create_category",
+        "create",
+        "update",
+        "archive",
+        "delete"
+      ]
+    },
+    {
+      "serviceId": "photography",
+      "version": "1.0.0",
+      "operations": [
+        "profiles",
+        "profile_create",
+        "profile_retire",
+        "images",
+        "upload_begin",
+        "upload_commit",
+        "upload_abort",
+        "fingerprint",
+        "fingerprint_generate",
+        "fingerprint_decide"
+      ]
+    },
+    {
+      "serviceId": "styling",
+      "version": "1.0.0",
+      "operations": [
+        "catalogue",
+        "evaluate",
+        "ensemble_catalogue",
+        "ensemble_generate",
+        "ensemble_save",
+        "ensemble_override"
+      ]
+    }
+  ],
+  "requiredPermissions": [
+    "admin:service_host:access",
+    "app:dressed:use",
+    "service:runtime:read",
+    "service:wardrobe:read",
+    "service:wardrobe:write",
+    "service:photography:read",
+    "service:photography:write",
+    "service:styling:read",
+    "service:styling:write"
+  ],
+  "migrationState": "frontend-only",
+  "httpContracts": [
+    {
+      "serviceId": "dressed-backend",
+      "version": "1.0.0",
+      "basePath": "/api/timsys/v1/apps/dressed/backend/1.0.0",
+      "owner": "timsys"
+    }
+  ]
+}

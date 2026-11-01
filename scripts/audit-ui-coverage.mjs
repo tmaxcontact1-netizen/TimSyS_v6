@@ -128,10 +128,10 @@ function section(rows, title) {
 }
 
 const principal = await principalCoverage();
-const dressed = await standaloneCoverage("Dress'Ed", "apps/dressed/src/entrypoints/api.ts", "apps/dressed/frontend", "dressed");
-const memecoined = await standaloneCoverage("MemeCoined", "apps/memecoined/src/entrypoints/dashboard.ts", "apps/memecoined/frontend", "memecoined");
-const researched = await standaloneCoverage("Research'Ed", "apps/researched/src/entrypoints/api.ts", "apps/researched/frontend", "researched");
-const all = [...principal, ...dressed, ...memecoined, ...researched];
+const dressed = await standaloneCoverage("Dress'Ed", "platform/services/dressed/src/entrypoints/api.ts", "apps/dressed/frontend", "dressed");
+const tradeed = await standaloneCoverage("TradeEd", "platform/services/tradeed/src/entrypoints/dashboard.ts", "apps/tradeed/frontend", "tradeed");
+const researched = await standaloneCoverage("Research'Ed", "platform/services/researched/src/entrypoints/api.ts", "apps/researched/frontend", "researched");
+const all = [...principal, ...dressed, ...tradeed, ...researched];
 const document = [
   "# UI Capability Coverage",
   "",
@@ -143,7 +143,7 @@ const document = [
   "",
   section(principal, "Principal'Ed"),
   section(dressed, "Dress'Ed"),
-  section(memecoined, "MemeCoined"),
+  section(tradeed, "TradeEd"),
   section(researched, "Research'Ed"),
   "## Machine-readable totals",
   "",
@@ -151,7 +151,7 @@ const document = [
   JSON.stringify({
     generatedAt: new Date().toISOString(),
     totals: { declared: all.length, referenced: all.filter((row) => row.referenced).length, unreferenced: all.filter((row) => !row.referenced).length },
-    applications: Object.fromEntries([principal, dressed, memecoined, researched].map((rows) => [rows[0]?.app, { declared: rows.length, referenced: rows.filter((row) => row.referenced).length }])),
+    applications: Object.fromEntries([principal, dressed, tradeed, researched].map((rows) => [rows[0]?.app, { declared: rows.length, referenced: rows.filter((row) => row.referenced).length }])),
   }, null, 2),
   "```",
   "",

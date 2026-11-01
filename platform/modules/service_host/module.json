@@ -1,0 +1,130 @@
+{
+  "name": "service_host",
+  "version": "1.0.0",
+  "author": "TimSyS",
+  "dependencies": [
+    "db",
+    "auth",
+    "log"
+  ],
+  "provides": [
+    "capability:timsys.services.v1"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/api/timsys/v1/apps/:appId/services",
+      "method": "GET",
+      "handler": "service_host_list",
+      "auth_required": true,
+      "permissions": [
+        "admin:service_host:access"
+      ]
+    },
+    {
+      "path": "/api/timsys/v1/apps/:appId/services/:serviceId/contracts/:version",
+      "method": "GET",
+      "handler": "service_host_contract",
+      "auth_required": true,
+      "permissions": [
+        "admin:service_host:access"
+      ]
+    },
+    {
+      "path": "/api/timsys/v1/apps/:appId/services/:serviceId/contracts/:version/operations/:operation",
+      "method": "POST",
+      "handler": "service_host_invoke",
+      "auth_required": true,
+      "permissions": [
+        "admin:service_host:access"
+      ]
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/wardrobe/configuration",
+      "method": "PUT",
+      "handler": "service_host_configureWardrobe",
+      "auth_required": true,
+      "permissions": [
+        "admin:*"
+      ]
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/services/photography/contracts/1.0.0/uploads/:uploadId/content",
+      "method": "PUT",
+      "handler": "service_host_uploadBinary",
+      "auth_required": true,
+      "permissions": [
+        "admin:service_host:access"
+      ]
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/services/photography/contracts/1.0.0/images/:imageId/content",
+      "method": "GET",
+      "handler": "service_host_imageBinary",
+      "auth_required": true,
+      "permissions": [
+        "admin:service_host:access"
+      ]
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/services/photography/contracts/1.0.0/images/:imageId/content",
+      "method": "HEAD",
+      "handler": "service_host_imageBinary",
+      "auth_required": true,
+      "permissions": [
+        "admin:service_host:access"
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "name": "service_host_list",
+      "exports": "list",
+      "params": [],
+      "returns": "ServiceCatalogue"
+    },
+    {
+      "name": "service_host_contract",
+      "exports": "contract",
+      "params": [],
+      "returns": "VersionedServiceContract"
+    },
+    {
+      "name": "service_host_invoke",
+      "exports": "invoke",
+      "params": [],
+      "returns": "ServiceEnvelope"
+    },
+    {
+      "name": "service_host_configureWardrobe",
+      "exports": "configureWardrobe",
+      "params": [],
+      "returns": "WardrobeConfiguration"
+    },
+    {
+      "name": "service_host_uploadBinary",
+      "exports": "uploadBinary",
+      "params": [],
+      "returns": "PhotographyBinary"
+    },
+    {
+      "name": "service_host_imageBinary",
+      "exports": "imageBinary",
+      "params": [],
+      "returns": "PhotographyBinary"
+    }
+  ],
+  "schema": {
+    "tables": [
+      "service_host_contracts",
+      "service_host_calls"
+    ],
+    "migrations": [
+      "migrations/001_service_host.sql"
+    ]
+  },
+  "events": {
+    "publishes": [],
+    "subscribes": []
+  }
+}

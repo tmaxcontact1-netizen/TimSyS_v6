@@ -1,0 +1,9 @@
+const{normalizeDomainRequest}=require('../../packages/domain-http/index.cjs');
+describe('TimSyS native HTTP contracts',()=>{let prior;beforeEach(()=>{prior=process.env.TIMSYS_DOMAIN_TOKEN;process.env.TIMSYS_DOMAIN_TOKEN='native-test-secret';});afterEach(()=>{if(prior===undefined)delete process.env.TIMSYS_DOMAIN_TOKEN;else process.env.TIMSYS_DOMAIN_TOKEN=prior;});
+ const base='/api/timsys/v1/apps/researched/backend/1.0.0';
+ function call(url,headers={}){const req={url,headers:{host:'127.0.0.1:45678',...headers},method:'POST'},res={writeHead:jest.fn(),end:jest.fn()};return{req,res,accepted:normalizeDomainRequest(req,res,'researched')};}
+ test('rejects unversioned or differently versioned operations',()=>{for(const path of ['/api/workbench',base.replace('1.0.0','2.0.0')+'/workbench']){const v=call(path);expect(v.accepted).toBe(false);expect(v.res.writeHead.mock.calls[0][0]).toBe(410);}});
+ test('requires a native secret and rejects cross-origin mutation',()=>{expect(call(base+'/workbench').res.writeHead.mock.calls[0][0]).toBe(401);expect(call(base+'/workbench',{'x-timsys-domain-token':'wrong'}).res.writeHead.mock.calls[0][0]).toBe(401);expect(call(base+'/workbench',{'x-timsys-domain-token':'native-test-secret',origin:'http://evil.invalid'}).res.writeHead.mock.calls[0][0]).toBe(403);});
+ test('preserves method, query and domain URL after native authorization',()=>{const v=call(base+'/workbench?deleted=true',{'x-timsys-domain-token':'native-test-secret'});expect(v.accepted).toBe(true);expect(v.req.url).toBe('/api/workbench?deleted=true');expect(v.req.method).toBe('POST');});
+ test('uses app-specific HTTP-only session cookies without accepting another app token',()=>{expect(call(base+'/workbench',{cookie:'timsys_domain_researched=native-test-secret'}).accepted).toBe(true);expect(call(base+'/workbench',{cookie:'timsys_domain_dressed=native-test-secret'}).res.writeHead.mock.calls[0][0]).toBe(401);});
+});

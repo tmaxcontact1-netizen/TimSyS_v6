@@ -1,0 +1,249 @@
+import { z } from "zod";
+import { isAbsolute } from "node:path";
+import {
+  authorizeLowValueTrial,
+  type LowValueTrialAuthorization,
+} from "../runtime/low-value-trial-gate.js";
+
+export const operatingModes = [
+  "historical",
+  "observation",
+  "shadow",
+  "paper",
+  "supervised_live",
+  "limited_auto",
+  "full_auto",
+] as const;
+export type OperatingMode = (typeof operatingModes)[number];
+
+const environmentSchema = z.enum(["development", "test", "production"]);
+const logLevelSchema = z.enum(["debug", "info", "warn", "error", "fatal"]);
+const httpsUrl = z
+  .string()
+  .url()
+  .refine((value) => value.startsWith("https://"), "must use HTTPS");
+const databaseUrl = z
+  .string()
+  .url()
+  .refine(
+    (value) => value.startsWith("postgres://") || value.startsWith("postgresql://"),
+    "must be a PostgreSQL URI",
+  );
+const absolutePath = z.string().refine(isAbsolute, "must be an absolute path");
+const nonempty = z.string().trim().min(1);
+
+const schema = z
+  .object({
+    TRADEED_ENV: environmentSchema,
+    TRADEED_MODE: z.enum(operatingModes),
+    TRADEED_INSTANCE_ID: nonempty,
+    TRADEED_LOG_LEVEL: logLevelSchema,
+    TRADEED_CONFIG_DIR: absolutePath,
+    DATABASE_URL: databaseUrl,
+    SOLANA_PRIMARY_RPC_URL: httpsUrl.optional(),
+    SOLANA_FALLBACK_RPC_URL: httpsUrl.optional(),
+    SOLANA_CLUSTER: z.enum(["mainnet-beta", "devnet"]).optional(),
+    HELIUS_API_KEY: nonempty.optional(),
+    JUPITER_API_KEY: nonempty.optional(),
+    COINGECKO_DEMO_API_KEY: nonempty.optional(),
+    PAPER_TRADING_WALLET_ADDRESS: nonempty.optional(),
+    PAPER_INITIAL_CASH_LAMPORTS: z.string().regex(/^\d+$/).optional(),
+    PAPER_EXECUTION_FEE_LAMPORTS: z.string().regex(/^\d+$/).optional(),
+    TRADEED_PAPER_PRESET: z.enum(["all_profiles"]).optional(),
+    TELEGRAM_BOT_TOKEN: nonempty.optional(),
+    TELEGRAM_OPERATOR_USER_IDS: nonempty.optional(),
+    TELEGRAM_CHAT_ID: z
+      .string()
+      .regex(/^-?\d+$/)
+      .optional(),
+    TRADING_WALLET_SECRET_FILE: absolutePath.optional(),
+    TRANSACTION_ALLOWED_PROGRAM_IDS: nonempty.optional(),
+    TRANSACTION_ALLOWED_FEE_RECIPIENTS: nonempty.optional(),
+    TRANSACTION_ALLOWED_DESTINATIONS: nonempty.optional(),
+    TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS: z.string().regex(/^\d+$/).optional(),
+  })
+  .passthrough();
+
+export interface RuntimeConfig {
+  readonly environment: z.infer<typeof environmentSchema>;
+  readonly mode: OperatingMode;
+  readonly instanceId: string;
+  readonly logLevel: z.infer<typeof logLevelSchema>;
+  readonly configDirectory: string;
+  readonly databaseUrl: string;
+  readonly managedDatabase: boolean;
+  readonly solana: null | Readonly<{
+    primaryRpcUrl: string;
+    fallbackRpcUrl: string;
+    cluster: "mainnet-beta" | "devnet";
+  }>;
+  readonly paper: null | Readonly<{
+    heliusApiKey: string;
+    jupiterApiKey: string;
+    coingeckoDemoApiKey: string | null;
+    walletAddress: string;
+    initialCashLamports: bigint;
+    executionFeeLamports: bigint;
+    trialPreset: "all_profiles" | null;
+  }>;
+  readonly execution: null | Readonly<{
+    heliusApiKey: string;
+    jupiterApiKey: string;
+    walletSecretFile: string;
+    allowedProgramIds: ReadonlySet<string>;
+    allowedFeeRecipients: ReadonlySet<string>;
+    allowedDestinationOwners: ReadonlySet<string>;
+    maximumPrioritizationFeeLamports: bigint;
+  }>;
+  readonly liveTrial: LowValueTrialAuthorization | null;
+  readonly telegram: null | Readonly<{
+    botToken: string;
+    operatorUserIds: ReadonlySet<string>;
+    chatId: string;
+  }>;
+}
+
+const liveReads = new Set<OperatingMode>([
+  "observation",
+  "shadow",
+  "paper",
+  "supervised_live",
+  "limited_auto",
+  "full_auto",
+]);
+const liveExecution = new Set<OperatingMode>(["supervised_live", "limited_auto", "full_auto"]);
+
+const liveExecutionOnlyVariables = [
+  "TRADING_WALLET_SECRET_FILE",
+  "TRANSACTION_ALLOWED_PROGRAM_IDS",
+  "TRANSACTION_ALLOWED_FEE_RECIPIENTS",
+  "TRANSACTION_ALLOWED_DESTINATIONS",
+  "TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS",
+] as const;
+
+function required(value: string | undefined, name: string): string {
+  if (value === undefined) throw new Error(`${name} is required for the selected mode`);
+  return value;
+}
+
+function requiredSet(value: string | undefined, name: string): ReadonlySet<string> {
+  const items = required(value, name)
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  if (items.length === 0 || new Set(items).size !== items.length)
+    throw new Error(`${name} must contain unique comma-separated values`);
+  return new Set(items);
+}
+
+export function loadRuntimeConfig(environment: NodeJS.ProcessEnv): RuntimeConfig {
+  const normalized = { ...environment };
+  for (const [key, value] of Object.entries(environment)) {
+    if (!key.startsWith('MEMECOINED_')) continue;
+    const target = 'TRADEED_' + key.slice('MEMECOINED_'.length);
+    if (normalized[target] !== undefined && normalized[target] !== value) throw new Error('Conflicting persisted trading setting: ' + target);
+    normalized[target] = value;
+  }
+  const parsed = schema.safeParse(normalized);
+  if (!parsed.success)
+    throw new Error(`Invalid runtime configuration: ${z.prettifyError(parsed.error)}`);
+  const value = parsed.data;
+  if (value.TRADEED_MODE === "limited_auto" || value.TRADEED_MODE === "full_auto")
+    throw new Error(`${value.TRADEED_MODE} is not an implemented or authorized operating mode`);
+  if (
+    value.TRADEED_ENV === "production" &&
+    /localhost|127\.0\.0\.1/.test(value.DATABASE_URL) &&
+    normalized.TRADEED_MANAGED_DATABASE !== "1"
+  )
+    throw new Error("Production database cannot use a loopback host");
+  const solana = liveReads.has(value.TRADEED_MODE)
+    ? Object.freeze({
+        primaryRpcUrl: required(value.SOLANA_PRIMARY_RPC_URL, "SOLANA_PRIMARY_RPC_URL"),
+        fallbackRpcUrl: required(value.SOLANA_FALLBACK_RPC_URL, "SOLANA_FALLBACK_RPC_URL"),
+        cluster: required(value.SOLANA_CLUSTER, "SOLANA_CLUSTER") as "mainnet-beta" | "devnet",
+      })
+    : null;
+  if (solana !== null && new URL(solana.primaryRpcUrl).host === new URL(solana.fallbackRpcUrl).host)
+    throw new Error("Primary and fallback Solana RPC providers must be independent");
+  const paper =
+    value.TRADEED_MODE === "paper"
+      ? Object.freeze({
+          heliusApiKey: required(value.HELIUS_API_KEY, "HELIUS_API_KEY"),
+          jupiterApiKey: required(value.JUPITER_API_KEY, "JUPITER_API_KEY"),
+          coingeckoDemoApiKey: value.COINGECKO_DEMO_API_KEY ?? null,
+          walletAddress: required(
+            value.PAPER_TRADING_WALLET_ADDRESS,
+            "PAPER_TRADING_WALLET_ADDRESS",
+          ),
+          initialCashLamports: BigInt(
+            required(value.PAPER_INITIAL_CASH_LAMPORTS, "PAPER_INITIAL_CASH_LAMPORTS"),
+          ),
+          executionFeeLamports: BigInt(value.PAPER_EXECUTION_FEE_LAMPORTS ?? "5000"),
+          trialPreset: value.TRADEED_PAPER_PRESET ?? null,
+        })
+      : null;
+  if (paper !== null && liveExecutionOnlyVariables.some((name) => environment[name] !== undefined))
+    throw new Error("Paper mode forbids signer secrets and transaction-submission policy");
+  const execution = liveExecution.has(value.TRADEED_MODE)
+    ? Object.freeze({
+        heliusApiKey: required(value.HELIUS_API_KEY, "HELIUS_API_KEY"),
+        jupiterApiKey: required(value.JUPITER_API_KEY, "JUPITER_API_KEY"),
+        walletSecretFile: required(value.TRADING_WALLET_SECRET_FILE, "TRADING_WALLET_SECRET_FILE"),
+        allowedProgramIds: requiredSet(
+          value.TRANSACTION_ALLOWED_PROGRAM_IDS,
+          "TRANSACTION_ALLOWED_PROGRAM_IDS",
+        ),
+        allowedFeeRecipients: requiredSet(
+          value.TRANSACTION_ALLOWED_FEE_RECIPIENTS,
+          "TRANSACTION_ALLOWED_FEE_RECIPIENTS",
+        ),
+        allowedDestinationOwners: requiredSet(
+          value.TRANSACTION_ALLOWED_DESTINATIONS,
+          "TRANSACTION_ALLOWED_DESTINATIONS",
+        ),
+        maximumPrioritizationFeeLamports: BigInt(
+          required(
+            value.TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS,
+            "TRANSACTION_MAX_PRIORITY_FEE_LAMPORTS",
+          ),
+        ),
+      })
+    : null;
+  const telegramVariables = [
+    value.TELEGRAM_BOT_TOKEN,
+    value.TELEGRAM_OPERATOR_USER_IDS,
+    value.TELEGRAM_CHAT_ID,
+  ];
+  if (
+    telegramVariables.some((item) => item !== undefined) &&
+    telegramVariables.some((item) => item === undefined)
+  )
+    throw new Error("Telegram configuration requires bot token, operator user IDs, and chat ID");
+  const telegram =
+    value.TELEGRAM_BOT_TOKEN === undefined
+      ? null
+      : Object.freeze({
+          botToken: value.TELEGRAM_BOT_TOKEN,
+          operatorUserIds: requiredSet(
+            value.TELEGRAM_OPERATOR_USER_IDS,
+            "TELEGRAM_OPERATOR_USER_IDS",
+          ),
+          chatId: required(value.TELEGRAM_CHAT_ID, "TELEGRAM_CHAT_ID"),
+        });
+  const liveTrial =
+    value.TRADEED_MODE === "supervised_live" ? authorizeLowValueTrial(environment) : null;
+  return Object.freeze({
+    environment: value.TRADEED_ENV,
+    mode: value.TRADEED_MODE,
+    instanceId: value.TRADEED_INSTANCE_ID,
+    logLevel: value.TRADEED_LOG_LEVEL,
+    configDirectory: value.TRADEED_CONFIG_DIR,
+    databaseUrl: value.DATABASE_URL,
+    managedDatabase: normalized.TRADEED_MANAGED_DATABASE === "1",
+    solana,
+    paper,
+    execution,
+    liveTrial,
+    telegram,
+  });
+}

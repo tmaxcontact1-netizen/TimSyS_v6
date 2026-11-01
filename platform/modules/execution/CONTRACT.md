@@ -1,3 +1,5 @@
+> Updated 2026-10-20: the former Layer 1 model and responsibility links have been removed. Execution retains document-version and evidence-note links only. Historical Layer 1 design statements below do not describe an available feature.
+
 # Execution — Layer 3 MVP
 
 Principal’Ed → Organisation → Execution. Separate from existing Tasks and formal Layer 1 records. No Layer 2, AI advice, performance scoring, notification-dependent readiness or automatic approvals.
@@ -47,3 +49,15 @@ Portfolio, Overview, Tasks, Planning, Timeline, Dependency Wheel, My Work and pa
 Clone/templates, full network graphs, scheduling/resource optimisation, drag scheduling, exact-time dependencies, external calendars and realtime notifications remain deferred as agreed. Timeline offers fit-all, day, week and month ranges and keeps undated tasks available. Out-of-range work is counted explicitly and still contributes to readiness. The module is not registered as an intelligence component: the current component certification mandates operational insights, contrary to this build’s explicit no-Insights boundary. It remains a normal registered, routable platform module and is visible in Builder’s module list.
 
 Tests use synthetic in-memory or isolated on-disk databases only. A successful local build is not publication or proof that an installed desktop app has updated.
+
+## Task deletion
+
+Project leads and Execution managers with write access can use **Delete task** in task details, including on completed/cancelled tasks and closed projects. `task.delete` requires `task_id`, `confirm_delete: true`, an expected revision and an idempotent command ID. The confirmation explains removal of both incoming/outgoing dependencies, task blockers, links, outcomes and milestone contributions. Related working exceptions and revision-target references are also cleaned. Removing a prerequisite can make other tasks ready; it never completes or approves them. Milestones are not automatically achieved and receive a contribution-deletion note. Source documents and Layer 1 records are untouched.
+
+The task is removed from the current aggregate and all working views. There is no UI undo. The existing transactional activity snapshot retains before/after data, actor and revision, and the Activity entry retains the deleted title. Receipt retries are idempotent; stale edits fail. Deletion does not reopen a closed project.
+
+## Project deletion
+
+Project settings exposes **Delete project** to the project lead or an Execution manager with write permission. `instance.delete` requires explicit `confirm_delete: true`, the current revision and an idempotent command ID. It works for draft, active, completed and cancelled projects. The project and all its child work disappear from Projects, My Work and normal direct-read/history/context routes. No work is implicitly completed or approved, and no source documents or Layer 1 records are changed.
+
+A deleted timestamp/actor and lifecycle tombstone retain the aggregate and transactional before/after activity for audit; there is no user-facing restore. Mutations and old deep links cannot reopen it. An exact deletion retry returns its original receipt to the still-authorised lead/manager. Other cached commands cannot resurrect deleted content. Workspace access filtering excludes tombstoned projects before projection.

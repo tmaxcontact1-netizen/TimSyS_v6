@@ -81,9 +81,10 @@ function reconcile(s) {
 }
 function mutate(original, command, env) {
   const s = structuredClone(original), { type, data: b = {} } = command, { people, actor, lead, staffId, today } = env;
-  const leadCommands = ['instance.update','instance.activate','instance.close','instance.cancel','instance.reopen','phase.add','task.add','task.update','task.reopen','task.cancel','task.reinstate','dependency.add','dependency.waive','dependency.remove','dependency.reinstate','milestone.add','milestone.achieve','milestone.cancel','milestone.reopen','milestone.waive'];
+  const leadCommands = ['instance.delete','instance.update','instance.activate','instance.close','instance.cancel','instance.reopen','phase.add','task.add','task.delete','task.update','task.reopen','task.cancel','task.reinstate','dependency.add','dependency.waive','dependency.remove','dependency.reinstate','milestone.add','milestone.achieve','milestone.cancel','milestone.reopen','milestone.waive'];
   if (leadCommands.includes(type) && !lead) fail('Only the Work Instance lead or Execution manager can perform this action', 403);
-  if (s.lifecycle === 'cancelled' || (s.lifecycle === 'completed' && type !== 'instance.reopen')) fail('This Work Instance is closed', 409);
+  if (s.deleted_at) fail('Project has been deleted',404);
+  if (!['task.delete','instance.delete'].includes(type) && (s.lifecycle === 'cancelled' || (s.lifecycle === 'completed' && type !== 'instance.reopen'))) fail('This Work Instance is closed', 409);
   const reason = () => text(b.reason, 'Reason', true);
   const activePerson = id => { if (id != null && !people.some(p => p.id === id && p.active)) fail('Choose an active staff member'); return id || null; };
   const owned = () => { const t = task(s, b.task_id); if (!lead && (t.assignee_staff_id !== staffId || !people.some(p => p.id === staffId && p.active))) fail('Only the assigned person or Execution lead can act', 403); return t; };
@@ -91,6 +92,10 @@ function mutate(original, command, env) {
   const stamp = value => ({ ...value, id: randomUUID(), actor, at: new Date().toISOString() });
   const reopen = t => { t.lifecycle = 'open'; t.cycle += 1; t.completed_at = null; t.completed_by = null; };
   switch (type) {
+    case 'instance.delete': {
+      if (b.confirm_delete !== true) fail('Confirm project deletion explicitly');
+      s.deleted_at = new Date().toISOString(); s.deleted_by = actor; s.lifecycle = 'deleted'; s.revision += 1; return s;
+    }
     case 'instance.update': {
       for (const k of ['title', 'description', 'retrospective']) if (k in b) s[k] = text(b[k], k, k === 'title');
       if ('lead_staff_id' in b) s.lead_staff_id = activePerson(b.lead_staff_id);
@@ -118,6 +123,22 @@ function mutate(original, command, env) {
       if ('required_evidence' in b) { if (typeof b.required_evidence !== 'boolean') fail('Evidence requirement must be boolean'); t.required_evidence = b.required_evidence; }
       if (type === 'task.add') s.tasks.push(t); break;
     }
+    case 'task.delete': {
+      const t = task(s, b.task_id);
+      if (b.confirm_delete !== true) fail('Confirm task deletion explicitly');
+      const edges = new Set(s.dependencies.filter(e => e.from_id === t.id || e.to_id === t.id).map(e => e.id));
+      s.tasks = s.tasks.filter(x => x.id !== t.id);
+      s.dependencies = s.dependencies.filter(e => !edges.has(e.id));
+      s.blockers = s.blockers.filter(x => x.task_id !== t.id);
+      s.exceptions = s.exceptions.filter(x => x.task_id !== t.id && !edges.has(x.edge_id));
+      s.links = s.links.filter(x => x.task_id !== t.id);
+      s.outcomes = s.outcomes.filter(x => x.task_id !== t.id).map(x => ({...x, ...(x.revision_task_ids ? {revision_task_ids:x.revision_task_ids.filter(id => id !== t.id)} : {})}));
+      for (const m of s.milestones) if (m.contributions.some(c => c.task_id === t.id)) {
+        m.contributions = m.contributions.filter(c => c.task_id !== t.id);
+        m.review_reason = 'Contributing task deleted: ' + t.title + '. Previous activity retains the original record.';
+      }
+      break;
+    }
     case 'task.start': { const t = owned(); eligible(t); if (t.kind === 'decision' || t.lifecycle !== 'open') fail('Only an open ordinary task can start',409); t.lifecycle = 'in_progress'; break; }
     case 'task.complete':
     case 'decision.approve': { const t = owned(); eligible(t); if ((type === 'decision.approve') !== (t.kind === 'decision')) fail('Decision tasks require an explicit approval',409); if (t.required_evidence && !s.links.some(l => l.task_id === t.id && l.kind === 'evidence')) fail('Add completion evidence first'); t.lifecycle = 'completed'; t.completed_at = new Date().toISOString(); t.completed_by = actor; if (t.kind === 'decision') s.outcomes.push(stamp({ task_id: t.id, cycle: t.cycle, outcome: 'approve', rationale: text(b.reason, 'Rationale') })); break; }
@@ -141,7 +162,7 @@ function mutate(original, command, env) {
     case 'milestone.waive': { const m=s.milestones.find(m=>m.id===b.milestone_id); if(!m) fail('Milestone not found'); if(type==='milestone.waive'){reason();const c=m.contributions.find(c=>c.task_id===b.task_id);if(!c)fail('Contribution not found');c.state='waived';c.reason=b.reason;c.actor=actor;}
       else if(type==='milestone.achieve'){if(s.lifecycle!=='active'||m.status!=='pending'||m.contributions.some(c=>c.state==='required'&&task(s,c.task_id).lifecycle!=='completed'))fail('Required milestone work is incomplete',409);m.status='achieved';m.achieved_at=new Date().toISOString();m.achieved_by=actor;}
       else {reason();m.status=type==='milestone.cancel'?'cancelled':'pending';} break; }
-    case 'link.add': { const t=owned(); if(!env.validatedLink)fail('Evidence or responsibility reference must be validated'); s.links.push(stamp({...env.validatedLink,task_id:t.id})); break; }
+    case 'link.add': { const t=owned(); if(!env.validatedLink)fail('Evidence reference must be validated'); s.links.push(stamp({...env.validatedLink,task_id:t.id})); break; }
     default: fail('Unknown Execution command',400);
   }
   validateGraph(s); reconcile(s); s.revision += 1;

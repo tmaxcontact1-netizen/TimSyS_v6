@@ -1,0 +1,49 @@
+{
+  "release": "2026.11.1",
+  "repository": "tmaxcontact1-netizen/TimSyS_v6",
+  "installer": {
+    "filename": "TimSyS-Setup-1.1.0-recovered-x64.exe",
+    "sha256": "0ed6be3c877485a70d6c49ff9b4a5bc62164f29aa79b2dc5ab70d03e0aa53574",
+    "bytes": 323966160,
+    "version": "1.1.0",
+    "revision": "recovered-20261031",
+    "signature": "NotSigned"
+  },
+  "versions": {
+    "researched": "0.10.13",
+    "dressed": "0.3.0",
+    "electron": "43.2.0",
+    "node": "24.18.0"
+  },
+  "verification": {
+    "productionBuilds": 7,
+    "tests": {
+      "platform": 625,
+      "native": 65,
+      "researched": 402,
+      "dressed": 102,
+      "total": 1194
+    },
+    "embeddedFilesVerified": 16156,
+    "freshAndLegacySQLite": true,
+    "postgresTablesPreserved": 91,
+    "postgresRowsPreserved": 122143,
+    "researchBusinessModulesIdentical": 63,
+    "researchBrowserSmoke": true,
+    "updaterCompatibility": true,
+    "backendOwnership": true
+  },
+  "delivery": "standalone-installer",
+  "automaticComponentBundles": 0,
+  "localInstallationAcceptance": {
+    "installed": true,
+    "activated": true,
+    "installedPayloadFilesMatched": 16156,
+    "recoveredResearchWorkflowVisible": true,
+    "savedWorkVisible": true,
+    "originalDurableFilesPreserved": true,
+    "liveDatabaseRecordHashesPreserved": true,
+    "credentialsPreserved": true,
+    "independentTradeValidationUnchanged": true
+  }
+}

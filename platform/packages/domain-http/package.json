@@ -1,0 +1,7 @@
+{
+  "name": "@timsys/domain-http",
+  "version": "1.0.0",
+  "main": "index.cjs",
+  "types": "index.d.cts",
+  "private": true
+}

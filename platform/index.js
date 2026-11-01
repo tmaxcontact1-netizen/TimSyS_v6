@@ -140,6 +140,15 @@ async function bootPlatform() {
     ctx.decisionLog = decisionLog;
     ctx.eventStore = eventStore;
     ctx.sse = sse;
+    // Only the assistant's explicitly allowed read routes reach this boundary.
+    // Recheck the route permission here and execute with the owning module's context.
+    ctx.readAssistantRoute = async function(route, request) {
+      if (route.method !== 'GET' || !route.permissions?.some(p => auth.checkPerm(request.user, p))) throw new Error('AI_FORBIDDEN');
+      const fn = functionRegistry.get(route.handler);
+      const target = contextRegistry[fn?.module];
+      if (!target || typeof fn?.implementation !== 'function') throw new Error('AI_SOURCE_UNAVAILABLE');
+      return fn.implementation(request, target);
+    };
     contextRegistry[wired[w].manifest.name] = ctx;
   }
 
@@ -347,7 +356,7 @@ function rateLimitMiddleware(req, res) {
 
 function shutdownPlatform(server) {
   return new Promise(function(resolve) {
-    function cleanup() {
+    async function cleanup() {
       sse.shutdown();
       intelligenceScheduler.stop();
       metrics.stop();
@@ -355,6 +364,7 @@ function shutdownPlatform(server) {
       session.stop();
       events.unsubscribeGlobal(persistPublishedEvent);
       events.unsubscribeGlobal(projectPublishedEvent);
+      for (const mod of wiredModules) if(mod.ctx?.wardrobe) await mod.ctx.wardrobe.close();
       var reversed = wiredModules.slice().reverse();
       for (var i = 0; i < reversed.length; i++) {
         try { unstage(reversed[i]); } catch (err) { log.error('Shutdown teardown failed: ' + reversed[i].manifest.name, { error: err.message }); }
@@ -372,6 +382,9 @@ function createServer() {
   return http.createServer(async function(req, res) {
     var start = Date.now();
     var parsedUrl = new URL(req.url || '/', 'http://127.0.0.1');
+    var principalPrefix='/api/timsys/v1/apps/principaled/backend/1.0.0';
+    var principalRequest=parsedUrl.pathname.startsWith(principalPrefix+'/');
+    if(principalRequest){parsedUrl.pathname=parsedUrl.pathname.slice(principalPrefix.length);req.url=parsedUrl.pathname+parsedUrl.search;}
     var pathname = parsedUrl.pathname;
     var query = Object.fromEntries(parsedUrl.searchParams.entries());
     var method = req.method.toUpperCase();
@@ -401,6 +414,8 @@ function createServer() {
         }
       }
 
+      // Pinned contract metadata; operations retain original authentication and permissions.
+      if(principalRequest && pathname==='/contract' && method==='GET'){respond(res,200,require('./contracts/principaled-http-v1.json'));return;}
       // Health check endpoint
       if (pathname === '/health' && method === 'GET') {
         respond(res, 200, { status: 'healthy', timestamp: Date.now() });
@@ -484,8 +499,8 @@ function createServer() {
           var staticRoot = path.resolve(process.env.TIMSYS_LAUNCHER_DIST);
           // Only declared launcher page shapes receive the SPA shell. Missing API
           // endpoints and assets must retain their real 404 responses.
-          var launcherPage = /^\/(?:login(?:\/[A-Za-z0-9_-]+)?|modules|app\/[A-Za-z0-9_-]+(?:\/modules)?)\/?$/.test(pathname);
-          var requestedAsset = pathname === '/' || launcherPage ? 'index.html' : pathname.replace(/^\/+/, '');
+          var launcherPage = /^\/(?:assistant|login(?:\/[A-Za-z0-9_-]+)?|modules|app\/[A-Za-z0-9_-]+(?:\/modules)?)\/?$/.test(pathname);
+          var requestedAsset = pathname === '/assistant' && fs.existsSync(path.join(staticRoot, 'assistant.html')) ? 'assistant.html' : pathname === '/' || launcherPage ? 'index.html' : pathname.replace(/^\/+/, '');
           var staticFile = path.resolve(staticRoot, requestedAsset);
           if (staticFile.startsWith(staticRoot + path.sep) && fs.existsSync(staticFile) && fs.statSync(staticFile).isFile()) {
             var extension = path.extname(staticFile).toLowerCase();
@@ -519,7 +534,13 @@ function createServer() {
 
       if (!authenticationMiddleware(req, res, route)) return;
       if (!authorizationMiddleware(req, res, route)) return;
+      if(principalRequest && req.user && !auth.checkPerm(req.user,"admin:*") && !auth.checkPerm(req.user,"app:principaled:use")){respond(res,403,{success:false,error:{code:"APP_FORBIDDEN",message:"Principal’Ed scope required"}});return;}
 
+      if(route.moduleName==='service_host' && ['service_host_uploadBinary','service_host_imageBinary'].includes(route.handler)){
+        if(!rateLimitMiddleware(req,res)||!passwordChangeRequired(req,res,pathname,method,respond))return;
+        const raw=functionRegistry.get(route.handler);req.params=routeParams;req.query=query;
+        await raw.implementation(req,res,contextRegistry[raw.module]);return;
+      }
       var body = {};
       if (['POST', 'PUT', 'PATCH', 'DELETE'].indexOf(method) !== -1) {
         body = await readBody(req, pathname === '/nervous-breakdown/import' ? 16 * 1024 * 1024 : pathname.indexOf('/documents/') === 0 ? 14 * 1024 * 1024 : 1024 * 1024);
@@ -558,11 +579,22 @@ function createServer() {
       var moduleName = handler.module || 'unknown';
       var moduleCtx = contextRegistry[moduleName] || { requestTime: start };
 
-      var result = await handler.implementation(handlerReq, moduleCtx);
+      // Supply cooperative cancellation to hosted services without changing existing handlers.
+      const requestController = new AbortController();
+      const abortRequest = () => requestController.abort();
+      req.once('aborted', abortRequest);
+      res.once('close', abortRequest);
+      handlerReq.signal = requestController.signal;
+      var result;
+      try { result = await handler.implementation(handlerReq, moduleCtx); }
+      finally { req.removeListener('aborted', abortRequest); res.removeListener('close', abortRequest); }
 
       var statusCode = result && result.statusCode ? result.statusCode : 200;
       var responseData;
-      if (result && Array.isArray(result.data)) {
+      if (moduleName === 'service_host') {
+        // The versioned host owns its envelope, including protocol and contract identity.
+        responseData = result;
+      } else if (result && Array.isArray(result.data)) {
         responseData = { success: result.success !== undefined ? result.success : true, data: result.data };
       } else if (result && result.data) {
         responseData = { success: result.success !== undefined ? result.success : true, data: result.data };
@@ -571,7 +603,7 @@ function createServer() {
       } else {
         responseData = { success: true };
       }
-      respond(res, statusCode, responseData);
+      respond(res, statusCode, responseData, moduleName === 'service_host');
 
       metrics.timing('http.request_duration_ms', Date.now() - start, { method: method, path: pathname });
       metrics.timing('platform.module.request_duration_ms', Date.now() - start, { module: moduleName });
@@ -615,12 +647,13 @@ function readBody(req, maxBytes) {
   });
 }
 
-function respond(res, statusCode, data) {
+function respond(res, statusCode, data, preserveServiceMeta = false) {
   res.writeHead(statusCode, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify(Object.assign({}, data, {
     meta: {
       timestamp: new Date().toISOString(),
       requestId: crypto.randomUUID(),
+      ...(preserveServiceMeta ? data.meta : {}),
     },
   })));
 }
@@ -645,3 +678,4 @@ if (require.main === module) {
 }
 
 module.exports = { bootPlatform: bootPlatform, createServer: createServer, shutdownPlatform: shutdownPlatform };
+

@@ -42,7 +42,7 @@ if (!/^\d{4}\.\d{2}\.\d+(?:[-.][a-z0-9]+)?$/i.test(releaseVersion || "")) {
 
 const sources = Object.freeze({
   platform: join(stage, "platform"),
-  memecoined: join(stage, "apps", "memecoined"),
+  tradeed: join(stage, "apps", "tradeed"),
   dressed: join(stage, "apps", "dressed"),
   researched: join(stage, "apps", "researched"),
   "launcher-ui": join(root, "apps", "launcher", "dist"),
@@ -115,10 +115,10 @@ async function readSourceCommit() {
   });
 }
 
-async function verifyMemecoinedPipeline() {
-  if (!process.env.MEMECOINED_VERIFY_ADMIN_URL) {
+async function verifyTradeedPipeline() {
+  if (!process.env.TRADEED_VERIFY_ADMIN_URL) {
     throw new Error(
-      "MemeCoin'Ed update requires MEMECOINED_VERIFY_ADMIN_URL for its isolated full-path verification",
+      "Trade'Ed update requires TRADEED_VERIFY_ADMIN_URL for its isolated full-path verification",
     );
   }
   const runDiagnostic = async (densityMode = false) => {
@@ -130,19 +130,19 @@ async function verifyMemecoinedPipeline() {
           join(
             root,
             "apps",
-            "memecoined",
+            "tradeed",
             "dist",
             "scripts",
             "diagnose-profile-roundtrips.js",
           ),
         ],
         {
-          cwd: join(root, "apps", "memecoined"),
+          cwd: join(root, "apps", "tradeed"),
           windowsHide: true,
           stdio: ["ignore", "pipe", "pipe"],
           env: {
             ...process.env,
-            ...(densityMode ? { MEMECOINED_VERIFY_DENSITY: "1" } : {}),
+            ...(densityMode ? { TRADEED_VERIFY_DENSITY: "1" } : {}),
           },
         },
       );
@@ -157,7 +157,7 @@ async function verifyMemecoinedPipeline() {
           ? resolveRun(Buffer.concat(chunks).toString("utf8"))
           : reject(
               new Error(
-                `MemeCoin'Ed ${densityMode ? "production-density" : "full-path"} verification exited with ${code}`,
+                `Trade'Ed ${densityMode ? "production-density" : "full-path"} verification exited with ${code}`,
               ),
             ),
       );
@@ -194,14 +194,14 @@ async function verifyMemecoinedPipeline() {
     Number(productionDensity.resetRegression?.preservedActivations ?? 0) !== 2
   ) {
     throw new Error(
-      "MemeCoin'Ed full-path verification returned incomplete evidence",
+      "Trade'Ed full-path verification returned incomplete evidence",
     );
   }
   return {
     passedAt: new Date().toISOString(),
     commands: [
       "node dist/scripts/diagnose-profile-roundtrips.js",
-      "MEMECOINED_VERIFY_DENSITY=1 node dist/scripts/diagnose-profile-roundtrips.js",
+      "TRADEED_VERIFY_DENSITY=1 node dist/scripts/diagnose-profile-roundtrips.js",
     ],
     fullPath,
     productionDensity,
@@ -212,7 +212,7 @@ async function stageHasProductionDependencies() {
   try {
     await Promise.all([
       access(join(stage, "platform", "modules-runtime")),
-      access(join(stage, "apps", "memecoined", "modules-runtime")),
+      access(join(stage, "apps", "tradeed", "modules-runtime")),
       access(join(stage, "apps", "dressed", "modules-runtime")),
       access(join(stage, "apps", "researched", "modules-runtime")),
     ]);
@@ -251,9 +251,9 @@ await runNodeScript(
   (await stageHasProductionDependencies()) ? ["--refresh-source-only"] : [],
 );
 await runNodeScript("verify-windows-runtime.mjs");
-const memecoinedVerification =
-  !selectedBundles || selectedBundles.has("memecoined")
-    ? await verifyMemecoinedPipeline()
+const tradeedVerification =
+  !selectedBundles || selectedBundles.has("tradeed")
+    ? await verifyTradeedPipeline()
     : null;
 const sourceCommit = await readSourceCommit();
 
@@ -279,7 +279,7 @@ for (const [id, source] of Object.entries(sources)) {
 const manifest = {
   schemaVersion: 1,
   releaseVersion,
-  minimumLauncherVersion: "1.0.20",
+  minimumLauncherVersion: "1.1.0",
   publishedAt: new Date().toISOString(),
   notes: "Verified TimSyS application update.",
   bundles,
@@ -289,12 +289,12 @@ await writeFile(
   `${JSON.stringify(manifest, null, 2)}\n`,
   "utf8",
 );
-if (memecoinedVerification) {
-  const bundle = bundles.find((item) => item.id === "memecoined");
+if (tradeedVerification) {
+  const bundle = bundles.find((item) => item.id === "tradeed");
   if (!bundle)
-    throw new Error("MemeCoin'Ed bundle is missing after verification");
+    throw new Error("Trade'Ed bundle is missing after verification");
   await writeFile(
-    join(output, `memecoined-verification-${releaseVersion}.json`),
+    join(output, `tradeed-verification-${releaseVersion}.json`),
     `${JSON.stringify(
       {
         schemaVersion: 1,
@@ -302,7 +302,7 @@ if (memecoinedVerification) {
         bundleVersion: bundle.version,
         bundleSha256: bundle.sha256,
         sourceCommit,
-        ...memecoinedVerification,
+        ...tradeedVerification,
       },
       null,
       2,

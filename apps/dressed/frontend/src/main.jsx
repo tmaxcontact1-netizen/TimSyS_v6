@@ -1,4 +1,10 @@
+import PersonalColouring, {ColouringProvider} from "./personal-colouring.jsx";
+import { accessorySlots } from "../../../../platform/services/dressed/src/domain/garment/visual-style.ts";
+import OutfitPreview from './outfit-preview.jsx';
+import { evaluationAdvice, explainComparison } from '../../../../platform/services/dressed/src/domain/outfit/evaluation-advice.ts';
+import { withCompanions, companionSlots, companionReasons } from "../../../../platform/services/dressed/src/domain/outfit/garment-dependencies.ts";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import PhotoIntake from "./photo-intake.jsx";
 import ReactDOM from "react-dom/client";
 import {
   AppShell,
@@ -23,7 +29,7 @@ function WearConfirmation({ close }) {
     [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     try {
-      setItems((await api("/api/lifecycle/wearable")).items);
+      setItems((await api("/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle/wearable")).items);
     } catch (cause) {
       setError(cause.message);
     }
@@ -35,7 +41,7 @@ function WearConfirmation({ close }) {
     if (!pending) return;
     setBusy(true);
     try {
-      await api(`/api/planner/entries/${pending.id}/worn`, {
+      await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/planner/entries/${pending.id}/worn`, {
         method: "POST",
         body: JSON.stringify({
           wornDate: String(pending.planned_date).slice(0, 10),
@@ -107,7 +113,7 @@ function Insights({ close, onNavigate }) {
     [error, setError] = useState("");
   const load = useCallback(async () => {
     try {
-      setData(await api("/api/insights"));
+      setData(await api("/api/timsys/v1/apps/dressed/backend/1.0.0/insights"));
     } catch (cause) {
       setError(cause.message);
     }
@@ -117,7 +123,7 @@ function Insights({ close, onNavigate }) {
   }, [load]);
   const setPref = async (key, value) => {
     try {
-      await api("/api/preferences", {
+      await api("/api/timsys/v1/apps/dressed/backend/1.0.0/preferences", {
         method: "PUT",
         body: JSON.stringify({ key, value }),
       });
@@ -317,27 +323,6 @@ const sections = [
   "Settings",
 ];
 const seasons = ["spring", "summer", "autumn", "winter", "all-season"];
-const blank = {
-  categoryId: "",
-  name: "",
-  brand: "",
-  productName: "",
-  sku: "",
-  notes: "",
-  formality: "",
-  fit: "",
-  size: "",
-  materials: "",
-  seasons: [],
-  useIds: [],
-  restrictions: "",
-  condition: "",
-  purchaseDate: "",
-  purchasePrice: "",
-  currency: "",
-  source: "",
-  isGift: false,
-};
 async function api(url, options) {
   let response;
   try {
@@ -370,11 +355,15 @@ async function api(url, options) {
         ?.map((issue) => `${issue.path}: ${issue.message}`)
         .join("; ") ||
         value.error?.message ||
+        (value.error === "incomplete_outfit" ? `Add ${value.missingSlots.map(slot => ({top:"a shirt or top",bottom:"trousers or bottoms",footwear:"shoes",jacket:"a jacket"}[slot] || slot.replaceAll("_", " "))).join(", ")} before saving this as a complete outfit.` : null) ||
         ({
           calibration_red_not_found: "The red block could not be found clearly. Retake the photograph with the whole card visible in even light.",
           calibration_green_not_found: "The green block could not be found clearly. Retake the photograph with the whole card visible in even light.",
           calibration_blue_not_found: "The blue block could not be found clearly. Retake the photograph with the whole card visible in even light.",
           calibration_photo_too_small: "This photograph is too small to read reliably. Choose a clearer, higher-resolution image.",
+          ensemble_not_saveable: "This combination needs changes before it can be saved. Review the evaluation notes.",
+          garment_not_available_for_use: "One of these garments is no longer available for this use. Refresh and evaluate again.",
+          no_eligible_saved_outfits: "No saved outfit fits these planner settings. Check the context, fixed garments and whether the rotation policy allows this outfit’s rating.",
           selected_garment_not_available_for_use: "That garment is not available for the selected use.",
           version_conflict_or_missing: "This garment changed or was already deleted. Refresh the wardrobe and try again.",
         }[value.error]) ||
@@ -382,348 +371,6 @@ async function api(url, options) {
         "The request could not be completed.",
     );
   return value;
-}
-function data(form) {
-  return {
-    categoryId: form.categoryId,
-    name: form.name,
-    brand: form.brand || null,
-    productName: form.productName || null,
-    sku: form.sku || null,
-    notes: form.notes || null,
-    formality: form.formality === "" ? null : Number(form.formality),
-    fit: form.fit || null,
-    size: form.size || null,
-    tailoringNotes: null,
-    materials: form.materials
-      .split(",")
-      .map((material) => material.trim())
-      .filter(Boolean)
-      .map((material) => ({ material, percentage: null })),
-    seasons: form.seasons,
-    useIds: form.useIds,
-    restrictions: form.restrictions
-      .split("\n")
-      .map((item) => item.trim())
-      .filter(Boolean),
-    acquisition: {
-      condition: form.condition || null,
-      purchaseDate: form.purchaseDate || null,
-      purchasePriceMinor:
-        form.purchasePrice === ""
-          ? null
-          : Math.round(Number(form.purchasePrice) * 100),
-      currency: form.currency.trim().toUpperCase() || null,
-      originalRetailPriceMinor: null,
-      source: form.source || null,
-      isGift: form.isGift,
-      notes: null,
-    },
-  };
-}
-function from(item) {
-  return {
-    categoryId: item.categoryId,
-    name: item.name,
-    brand: item.brand || "",
-    productName: item.productName || "",
-    sku: item.sku || "",
-    notes: item.notes || "",
-    formality: item.formality ?? "",
-    fit: item.fit || "",
-    size: item.size || "",
-    materials: item.materials.map((entry) => entry.material).join(", "),
-    seasons: item.seasons,
-    useIds: item.uses.map((use) => use.id),
-    restrictions: item.restrictions.join("\n"),
-    condition: item.acquisition.condition || "",
-    purchaseDate: item.acquisition.purchaseDate?.slice(0, 10) || "",
-    purchasePrice:
-      item.acquisition.purchasePriceMinor == null
-        ? ""
-        : String(item.acquisition.purchasePriceMinor / 100),
-    currency: item.acquisition.currency || "",
-    source: item.acquisition.source || "",
-    isGift: item.acquisition.isGift,
-  };
-}
-function GarmentForm({ categories, uses, editing, suggestion, close, saved }) {
-  const selectable = categories.filter(
-    (entry) =>
-      entry.parentCategoryId ||
-      !categories.some((child) => child.parentCategoryId === entry.id),
-  );
-  const draft = useDraft(
-    `dressed:garment:${editing?.id || "new"}`,
-    editing
-      ? { ...from(editing), ...(suggestion?.values || {}) }
-      : { ...blank, categoryId: selectable[0]?.id || "" },
-  );
-  const form = draft.value;
-  const setForm = draft.setValue;
-  const [error, setError] = useState("");
-  const change = (key, value) =>
-    setForm((current) => ({ ...current, [key]: value }));
-  const submit = async (event) => {
-    event.preventDefault();
-    try {
-      const payload = data(form);
-      const result = editing
-        ? await api(`/api/garments/${editing.id}`, {
-            method: "PUT",
-            body: JSON.stringify({ ...payload, version: editing.version }),
-          })
-        : await api("/api/garments", {
-            method: "POST",
-            body: JSON.stringify(payload),
-          });
-      if (suggestion) {
-        const fields = ["category", "formality", "seasons"];
-        const accepted = fields.filter((field) =>
-          field === "category"
-            ? result.categoryId === suggestion.values.categoryId
-            : field === "formality"
-              ? result.formality === suggestion.values.formality
-              : JSON.stringify([...result.seasons].sort()) ===
-                JSON.stringify([...(suggestion.values.seasons || [])].sort()),
-        );
-        await api(`/api/fingerprints/${suggestion.fingerprintId}/decision`, {
-          method: "POST",
-          body: JSON.stringify({
-            accepted,
-            rejected: fields.filter((field) => !accepted.includes(field)),
-          }),
-        });
-      }
-      draft.clear();
-      saved(result);
-    } catch (cause) {
-      setError(cause.message);
-    }
-  };
-  return (
-    <div className="modal-backdrop">
-      <section className="modal" role="dialog" aria-modal="true">
-        <header>
-          <div>
-            <p className="eyebrow">GARMENT RECORD</p>
-            <h2>{editing ? "Edit garment" : "Add garment"}</h2>
-          </div>
-          <button className="quiet" onClick={close}>
-            Close
-          </button>
-        </header>
-        <form onSubmit={submit}>
-          <div className="form-grid">
-            <label>
-              Category
-              <select
-                required
-                value={form.categoryId}
-                onChange={(e) => change("categoryId", e.target.value)}
-              >
-                <option value="">Select…</option>
-                {selectable.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Name
-              <input
-                required
-                value={form.name}
-                onChange={(e) => change("name", e.target.value)}
-              />
-            </label>
-            <label>
-              Brand
-              <input
-                value={form.brand}
-                onChange={(e) => change("brand", e.target.value)}
-              />
-            </label>
-            <label>
-              Product/model
-              <input
-                value={form.productName}
-                onChange={(e) => change("productName", e.target.value)}
-              />
-            </label>
-            <label>
-              SKU/reference
-              <input
-                value={form.sku}
-                onChange={(e) => change("sku", e.target.value)}
-              />
-            </label>
-            <label>
-              Formality
-              <select
-                value={form.formality}
-                onChange={(e) => change("formality", e.target.value)}
-              >
-                <option value="">Unspecified</option>
-                {[1, 2, 3, 4, 5].map((x) => (
-                  <option key={x}>{x}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Fit
-              <input
-                value={form.fit}
-                onChange={(e) => change("fit", e.target.value)}
-              />
-            </label>
-            <label>
-              Size
-              <input
-                value={form.size}
-                onChange={(e) => change("size", e.target.value)}
-              />
-            </label>
-            <label className="wide">
-              Materials <small>comma separated</small>
-              <input
-                value={form.materials}
-                onChange={(e) => change("materials", e.target.value)}
-              />
-            </label>
-            <fieldset className="wide">
-              <legend>Season suitability</legend>
-              <div className="checks">
-                {seasons.map((x) => (
-                  <label key={x}>
-                    <input
-                      type="checkbox"
-                      checked={form.seasons.includes(x)}
-                      onChange={() =>
-                        change(
-                          "seasons",
-                          form.seasons.includes(x)
-                            ? form.seasons.filter((v) => v !== x)
-                            : [...form.seasons, x],
-                        )
-                      }
-                    />
-                    {x}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <fieldset className="wide">
-              <legend>Uses</legend>
-              <p className="muted">Choose every setting where this garment may be used. Outfit Builder will only combine garments marked for the selected use.</p>
-              <div className="checks">
-                {uses.map((use) => (
-                  <label key={use.id}>
-                    <input
-                      type="checkbox"
-                      checked={form.useIds.includes(use.id)}
-                      onChange={() =>
-                        change(
-                          "useIds",
-                          form.useIds.includes(use.id)
-                            ? form.useIds.filter((id) => id !== use.id)
-                            : [...form.useIds, use.id],
-                        )
-                      }
-                    />
-                    {use.name}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <label>
-              Condition
-              <select
-                value={form.condition}
-                onChange={(e) => change("condition", e.target.value)}
-              >
-                <option value="">Unspecified</option>
-                <option value="new">New</option>
-                <option value="used">Used</option>
-              </select>
-            </label>
-            <label>
-              Purchase date
-              <input
-                type="date"
-                value={form.purchaseDate}
-                onChange={(e) => change("purchaseDate", e.target.value)}
-              />
-            </label>
-            <label>
-              Purchase price
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={form.purchasePrice}
-                onChange={(e) => change("purchasePrice", e.target.value)}
-              />
-            </label>
-            <label>
-              Currency
-              <input
-                maxLength="3"
-                value={form.currency}
-                onChange={(e) => change("currency", e.target.value)}
-              />
-            </label>
-            <label>
-              Source/store
-              <input
-                value={form.source}
-                onChange={(e) => change("source", e.target.value)}
-              />
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={form.isGift}
-                onChange={(e) => change("isGift", e.target.checked)}
-              />
-              Gift
-            </label>
-            <label className="wide">
-              Restrictions <small>one per line</small>
-              <textarea
-                value={form.restrictions}
-                onChange={(e) => change("restrictions", e.target.value)}
-              />
-            </label>
-            <label className="wide">
-              Notes
-              <textarea
-                value={form.notes}
-                onChange={(e) => change("notes", e.target.value)}
-              />
-            </label>
-          </div>
-          {error && <p className="error">{error}</p>}
-          <div className="form-actions">
-            <small className="draft-status">
-              {draft.savedAt
-                ? `Draft saved ${draft.savedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-                : draft.isDirty
-                  ? "Saving draft…"
-                  : "Draft protection active"}
-            </small>
-            <button type="button" className="quiet" onClick={close}>
-              Cancel
-            </button>
-            <button className="primary">
-              {editing ? "Save changes" : "Add garment"}
-            </button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
 }
 function CategoryForm({ categories, close, saved }) {
   const [name, setName] = useState("");
@@ -734,7 +381,7 @@ function CategoryForm({ categories, close, saved }) {
     e.preventDefault();
     try {
       saved(
-        await api("/api/categories", {
+        await api("/api/timsys/v1/apps/dressed/backend/1.0.0/categories", {
           method: "POST",
           body: JSON.stringify({
             name,
@@ -808,7 +455,7 @@ function CalibrationForm({ close, saved }) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/calibration-profiles/from-photo?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "content-type": file.type || "application/octet-stream" }, body: file });
+      const response = await fetch(`/api/timsys/v1/apps/dressed/backend/1.0.0/calibration-profiles/from-photo?name=${encodeURIComponent(name)}`, { method: "POST", headers: { "content-type": file.type || "application/octet-stream" }, body: file });
       const value = await response.json();
       if (!response.ok) {
         const messages = {
@@ -866,276 +513,89 @@ function CalibrationForm({ close, saved }) {
     </div>
   );
 }
-function PhotoManager({ garment, profiles, categories, close, review }) {
-  const usableProfiles = profiles.filter((item) => item.readyForPhotos);
-  const [images, setImages] = useState([]),
-    [readiness, setReadiness] = useState({
-      wholeReady: false,
-      detailReady: false,
-      readyForAnalysis: false,
-    }),
-    [fingerprint, setFingerprint] = useState(null),
-    [role, setRole] = useState("whole"),
-    [profile, setProfile] = useState(usableProfiles[0]?.id || ""),
-    [file, setFile] = useState(null),
-    [calibrationNotice, setCalibrationNotice] = useState(""),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const selectedProfile = usableProfiles.find((item) => item.id === profile) || usableProfiles[0];
-  const load = useCallback(async () => {
-    try {
-      const value = await api(`/api/garments/${garment.id}/images`);
-      setImages(value.items);
-      setReadiness(value.readiness);
-      try {
-        setFingerprint(await api(`/api/garments/${garment.id}/fingerprint`));
-      } catch {
-        setFingerprint(null);
-      }
-    } catch (cause) {
-      setError(cause.message);
-    }
-  }, [garment.id]);
-  useEffect(() => {
-    void load();
-  }, [load]);
-  const upload = async (e) => {
-    e.preventDefault();
-    if (!file) return;
-    setBusy(true);
-    setError("");
-    try {
-      const q = new URLSearchParams({
-        role,
-        calibrationProfileId: profile,
-        filename: file.name,
-      });
-      const response = await fetch(`/api/garments/${garment.id}/images?${q}`, {
-        method: "POST",
-        headers: { "content-type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      const value = await response.json();
-      if (!response.ok) throw new Error(value.error || "Upload failed");
-      setCalibrationNotice(value.calibration?.message || "Colour card found and applied to this photograph.");
-      setFile(null);
-      e.target.reset();
-      await load();
-    } catch (cause) {
-      setError(cause.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const analyse = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      setFingerprint(
-        await api(`/api/garments/${garment.id}/fingerprint`, {
-          method: "POST",
-        }),
-      );
-    } catch (cause) {
-      setError(cause.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const useSuggestions = () => {
-    const byField = Object.fromEntries(
-      fingerprint.suggestions.map((x) => [x.field, x]),
-    );
-    const categorySlug = byField.category?.value?.[0]?.slug;
-    const categoryId =
-      categories.find((x) => x.slug === categorySlug)?.id ?? garment.categoryId;
-    const categoryName = categories.find((x) => x.id === categoryId)?.name;
-    review({
-      fingerprintId: fingerprint.id,
-      values: {
-        categoryId,
-        name: garment.name.startsWith("New garment ") && categoryName ? categoryName : garment.name,
-        formality: byField.formality?.value ?? garment.formality,
-        seasons: byField.seasons?.value ?? garment.seasons,
-      },
-    });
-  };
-  return (
-    <div className="modal-backdrop">
-      <section className="modal">
-        <header>
-          <div>
-            <p className="eyebrow">GARMENT PHOTOS</p>
-            <h2>{garment.name}</h2>
-            <p className="muted">
-              Whole: {readiness.wholeReady ? "ready" : "needed"} · Detail:{" "}
-              {readiness.detailReady ? "ready" : "needed"}
-            </p>
-          </div>
-          <button className="quiet" onClick={close}>
-            Close
-          </button>
-        </header>
-        {!usableProfiles.length ? (
-          <div className="empty">
-            <h3>Add your colour card first.</h3>
-            <p>Go to Settings, photograph your printed red, green and blue card, then return here.</p>
-          </div>
-        ) : (
-          <form onSubmit={upload} className="upload-form">
-            <label>
-              Photograph type
-              <select value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="whole">Whole item</option>
-                <option value="detail">Close-up/detail</option>
-                <option value="additional">Additional</option>
-              </select>
-            </label>
-            {selectedProfile && (
-              <div className="calibration-active" role="status">
-                <strong>Colour calibration is on</strong>
-                <span>{selectedProfile.name} will be used for this photograph.</span>
-              </div>
-            )}
-            <label>
-              Colour card
-              <select
-                value={profile}
-                onChange={(e) => setProfile(e.target.value)}
-              >
-                {usableProfiles.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Choose a photograph
-              <input
-                required
-                type="file"
-                accept="image/jpeg,image/png"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-              />
-            </label>
-            <p className="muted">Dress’Ed will locate and measure the colour card automatically. The photograph will be rejected if the card is missing, distorted or obscured by glare.</p>
-            <button className="primary" disabled={busy}>
-              {busy ? "Checking photograph…" : "Add photograph"}
-            </button>
-          </form>
-        )}
-        {error && <p className="error banner">{error}</p>}
-        {calibrationNotice && <p className="success banner" role="status">{calibrationNotice}</p>}
-        <div className="photo-grid">
-          {images.map((image) => (
-            <article
-              key={image.id}
-              className={
-                image.validationStatus === "recapture_required"
-                  ? "photo-bad"
-                  : ""
-              }
-            >
-              <img
-                src={`/api/images/${image.id}/content`}
-                alt={`${image.role} photograph of ${garment.name}`}
-              />
-              <div>
-                <strong>{image.role}</strong>
-                <span>
-                  {image.width} × {image.height}
-                </span>
-                <span>{image.validationStatus.replaceAll("_", " ")}</span>
-                {image.findings.map((finding) => (
-                  <small key={finding.code}>{finding.message}</small>
-                ))}
-              </div>
-            </article>
-          ))}
-        </div>
-        {readiness.readyForAnalysis && (
-          <div className="analysis-actions">
-            <button className="primary" disabled={busy} onClick={analyse}>
-              {fingerprint ? "Reanalyse photographs" : "Analyse photographs"}
-            </button>
-            <span>Analysed privately on this computer</span>
-          </div>
-        )}
-        {fingerprint && (
-          <section className="suggestions">
-            <h3>Colours found</h3>
-            <div className="palette">
-              {fingerprint.measurements.combined.palette.map((x) => (
-                <span
-                  key={`${x.label}-${x.rgb.join("-")}`}
-                  style={{ background: `rgb(${x.rgb.join(",")})` }}
-                  title={`${x.label} ${Math.round(x.proportion * 100)}%`}
-                />
-              ))}
-            </div>
-            <p>
-              Visual detail{" "}
-              {Math.round(
-                fingerprint.measurements.combined.visualComplexity * 100,
-              )}
-              % · likely to be a solid colour{" "}
-              {Math.round(
-                fingerprint.measurements.combined.solidConfidence * 100,
-              )}
-              % · visible texture{" "}
-              {Math.round(
-                fingerprint.measurements.combined.textureStrength * 100,
-              )}
-              %
-            </p>
-            <h3>Suggested details</h3>
-            {fingerprint.suggestions.map((x) => (
-              <article key={x.field}>
-                <strong>{x.field}</strong>
-                <span>
-                  {Math.round(Number(x.confidence) * 100)}% match
-                </span>
-                <span>{Array.isArray(x.value) ? x.value.map((value) => value.slug || value).join(", ") : String(x.value)}</span>
-              </article>
-            ))}
-            <button className="primary" onClick={useSuggestions}>
-              Review and confirm these details
-            </button>
-          </section>
-        )}
-      </section>
-    </div>
-  );
+function CoordinationScore({ evaluation }) {
+  return <div className="coordination-rating">
+    <div className="ensemble-score"><strong>{evaluation.score.toFixed(1)}<small>/100</small></strong><span>Coordination score</span></div>
+    <p className="muted">Confidence: {evaluation.confidence ? `${evaluation.confidence.label} (${evaluation.confidence.score}/100 evidence coverage)` : "Not assessed"}</p>
+    {evaluation.confidence && <p className="muted">The confidence reflects how much we know about these garments. Unconfirmed shades, pattern sizes and dressiness make the advice less certain; they do not automatically make the outfit worse.</p>}
+    {evaluation.breakdown && <details><summary>Score breakdown</summary>
+      <table><thead><tr><th>Area</th><th>Points</th></tr></thead><tbody>{evaluation.breakdown.map(part => <tr key={part.id}><td>{part.label}</td><td>{part.points.toFixed(1)}{part.maximum ? ` / ${part.maximum}` : " adjustment"}</td></tr>)}</tbody></table>
+      {evaluation.breakdown.map(part => <details key={part.id}><summary>{part.label}: comparisons</summary><ul>{part.checks.length ? part.checks.map((check,index) => <li key={index}>{explainComparison(check.explanation)} <small>Relationship: {Math.round(check.value*100)}/100; evidence coverage: {Math.round(check.confidence*100)}/100.</small></li>) : <li>No specific relationship to compare in this selection; a neutral baseline is used.</li>}</ul></details>)}
+      <p className="muted">The four areas add up to the score. These are styling heuristics, not measurements of how good you will look. Equal scores are legitimate when recorded details are equivalent.</p>
+    </details>}
+  </div>;
 }
-function StylingLab({ garments, close }) {
+function EvaluationNotes({ evaluation, garments }) {
+  return <div className="evaluation-notes">{evaluationAdvice(evaluation, garments).map(group =>
+    <section className={`evaluation-note-group evaluation-note-group--${group.kind}`} key={group.name}>
+      <h3>{group.name}</h3><ul>{group.items.map((text,index) => <li key={index}><p>{text}</p></li>)}</ul>
+    </section>)}</div>;
+}
+function SavedOutfits({ edit, plan, refreshKey }) {
+  const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[target,setTarget]=useState(null),[busy,setBusy]=useState(false);
+  const load=useCallback(async()=>{setLoading(true);try{setItems((await api('/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved')).items);setError("");}catch(e){setError(e.message);}finally{setLoading(false);}},[]);
+  useEffect(()=>{void load();},[load,refreshKey]);
+  const remove=async()=>{setBusy(true);try{await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved/${target.id}`,{method:'DELETE'});setTarget(null);await load();}catch(e){setError(e.message);}finally{setBusy(false);}};
+  return <Panel title="Saved outfits" description="Your completed combinations, ready to view, edit or plan.">
+    {error&&<p className="error" role="alert">{error}</p>}
+    {loading?<p>Loading saved outfits…</p>:!items.length?<p>No saved outfits yet. Build or evaluate a combination, then save it here.</p>:<div className="ensemble-grid">{items.map(outfit=><article key={outfit.id}>
+      <h3>{outfit.name}</h3><p>{outfit.score.toFixed(1)}/100 · {outfit.contextName}</p>
+      <ul>{groupOutfitGarments(outfit.items).flatMap(group=>group.items.map(g=><li key={g.id}>{g.name}</li>))}</ul>
+      {outfit.notes&&<p>{outfit.notes}</p>}
+      <OutfitPreview garments={outfit.items} api={api}/>
+      <div className="row-actions"><button onClick={()=>edit(outfit)}>Edit outfit</button><button onClick={()=>plan({name:outfit.name,contextId:outfit.contextId,garmentIds:outfit.items.map(g=>g.id)})}>Open in planner</button><button onClick={()=>setTarget(outfit)}>Delete outfit</button></div>
+    </article>)}</div>}
+    <ConfirmationDialog open={!!target} title="Delete saved outfit?" description={target?`Remove “${target.name}” from saved outfits?`:""} consequence="This removes it from your saved list and future planning choices. Your garments, existing plans and wear history are kept." confirmLabel="Delete outfit" destructive busy={busy} onConfirm={remove} onCancel={()=>setTarget(null)}/>
+  </Panel>;
+}
+function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) {
   const [catalogue, setCatalogue] = useState(null),
-    [selected, setSelected] = useState([]),
+    [selected, setSelected] = useState(initialOutfit?.items.map(g => g.id) || []),
+    [outfitName, setOutfitName] = useState(initialOutfit?.name || ""),
+    [outfitNotes, setOutfitNotes] = useState(initialOutfit?.notes || ""),
+    [editingId, setEditingId] = useState(initialOutfit?.id),
+    [savedOutfit, setSavedOutfit] = useState(null),
+    [useId, setUseId] = useState(initialOutfit?.useId || ""),
     [contextId, setContext] = useState(""),
-    [season, setSeason] = useState(""),
+    [season, setSeason] = useState(initialOutfit?.season || ""),
     [result, setResult] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   useEffect(() => {
-    api("/api/styling/catalogue")
-      .then((value) => {
-        setCatalogue(value);
-        setContext(value.contexts[0]?.id || "");
+    Promise.all([api("/api/timsys/v1/apps/dressed/backend/1.0.0/styling/catalogue"), api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/catalogue")])
+      .then(([value, wardrobe]) => {
+        setCatalogue({...value, uses: wardrobe.uses, garments: wardrobe.garments});
+        setContext(initialOutfit?.contextId || value.contexts[0]?.id || "");
       })
       .catch((cause) => setError(cause.message));
   }, []);
-  const toggle = (id) =>
-    setSelected((current) =>
-      current.includes(id)
-        ? current.filter((value) => value !== id)
-        : [...current, id],
-    );
+  const eligibleGarments = (catalogue?.garments || []).filter(g => !useId || g.useIds.includes(useId));
+  const missingItems = selected.filter(id => !eligibleGarments.some(g => g.id === id));
+  const categoryKey = garment => garment.slotId || garment.categorySlug || garment.id;
+  const occupiedCategories = new Set(eligibleGarments.filter(g => selected.includes(g.id)).map(categoryKey));
+  const visibleGarments = eligibleGarments.filter(g => selected.includes(g.id) || !occupiedCategories.has(categoryKey(g)));
+  const changeUse = (nextUse) => {
+    setUseId(nextUse);
+    const allowed = new Set((catalogue?.garments || []).filter(g => !nextUse || g.useIds.includes(nextUse)).map(g => g.id));
+    setSelected(current => current.filter(id => allowed.has(id)));
+    setResult(null);
+    setError("");
+  };
+  const toggle = (id) => {
+    const item = eligibleGarments.find(g => g.id === id);
+    if (!item) return;
+    setSelected(current => current.includes(id) ? current.filter(value => value !== id) : [...current.filter(value => {
+      const chosen = eligibleGarments.find(g => g.id === value);
+      return !chosen || categoryKey(chosen) !== categoryKey(item);
+    }), id]);
+    setResult(null);
+  };
   const evaluate = async () => {
     setBusy(true);
     setError("");
     try {
       setResult(
-        await api("/api/styling/evaluate", {
+        await api("/api/timsys/v1/apps/dressed/backend/1.0.0/styling/evaluate", {
           method: "POST",
           body: JSON.stringify({
             garmentIds: selected,
@@ -1150,36 +610,54 @@ function StylingLab({ garments, close }) {
       setBusy(false);
     }
   };
-  const groups = result
-    ? [
-        { name: "Hard failures", items: result.evaluation.hardFailures },
-        { name: "Strengths", items: result.evaluation.strengths },
-        { name: "Cautions", items: result.evaluation.cautions },
-        { name: "Major penalties", items: result.evaluation.majorPenalties },
-      ]
-    : [];
+  // Any change invalidates both the evaluation and the saved-selection marker.
+  useEffect(() => { setSavedOutfit(null); }, [selected, contextId, season, useId, outfitName, outfitNotes]);
+  const selectedGarments = (catalogue?.garments || []).filter(g => selected.includes(g.id));
+  const defaultName = selectedGarments.slice(0, 3).map(g => g.name).join(" + ").slice(0, 120);
+  const save = async (plan = false) => {
+    if (!result?.evaluation.eligible || busy) return;
+    setBusy(true); setError("");
+    try {
+      const saved = savedOutfit || await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/save", {
+        method: "POST",
+        body: JSON.stringify({...(editingId ? {replaceId:editingId} : {}), name: (outfitName.trim() || defaultName), garmentIds: selected, contextId, useId: useId || null, season: season || null, notes: outfitNotes.trim() || null}),
+      });
+      setSavedOutfit(saved);
+      if(initialOutfit) setEditingId(saved.id);
+      if (plan) openPlanner({name: saved.name, contextId, garmentIds: [...selected]});
+    } catch (cause) { setError(cause.message); }
+    finally { setBusy(false); }
+  };
   return (
     <div className="modal-backdrop">
       <section className="modal">
         <header>
           <div>
             <p className="eyebrow">OUTFIT CHECK</p>
-            <h2>Check how these garments work together</h2>
+            <h2>{initialOutfit ? "Edit saved outfit" : "Check how these garments work together"}</h2>
             <p className="muted">
-              This scores your selection; it does not generate or save an
-              outfit.
+              Choose your garments, see how they work together, then save the outfit or take it to the planner.
             </p>
           </div>
           <button className="quiet" onClick={close}>
             Close
           </button>
         </header>
+        {initialOutfit && <p className="muted">Save changes to replace this outfit for future use. Existing plans and wear records keep the original version.</p>}
+        {missingItems.length > 0 && <div className="banner"><p>Some saved garments are unavailable or do not match this use. Change the use filter, or remove and replace them before evaluating.</p>{missingItems.map(id => <button key={id} onClick={() => {setSelected(current => current.filter(x => x !== id));setResult(null);}}>Remove {initialOutfit?.items.find(g => g.id === id)?.name || 'unavailable garment'}</button>)}</div>}
         <div className="lab-controls">
+          <label>
+            Use
+            <select value={useId} disabled={busy} onChange={e => changeUse(e.target.value)}>
+              <option value="">All garments (no use filter)</option>
+              {catalogue?.uses.map(use => <option key={use.id} value={use.id}>{use.name}</option>)}
+            </select>
+          </label>
           <label>
             Context
             <select
               value={contextId}
-              onChange={(e) => setContext(e.target.value)}
+              disabled={busy} onChange={(e) => { setContext(e.target.value); setResult(null); }}
             >
               {catalogue?.contexts.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -1190,7 +668,7 @@ function StylingLab({ garments, close }) {
           </label>
           <label>
             Season
-            <select value={season} onChange={(e) => setSeason(e.target.value)}>
+            <select value={season} disabled={busy} onChange={(e) => { setSeason(e.target.value); setResult(null); }}>
               <option value="">Not specified</option>
               {["spring", "summer", "autumn", "winter"].map((x) => (
                 <option key={x}>{x}</option>
@@ -1198,24 +676,32 @@ function StylingLab({ garments, close }) {
             </select>
           </label>
         </div>
+        <p className="muted">Use filters by the tags saved on your garments; context controls the occasion and formality. Changing use removes selections that do not match.</p>
+        <p className="muted">{visibleGarments.length} shown · {selected.length} selected · {eligibleGarments.length - visibleGarments.length} alternatives hidden</p>
+        {catalogue && !eligibleGarments.length && <p className="banner">No available reviewed garments match this use. Choose another use, select All garments, or update the garment use tags in Edit.</p>}
+        <p className="muted">Selecting an item hides alternatives in its outfit category. Deselect it to show those alternatives again.</p>
         <div className="lab-garments">
-          {garments.map((x) => (
+          {groupOutfitGarments(visibleGarments).map(group => <React.Fragment key={group.slot}>
+            <h3 className="lab-garment-type">{group.label} <small>({group.items.length})</small></h3>
+            {group.items.map((x) => (
             <label key={x.id}>
               <input
                 type="checkbox"
+                disabled={busy}
                 checked={selected.includes(x.id)}
                 onChange={() => toggle(x.id)}
               />
               <span>
                 <strong>{x.name}</strong>
-                <small>{x.categoryName}</small>
+                <small>{garments.find(g => g.id === x.id)?.categoryName || x.categorySlug.replaceAll("-", " ")}</small>
               </span>
             </label>
-          ))}
+            ))}
+          </React.Fragment>)}
         </div>
         <button
           className="primary"
-          disabled={selected.length < 2 || busy}
+          disabled={selected.length < 2 || selected.length > 32 || busy || missingItems.length > 0}
           onClick={evaluate}
         >
           {busy ? "Evaluating…" : "Evaluate selected garments"}
@@ -1223,54 +709,56 @@ function StylingLab({ garments, close }) {
         {error && <p className="error banner">{error}</p>}
         {result && (
           <section className="lab-result">
-            <div className="score">
-              <strong>{result.evaluation.grade || "—"}</strong>
-              <span>{result.evaluation.score}/100</span>
-              <small>
-                {result.evaluation.eligible ? "Eligible" : "Ineligible"} ·{" "}
-                {result.ruleSet.name} v{result.ruleSet.version}
-              </small>
-            </div>
-            {groups.map((group) => (
-              <div key={group.name}>
-                <h3>{group.name}</h3>
-                {group.items.length ? (
-                  group.items.map((x) => (
-                    <article key={x.ruleId}>
-                      <strong>
-                        {x.scoreDelta > 0 ? `+${x.scoreDelta}` : x.scoreDelta}
-                      </strong>
-                      <p>{x.explanation}</p>
-                      <code>{x.ruleId}</code>
-                    </article>
-                  ))
-                ) : (
-                  <p className="muted">None</p>
-                )}
+            <CoordinationScore evaluation={result.evaluation} />
+            <p>{result.evaluation.eligible ? "No incompatible garments found. Review the suggestions below; completeness is checked when you save." : "This selection needs changes before it can be worn together."}</p>
+            <OutfitPreview garments={selectedGarments} api={api} />
+            <EvaluationNotes evaluation={result.evaluation} garments={selectedGarments} />
+            <section className="evaluation-save">
+              <h3>Keep this outfit</h3>
+              <p className="muted">Saved outfits are your completed combinations. You can use them in the planner; saving does not record them as worn.</p>
+              <label>Outfit name<input maxLength={120} value={outfitName} placeholder={defaultName} disabled={busy || !!savedOutfit} onChange={e => setOutfitName(e.target.value)} /></label>
+              <label>Notes<textarea maxLength={2000} value={outfitNotes} disabled={busy || !!savedOutfit} onChange={e => setOutfitNotes(e.target.value)} /></label>
+              {savedOutfit && <p role="status">Saved as “{savedOutfit.name}”.</p>}
+              {!result.evaluation.eligible && <p>Resolve the changes listed above before saving.</p>}
+              <div className="row-actions">
+                <button disabled={busy || !!savedOutfit || !result.evaluation.eligible} onClick={() => save(false)}>{savedOutfit ? "Outfit saved" : busy ? "Saving…" : initialOutfit ? "Save changes" : "Save outfit"}</button>
+                <button disabled={busy || !result.evaluation.eligible} onClick={() => save(true)}>{savedOutfit ? "Open in planner" : "Save and open planner"}</button>
+                {savedOutfit && <button onClick={openSaved}>View saved outfits</button>}
               </div>
-            ))}
+            </section>
           </section>
         )}
       </section>
     </div>
   );
 }
+const outfitCategories = [["top","Shirts / tops"],["bottom","Trousers / bottoms"],["footwear","Shoes / boots"],["belt","Belts"],["neckwear","Ties / neckwear"],["pocket_square","Pocket squares"],["outerwear","Jackets / outerwear"],["jacket","Blazers / suit jackets"],["waistcoat","Waistcoats"],["socks","Socks"],["base_layer","Base layers"],["accessory","Other accessories"],...accessorySlots.map(slot=>[slot,({headwear:"Hats / caps",eyewear:"Glasses / sunglasses",tie_clip:"Tie clips",lapel_pin:"Lapel pins"}[slot]||slot.charAt(0).toUpperCase()+slot.slice(1).replaceAll("_"," "))])];
+function groupOutfitGarments(garments) {
+  const groups = new Map();
+  const compare = new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare;
+  for (const garment of garments) {
+    const slot = garment.slotId || garment.categorySlug || 'accessory';
+    if (!groups.has(slot)) groups.set(slot, { slot, label: outfitCategories.find(([id]) => id === slot)?.[1] || slot.replaceAll('_', ' ').replaceAll('-', ' '), items: [] });
+    groups.get(slot).items.push(garment);
+  }
+  return [...groups.values()].sort((a, b) => compare(a.label, b.label)).map(group => ({ ...group, items: group.items.sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id)) }));
+}
 function OutfitBuilder({ close }) {
   const [catalogue, setCatalogue] = useState(null),
-    [anchor, setAnchor] = useState(""),
+    [fixedIds, setFixedIds] = useState([]),
     [contextId, setContext] = useState(""),
     [useId, setUseId] = useState(""),
     [season, setSeason] = useState(""),
+    [selectedSlots, setSelectedSlots] = useState(["top", "bottom", "footwear"]),
     [results, setResults] = useState(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const load = useCallback(async () => {
     try {
-      const value = await api("/api/ensembles/catalogue");
+      const value = await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/catalogue");
       setCatalogue(value);
-      setAnchor((current) => current || value.garments[0]?.id || "");
-      setContext((current) => current || value.contexts[0]?.id || "");
-      setUseId((current) => current || value.uses[0]?.id || "");
+      setContext((current) => current || value.contexts.find(x => x.slug === "smart-casual")?.id || value.contexts[0]?.id || "");
+      // An unassigned use is not a reason to hide reviewed garments.
     } catch (cause) {
       setError(cause.message);
     }
@@ -1283,14 +771,15 @@ function OutfitBuilder({ close }) {
     setError("");
     try {
       setResults(
-        await api("/api/ensembles/generate", {
+        await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/generate", {
           method: "POST",
           body: JSON.stringify({
-            selectedGarmentId: anchor,
+            fixedGarmentIds: fixedIds,
             contextId,
-            useId,
+            useId: useId || null,
             season: season || null,
             limitPerGrade: 12,
+            selectedSlotIds: requiredSlots,
           }),
         }),
       );
@@ -1307,21 +796,21 @@ function OutfitBuilder({ close }) {
           .slice(0, 3)
           .map((item) => item.name)
           .join(" + ");
-        const name = names || `Outfit ${new Date().toLocaleDateString()}`;
-        await api("/api/ensembles/save", {
+        const name = (names || `Outfit ${new Date().toLocaleDateString()}`).slice(0, 120);
+        await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/save", {
           method: "POST",
           body: JSON.stringify({
             name,
             garmentIds: candidate.garments.map((x) => x.id),
             contextId,
-            useId,
+            useId: useId || null,
             season: season || null,
             notes: null,
           }),
         });
         await load();
       } else {
-        await api("/api/ensembles/overrides", {
+        await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/overrides", {
           method: "POST",
           body: JSON.stringify({
             type,
@@ -1337,26 +826,26 @@ function OutfitBuilder({ close }) {
     }
   };
   const tiers = results
-    ? [
-        ["A", results.a],
-        ["B", results.b],
-        ["C", results.c],
-      ]
+    ? [["Ranked suggestions", [...results.a, ...results.b, ...results.c].sort((a,b) => b.evaluation.score-a.evaluation.score)]]
     : [];
-  const eligibleGarments = catalogue?.garments.filter((garment) => garment.useIds.includes(useId)) || [];
-  useEffect(() => {
-    if (!eligibleGarments.some((garment) => garment.id === anchor)) setAnchor(eligibleGarments[0]?.id || "");
-  }, [useId, catalogue]);
+  const eligibleGarments = catalogue?.garments.filter((garment) => !useId || garment.useIds.includes(useId)) || [];
+  const fixedGarments = (catalogue?.garments || []).filter(g => fixedIds.includes(g.id));
+  const fixedSlots = new Set(fixedGarments.map(g => g.slotId));
+  const unavailableFixed = fixedGarments.filter(g => !eligibleGarments.some(item => item.id === g.id));
+  const requestedSlots = [...new Set([...selectedSlots, ...fixedSlots])];
+  const requiredSlots = withCompanions(requestedSlots);
+  const companionRequired = new Set(requiredSlots.map(slot => companionSlots[slot]).filter(Boolean));
+  const missingSelected = requiredSlots.filter(slot => !eligibleGarments.some(g => g.slotId === slot));
+
   return (
     <div className="modal-backdrop">
       <section className="modal ensemble-modal">
         <header>
           <div>
             <p className="eyebrow">OUTFIT BUILDER</p>
-            <h2>Build around one garment</h2>
+            <h2>Complete your outfit</h2>
             <p className="muted">
-              Choose an anchor. Dress'Ed proposes and explains; you decide what
-              to save, favour, or ban.
+              Keep the garments you have already chosen. Select the categories you want Dress’Ed to add, then compare recommendations.
             </p>
           </div>
           <button className="quiet" onClick={close}>
@@ -1365,18 +854,20 @@ function OutfitBuilder({ close }) {
         </header>
         <div className="lab-controls">
           <label>
-            Anchor garment
-            <select value={anchor} onChange={(e) => setAnchor(e.target.value)}>
-              {eligibleGarments.map((x) => (
-                <option key={x.id} value={x.id}>
-                  {x.name} · {x.slotId}
-                </option>
+            Add a fixed garment
+            <select value="" disabled={busy} onChange={(e) => { if(e.target.value) setFixedIds(current => [...current, e.target.value]); setResults(null); }}>
+              <option value="">Choose a garment to keep…</option>
+              {groupOutfitGarments(eligibleGarments.filter(g => !fixedSlots.has(g.slotId))).map(group => (
+                <optgroup key={group.slot} label={group.label}>
+                  {group.items.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
+                </optgroup>
               ))}
             </select>
           </label>
           <label>
             Use
-            <select value={useId} onChange={(e) => setUseId(e.target.value)}>
+            <select value={useId} onChange={(e) => { setUseId(e.target.value); setResults(null); }}>
+              <option value="">All garments (no use filter)</option>
               {catalogue?.uses.map((use) => (
                 <option key={use.id} value={use.id}>{use.name}</option>
               ))}
@@ -1386,7 +877,7 @@ function OutfitBuilder({ close }) {
             Context
             <select
               value={contextId}
-              onChange={(e) => setContext(e.target.value)}
+              onChange={(e) => { setContext(e.target.value); setResults(null); }}
             >
               {catalogue?.contexts.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -1397,7 +888,7 @@ function OutfitBuilder({ close }) {
           </label>
           <label>
             Season
-            <select value={season} onChange={(e) => setSeason(e.target.value)}>
+            <select value={season} onChange={(e) => { setSeason(e.target.value); setResults(null); }}>
               <option value="">Not specified</option>
               {["spring", "summer", "autumn", "winter"].map((x) => (
                 <option key={x}>{x}</option>
@@ -1406,18 +897,39 @@ function OutfitBuilder({ close }) {
           </label>
           <button
             className="primary"
-            disabled={!anchor || !contextId || !useId || busy}
+            disabled={!fixedIds.length || !contextId || busy || unavailableFixed.length > 0 || missingSelected.length > 0 || requiredSlots.length < 2}
             onClick={generate}
           >
             {busy ? "Building…" : "Generate outfits"}
           </button>
         </div>
+        <section className="fixed-outfit-garments" aria-label="Fixed garments">
+          <h3>Garments to keep ({fixedGarments.length})</h3>
+          <p className="muted">Every recommendation keeps these exact items. Remove an item to choose another from its category.</p>
+          {!fixedGarments.length && <p>Choose one or more garments above to start your partial outfit.</p>}
+          <ul>{groupOutfitGarments(fixedGarments).flatMap(group => group.items.map(g => <li key={g.id}><span><strong>{g.name}</strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
+          {unavailableFixed.length > 0 && <p className="banner">These fixed garments do not match the selected use: {unavailableFixed.map(g => g.name).join(', ')}. Change the use filter or remove them before generating.</p>}
+        </section>
+        <fieldset className="outfit-category-checks" disabled={busy}>
+          <legend>Categories to add or keep</legend>
+          <p>Tick the categories you want in the finished combination. Fixed categories are already covered; recommendations fill the others. Required companions are included automatically.</p>
+          <div className="outfit-category-options">{outfitCategories.map(([slot, label]) => {
+            const count = eligibleGarments.filter(g => g.slotId === slot).length;
+            return <label key={slot}><input type="checkbox" checked={requiredSlots.includes(slot)} disabled={fixedSlots.has(slot) || companionRequired.has(slot)} onChange={e => { setSelectedSlots(current => e.target.checked ? [...current, slot] : current.filter(x => x !== slot)); setResults(null); }} />{label} <small>{count} available{fixedSlots.has(slot) ? " · fixed" : companionRequired.has(slot) ? " · required companion" : ""}</small></label>;
+          })}</div>
+        </fieldset>
+        {requiredSlots.filter(slot => companionReasons[slot]).map(slot => <p className="muted" key={slot}>{companionReasons[slot]}</p>)}
+        {requiredSlots.length < 2 && <p className="muted">Select at least two categories to build a combination.</p>}
+        {missingSelected.length > 0 && <p className="banner">No available items for: {missingSelected.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Untick these categories, change the use filter, or add an item.</p>}
+        <p className="muted">Suggestions are ranked by coordination score out of 100. Confidence describes the supporting evidence separately. Equivalent descriptions are grouped, with up to three suggestions per score and two per tie or pocket square unless you fixed that item. Each recommended tie–square pair appears only once; a pair you fixed can accompany different recommendations. Shortlist variety never changes an outfit’s score.</p>
+        <p className="muted">Uses are optional filters. Suggestions use your reviewed colour families and patterns; exact shade and pattern scale remain uncertain.</p>
+        {results?.missingSlots?.length > 0 && <p className="banner">This combination excludes required outfit categories: {results.missingSlots.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Include these before saving a complete outfit.</p>}
         {error && <p className="error banner">{error}</p>}
         {catalogue && !catalogue.garments.length && (
           <div className="empty">
             <h3>No eligible garments yet.</h3>
             <p>
-              Add and analyse garment photographs before asking Dress’Ed to include them in an outfit.
+              Upload a photograph, review the detected details, and confirm the garment before building an outfit. Manual entry is available when detection is uncertain.
             </p>
           </div>
         )}
@@ -1436,24 +948,21 @@ function OutfitBuilder({ close }) {
         {tiers.map(([grade, items]) => (
           <section className="ensemble-tier" key={grade}>
             <h3>
-              Grade {grade} <span>{items.length}</span>
+              {grade} <span>{items.length}</span>
             </h3>
             {!items.length ? (
-              <p className="muted">No eligible outfits at this grade.</p>
+              <p className="muted">No eligible outfits for this selection.</p>
             ) : (
               <div className="ensemble-grid">
                 {items.map((candidate) => (
                   <article key={candidate.key}>
-                    <div className="ensemble-score">
-                      <strong>{candidate.evaluation.grade}</strong>
-                      <span>{candidate.evaluation.score}/100</span>
-                    </div>
+                    <CoordinationScore evaluation={candidate.evaluation} />
                     <div className="ensemble-items">
                       {candidate.garments.map((x) => (
                         <figure key={x.id}>
                           {x.imageId ? (
                             <img
-                              src={`/api/images/${x.imageId}/content`}
+                              src={`/api/timsys/v1/apps/dressed/backend/1.0.0/images/${x.imageId}/content`}
                               alt={x.name}
                             />
                           ) : (
@@ -1466,13 +975,13 @@ function OutfitBuilder({ close }) {
                         </figure>
                       ))}
                     </div>
-                    <p>
-                      {candidate.evaluation.strengths[0]?.explanation ||
-                        candidate.evaluation.cautions[0]?.explanation ||
-                        "Eligible under the active styling rules."}
-                    </p>
+                    <OutfitPreview garments={candidate.garments} api={api} />
+                    <details>
+                      <summary>Why it works and what to improve</summary>
+                      <EvaluationNotes evaluation={candidate.evaluation} garments={candidate.garments} />
+                    </details>
                     <div className="row-actions">
-                      <button onClick={() => act(candidate, "save")}>
+                      <button disabled={!results.isComplete} title={!results.isComplete ? "Add missing required items before saving" : undefined} onClick={() => act(candidate, "save")}>
                         Save
                       </button>
                       <button onClick={() => act(candidate, "favourite")}>
@@ -1498,9 +1007,10 @@ function OutfitBuilder({ close }) {
               <article key={x.id}>
                 <strong>{x.name}</strong>
                 <span>
-                  {x.userGrade || x.calculatedGrade} · {x.score}/100 ·{" "}
+                  {x.score}/100 ·{" "}
                   {x.contextName}
                 </span>
+                <OutfitPreview garments={x.items} api={api} />
               </article>
             ))}
           </section>
@@ -1509,16 +1019,16 @@ function OutfitBuilder({ close }) {
     </div>
   );
 }
-function Planner({ close }) {
+function Planner({ close, initialOutfit }) {
   const [catalogue, setCatalogue] = useState(null),
     [form, setForm] = useState({
-      name: "Work rotation",
+      name: initialOutfit?.name || "Work rotation",
       startDate: new Date().toISOString().slice(0, 10),
-      endDate: new Date(Date.now() + 6 * 86400000).toISOString().slice(0, 10),
+      endDate: new Date(Date.now() + (initialOutfit ? 0 : 6 * 86400000)).toISOString().slice(0, 10),
       weekdays: [0, 1, 2, 3, 4, 5, 6],
-      contextId: "",
+      contextId: initialOutfit?.contextId || "",
       policyId: "",
-      fixedGarmentIds: [],
+      fixedGarmentIds: initialOutfit?.garmentIds || [],
       excludedGarmentIds: [],
     }),
     [error, setError] = useState(""),
@@ -1527,7 +1037,7 @@ function Planner({ close }) {
     [moveDates, setMoveDates] = useState({});
   const load = useCallback(async () => {
     try {
-      const value = await api("/api/planner/catalogue");
+      const value = await api("/api/timsys/v1/apps/dressed/backend/1.0.0/planner/catalogue");
       setCatalogue(value);
       setForm((current) => ({
         ...current,
@@ -1554,7 +1064,7 @@ function Planner({ close }) {
     setBusy(true);
     setError("");
     try {
-      await api("/api/planner/generate", {
+      await api("/api/timsys/v1/apps/dressed/backend/1.0.0/planner/generate", {
         method: "POST",
         body: JSON.stringify(form),
       });
@@ -1567,7 +1077,7 @@ function Planner({ close }) {
   };
   const update = async (id, value) => {
     try {
-      await api(`/api/planner/entries/${id}`, {
+      await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/planner/entries/${id}`, {
         method: "PATCH",
         body: JSON.stringify(value),
       });
@@ -1592,6 +1102,7 @@ function Planner({ close }) {
             Close
           </button>
         </header>
+        {initialOutfit && <p className="banner">“{initialOutfit.name}” is saved. Its garments are fixed below. Choose a date and generate the plan to schedule a saved outfit containing these pieces. Nothing is scheduled until you do.</p>}
         <div className="planner-form">
           <label>
             Plan name
@@ -1831,7 +1342,7 @@ function Lifecycle({ close }) {
     [error, setError] = useState("");
   const load = useCallback(async () => {
     try {
-      const value = await api("/api/lifecycle");
+      const value = await api("/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle");
       setData(value);
       setForm((current) => ({
         ...current,
@@ -1849,7 +1360,7 @@ function Lifecycle({ close }) {
   const submit = async (e) => {
     e.preventDefault();
     try {
-      await api("/api/lifecycle/cases", {
+      await api("/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle/cases", {
         method: "POST",
         body: JSON.stringify({
           ...form,
@@ -1866,7 +1377,7 @@ function Lifecycle({ close }) {
   };
   const resolve = async (id) => {
     try {
-      await api(`/api/lifecycle/cases/${id}/resolve`, {
+      await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle/cases/${id}/resolve`, {
         method: "POST",
         body: JSON.stringify({
           resolvedDate: new Date().toISOString().slice(0, 10),
@@ -2057,7 +1568,7 @@ const navigation = [
   {
     id: "settings",
     label: "Settings",
-    description: "Categories and calibration",
+    description: "Categories and photography",
     icon: "⚙",
   },
 ];
@@ -2082,6 +1593,8 @@ function ModernApp() {
   const [useId, setUseId] = useState("");
   const [page, setPage] = useState(0);
   const [modal, setModal] = useState(null);
+  const [duplicatingId, setDuplicatingId] = useState(null);
+  const [duplicateNotice, setDuplicateNotice] = useState("");
   const [archiveTarget, setArchiveTarget] = useState(null);
   const [archiveBusy, setArchiveBusy] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -2106,12 +1619,12 @@ function ModernApp() {
         profileData,
         garmentData,
       ] = await Promise.all([
-        api("/api/health"),
-        api("/api/application"),
-        api("/api/categories"),
-        api("/api/garment-uses"),
-        api("/api/calibration-profiles"),
-        api(`/api/garments?${query}`),
+        api("/api/timsys/v1/apps/dressed/backend/1.0.0/health"),
+        api("/api/timsys/v1/apps/dressed/backend/1.0.0/application"),
+        api("/api/timsys/v1/apps/dressed/backend/1.0.0/categories"),
+        api("/api/timsys/v1/apps/dressed/backend/1.0.0/garment-uses"),
+        api("/api/timsys/v1/apps/dressed/backend/1.0.0/calibration-profiles"),
+        api(`/api/timsys/v1/apps/dressed/backend/1.0.0/garments?${query}`),
       ]);
       setHealth(healthData);
       setApplication(applicationData);
@@ -2148,12 +1661,23 @@ function ModernApp() {
         })),
     [categories],
   );
+  const duplicate = async (item) => {
+    if (duplicatingId) return;
+    setDuplicatingId(item.id); setError(""); setDuplicateNotice("");
+    try {
+      const copy = await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/garments/${item.id}/duplicate`, {method:"POST",body:JSON.stringify({version:item.version})});
+      await load();
+      setDuplicateNotice(`Created “${copy.name}” with its own wear history, starting at zero. Photos and saved details were copied; check the name and purchase details for this physical item.`);
+      setModal({type:"photos",item:copy});
+    } catch(cause) { setError(cause.message); }
+    finally { setDuplicatingId(null); }
+  };
   const archive = (item) => setArchiveTarget(item);
   const confirmArchive = async () => {
     if (!archiveTarget) return;
     setArchiveBusy(true);
     try {
-      await api(`/api/garments/${archiveTarget.id}/archive`, {
+      await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/garments/${archiveTarget.id}/archive`, {
         method: "POST",
         body: JSON.stringify({ version: archiveTarget.version }),
       });
@@ -2169,7 +1693,7 @@ function ModernApp() {
     if (!deleteTarget) return;
     setDeleteBusy(true);
     try {
-      await api(`/api/garments/${deleteTarget.id}`, { method: "DELETE", body: JSON.stringify({ version: deleteTarget.version }) });
+      await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/garments/${deleteTarget.id}`, { method: "DELETE", body: JSON.stringify({ version: deleteTarget.version }) });
       setDeleteTarget(null);
       await load();
     } catch (cause) {
@@ -2182,7 +1706,7 @@ function ModernApp() {
     if (!calibrationDeleteTarget) return;
     setCalibrationDeleteBusy(true);
     try {
-      const result = await api(`/api/calibration-profiles/${calibrationDeleteTarget.id}`, { method: "DELETE" });
+      const result = await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/calibration-profiles/${calibrationDeleteTarget.id}`, { method: "DELETE" });
       setCalibrationDeleteTarget(null);
       await load();
       setError("");
@@ -2195,29 +1719,7 @@ function ModernApp() {
       setCalibrationDeleteBusy(false);
     }
   };
-  const photoIntake = async () => {
-    try {
-      const uncategorised = categories.find(
-        (item) => item.slug === "uncategorised",
-      );
-      if (!uncategorised)
-        throw new Error("The intake category is unavailable.");
-      const item = await api("/api/garments", {
-        method: "POST",
-        body: JSON.stringify(
-          data({
-            ...blank,
-            categoryId: uncategorised.id,
-            name: `New garment ${new Date().toLocaleDateString()}`,
-          }),
-        ),
-      });
-      setModal({ type: "photos", item });
-      await load();
-    } catch (cause) {
-      setError(cause.message);
-    }
-  };
+  const photoIntake = () => setModal({ type: "garment" });
   const healthy = ["ok", "healthy"].includes(health?.status);
   const status = (
     <StatusBadge tone={error ? "danger" : healthy ? "success" : "warning"}>
@@ -2245,7 +1747,7 @@ function ModernApp() {
     ],
     settings: [
       "Settings",
-      "Manage the classifications and calibration used by Dress’Ed.",
+      "Manage garment categories and retained photography records.",
     ],
   }[view];
   const wardrobeTable = (
@@ -2287,7 +1789,8 @@ function ModernApp() {
             </thead>
             <tbody>
               {catalogue.items.map((item, index) => (
-                <tr key={item.id}>
+                <React.Fragment key={item.id}>
+                <tr aria-expanded={modal?.type === "garment" && modal.item?.id === item.id}>
                   <td>{catalogue.offset + index + 1}</td>
                   <td>
                     <strong>{item.name}</strong>
@@ -2310,15 +1813,14 @@ function ModernApp() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <Button
-                        onClick={() => setModal({ type: "photos", item })}
-                      >
-                        Photos
-                      </Button>
-                      <Button
+<Button
+                        disabled={Boolean(modal?.type === "garment" && modal.item)}
                         onClick={() => setModal({ type: "garment", item })}
                       >
                         Edit
+                      </Button>
+                      <Button disabled={!!duplicatingId || !!modal} onClick={() => duplicate(item)} title="Create a separate identical item with its own wear history">
+                        {duplicatingId === item.id ? "Duplicating…" : "Duplicate"}
                       </Button>
                       <Button variant="danger" onClick={() => archive(item)}>
                         Archive
@@ -2329,6 +1831,14 @@ function ModernApp() {
                     </div>
                   </td>
                 </tr>
+                {view === "wardrobe" && modal?.type === "garment" && modal.item?.id === item.id && (
+                  <tr className="garment-editor-row">
+                    <td colSpan={8}>
+                      <PhotoIntake inline garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
+                    </td>
+                  </tr>
+                )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
@@ -2428,9 +1938,9 @@ function ModernApp() {
               context="Used to organise garments"
             />
             <Metric
-              label="Colour cards"
-              value={profiles.length}
-              context="Used for photo measurement"
+              label="Photo intake"
+              value="Card-free"
+              context="Upload, detect and review"
             />
             <Metric
               label="System"
@@ -2444,15 +1954,15 @@ function ModernApp() {
           >
             <div className="dressed-task-grid">
               <button onClick={photoIntake}>
-                <strong>Add from photographs</strong>
+                <strong>Add garment</strong>
                 <span>
-                  Create the record first, then review suggested details.
+                  Add photos and all garment details in one place.
                 </span>
               </button>
               <button onClick={() => setModal({ type: "ensemble" })}>
                 <strong>Build an outfit</strong>
                 <span>
-                  Start from one garment and review eligible combinations.
+                  Keep your chosen garments and get recommendations to complete the outfit.
                 </span>
               </button>
               <button onClick={() => setModal({ type: "planner" })}>
@@ -2490,7 +2000,7 @@ function ModernApp() {
                 description="Add the first garment to begin creating outfits and building your wear history."
                 action={
                   <Button variant="primary" onClick={photoIntake}>
-                    Add from photographs
+                    Add garment
                   </Button>
                 }
               />
@@ -2504,6 +2014,7 @@ function ModernApp() {
             search={
               <input
                 aria-label="Search wardrobe"
+                disabled={Boolean(modal?.type === "garment" && modal.item)}
                 placeholder="Search garments"
                 value={search}
                 onChange={(event) => {
@@ -2515,6 +2026,7 @@ function ModernApp() {
             filters={<>
               <select
                 aria-label="Filter by category"
+                disabled={Boolean(modal?.type === "garment" && modal.item)}
                 value={categoryId}
                 onChange={(event) => {
                   setCategoryId(event.target.value);
@@ -2538,17 +2050,18 @@ function ModernApp() {
                   ),
                 )}
               </select>
-              <select aria-label="Filter by use" value={useId} onChange={(event) => { setUseId(event.target.value); setPage(0); }}>
+              <select aria-label="Filter by use" disabled={Boolean(modal?.type === "garment" && modal.item)} value={useId} onChange={(event) => { setUseId(event.target.value); setPage(0); }}>
                 <option value="">All uses</option>
                 {uses.map((use) => <option key={use.id} value={use.id}>{use.name}</option>)}
               </select>
             </>}
-            actions={<Button onClick={photoIntake}>Add from photos</Button>}
+            
           />
           {wardrobeTable}
         </>
       )}
       {view === "outfits" && (
+        <>
         <Panel
           title="Outfit workspace"
           description="Dress’Ed proposes combinations; you decide what becomes part of your wardrobe record."
@@ -2565,6 +2078,8 @@ function ModernApp() {
             </Button>
           </div>
         </Panel>
+        <SavedOutfits refreshKey={modal} edit={initialOutfit=>setModal({type:"styling",initialOutfit})} plan={initialOutfit=>setModal({type:"planner",initialOutfit})}/>
+        </>
       )}
       {view === "planner" && (
         <>
@@ -2617,6 +2132,7 @@ function ModernApp() {
       )}
       {view === "settings" && (
         <>
+          <PersonalColouring api={api} />
           <Panel
             title="Categories"
             description="Control how garments are organised."
@@ -2626,8 +2142,8 @@ function ModernApp() {
             </Button>
           </Panel>
           <Panel
-            title="Photo calibration"
-            description="Photograph your printed red, green and blue card once. Include the same card in every garment photograph so colours stay consistent."
+            title="Card-free photography"
+            description="Upload an ordinary photograph, adjust the garment area, then review and correct its details. No colour card is required. Older calibration records are retained for historical photographs."
           >
             {profiles.length ? (
               <div className="calibration-summary" role="status">
@@ -2635,9 +2151,9 @@ function ModernApp() {
                 <div className="calibration-profile-list">
                   <strong>{profiles.length === 1 ? "1 colour card is available" : `${profiles.length} colour cards are available`}</strong>
                   {profiles.map((profile) => <article key={profile.id}>
-                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? `${profile.patches?.length || 0} patches measured · ready for new garment photographs` : "Needs attention before use"}</p></div>
+                    <div><b>{profile.name}</b><p>{profile.readyForPhotos ? `${profile.patches?.length || 0} patches retained for historical photographs` : "Needs attention before use"}</p></div>
                     <div className="source-actions">
-                      <Button onClick={() => setModal({ type: "calibration" })}>Add replacement</Button>
+
                       <Button variant="danger" onClick={() => setCalibrationDeleteTarget(profile)}>Delete</Button>
                     </div>
                   </article>)}
@@ -2646,12 +2162,10 @@ function ModernApp() {
             ) : (
               <div className="calibration-summary calibration-summary--empty">
                 <StatusBadge tone="warning">Not set up</StatusBadge>
-                <div><strong>No colour card is available</strong><p>Add one before photographing garments.</p></div>
+                <div><strong>No colour card required</strong><p>Start in Wardrobe → Add garment. You can also complete details manually.</p></div>
               </div>
             )}
-            <Button onClick={() => setModal({ type: "calibration" })}>
-              Add a colour card
-            </Button>
+
           </Panel>
           <Panel
             title="Styling rules"
@@ -2715,19 +2229,7 @@ function ModernApp() {
           </Panel>
         </>
       )}
-      {modal?.type === "garment" && (
-        <GarmentForm
-          categories={categories}
-          uses={uses}
-          editing={modal.item}
-          suggestion={modal.suggestion}
-          close={() => setModal(null)}
-          saved={async () => {
-            setModal(null);
-            await load();
-          }}
-        />
-      )}{" "}
+
       {modal?.type === "category" && (
         <CategoryForm
           categories={categories}
@@ -2757,24 +2259,17 @@ function ModernApp() {
         onConfirm={confirmCalibrationDelete}
         onCancel={() => setCalibrationDeleteTarget(null)}
       />
-      {modal?.type === "photos" && (
-        <PhotoManager
-          garment={modal.item}
-          profiles={profiles}
-          categories={categories}
-          close={() => setModal(null)}
-          review={(suggestion) =>
-            setModal({ type: "garment", item: modal.item, suggestion })
-          }
-        />
+      {(modal?.type === "photos" || (modal?.type === "garment" && !(view === "wardrobe" && modal.item))) && (
+        <PhotoIntake key={modal.item?.id || "new"} garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
       )}{" "}
+      {duplicateNotice && <p className="banner" role="status">{duplicateNotice}</p>}
       {modal?.type === "styling" && (
-        <StylingLab garments={catalogue.items} close={() => setModal(null)} />
+        <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);setView("outfits");}} />
       )}{" "}
       {modal?.type === "ensemble" && (
         <OutfitBuilder close={() => setModal(null)} />
       )}{" "}
-      {modal?.type === "planner" && <Planner close={() => setModal(null)} />}{" "}
+      {modal?.type === "planner" && <Planner close={() => setModal(null)} initialOutfit={modal.initialOutfit} />}{" "}
       {modal?.type === "wear" && (
         <WearConfirmation close={() => setModal(null)} />
       )}{" "}
@@ -2789,6 +2284,6 @@ function ModernApp() {
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <ActionFeedbackHost />
-    <ModernApp />
+    <ColouringProvider api={api}><ModernApp /></ColouringProvider>
   </React.StrictMode>,
 );

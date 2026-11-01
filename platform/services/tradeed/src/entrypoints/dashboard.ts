@@ -1,0 +1,864 @@
+import { normalizeDomainRequest } from '@timsys/domain-http';
+import { createReadStream } from "node:fs";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { extname, join, normalize } from "node:path";
+import { pathToFileURL } from "node:url";
+
+import type { Pool } from "pg";
+import { createApplicationHealth } from "@timsys/app-sdk";
+
+import type { MintAddress, WalletAddress } from "../domain/shared/types.js";
+import { loadRuntimeConfig } from "../infrastructure/config/load-config.js";
+import { verifyRuntimeDatabase } from "../infrastructure/database/migrations.js";
+import { createRuntimePool } from "../infrastructure/database/pool.js";
+import {
+  paperPerformanceRanges,
+  readPaperDashboardDetails,
+  readPaperPerformanceHistory,
+  readPaperTokenDetails,
+  readPaperWorkerAlerts,
+  readAcquisitionPipelineStatus,
+  readStrategyFunnel,
+  readPaperOpportunityAudit,
+  readFocusedPaperDashboard,
+} from "../infrastructure/database/paper-dashboard.js";
+import {
+  addDashboardWatchlistToken,
+  createDashboardWatchlist,
+  deleteDashboardWatchlist,
+  listDashboardWatchlists,
+  removeDashboardWatchlistToken,
+  renameDashboardWatchlist,
+  WatchlistConflictError,
+} from "../infrastructure/database/dashboard-watchlists.js";
+import {
+  createDashboardTradingConfiguration,
+  deleteDashboardTradingConfiguration,
+  listDashboardTradingConfigurations,
+  TradingConfigurationConflictError,
+  updateDashboardTradingConfiguration,
+  type DashboardTradingConfigurationValues,
+} from "../infrastructure/database/dashboard-trading-configurations.js";
+import {
+  cancelPendingPaperEntry,
+  PaperControlConflictError,
+  requestPaperPositionClose,
+} from "../infrastructure/database/paper-operator-controls.js";
+import { readPaperPerformanceReport } from "../workers/health-worker.js";
+import { resolveApplicationRoot } from "../infrastructure/runtime/application-root.js";
+import { readOperationalDashboardStatus } from "../infrastructure/database/operational-dashboard.js";
+import {
+  configurePaperProfile,
+  listPaperProfileActivations,
+  ProfileActivationConflictError,
+} from "../infrastructure/database/paper-profile-activations.js";
+import {
+  profileIds,
+  focusedProfileIdSet,
+  tradingProfile,
+  tradingProfileCatalogue,
+  type PaperProfileMode,
+  type TradingProfileId,
+} from "../domain/strategy/profiles.js";
+import {
+  readProfilePaperPerformance,
+  readProfilePostExitAnalysis,
+} from "../application/services/profile-paper-simulation.js";
+
+const contentTypes: Readonly<Record<string, string>> = Object.freeze({
+  ".css": "text/css; charset=utf-8",
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+});
+const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROFILE_MODES = new Set<PaperProfileMode>(["observe", "recommend", "automatic_paper"]);
+
+export interface PaperDashboardDependencies {
+  readonly database: Pick<Pool, "query" | "end">;
+  readonly wallet: WalletAddress;
+  readonly publicDirectory: string;
+  readonly now?: () => Date;
+  readonly mutationToken?: string;
+  readonly trustedLocalMutations?: boolean;
+}
+
+function authorized(
+  request: IncomingMessage,
+  token: string | undefined,
+  trustedLocalMutations = false,
+): boolean {
+  if (trustedLocalMutations) return true;
+  if (token === undefined) return false;
+  const supplied = request.headers.authorization;
+  if (supplied === undefined || !supplied.startsWith("Bearer ")) return false;
+  const left = createHash("sha256").update(supplied.slice(7)).digest();
+  const right = createHash("sha256").update(token).digest();
+  return timingSafeEqual(left, right);
+}
+
+async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
+  const contentType = request.headers["content-type"] ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) throw new Error("content_type");
+  let body = "";
+  for await (const chunk of request) {
+    body += String(chunk);
+    if (Buffer.byteLength(body) > 16_384) throw new Error("body_too_large");
+  }
+  const value: unknown = JSON.parse(body);
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    throw new Error("invalid_body");
+  return value as Record<string, unknown>;
+}
+
+function validName(value: unknown): value is string {
+  return (
+    typeof value === "string" && value.trim() === value && value.length >= 1 && value.length <= 80
+  );
+}
+
+function validVersion(value: unknown): value is number {
+  return Number.isSafeInteger(value) && Number(value) > 0;
+}
+
+function validInteger(value: unknown, minimum: number, maximum: number): value is number {
+  return Number.isSafeInteger(value) && Number(value) >= minimum && Number(value) <= maximum;
+}
+
+function validProfileId(value: string): value is TradingProfileId {
+  return profileIds.includes(value as TradingProfileId);
+}
+
+function tradingConfigurationValues(
+  body: Record<string, unknown>,
+): DashboardTradingConfigurationValues {
+  if (
+    typeof body.strategyVersionId !== "string" ||
+    !/^strategy-v\d+\.\d+\.\d+$/.test(body.strategyVersionId) ||
+    !validInteger(body.maximumConcurrentPositions, 1, 3) ||
+    !validInteger(body.riskPerTradeBps, 1, 50) ||
+    !validInteger(body.maximumPositionEquityBps, 1, 500) ||
+    !validInteger(body.maximumOpenExposureBps, 1, 1000) ||
+    !validInteger(body.minimumUncommittedEquityBps, 5000, 10000) ||
+    !validInteger(body.entrySlippageBps, 1, 150) ||
+    body.maximumPositionEquityBps > body.maximumOpenExposureBps
+  )
+    throw new Error("invalid_trading_configuration");
+  return Object.freeze({
+    strategyVersionId: body.strategyVersionId,
+    maximumConcurrentPositions: body.maximumConcurrentPositions,
+    riskPerTradeBps: body.riskPerTradeBps,
+    maximumPositionEquityBps: body.maximumPositionEquityBps,
+    maximumOpenExposureBps: body.maximumOpenExposureBps,
+    minimumUncommittedEquityBps: body.minimumUncommittedEquityBps,
+    entrySlippageBps: body.entrySlippageBps,
+  });
+}
+
+function secureHeaders(response: ServerResponse): void {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self'; connect-src 'self'; frame-ancestors 'none'",
+  );
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  response.setHeader("X-Frame-Options", "DENY");
+}
+
+function sendJson(response: ServerResponse, status: number, value: unknown): void {
+  secureHeaders(response);
+  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(value));
+}
+
+function publicFile(publicDirectory: string, pathname: string): string | null {
+  const requested = pathname === "/" ? "index.html" : pathname.slice(1);
+  const relative = normalize(requested);
+  if (relative.startsWith("..") || relative.includes("/../") || relative.includes("\\"))
+    return null;
+  return join(publicDirectory, relative);
+}
+
+export function createPaperDashboardServer(dependencies: PaperDashboardDependencies) {
+  const now = dependencies.now ?? (() => new Date());
+  let profilePerformanceCache: readonly Record<string, unknown>[] | null = null;
+  let profilePerformanceReadAt = 0;
+  return createServer(async (request: IncomingMessage, response: ServerResponse) => {
+    if(!normalizeDomainRequest(request,response,'tradeed'))return;
+    const method = request.method ?? "GET";
+    const url = new URL(request.url ?? "/", "http://127.0.0.1");
+    const pathname = url.pathname;
+    if (pathname === "/api/health") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        await dependencies.database.query("SELECT 1 AS ready");
+        sendJson(
+          response,
+          200,
+          createApplicationHealth({
+            application: "tradeed",
+            status: "healthy",
+            observedAt: now().toISOString(),
+            components: [
+              { id: "database", status: "healthy", message: "Database is ready" },
+              {
+                id: "paper-runtime",
+                status: "healthy",
+                message: "Paper-safe runtime is available",
+              },
+            ],
+            mode: "paper",
+            database: "ready",
+          }),
+        );
+      } catch {
+        sendJson(
+          response,
+          503,
+          createApplicationHealth({
+            application: "tradeed",
+            status: "unavailable",
+            observedAt: now().toISOString(),
+            components: [
+              { id: "database", status: "unavailable", message: "Database is unavailable" },
+            ],
+            mode: "paper",
+            database: "unavailable",
+          }),
+        );
+      }
+      return;
+    }
+    if (pathname === "/api/application") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      sendJson(response, 200, {
+        id: "tradeed",
+        name: "Trade'Ed",
+        mode: "paper",
+        functions: [
+          "market-acquisition",
+          "fast-furious-paper-trading",
+          "oscillation-trader-paper-trading",
+          "evaluation-telemetry",
+          "trade-history",
+          "profit-and-loss",
+        ],
+      });
+      return;
+    }
+    if (pathname === "/api/paper/pipeline") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const pipeline = await readAcquisitionPipelineStatus(dependencies.database);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), pipeline });
+      } catch {
+        sendJson(response, 503, { error: "pipeline_status_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/strategy-funnel") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const rows = await readStrategyFunnel(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", period: "24h", rows });
+      } catch {
+        sendJson(response, 503, { error: "strategy_funnel_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/focused-dashboard") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const dashboard = await readFocusedPaperDashboard(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), dashboard });
+      } catch {
+        sendJson(response, 503, { error: "focused_dashboard_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/opportunity-audit") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const rows = await readPaperOpportunityAudit(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", period: "24h", priceHorizonMinutes: 5, rows });
+      } catch {
+        sendJson(response, 503, { error: "opportunity_audit_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/operations/status") {
+      if (method !== "GET") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      try {
+        const operations = await readOperationalDashboardStatus(dependencies.database);
+        sendJson(response, 200, {
+          mode: "paper",
+          observedAt: now().toISOString(),
+          operations,
+        });
+      } catch {
+        sendJson(response, 503, { error: "operational_status_unavailable" });
+      }
+      return;
+    }
+    const configurationMatch = pathname.match(/^\/api\/trading-configurations\/([0-9a-f-]+)$/i);
+    const watchlistMatch = pathname.match(/^\/api\/watchlists\/([0-9a-f-]+)$/i);
+    const tokenMatch = pathname.match(
+      /^\/api\/watchlists\/([0-9a-f-]+)\/tokens(?:\/([1-9A-HJ-NP-Za-km-z]+))?$/,
+    );
+    const paperOrderCancelMatch = pathname.match(/^\/api\/paper\/orders\/([0-9a-f-]+)\/cancel$/i);
+    const paperPositionCloseMatch = pathname.match(
+      /^\/api\/paper\/positions\/([1-9A-HJ-NP-Za-km-z]+)\/close$/,
+    );
+    if (paperOrderCancelMatch !== null || paperPositionCloseMatch !== null) {
+      if (method !== "POST") {
+        sendJson(response, 405, { error: "method_not_allowed" });
+        return;
+      }
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const body = await readJson(request);
+        if (paperOrderCancelMatch !== null) {
+          const signalId = paperOrderCancelMatch[1];
+          if (signalId === undefined || !UUID.test(signalId)) throw new Error("invalid_signal_id");
+          if (body.confirmedSignalId !== signalId) throw new Error("invalid_confirmation");
+          if (!Number.isSafeInteger(body.expectedVersion) || Number(body.expectedVersion) < 0)
+            throw new Error("invalid_expected_version");
+          const order = await cancelPendingPaperEntry(
+            dependencies.database,
+            dependencies.wallet,
+            signalId,
+            Number(body.expectedVersion),
+            now(),
+          );
+          sendJson(response, 200, { mode: "paper", order });
+          return;
+        }
+        const tokenMint = paperPositionCloseMatch?.[1];
+        if (tokenMint === undefined || !SOLANA_ADDRESS.test(tokenMint))
+          throw new Error("invalid_token_mint");
+        if (body.confirmedMint !== tokenMint) throw new Error("invalid_confirmation");
+        if (
+          typeof body.expectedOpenAmountRaw !== "string" ||
+          !/^[1-9]\d*$/.test(body.expectedOpenAmountRaw) ||
+          body.expectedOpenAmountRaw.length > 78
+        )
+          throw new Error("invalid_open_amount");
+        const closeRequest = await requestPaperPositionClose(
+          dependencies.database,
+          dependencies.wallet,
+          tokenMint as MintAddress,
+          BigInt(body.expectedOpenAmountRaw),
+          now(),
+        );
+        sendJson(response, 202, { mode: "paper", closeRequest });
+      } catch (error) {
+        if (error instanceof PaperControlConflictError) {
+          sendJson(response, 409, { error: "paper_control_conflict" });
+        } else if (
+          error instanceof Error &&
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_signal_id",
+            "invalid_expected_version",
+            "invalid_token_mint",
+            "invalid_open_amount",
+            "invalid_confirmation",
+          ].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "paper_control_unavailable" });
+        }
+      }
+      return;
+    }
+    if (pathname === "/api/trading-configurations" && method === "GET") {
+      try {
+        const configurations = await listDashboardTradingConfigurations(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        sendJson(response, 200, { configurations });
+      } catch {
+        sendJson(response, 503, { error: "trading_configurations_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/trading-profiles" && method === "GET") {
+      try {
+        const activations = await listPaperProfileActivations(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        if (profilePerformanceCache === null || Date.now() - profilePerformanceReadAt >= 300_000) {
+          profilePerformanceCache = await readProfilePaperPerformance(
+            dependencies.database,
+            dependencies.wallet,
+          );
+          profilePerformanceReadAt = Date.now();
+        }
+        const performance = profilePerformanceCache;
+        sendJson(response, 200, {
+          profiles: tradingProfileCatalogue
+            .filter((definition) => focusedProfileIdSet.has(definition.id))
+            .map((definition) => ({
+              ...definition,
+              ...activations.find((item) => item.profileId === definition.id),
+              performance:
+                performance.find(
+                  (item: Record<string, unknown>) => item.profile_id === definition.id,
+                ) ?? null,
+            })),
+          policy: {
+            operatorAccess: dependencies.trustedLocalMutations ? "desktop_session" : "token",
+            maximumCombinedAllocationBps: 10_000,
+            maximumCombinedOpenExposureBps: 1_000,
+            duplicateMintPolicy: "best_qualified_profile_owns_position",
+            liveExecutionAuthorized: false,
+          },
+        });
+      } catch {
+        sendJson(response, 503, { error: "trading_profiles_unavailable" });
+      }
+      return;
+    }
+    const profileMatch = pathname.match(/^\/api\/trading-profiles\/([a-z_]+)$/);
+    if (profileMatch !== null && method === "PUT") {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const profileId = profileMatch[1] ?? "";
+        if (!validProfileId(profileId) || tradingProfile(profileId) === null)
+          throw new Error("invalid_profile_id");
+        if (!focusedProfileIdSet.has(profileId)) throw new Error("invalid_profile_id");
+        const body = await readJson(request);
+        if (
+          typeof body.enabled !== "boolean" ||
+          typeof body.mode !== "string" ||
+          !PROFILE_MODES.has(body.mode as PaperProfileMode) ||
+          !validInteger(body.allocationBps, 0, 10_000) ||
+          !Number.isSafeInteger(body.expectedVersion) ||
+          Number(body.expectedVersion) < 0
+        )
+          throw new Error("invalid_profile_configuration");
+        const profile = await configurePaperProfile(
+          dependencies.database,
+          dependencies.wallet,
+          profileId,
+          Number(body.expectedVersion),
+          body.enabled,
+          body.mode as PaperProfileMode,
+          body.allocationBps,
+          now(),
+        );
+        sendJson(response, 200, { profile });
+      } catch (error) {
+        if (error instanceof ProfileActivationConflictError) {
+          sendJson(response, 409, { error: "profile_version_conflict" });
+        } else if (error instanceof RangeError) {
+          const allocationExceeded = /exceed|portfolio/i.test(error.message);
+          const allocationInvalid = /allocation/i.test(error.message);
+          sendJson(response, 409, {
+            error: allocationExceeded
+              ? "profile_allocation_exceeded"
+              : allocationInvalid
+                ? "profile_allocation_invalid"
+                : "profile_evidence_unavailable",
+            message: error.message,
+          });
+        } else if (
+          error instanceof Error &&
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_profile_id",
+            "invalid_profile_configuration",
+          ].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "trading_profile_mutation_unavailable" });
+        }
+      }
+      return;
+    }
+    if (pathname.startsWith("/api/trading-configurations") && method !== "GET") {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const body = await readJson(request);
+        if (pathname === "/api/trading-configurations" && method === "POST") {
+          if (!validName(body.name)) throw new Error("invalid_configuration_name");
+          const configuration = await createDashboardTradingConfiguration(
+            dependencies.database,
+            dependencies.wallet,
+            body.name,
+            tradingConfigurationValues(body),
+            now(),
+          );
+          sendJson(response, 201, { configuration });
+          return;
+        }
+        const id = configurationMatch?.[1];
+        if (id === undefined || !UUID.test(id)) throw new Error("invalid_configuration_id");
+        if (!validVersion(body.expectedVersion)) throw new Error("invalid_expected_version");
+        if (configurationMatch !== null && method === "PUT") {
+          if (!validName(body.name)) throw new Error("invalid_configuration_name");
+          const configuration = await updateDashboardTradingConfiguration(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            body.expectedVersion,
+            body.name,
+            tradingConfigurationValues(body),
+            now(),
+          );
+          sendJson(response, 200, { configuration });
+          return;
+        }
+        if (configurationMatch !== null && method === "DELETE") {
+          if (!validName(body.confirmedName)) throw new Error("invalid_confirmation");
+          await deleteDashboardTradingConfiguration(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            body.expectedVersion,
+            body.confirmedName,
+            now(),
+          );
+          response.writeHead(204, { "Cache-Control": "no-store" });
+          response.end();
+          return;
+        }
+        sendJson(response, 405, { error: "method_not_allowed" });
+      } catch (error) {
+        if (error instanceof TradingConfigurationConflictError) {
+          sendJson(response, 409, { error: "trading_configuration_version_conflict" });
+        } else if (
+          error instanceof Error &&
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_configuration_name",
+            "invalid_configuration_id",
+            "invalid_expected_version",
+            "invalid_confirmation",
+            "invalid_trading_configuration",
+          ].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "trading_configuration_mutation_unavailable" });
+        }
+      }
+      return;
+    }
+    if (pathname === "/api/watchlists" && method === "GET") {
+      try {
+        const watchlists = await listDashboardWatchlists(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        sendJson(response, 200, { watchlists });
+      } catch {
+        sendJson(response, 503, { error: "watchlists_unavailable" });
+      }
+      return;
+    }
+    if (pathname.startsWith("/api/watchlists") && method !== "GET") {
+      if (!authorized(request, dependencies.mutationToken, dependencies.trustedLocalMutations)) {
+        sendJson(response, 401, { error: "mutation_authentication_required" });
+        return;
+      }
+      if (request.headers.origin !== `http://${request.headers.host}`) {
+        sendJson(response, 403, { error: "invalid_mutation_origin" });
+        return;
+      }
+      try {
+        const body = await readJson(request);
+        if (pathname === "/api/watchlists" && method === "POST") {
+          if (!validName(body.name)) throw new Error("invalid_watchlist_name");
+          const watchlist = await createDashboardWatchlist(
+            dependencies.database,
+            dependencies.wallet,
+            body.name,
+            now(),
+          );
+          sendJson(response, 201, { watchlist });
+          return;
+        }
+        const id = watchlistMatch?.[1] ?? tokenMatch?.[1];
+        if (id === undefined || !UUID.test(id)) throw new Error("invalid_watchlist_id");
+        if (!validVersion(body.expectedVersion)) throw new Error("invalid_expected_version");
+        if (watchlistMatch !== null && method === "PATCH") {
+          if (!validName(body.name)) throw new Error("invalid_watchlist_name");
+          const watchlist = await renameDashboardWatchlist(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            body.name,
+            body.expectedVersion,
+            now(),
+          );
+          sendJson(response, 200, { watchlist });
+          return;
+        }
+        if (watchlistMatch !== null && method === "DELETE") {
+          if (!validName(body.confirmedName)) throw new Error("invalid_confirmation");
+          await deleteDashboardWatchlist(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            body.expectedVersion,
+            body.confirmedName,
+            now(),
+          );
+          response.writeHead(204, { "Cache-Control": "no-store" });
+          response.end();
+          return;
+        }
+        const pathMint = tokenMatch?.[2];
+        const mint = method === "POST" ? body.mint : pathMint;
+        if (typeof mint !== "string" || !SOLANA_ADDRESS.test(mint))
+          throw new Error("invalid_token_mint");
+        if (tokenMatch !== null && method === "POST" && pathMint === undefined) {
+          const watchlist = await addDashboardWatchlistToken(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            mint as MintAddress,
+            body.expectedVersion,
+            now(),
+          );
+          sendJson(response, 200, { watchlist });
+          return;
+        }
+        if (tokenMatch !== null && method === "DELETE" && pathMint !== undefined) {
+          const watchlist = await removeDashboardWatchlistToken(
+            dependencies.database,
+            dependencies.wallet,
+            id,
+            mint as MintAddress,
+            body.expectedVersion,
+            now(),
+          );
+          sendJson(response, 200, { watchlist });
+          return;
+        }
+        sendJson(response, 405, { error: "method_not_allowed" });
+      } catch (error) {
+        if (error instanceof WatchlistConflictError) {
+          sendJson(response, 409, { error: "watchlist_version_conflict" });
+        } else if (
+          error instanceof Error &&
+          [
+            "content_type",
+            "body_too_large",
+            "invalid_body",
+            "invalid_watchlist_name",
+            "invalid_watchlist_id",
+            "invalid_expected_version",
+            "invalid_confirmation",
+            "invalid_token_mint",
+          ].includes(error.message)
+        ) {
+          sendJson(response, 400, { error: error.message });
+        } else {
+          sendJson(response, 503, { error: "watchlist_mutation_unavailable" });
+        }
+      }
+      return;
+    }
+    if (method !== "GET") {
+      sendJson(response, 405, { error: "method_not_allowed" });
+      return;
+    }
+    if (pathname === "/api/paper/snapshot") {
+      try {
+        const performance = await readPaperPerformanceReport(
+          dependencies.database,
+          dependencies.wallet,
+        );
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), performance });
+      } catch {
+        sendJson(response, 503, { error: "paper_snapshot_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/details") {
+      try {
+        const details = await readPaperDashboardDetails(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), details });
+      } catch {
+        sendJson(response, 503, { error: "paper_details_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/alerts") {
+      try {
+        const alerts = await readPaperWorkerAlerts(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), alerts });
+      } catch {
+        sendJson(response, 503, { error: "paper_alerts_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/performance") {
+      const range = url.searchParams.get("range") ?? "7d";
+      if (!paperPerformanceRanges.some((candidate) => candidate === range)) {
+        sendJson(response, 400, { error: "invalid_performance_range" });
+        return;
+      }
+      try {
+        const points = await readPaperPerformanceHistory(
+          dependencies.database,
+          dependencies.wallet,
+          range as (typeof paperPerformanceRanges)[number],
+        );
+        sendJson(response, 200, {
+          mode: "paper",
+          observedAt: now().toISOString(),
+          range,
+          basis: "realized_book_equity",
+          points,
+        });
+      } catch {
+        sendJson(response, 503, { error: "paper_performance_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/post-exit-analysis") {
+      try {
+        const exits = await readProfilePostExitAnalysis(dependencies.database, dependencies.wallet);
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), exits });
+      } catch {
+        sendJson(response, 503, { error: "post_exit_analysis_unavailable" });
+      }
+      return;
+    }
+    if (pathname === "/api/paper/token") {
+      const mint = url.searchParams.get("mint");
+      if (mint === null || !SOLANA_ADDRESS.test(mint)) {
+        sendJson(response, 400, { error: "invalid_token_mint" });
+        return;
+      }
+      try {
+        const token = await readPaperTokenDetails(
+          dependencies.database,
+          dependencies.wallet,
+          mint as MintAddress,
+        );
+        sendJson(response, 200, { mode: "paper", observedAt: now().toISOString(), token });
+      } catch {
+        sendJson(response, 503, { error: "paper_token_unavailable" });
+      }
+      return;
+    }
+    const file = publicFile(dependencies.publicDirectory, pathname);
+    if (file === null || !Object.hasOwn(contentTypes, extname(file))) {
+      sendJson(response, 404, { error: "not_found" });
+      return;
+    }
+    secureHeaders(response);
+    response.setHeader("Content-Type", contentTypes[extname(file)] ?? "application/octet-stream");
+    const stream = createReadStream(file);
+    stream.once("error", () => {
+      if (!response.headersSent) sendJson(response, 404, { error: "not_found" });
+      else response.destroy();
+    });
+    stream.pipe(response);
+  });
+}
+
+export async function startPaperDashboard(environment: NodeJS.ProcessEnv): Promise<void> {
+  const config = loadRuntimeConfig(environment);
+  if (config.mode !== "paper" || config.paper === null)
+    throw new Error("Paper dashboard requires paper mode");
+  const database = createRuntimePool({
+    connectionString: config.databaseUrl,
+    production: config.environment === "production",
+    managedLocal: config.managedDatabase,
+    maximumConnections: config.managedDatabase ? 6 : 10,
+  });
+  await verifyRuntimeDatabase(database, "paper", true);
+  const mutationToken = environment.PAPER_DASHBOARD_MUTATION_TOKEN;
+  if (mutationToken !== undefined && mutationToken.length < 32)
+    throw new Error("PAPER_DASHBOARD_MUTATION_TOKEN must contain at least 32 characters");
+  const server = createPaperDashboardServer({
+    database,
+    wallet: config.paper.walletAddress as WalletAddress,
+    publicDirectory: environment.TIMSYS_FRONTEND_ROOT ?? join(resolveApplicationRoot(environment), "frontend"),
+    trustedLocalMutations: config.managedDatabase,
+    ...(mutationToken === undefined ? {} : { mutationToken }),
+  });
+  const port = Number(environment.PAPER_DASHBOARD_PORT ?? "8080");
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535)
+    throw new Error("PAPER_DASHBOARD_PORT must be an integer from 1 to 65535");
+  server.on("close", () => void database.end());
+  server.listen(port, "127.0.0.1", () =>
+    process.stdout.write(`Paper dashboard: http://127.0.0.1:${port}\n`),
+  );
+  const shutdown = () => server.close();
+  process.once("SIGINT", shutdown);
+  process.once("SIGTERM", shutdown);
+  server.once("close", () => {
+    process.removeListener("SIGINT", shutdown);
+    process.removeListener("SIGTERM", shutdown);
+  });
+}
+
+const invokedPath = process.argv[1];
+if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
+  startPaperDashboard(process.env).catch((error: unknown) => {
+    process.stderr.write(`${error instanceof Error ? error.message : "Dashboard failure"}\n`);
+    process.exitCode = 1;
+  });
+}

@@ -1,0 +1,204 @@
+import { describe, expect, it } from "vitest";
+import { runtimePoolConfig } from "../../src/infrastructure/database/pool.js";
+import { verifyRuntimeDatabase } from "../../src/infrastructure/database/migrations.js";
+
+const columns = [
+  "audit_events.id",
+  "jobs.id",
+  "jobs.payload_json",
+  "jobs.state",
+  "jobs.available_at",
+  "jobs.version",
+  "jobs.last_error_json",
+  "jobs.last_error_at",
+  "position_runtime_facts.id",
+  "position_runtime_facts.position_id",
+  "position_runtime_facts.checkpoint_revision",
+  "position_runtime_facts.phase",
+  "position_runtime_facts.payload_json",
+  "position_observations.id",
+  "position_observations.position_id",
+  "position_observations.content_hash",
+  "position_observations.payload_json",
+  "position_runtime_fact_observations.runtime_fact_id",
+  "position_runtime_fact_observations.observation_id",
+  "position_runtime_contexts.position_id",
+  "position_runtime_contexts.token_id",
+  "position_runtime_contexts.wallet",
+  "position_runtime_contexts.token_mint",
+  "position_runtime_contexts.settlement_mint",
+  "position_runtime_authority_snapshots.id",
+  "position_runtime_authority_snapshots.position_id",
+  "position_runtime_authority_snapshots.checkpoint_revision",
+  "position_runtime_authority_snapshots.phase",
+  "position_runtime_authority_snapshots.authority_kind",
+  "position_runtime_authority_snapshots.payload_json",
+  "position_runtime_authority_baselines.position_id",
+  "position_runtime_authority_baselines.payload_json",
+  "operator_approvals.state",
+  "operator_approvals.nonce_hash",
+  "operator_approval_events.event_type",
+  "telegram_operator_updates.state",
+  "operator_runtime_control.entry_blocked",
+  "operator_runtime_control_events.entry_blocked",
+];
+
+const paperColumns = [
+  "paper_accounts.wallet",
+  "paper_accounts.initial_cash_raw",
+  "paper_cash_events.event_type",
+  "paper_cash_events.amount_raw",
+  "paper_fills.id",
+  "paper_fills.side",
+  "paper_fills.execution_fee_raw",
+  "paper_position_lots.current_amount_raw",
+  "paper_position_lots.remaining_cost_raw",
+  "paper_entry_executions.risk_run_id",
+  "paper_position_work.available_at",
+  "paper_position_work.last_error",
+  "paper_realized_performance.realized_pnl_raw",
+  "paper_exit_evaluations.evaluated_at",
+  "dashboard_watchlists.version",
+  "dashboard_watchlist_tokens.token_mint",
+  "dashboard_mutation_audit.action",
+  "dashboard_trading_configurations.version",
+  "dashboard_trading_configurations.entry_slippage_bps",
+  "dashboard_trading_configuration_audit.action",
+  "paper_position_close_requests.state",
+  "paper_operator_control_audit.action",
+  "paper_profile_activations.profile_id",
+  "paper_profile_accounts.cash_raw",
+  "paper_profile_candidate_decisions.eligible",
+  "paper_profile_candidate_decisions.entry_state",
+  "paper_profile_candidate_decisions.entry_attempts",
+  "paper_profile_candidate_decisions.next_entry_attempt_at",
+  "paper_profile_candidate_decisions.signal_json",
+  "paper_profile_candidate_decisions.signal_observed_at",
+  "paper_profile_candidate_decisions.engine_version",
+  "paper_fast_market_observations.output_amount_raw",
+      "paper_fast_market_observations.quote_fingerprint",
+      "paper_fast_market_observations.market_price_usd",
+      "paper_fast_market_observations.liquidity_usd",
+      "paper_fast_market_observations.five_minute_volume_usd",
+      "paper_fast_market_observations.five_minute_buys",
+      "paper_fast_market_observations.five_minute_sells",
+      "paper_fast_market_observations.five_minute_price_change",
+      "paper_fast_market_observations.one_hour_price_change",
+      "paper_fast_market_observations.market_evidence_json",
+  "paper_fast_signal_events.signal_json",
+  "paper_fast_signal_events.eligible",
+  "paper_profile_positions.high_water_raw",
+  "paper_profile_positions.current_value_raw",
+      "paper_profile_positions.entry_signal_json",
+      "paper_profile_positions.engine_version",
+      "paper_profile_positions.entry_fee_raw",
+      "paper_profile_fills.engine_version",
+  "paper_profile_fills.decision_snapshot_json",
+  "paper_profile_fills.reason",
+];
+
+function database(missing?: string, includePaper = false) {
+  return {
+    query: async (sql: string) =>
+      sql.startsWith("SHOW")
+        ? { rows: [{ server_version: "18.4" }] }
+        : {
+            rows: [...columns, ...(includePaper ? paperColumns : [])]
+              .filter((item) => item !== missing)
+              .map((item) => {
+                const [table_name, column_name] = item.split(".");
+                return { table_name, column_name };
+              }),
+          },
+  };
+}
+
+describe("runtime database startup", () => {
+  it("builds a bounded production TLS pool", () =>
+    expect(
+      runtimePoolConfig({ connectionString: "postgresql://secret@example/db", production: true }),
+    ).toMatchObject({ max: 10, ssl: { rejectUnauthorized: true } }));
+  it("does not mutate the connection string", () =>
+    expect(
+      runtimePoolConfig({ connectionString: "postgresql://secret@example/db", production: false })
+        .connectionString,
+    ).toBe("postgresql://secret@example/db"));
+  it("allows the launcher's managed production database only on loopback", () => {
+    expect(
+      runtimePoolConfig({
+        connectionString: "postgresql://runtime:secret@127.0.0.1:54321/tradeed",
+        production: true,
+        managedLocal: true,
+      }),
+    ).toMatchObject({ ssl: false });
+    expect(() =>
+      runtimePoolConfig({
+        connectionString: "postgresql://runtime:secret@database.example/tradeed",
+        production: true,
+        managedLocal: true,
+      }),
+    ).toThrow(/loopback/);
+  });
+  it("rejects excessive connection pools", () =>
+    expect(() =>
+      runtimePoolConfig({
+        connectionString: "postgresql://x",
+        production: false,
+        maximumConnections: 51,
+      }),
+    ).toThrow(/between 1 and 50/));
+  it("accepts the complete runtime schema", async () =>
+    await expect(verifyRuntimeDatabase(database() as never)).resolves.toEqual({
+      serverVersion: "18.4",
+      schemaReady: true,
+    }));
+  it("rejects an unapplied reconciliation migration", async () =>
+    await expect(verifyRuntimeDatabase(database("jobs.last_error_json") as never)).rejects.toThrow(
+      /jobs.last_error_json/,
+    ));
+  it("rejects an unapplied runtime-authority migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("position_runtime_contexts.wallet") as never),
+    ).rejects.toThrow(/position_runtime_contexts.wallet/));
+  it("rejects an unapplied runtime-authority baseline migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("position_runtime_authority_baselines.payload_json") as never),
+    ).rejects.toThrow(/position_runtime_authority_baselines.payload_json/));
+  it("accepts the complete paper runtime schema", async () =>
+    await expect(
+      verifyRuntimeDatabase(database(undefined, true) as never, "paper"),
+    ).resolves.toEqual({
+      serverVersion: "18.4",
+      schemaReady: true,
+    }));
+  it("keeps the paper supervisor independent of optional dashboard tables", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("dashboard_watchlists.version", true) as never, "paper"),
+    ).resolves.toEqual({ serverVersion: "18.4", schemaReady: true }));
+  it("rejects an unapplied paper authority migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(
+        database("paper_exit_evaluations.evaluated_at", true) as never,
+        "paper",
+      ),
+    ).rejects.toThrow(/paper_exit_evaluations.evaluated_at/));
+  it("rejects an unapplied paper-control migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(
+        database("paper_position_close_requests.state", true) as never,
+        "paper",
+      ),
+    ).rejects.toThrow(/paper_position_close_requests.state/));
+  it("rejects an unapplied dashboard watchlist migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(database("dashboard_watchlists.version", true) as never, "paper", true),
+    ).rejects.toThrow(/dashboard_watchlists.version/));
+  it("rejects an unapplied dashboard trading-configuration migration", async () =>
+    await expect(
+      verifyRuntimeDatabase(
+        database("dashboard_trading_configurations.version", true) as never,
+        "paper",
+        true,
+      ),
+    ).rejects.toThrow(/dashboard_trading_configurations.version/));
+});

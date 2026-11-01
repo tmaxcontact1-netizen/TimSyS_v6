@@ -1,0 +1,99 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const sharp_1 = __importDefault(require("sharp"));
+const analysis_cjs_1 = require("../../services/photography/analysis.cjs");
+async function fixture(patterned) {
+    const width = 160, height = 240, channels = 3;
+    const pixels = Buffer.alloc(width * height * channels, 245);
+    for (let y = 20; y < 220; y++)
+        for (let x = 55; x < 105; x++) {
+            const index = (y * width + x) * channels;
+            const active = !patterned || Math.floor(y / 8) % 2 === 0;
+            pixels[index] = active ? 25 : 180;
+            pixels[index + 1] = active ? 40 : 185;
+            pixels[index + 2] = active ? 80 : 195;
+        }
+    return (0, sharp_1.default)(pixels, { raw: { width, height, channels } }).png().toBuffer();
+}
+describe("classical visual fingerprint", () => {
+    test("finds red, green and blue reference blocks without asking the user for colour values", async () => {
+        const width = 360, height = 300, channels = 3, pixels = Buffer.alloc(width * height * channels, 245);
+        const blocks = [[220, 35, 35], [35, 190, 55], [35, 60, 220]];
+        blocks.forEach((colour, index) => { const startX = 45 + index * 105; for (let y = 100; y < 200; y++)
+            for (let x = startX; x < startX + 60; x++) {
+                const offset = (y * width + x) * channels;
+                pixels[offset] = colour[0];
+                pixels[offset + 1] = colour[1];
+                pixels[offset + 2] = colour[2];
+            } });
+        const patches = await (0, analysis_cjs_1.analyseCalibrationCard)(await (0, sharp_1.default)(pixels, { raw: { width, height, channels } }).png().toBuffer());
+        expect(patches.map(patch => patch.label)).toEqual(["Red", "Green", "Blue"]);
+    });
+    test("rejects unrelated colour regions that do not form a calibration card", async () => {
+        const width = 360, height = 300, channels = 3, pixels = Buffer.alloc(width * height * channels, 210);
+        const regions = [{ x: 15, y: 20, w: 70, h: 70, c: [220, 35, 35] }, { x: 250, y: 15, w: 55, h: 55, c: [35, 190, 55] }, { x: 180, y: 220, w: 70, h: 45, c: [35, 60, 220] }];
+        for (const region of regions)
+            for (let y = region.y; y < region.y + region.h; y++)
+                for (let x = region.x; x < region.x + region.w; x++) {
+                    const offset = (y * width + x) * channels;
+                    pixels[offset] = region.c[0];
+                    pixels[offset + 1] = region.c[1];
+                    pixels[offset + 2] = region.c[2];
+                }
+        await expect((0, analysis_cjs_1.analyseCalibrationCard)(await (0, sharp_1.default)(pixels, { raw: { width, height, channels } }).png().toBuffer())).rejects.toThrow("calibration_card_geometry_invalid");
+    });
+    test("finds a rotated three-patch card", async () => {
+        const width = 400, height = 400, channels = 3, pixels = Buffer.alloc(width * height * channels, 235), colours = [[220, 35, 35], [35, 190, 55], [35, 60, 220]];
+        colours.forEach((colour, index) => { const centre = 90 + index * 105; for (let y = centre - 28; y < centre + 28; y++)
+            for (let x = 170; x < 230; x++) {
+                const offset = (y * width + x) * channels;
+                pixels[offset] = colour[0];
+                pixels[offset + 1] = colour[1];
+                pixels[offset + 2] = colour[2];
+            } });
+        const patches = await (0, analysis_cjs_1.analyseCalibrationCard)(await (0, sharp_1.default)(pixels, { raw: { width, height, channels } }).png().toBuffer());
+        expect(patches.map(patch => patch.label)).toEqual(["Red", "Green", "Blue"]);
+    });
+    test("measures the complete eight-patch card when the standard layout is present", async () => {
+        const width = 640, height = 260, channels = 3, pixels = Buffer.alloc(width * height * channels, 242), colours = [[20, 20, 20], [220, 40, 40], [40, 190, 55], [35, 75, 220], [35, 190, 200], [195, 40, 160], [225, 190, 35], [150, 150, 150]];
+        colours.forEach((colour, index) => { const centre = 75 + index * 70; for (let y = 95; y < 165; y++)
+            for (let x = centre - 22; x <= centre + 22; x++) {
+                const offset = (y * width + x) * channels;
+                pixels[offset] = colour[0];
+                pixels[offset + 1] = colour[1];
+                pixels[offset + 2] = colour[2];
+            } });
+        const result = await (0, analysis_cjs_1.inspectCalibrationCard)(await (0, sharp_1.default)(pixels, { raw: { width, height, channels } }).png().toBuffer());
+        expect(result.layout).toBe("timsys-8");
+        expect(result.patches.map(patch => patch.label)).toEqual(["Black", "Red", "Green", "Blue", "Cyan", "Magenta", "Yellow", "Grey"]);
+        expect(result.confidence).toBeGreaterThan(.9);
+    });
+    test("is byte-for-byte deterministic for identical evidence", async () => {
+        const image = await fixture(false);
+        const first = await (0, analysis_cjs_1.measureImage)(image);
+        const second = await (0, analysis_cjs_1.measureImage)(image);
+        expect(second).toEqual(first);
+        expect(first.foregroundAspectRatio).toBeCloseTo(0.25, 1);
+        expect(first.palette[0]?.label).toBe("navy");
+    });
+    test("measures stripes as more complex and less solid", async () => {
+        const solid = await (0, analysis_cjs_1.measureImage)(await fixture(false));
+        const striped = await (0, analysis_cjs_1.measureImage)(await fixture(true));
+        expect(striped.edgeDensity).toBeGreaterThan(solid.edgeDensity);
+        expect(striped.visualComplexity).toBeGreaterThan(solid.visualComplexity);
+        expect(striped.solidConfidence).toBeLessThan(solid.solidConfidence);
+    });
+    test("combines whole and detail evidence and emits conservative editable suggestions", async () => {
+        const whole = await (0, analysis_cjs_1.measureImage)(await fixture(false));
+        const detail = await (0, analysis_cjs_1.measureImage)(await fixture(true));
+        const fingerprint = (0, analysis_cjs_1.combineFingerprint)(whole, detail);
+        const suggestions = (0, analysis_cjs_1.suggestFields)(fingerprint);
+        expect(fingerprint.confidence).toBe(0.9);
+        expect(suggestions.map((suggestion) => suggestion.field)).toEqual(["category", "formality", "seasons"]);
+        expect(suggestions[0]?.confidence).toBeLessThan(0.7);
+        expect((suggestions[0]?.value)[0]?.slug).toBe("ties");
+    });
+});

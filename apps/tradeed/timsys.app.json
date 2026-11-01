@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "tradeed",
+  "name": "Trade'Ed",
+  "kind": "frontend",
+  "uiStandard": {
+    "id": "timsys.application-ui",
+    "version": 1,
+    "required": true
+  },
+  "backend": {
+    "owner": "timsys",
+    "serviceId": "tradeed-backend",
+    "version": "1.0.0",
+    "manifest": "platform/services/tradeed/timsys.app.json"
+  }
+}

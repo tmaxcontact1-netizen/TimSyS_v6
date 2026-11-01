@@ -1,0 +1,34 @@
+{
+  "name": "@timsys/dressed-backend",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "description": "Deterministic wardrobe management and outfit coordination for TimSyS",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run --config vitest.config.ts",
+    "start": "node dist/src/entrypoints/api.js"
+  },
+  "engines": {
+    "node": ">=24.18.0 <25"
+  },
+  "dependencies": {
+    "@timsys/app-sdk": "file:../../packages/app-sdk",
+    "pg": "8.22.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "sharp": "0.35.4",
+    "zod": "4.4.3",
+    "@timsys/domain-http": "file:../../packages/domain-http"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/pg": "8.20.3",
+    "@vitejs/plugin-react": "6.0.5",
+    "tsx": "4.23.5",
+    "typescript": "6.0.3",
+    "vite": "8.2.1",
+    "vitest": "4.1.10"
+  }
+}

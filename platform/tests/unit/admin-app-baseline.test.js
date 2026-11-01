@@ -8,7 +8,7 @@ const appCatalog = require('../../modules/builder/app-catalog');
 describe('admin application baseline contract', function() {
   test('catalogue and scope service agree on supported admin apps', function() {
     expect(appCatalog.all().map(function(app) { return app.id; })).toEqual(expect.arrayContaining(appScope.all()));
-    expect(appCatalog.all().map(function(app) { return app.id; })).toEqual(expect.arrayContaining(['memecoined', 'dressed', 'researched']));
+    expect(appCatalog.all().map(function(app) { return app.id; })).toEqual(expect.arrayContaining(['tradeed', 'dressed', 'researched']));
     expect(appScope.all()).toEqual(['principal-ed']);
   });
 
@@ -19,7 +19,7 @@ describe('admin application baseline contract', function() {
     expect(dashboard).toContain("navigate('/')");
     expect(dashboard).toContain('startAndOpen');
     expect(dashboard).toContain('supervisedApp.stop');
-    expect(store).toContain('memecoined');
+    expect(store).toContain('tradeed');
     expect(store).toContain('dressed');
     expect(store).toContain('researched');
     expect(appCatalog.essentialServices().every(function(service) { return service.essential && !service.removable; })).toBe(true);

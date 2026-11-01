@@ -1,4 +1,5 @@
 export declare const APPLICATION_PROTOCOL: "timsys.application.v1";
+export { TimSysAiClient, AiEvidence, AiAdapter, AiWatch, AiAnswer, AiResult } from './ai.js';
 export type HealthState = "healthy" | "degraded" | "blocked" | "unavailable";
 export interface ComponentHealth { readonly id: string; readonly status: HealthState; readonly message?: string; }
 export interface ApplicationHealth { readonly protocol: typeof APPLICATION_PROTOCOL; readonly application: string; readonly status: HealthState; readonly observedAt: string; readonly components: readonly ComponentHealth[]; readonly [key: string]: unknown; }

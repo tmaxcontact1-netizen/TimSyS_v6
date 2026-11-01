@@ -1,7 +1,19 @@
 # Architectural Decisions
 
-**Last Updated:** 2026-08-07  
+**Last Updated:** 2026-10-31
 **Maintainer:** Tim  
+
+---
+
+## 2026-10-31: TimSyS hosts every backend service
+
+**Decision:** Tim requires all backend services to be located in TimSyS. Apps consume explicit contracts and do not host backend components. This includes domain-specific services, databases/repositories and migrations, background workers, provider/AI integration, server-side rules and HTTP APIs. Domain isolation and domain-specific behavior remain intact within TimSyS.
+
+**Status:** FOUNDATION IMPLEMENTED IN ISOLATED SOURCE; DOMAIN MIGRATION INCOMPLETE. The TimSyS-owned service host and pinned app contracts are implemented; see [service host v1](docs/SERVICE_HOST_V1.md). Principal'Ed is broadly aligned. Dress'Ed, Research'Ed, Trade'Ed and launcher backend responsibilities remain inventoried for relocation. No active services have been moved.
+
+**Constraints:** Active Trade'Ed validation remains protected by the isolation standing order. Migration must verify versioned app contracts, caller/app scope, real persistence paths, cold recovery and rollback before cutover. New live validation and publication require their applicable authorization.
+
+See [hosting and contract requirements](docs/PLATFORM_EXTRACTION.md) and [backend baseline/inventory](docs/BACKEND_INVENTORY.md).
 
 ---
 
@@ -658,3 +670,8 @@ The user approved Stages 1–3 only. MCF v1.0 definitions and inclusion/exclusio
 Source bytes, raw extraction, normalised working text, units and human decisions are distinct. Splits/joins create new unit sets. Sessions pin a segmentation population; revisions append with explicit predecessor checks. Blind samples show only their own session’s decisions and preserve the seed, population and selected IDs. Local deliberate navigation to other sessions remains possible.
 
 Documentary observations remain at the 21 competency level: 0–3 with evidence above zero; unavailable/unassessed are non-numeric. No arithmetic domain/institution roll-ups. Prior data-scientist labels are not imported as ground truth. Machine methodology, confidence calibration, comparison statistics and reliability thresholds remain deferred pending explicit approval.
+
+
+## 2026-10-31 — Central backend integration
+
+The consolidated backend migration is integrated into main source. All maintained app packages contain frontend/contract/bootstrap code; TimSyS owns domain services and desktop host. A compatible 1.1.0 Windows build is prepared in verification-local/main-integration-20261031. Preexisting source changes are preserved with before-file backups and working/index patches. Existing user databases, images, configuration and Trade'Ed validation remain untouched. Legacy persisted trading identifiers are retained as read/adoption aliases to preserve upgrade continuity. Conflicting stores fail closed. See docs/MAIN_SOURCE_INTEGRATION.md and docs/BACKEND_INVENTORY.md. Installation and live cutover are not performed.

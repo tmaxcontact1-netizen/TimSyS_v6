@@ -1,0 +1,16 @@
+{
+  "id": "legacy-questionnaire",
+  "version": "1.0",
+  "labels": [
+    "Academic integrity of school",
+    "Effectiveness of administration",
+    "Academic and disciplinary support provided",
+    "Director's involvement in academics",
+    "Average Score for Review"
+  ],
+  "comments": "Comments:",
+  "heading": "^(?:(.*?)\\s*-\\s*)?Review\\s+(\\d+)\\)\\s*(.*)$",
+  "editorial": "^(?:Note:|This review (?:was posted by|came in with|received in))",
+  "parentNote": "This review was posted by a parent.",
+  "receiptPrefix": "This review received in "
+}

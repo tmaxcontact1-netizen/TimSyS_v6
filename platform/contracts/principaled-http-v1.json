@@ -1,0 +1,9 @@
+{
+  "protocol": "timsys.http.v1",
+  "appId": "principaled",
+  "owner": "timsys",
+  "version": "1.0.0",
+  "basePath": "/api/timsys/v1/apps/principaled/backend/1.0.0",
+  "authentication": "existing platform JWT plus app:principaled:use; original module permissions retained",
+  "routes": "existing module routes under the pinned prefix; module schemas remain authoritative"
+}

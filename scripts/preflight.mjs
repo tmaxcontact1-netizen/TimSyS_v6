@@ -14,7 +14,7 @@ const platform = readFileSync(resolve(root, 'platform/index.js'), 'utf8');
 if (!/server\.listen\(port, '127\.0\.0\.1'/.test(platform)) failures.push('platform is not restricted to the IPv4 loopback interface');
 if (/CORS_ORIGINS \|\| '\*'/.test(platform)) failures.push('platform defaults to wildcard CORS');
 
-const launcher = readFileSync(resolve(root, 'apps/launcher/electron/main.cjs'), 'utf8');
+const launcher = readFileSync(resolve(root, 'platform/native/desktop/main.cjs'), 'utf8');
 if (!/nodeIntegration: false/.test(launcher) || !/contextIsolation: true/.test(launcher)) failures.push('Electron renderer isolation is not enforced');
 
 if (failures.length) {

@@ -16,19 +16,19 @@ test command, time, inputs, outputs, and each gate's observed result. A failed
 or unavailable end-to-end test blocks release of the affected bundle. Do not
 replace it with an assertion that individual functions work.
 
-For MemeCoin'Ed, the required positive path is discovery -> security and
+For Trade'Ed, the required positive path is discovery -> security and
 scoring -> quote observations -> profile signal -> sized buy quote -> paper buy
 persisted -> exit quote -> paper sell persisted -> net P&L shown by the dashboard
 reader. Negative paths must demonstrate that unsafe tokens and unacceptable
 executable costs do not fill. Run
-`apps/memecoined/dist/scripts/diagnose-profile-roundtrips.js` with
-`MEMECOINED_VERIFY_ADMIN_URL` against a local PostgreSQL administrator endpoint.
+`apps/tradeed/dist/scripts/diagnose-profile-roundtrips.js` with
+`TRADEED_VERIFY_ADMIN_URL` against a local PostgreSQL administrator endpoint.
 It creates and drops a uniquely named disposable database, exercises all 20
 selectable profiles through the actual paper orchestrator and dashboard reader,
 and exits nonzero if any round trip or negative control fails. The release
 bundler runs this after build and runtime-stage verification; it fails closed
 without the database endpoint. The older
-`apps/memecoined/tests/e2e/profile-paper-path.test.ts` covers separate
+`apps/tradeed/tests/e2e/profile-paper-path.test.ts` covers separate
 components and remains insufficient as release proof by itself.
 
 This controlled full-path test verifies code wiring and guardrails, not the

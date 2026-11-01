@@ -14,7 +14,9 @@ describe('E2E: boot sequence regression', function() {
       'calendar', 'ownership', 'tasks', 'approvals', 'documents', 'communications', 'audiences', 'invitations', 'attendance', 'venue_bookings', 'resource_reservations', 'transportation', 'catering', 'risk_assessments', 'safeguarding_requirements', 'medical_referrals', 'student_exits', 'late_entries', 'contingency', 'financial_planning', 'event_record', 'event_planner', 'system_health', 'staff_profile', 'staff_registry', 'student_profile', 'student_registry', 'academic_structure', 'gradebook_core', 'gradebook_workspace', 'assessment_scales', 'learning_standards', 'learning_behaviours', 'assessment_evidence', 'evaluation_policies', 'grade_evaluation', 'classroom_attendance', 'academic_commentary', 'grade_reporting', 'gradebook', 'scheduler', 'teacher_preferences', 'cover', 'programme_manager'
     ]));
     expect(names).toContain('nervous_breakdown');
-    expect(names).toHaveLength(55);
+    // Compare against discovery so adding a declared module cannot stale a magic count.
+    const discovered = require('../../shared/pipeline/discover')().map(module => module.name);
+    expect(names.slice().sort()).toEqual(discovered.sort());
   });
 
   test('current migrations are durable', function() {

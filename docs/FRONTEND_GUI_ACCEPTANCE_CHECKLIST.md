@@ -1,7 +1,7 @@
 # TimSyS Front-end GUI Acceptance Checklist
 
 Status: mandatory release gate  
-Scope: Launcher, Principal’Ed, MemeCoin’Ed, Dress’Ed, Research’Ed, and future TimSyS applications
+Scope: Launcher, Principal’Ed, Trade'Ed, Dress’Ed, Research’Ed, and future TimSyS applications
 
 This checklist turns established desktop-interface, accessibility, form-design, data-presentation, and safety practice into a TimSyS completion standard. “Present” is insufficient: each item must work in the normal, empty, loading, validation, success, failure, permission-denied, stale-data, and large-data states that apply to it.
 

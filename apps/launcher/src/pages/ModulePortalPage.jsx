@@ -67,7 +67,7 @@ function ModulePortalPage() {
 
       {!app ? <>
         <h2 className="text-2xl font-semibold mb-2">Select an admin application</h2>
-        <p className="text-gray-400 mb-6">Each application shows its own configuration plus the essential platform services it uses. MemecoinEd is intentionally isolated.</p>
+        <p className="text-gray-400 mb-6">Each application shows its own configuration plus the essential platform services it uses. TradeEd is intentionally isolated.</p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {(catalogue?.apps || []).map(item => <button key={item.id} onClick={() => setSelectedAppId(item.id)} className="bg-gray-900 border border-gray-800 hover:border-timsys-primary rounded-xl p-6 text-left">
             <h3 className="text-xl font-bold">{item.displayName}</h3><p className="text-sm text-gray-400 mt-2">{item.description}</p>

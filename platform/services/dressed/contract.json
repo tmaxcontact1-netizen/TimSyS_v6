@@ -1,0 +1,77 @@
+{
+  "protocol": "timsys.http.v1",
+  "appId": "dressed",
+  "serviceId": "dressed-backend",
+  "version": "1.0.0",
+  "owner": "timsys",
+  "basePath": "/api/timsys/v1/apps/dressed/backend/1.0.0",
+  "authentication": "private native session cookie or native service token",
+  "mutationRetry": "never automatic; domain validators and existing transactional/job semantics retained",
+  "routes": [
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/health",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/application",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/planner/catalogue",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/planner/generate",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle/wearable",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/lifecycle/cases",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/insights",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/preferences",
+      "source": "src/entrypoints/api.ts"
+    }
+  ],
+  "schemas": "src/domain; authoritative validators and frozen instruments retained in the TimSyS service",
+  "availability": "Existing focused-workflow, blind-review, operator authorization and feature gates remain authoritative.",
+  "dynamicRoutes": [
+    {
+      "matcher": "/^\\/api\\/garments(?:\\/[0-9a-f-]{36}(?:\\/archive)?)?$/",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/garments\\/[0-9a-f-]{36}\\/(images|fingerprint)$/",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/planner\\/entries\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/lifecycle\\/cases\\/([0-9a-f-]{36})\\/resolve$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/planner\\/entries\\/([0-9a-f-]{36})\\/worn$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/outfits\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    }
+  ],
+  "applicationVersion": "0.3.0"
+}

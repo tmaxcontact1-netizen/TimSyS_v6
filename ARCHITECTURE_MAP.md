@@ -227,7 +227,7 @@ Platform Location: `platform/`
       local-postgres-manager.cjs
       local-postgres-manager.test.cjs
       main.cjs
-      memecoined-runtime-ownership.cjs
+      tradeed-runtime-ownership.cjs
 ./apps\launcher\public
       favicon.svg
 ./apps\launcher\src
@@ -270,7 +270,7 @@ Platform Location: `platform/`
         formatDate.js
         permissions.js
         sseClient.js
-./apps\memecoined
+./apps\tradeed
     .env.example
     .gitignore
     .prettierrc.json
@@ -281,13 +281,13 @@ Platform Location: `platform/`
     eslint.config.js
     package-lock.json
     package.json
-./apps\memecoined\config
+./apps\tradeed\config
       defaults.json
       profiles-v1.json
       providers.example.json
       strategy-v1.json
       wallet-watchlist.example.json
-./apps\memecoined\docs
+./apps\tradeed\docs
       CHANGELOG.md
       DEPENDENCY_MANIFEST.md
       Exchange-adapter.md
@@ -298,11 +298,11 @@ Platform Location: `platform/`
       SECURITY_MODEL.md
       SERVICE_CONTRACTS.md
       STRATEGY_SPECIFICATION.md
-./apps\memecoined\frontend
+./apps\tradeed\frontend
       app.js
       index.html
       styles.css
-./apps\memecoined\migrations
+./apps\tradeed\migrations
       0001_extensions.sql
       0002_reference.sql
       0003_observations.sql
@@ -313,7 +313,7 @@ Platform Location: `platform/`
       0008_reconciliation_jobs.sql
       0009_position_runtime_facts.sql
       0010_position_observations.sql
-./apps\memecoined\scripts
+./apps\tradeed\scripts
       diagnose-profile-roundtrips.ts
       emergency-stop.ts
       generate-report.ts
@@ -324,15 +324,15 @@ Platform Location: `platform/`
       run-historical-evaluation.ts
       sanitize-fixture.ts
       verify-environment.ts
-./apps\memecoined\src
-./apps\memecoined\src\application
-./apps\memecoined\src\application\contracts
+./apps\tradeed\src
+./apps\tradeed\src\application
+./apps\tradeed\src\application\contracts
           commands.ts
           events.ts
           observations.ts
           platform.ts
           reports.ts
-./apps\memecoined\src\application\ports
+./apps\tradeed\src\application\ports
           chain.ts
           market.ts
           operator.ts
@@ -342,7 +342,7 @@ Platform Location: `platform/`
           signer.ts
           stream.ts
           swap.ts
-./apps\memecoined\src\application\services
+./apps\tradeed\src\application\services
           acquisition-schedule.ts
           candidate-evaluation-work.ts
           candidate-pipeline.ts
@@ -353,27 +353,27 @@ Platform Location: `platform/`
           execution-runtime-authority.ts
           execution.ts
           health.ts
-./apps\memecoined\src\domain
-./apps\memecoined\src\domain\candidate
+./apps\tradeed\src\domain
+./apps\tradeed\src\domain\candidate
           evaluator.ts
           model.ts
           scoring.ts
-./apps\memecoined\src\domain\exchange
+./apps\tradeed\src\domain\exchange
           session-engine.ts
           types.ts
-./apps\memecoined\src\domain\market
+./apps\tradeed\src\domain\market
           model.ts
           momentum.ts
-./apps\memecoined\src\domain\portfolio
+./apps\tradeed\src\domain\portfolio
           breakers.ts
           model.ts
           sizing.ts
-./apps\memecoined\src\domain\shared
+./apps\tradeed\src\domain\shared
           errors.ts
           evidence.ts
           state-machine.ts
           types.ts
-./apps\memecoined\src\domain\strategy
+./apps\tradeed\src\domain\strategy
           observation-runtime.ts
           observation-scheduler.ts
           oscillation.ts
@@ -383,31 +383,31 @@ Platform Location: `platform/`
           signal-gate-counter.ts
           simple-patterns.ts
           technical-analysis.ts
-./apps\memecoined\src\domain\token
+./apps\tradeed\src\domain\token
           security.ts
           token.ts
-./apps\memecoined\src\domain\trading
+./apps\tradeed\src\domain\trading
           exits.ts
           order.ts
           position.ts
           quote.ts
-./apps\memecoined\src\domain\wallet
+./apps\tradeed\src\domain\wallet
           classifier.ts
           model.ts
           performance.ts
-./apps\memecoined\src\entrypoints
+./apps\tradeed\src\entrypoints
         composition.ts
         dashboard.ts
         main.ts
         providers.ts
         telegram.ts
         worker.ts
-./apps\memecoined\src\infrastructure
+./apps\tradeed\src\infrastructure
         bounded-map.ts
-./apps\memecoined\src\infrastructure\config
+./apps\tradeed\src\infrastructure\config
           load-config.ts
           load-strategy.ts
-./apps\memecoined\src\infrastructure\database
+./apps\tradeed\src\infrastructure\database
           acquisition-schedule.ts
           candidate-discovery.ts
           candidate-evaluation-jobs.ts
@@ -418,13 +418,13 @@ Platform Location: `platform/`
           entry-preparations.ts
           entry-submissions.ts
           event-store.ts
-./apps\memecoined\src\infrastructure\providers
+./apps\tradeed\src\infrastructure\providers
           http-json.ts
-./apps\memecoined\src\infrastructure\reporting
+./apps\tradeed\src\infrastructure\reporting
           csv-renderer.ts
           json-renderer.ts
           markdown-renderer.ts
-./apps\memecoined\src\infrastructure\runtime
+./apps\tradeed\src\infrastructure\runtime
           application-root.ts
           escalation.ts
           evidence-id.ts
@@ -435,12 +435,12 @@ Platform Location: `platform/`
           metrics.ts
           provider-readiness.ts
           system-clock.ts
-./apps\memecoined\src\infrastructure\security
+./apps\tradeed\src\infrastructure\security
           local-signer.ts
           redaction.ts
           secret-provider.ts
           transaction-inspector.ts
-./apps\memecoined\src\workers
+./apps\tradeed\src\workers
         candidate-worker.ts
         discovery-worker.ts
         entry-worker.ts
@@ -451,9 +451,9 @@ Platform Location: `platform/`
         reconciliation-worker.ts
         risk-worker.ts
         supervisor.ts
-./apps\memecoined\tests
+./apps\tradeed\tests
       setup.ts
-./apps\memecoined\tests\contract
+./apps\tradeed\tests\contract
         dexscreener.test.ts
         geckoterminal.test.ts
         helius-wallet-history.test.ts
@@ -464,24 +464,24 @@ Platform Location: `platform/`
         optional-market.test.ts
         provider-clients.test.ts
         solana-wallet-inventory.test.ts
-./apps\memecoined\tests\e2e
+./apps\tradeed\tests\e2e
         failure-recovery.test.ts
         live-low-value.test.ts
         observation.test.ts
         paper.test.ts
         profile-paper-path.test.ts
         shadow.test.ts
-./apps\memecoined\tests\failure
+./apps\tradeed\tests\failure
         portfolio-production-readiness.test.ts
         provider-outages.test.ts
         reconciliation-retry.test.ts
         reconciliation.test.ts
-./apps\memecoined\tests\helpers
+./apps\tradeed\tests\helpers
         builders.ts
         database.ts
         fake-clock.ts
         fake-ports.ts
-./apps\memecoined\tests\integration
+./apps\tradeed\tests\integration
         acquisition-schedule.test.ts
         candidate-discovery.test.ts
         candidate-evaluation-facts.test.ts
@@ -492,16 +492,16 @@ Platform Location: `platform/`
         execution.test.ts
         job-runner.test.ts
         live-entry-reconciliation.test.ts
-./apps\memecoined\tests\replay
+./apps\tradeed\tests\replay
         determinism.test.ts
         no-lookahead.test.ts
-./apps\memecoined\tests\security
+./apps\tradeed\tests\security
         http-transport.test.ts
         secrets.test.ts
         solana-instruction-parser.test.ts
         startup-config.test.ts
         transaction-inspection.test.ts
-./apps\memecoined\tests\unit
+./apps\tradeed\tests\unit
         application-root.test.ts
         atomic-profile-entry-regression.test.ts
         bounded-map.test.ts
@@ -1327,7 +1327,7 @@ Platform Location: `platform/`
   execution-e2e.cjs
   execution-scale.cjs
   fetch-postgres.mjs
-  monitor-memecoined-process.ps1
+  monitor-tradeed-process.ps1
   package-researched-update.mjs
   preflight.mjs
 ./verification
@@ -1560,7 +1560,7 @@ Location: `/platform/scripts/cli/`
 | --------------------- | ---- | ------ |
 | `dressed` | application | ✅ Ready |
 | `launcher` | application | ✅ Ready |
-| `memecoined` | application | ✅ Ready |
+| `tradeed` | application | ✅ Ready |
 | `principaled` | application | ✅ Ready |
 | `researched` | application | ✅ Ready |
 | `shared-ui` | shared library | ✅ Ready |

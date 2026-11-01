@@ -1,6 +1,6 @@
 # Execution MVP — local build report
 
-4 October 2026. Built following authorisation to proceed from the reviewed Layer 3 design. No release, deployment or production database migration was performed. Existing uncommitted MemeCoin’Ed work was preserved.
+4 October 2026. Built following authorisation to proceed from the reviewed Layer 3 design. No release, deployment or production database migration was performed. Existing uncommitted Trade'Ed work was preserved.
 
 ## Delivered
 

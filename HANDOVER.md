@@ -206,9 +206,9 @@ All three exist and are functional.
 |-------------|--------|
 | `launcher` | Active desktop shell |
 | `principaled` | Active school administration frontend |
-| `memecoined` | Active trading application under development |
+| `tradeed` | Active trading application under development |
 
-The launcher and Principal'Ed are Vite/React applications. Memecoined contains its TypeScript services and browser frontend.
+The launcher and Principal'Ed are Vite/React applications. Tradeed contains its TypeScript services and browser frontend.
 
 ---
 

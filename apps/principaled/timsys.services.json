@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "protocol": "timsys.services.v1",
+  "appId": "principaled",
+  "host": "timsys",
+  "contracts": [
+    {
+      "serviceId": "runtime",
+      "version": "1.1.0",
+      "operations": [
+        "status"
+      ]
+    }
+  ],
+  "requiredPermissions": [
+    "admin:service_host:access",
+    "app:principaled:use",
+    "service:runtime:read"
+  ],
+  "migrationState": "frontend-only",
+  "httpContracts": [
+    {
+      "serviceId": "school-backend",
+      "version": "1.0.0",
+      "owner": "timsys",
+      "basePath": "/api/timsys/v1/apps/principaled/backend/1.0.0"
+    }
+  ]
+}

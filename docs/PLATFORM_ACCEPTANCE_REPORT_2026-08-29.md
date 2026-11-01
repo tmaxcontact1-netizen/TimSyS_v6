@@ -4,7 +4,7 @@ Date: 2026-08-29
 
 ## Verdict
 
-The launcher, Principal'Ed, MemeCoined, Dress'Ed, shared platform services, migrations, contracts, insight infrastructure, and staged Windows runtime are internally consistent and pass the repository's automated acceptance checks.
+The launcher, Principal'Ed, TradeEd, Dress'Ed, shared platform services, migrations, contracts, insight infrastructure, and staged Windows runtime are internally consistent and pass the repository's automated acceptance checks.
 
 The repository is ready for structured user acceptance and paper/live-integration testing. This is not a claim that external data providers, credentials, market conditions, or real-money trading have been independently certified; those require live-environment exercises with current provider access.
 
@@ -24,9 +24,9 @@ No installer was created and no commit or push was performed during this accepta
 
 ## Architecture and data boundaries
 
-- The Electron launcher remains the entry point and stages the launcher, shared platform, Principal'Ed, MemeCoined, and Dress'Ed assets.
+- The Electron launcher remains the entry point and stages the launcher, shared platform, Principal'Ed, TradeEd, and Dress'Ed assets.
 - Principal'Ed consumes the shared TimSyS platform, contracts, component registry, event bus, health services, and intelligence engine.
-- MemeCoined and Dress'Ed retain their deliberate application/domain boundaries while sharing launcher and baseline operational conventions where appropriate.
+- TradeEd and Dress'Ed retain their deliberate application/domain boundaries while sharing launcher and baseline operational conventions where appropriate.
 - Database migrations are ordered and included in the staged runtime.
 - Runtime verification compares complete staged source trees against repository source using path inventories, file sizes, and SHA-256 hashes.
 - The generated architecture map reports no structural drift.
@@ -44,7 +44,7 @@ The coverage layer intentionally avoids invented causal claims. A component with
 | Area | Result |
 |---|---:|
 | Shared platform / Principal'Ed | 114 suites, 477 tests passed |
-| MemeCoined | 117 files, 682 tests passed; typecheck and production build passed |
+| TradeEd | 117 files, 682 tests passed; typecheck and production build passed |
 | Dress'Ed | 9 files, 32 tests passed; typecheck and production build passed |
 | Electron launcher | 13 tests passed; production build passed |
 | Security preflight | Passed across 1,147 tracked files |
@@ -57,7 +57,7 @@ The platform suite covers boot and migration upgrade paths, authentication and s
 
 - Principal'Ed and launcher production builds emit bundle-size warnings. They build successfully; code splitting is a performance optimisation, not a functional blocker for present use.
 - Dress'Ed stores a `show_internal_scores` preference, but internal styling scores remain visible in the specialist rule laboratory and outfit builder. This does not affect recommendation correctness, but the preference should either be wired into those expert views or removed before describing it as a global display control.
-- Live MemeCoined provider availability, rate limits, credentials, Telegram access, RPC behavior, slippage, fills, and market execution cannot be certified by local deterministic tests. Paper testing is the correct next gate before any real-money use.
+- Live TradeEd provider availability, rate limits, credentials, Telegram access, RPC behavior, slippage, fills, and market execution cannot be certified by local deterministic tests. Paper testing is the correct next gate before any real-money use.
 - Credentials previously pasted into conversation should be treated as exposed and rotated before live use. The tracked-file secret scan is clean.
 - Human user-acceptance testing is still required for workflow clarity, visual behavior, and real operating data.
 
