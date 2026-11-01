@@ -1,0 +1,265 @@
+{
+  "protocol": "timsys.http.v1",
+  "appId": "researched",
+  "serviceId": "researched-backend",
+  "version": "1.0.0",
+  "owner": "timsys",
+  "basePath": "/api/timsys/v1/apps/researched/backend/1.0.0",
+  "authentication": "private native session cookie or native service token",
+  "mutationRetry": "never automatic; domain validators and existing transactional/job semantics retained",
+  "routes": [
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/health",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/programme-workflows",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/application",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/capabilities",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/analysis-types",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/ai/providers",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/ai/connection",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/ai/inspect",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/ai/usage",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/analysis-plans",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/analysis-templates",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/analysis-runs",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/dashboard",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/insights",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/sources/batch",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/research-codes",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/evidence",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/analysis",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/findings",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/reports",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/audit",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/studies",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/entity-types",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/entities",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/sources",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/discovered-links",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/acquisition-queue",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/acquisition-queue/run",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/content/catalog",
+      "source": "src/entrypoints/content-api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/content/provider",
+      "source": "src/entrypoints/content-api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/researched/backend/1.0.0/content/workflows",
+      "source": "src/entrypoints/content-api.ts"
+    }
+  ],
+  "schemas": "src/domain; authoritative validators and frozen instruments retained in the TimSyS service",
+  "availability": "Existing focused-workflow, blind-review, operator authorization and feature gates remain authoritative.",
+  "dynamicRoutes": [
+    {
+      "matcher": "/^\\/api\\/programme-workflows\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/programme-workflows\\/([0-9a-f-]{36})\\/document$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/programme-candidates\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/programme-workflows\\/([0-9a-f-]{36})\\/start$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/programme-workflows\\/([0-9a-f-]{36})\\/cancel$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/programme-workflows\\/([0-9a-f-]{36})\\/export$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-types\\/([a-z-]+)\\/contract$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-templates\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-plans\\/([0-9a-f-]{36})\\/run$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-runs\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-runs\\/([0-9a-f-]{36})\\/export$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-runs\\/([0-9a-f-]{36})\\/(pause|resume|cancel|retry)$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/analysis-results\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/studies\\/([0-9a-f-]{36})\\/uploads$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/reports\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/reports\\/([0-9a-f-]{36})\\/export$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/studies\\/([0-9a-f-]{36})\\/readiness$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/studies\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/evidence\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/findings\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/sources\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/sources\\/([0-9a-f-]{36})\\/snapshots$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/snapshots\\/([0-9a-f-]{36})\\/extraction$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/sources\\/([0-9a-f-]{36})\\/fetch$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/sources\\/([0-9a-f-]{36})\\/render-fetch$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/sources\\/([0-9a-f-]{36})\\/discover$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/discovered-links\\/([0-9a-f-]{36})$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/acquisition-queue\\/([0-9a-f-]{36})\\/cancel$/i",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/content\\/workflows\\/([^/]+)(?:\\/(document|run|links)(?:\\/([^/]+))?)?$/",
+      "source": "src/entrypoints/content-api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/content\\/runs\\/([^/]+)(?:\\/(cancel|export))?$/",
+      "source": "src/entrypoints/content-api.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/workbench(?:\\/([a-f0-9-]+)(?:\\/(undo|redo|delete|restore|confirm|history))?)?$/",
+      "source": "src/entrypoints/workbench-api.ts"
+    }
+  ],
+  "applicationVersion": "0.10.13"
+}

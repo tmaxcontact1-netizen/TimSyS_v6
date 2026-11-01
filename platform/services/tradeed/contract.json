@@ -1,0 +1,104 @@
+{
+  "protocol": "timsys.http.v1",
+  "appId": "tradeed",
+  "serviceId": "tradeed-backend",
+  "version": "1.0.0",
+  "owner": "timsys",
+  "basePath": "/api/timsys/v1/apps/tradeed/backend/1.0.0",
+  "authentication": "private native session cookie or native service token",
+  "mutationRetry": "never automatic; domain validators and existing transactional/job semantics retained",
+  "routes": [
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/health",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/application",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/pipeline",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/strategy-funnel",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/focused-dashboard",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/opportunity-audit",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/operations/status",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/trading-configurations",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/trading-profiles",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/watchlists",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/snapshot",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/details",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/alerts",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/performance",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/post-exit-analysis",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/tradeed/backend/1.0.0/paper/token",
+      "source": "src/entrypoints/dashboard.ts"
+    }
+  ],
+  "schemas": "src/domain; authoritative validators and frozen instruments retained in the TimSyS service",
+  "availability": "Existing focused-workflow, blind-review, operator authorization and feature gates remain authoritative.",
+  "dynamicRoutes": [
+    {
+      "matcher": "/^\\/api\\/trading-configurations\\/([0-9a-f-]+)$/i",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/watchlists\\/([0-9a-f-]+)$/i",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/watchlists\\/([0-9a-f-]+)\\/tokens(?:\\/([1-9A-HJ-NP-Za-km-z]+))?$/",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/paper\\/orders\\/([0-9a-f-]+)\\/cancel$/i",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/paper\\/positions\\/([1-9A-HJ-NP-Za-km-z]+)\\/close$/",
+      "source": "src/entrypoints/dashboard.ts"
+    },
+    {
+      "matcher": "/^\\/api\\/trading-profiles\\/([a-z_]+)$/",
+      "source": "src/entrypoints/dashboard.ts"
+    }
+  ]
+}

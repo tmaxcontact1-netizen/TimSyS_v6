@@ -1,0 +1,28 @@
+{
+  "protocol": "timsys.domain-host.v1",
+  "owner": "timsys",
+  "version": "1.0.0",
+  "services": [
+    {
+      "appId": "dressed",
+      "root": "platform/services/dressed",
+      "manifest": "platform/services/dressed/timsys.app.json",
+      "contract": "platform/services/dressed/contract.json",
+      "basePath": "/api/timsys/v1/apps/dressed/backend/1.0.0"
+    },
+    {
+      "appId": "researched",
+      "root": "platform/services/researched",
+      "manifest": "platform/services/researched/timsys.app.json",
+      "contract": "platform/services/researched/contract.json",
+      "basePath": "/api/timsys/v1/apps/researched/backend/1.0.0"
+    },
+    {
+      "appId": "tradeed",
+      "root": "platform/services/tradeed",
+      "manifest": "platform/services/tradeed/timsys.app.json",
+      "contract": "platform/services/tradeed/contract.json",
+      "basePath": "/api/timsys/v1/apps/tradeed/backend/1.0.0"
+    }
+  ]
+}

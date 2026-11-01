@@ -1,0 +1,64 @@
+{
+  "serviceId": "runtime",
+  "version": "1.1.0",
+  "owner": "timsys",
+  "apps": [
+    "principaled",
+    "dressed",
+    "researched",
+    "tradeed"
+  ],
+  "operations": {
+    "status": {
+      "permission": "service:runtime:read",
+      "effect": "read",
+      "timeoutMs": 2000,
+      "maximumInputBytes": 256,
+      "maximumOutputBytes": 4096,
+      "input": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      },
+      "output": {
+        "type": "object",
+        "properties": {
+          "owner": {
+            "type": "string",
+            "const": "timsys"
+          },
+          "appId": {
+            "type": "string",
+            "enum": [
+              "principaled",
+              "dressed",
+              "researched",
+              "tradeed"
+            ]
+          },
+          "protocol": {
+            "type": "string",
+            "const": "timsys.services.v1"
+          },
+          "state": {
+            "type": "string",
+            "const": "ready"
+          },
+          "domainMigrationComplete": {
+            "type": "boolean",
+            "const": true
+          }
+        },
+        "required": [
+          "owner",
+          "appId",
+          "protocol",
+          "state",
+          "domainMigrationComplete"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

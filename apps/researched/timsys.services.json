@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "protocol": "timsys.services.v1",
+  "appId": "researched",
+  "host": "timsys",
+  "contracts": [
+    {
+      "serviceId": "runtime",
+      "version": "1.1.0",
+      "operations": [
+        "status"
+      ]
+    }
+  ],
+  "requiredPermissions": [
+    "admin:service_host:access",
+    "app:researched:use",
+    "service:runtime:read"
+  ],
+  "migrationState": "frontend-only",
+  "httpContracts": [
+    {
+      "serviceId": "researched-backend",
+      "version": "1.0.0",
+      "basePath": "/api/timsys/v1/apps/researched/backend/1.0.0",
+      "owner": "timsys"
+    }
+  ]
+}

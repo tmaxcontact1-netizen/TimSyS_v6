@@ -1,0 +1,14 @@
+{
+  "id": "isr-director-ratings",
+  "version": "1.0",
+  "authority": "Researcher-supplied authoritative ISR Director Review scale, 2026-10-25",
+  "scope": "Numerical ISR questionnaire rating fields only; not competency evidence",
+  "fields": ["Fair", "Genuine", "Flexible", "Consistent", "Transparent", "A Person of Integrity", "A Person who acts with respect", "Overall Rating to nearest number", "Overall Rating"],
+  "anchors": {
+    "1": {"meaning": "lowest / strongly negative", "numericalValence": "negative"},
+    "2": {"meaning": "negative", "numericalValence": "negative"},
+    "3": {"meaning": "midpoint / average", "numericalValence": "midpoint"},
+    "4": {"meaning": "positive", "numericalValence": "positive"},
+    "5": {"meaning": "highest / strongly positive", "numericalValence": "positive"}
+  }
+}

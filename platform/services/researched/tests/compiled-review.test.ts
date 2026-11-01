@@ -1,0 +1,67 @@
+import {describe,it,expect} from 'vitest';
+import JSZip from 'jszip';
+import {inspectCompiledDocx,mapCompiledRecords,structuralMappingInput} from '../src/application/compiled-review.js';
+
+const escape=(s:string)=>s.replaceAll('&','&amp;').replaceAll('<','&lt;');
+const p=(s:string)=>`<w:p><w:r><w:t xml:space="preserve">${escape(s)}</w:t></w:r></w:p>`;
+const table=()=>'<w:tbl>'+['Academic integrity of school','Effectiveness of administration','Academic and disciplinary support provided',"Director's involvement in academics",'Average Score for Review'].map(s=>`<w:tr><w:tc>${p(s)}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`).join('')+'</w:tbl>';
+const review=(header:string|null,text='A shared narrative.')=>(header?p(header):'')+table()+p('Comments:')+p(text);
+async function doc(body:string){const zip=new JSZip();zip.file('word/document.xml',`<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${body}</w:body></w:document>`);return inspectCompiledDocx(await zip.generateAsync({type:'nodebuffer'}));}
+function mapping(d:Awaited<ReturnType<typeof doc>>){return structuralMappingInput.parse({profile:`${d.profile.id}@${d.profile.version}`,hash:d.hash,previousMappingId:null,reason:'Pilot',records:d.candidates.map(c=>({start:c.start,end:c.end,confirmed:true,institution:{state:'unassigned',name:''},include:['narrative']}))});}
+
+describe('legacy questionnaire profile',()=>{
+ it('extracts a headed review without assigning author or publication date',async()=>{const d=await doc(review('Review 07)  A Person  2020  -  2021'));expect(d.candidates[0]).toMatchObject({originalReviewNumber:'07',headingNameRaw:'A Person',periodRaw:'2020  -  2021',confidence:'high'});expect(d.candidates[0]).not.toHaveProperty('author');});
+ it('keeps an unheaded review and never infers its number',async()=>{const d=await doc(review(null)+review('Review 1) 2020'));expect(d.candidates).toHaveLength(2);expect(d.candidates[0]).toMatchObject({originalReviewNumber:null,confidence:'review-required'});});
+ it('preserves repeated numbers as distinct records',async()=>{const d=await doc(review('Review 1) 2020')+review('Review 1) 2021'));expect(mapCompiledRecords(d,mapping(d),'School').map(r=>r.reviewIdentifier)).toEqual(['1','1']);});
+ it('does not interpret numbering resets as duplicate records or confirmed schools',async()=>{const d=await doc(review('Review 2) 2020')+review('Review 1) 2020')+review('Review 9) 2021'));expect(d.candidates).toHaveLength(3);expect(mapCompiledRecords(d,mapping(d),'School').every(r=>r.institution==='')).toBe(true);});
+ it('keeps multiple paragraphs, lists and subheadings inside comments',async()=>{const d=await doc(review('Review 1) 2020')+p('PROS:')+p('- Useful training.')+p('CONS:')+p('- Limited time.')+review(null));const records=mapCompiledRecords(d,mapping(d),'School');expect(records).toHaveLength(2);expect(records[0]?.text).toBe('A shared narrative.\n\nPROS:\n\n- Useful training.\n\nCONS:\n\n- Limited time.');});
+ it('recognises an explicit parent review with an empty table',async()=>{const d=await doc(p('Review 4) Person 2020')+p('This review was posted by a parent.')+'<w:tbl><w:tr><w:tc>'+p('')+'</w:tc></w:tr></w:tbl>'+p('Comments:')+p('My experience.'));expect(d.candidates).toHaveLength(1);expect(d.candidates[0]?.reviewTypeRaw).toContain('parent');expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toBe('My experience.');});
+ it('separates editorial notes and receipt information from narrative',async()=>{const d=await doc(p('Review 1) 2020')+p('Note: Similar wording.')+p('This review received in March 2022')+table()+p('Comments:')+p('Narrative.'));expect(d.candidates[0]?.receiptDateRaw).toBe('This review received in March 2022');expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toBe('Narrative.');expect(d.blocks.filter(b=>b.component==='editorial')).toHaveLength(2);});
+ it('preserves and flags corrupted characters',async()=>{const d=await doc(review('Review 1) 2020','Text � remains.'));expect(d.warnings).toContain('replacement_characters_preserved');expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toContain('�');});
+ it('permits analysis with missing institution metadata',async()=>{const d=await doc(review('Review 1) 2020'));expect(mapCompiledRecords(d,mapping(d),'School')[0]?.locator.institution).toMatchObject({state:'unassigned',name:''});});
+ it('preserves campus metadata',async()=>{const d=await doc(review('Puxi Campus - Review 39) Person 2017 - 2019'));expect(d.candidates[0]?.campusRaw).toBe('Puxi Campus');});
+ it('does not turn ambiguous school mentions into institution assignments',async()=>{const d=await doc(review('Review 1) 2020','Unlike Example School, this school offers training.'));expect(mapCompiledRecords(d,mapping(d),'School')[0]?.institution).toBe('');});
+ it('retains identical wording in distinct reviews',async()=>{const d=await doc(review(null)+review(null));const records=mapCompiledRecords(d,mapping(d),'School');expect(records).toHaveLength(2);expect(records[0]?.text).toBe(records[1]?.text);expect(records[0]?.locator.blockStart).not.toBe(records[1]?.locator.blockStart);});
+ it('separately preserves questionnaire rows and includes them only by researcher choice',async()=>{const d=await doc(review('Review 1) 2020'));const m=mapping(d);expect(mapCompiledRecords(d,m,'School')[0]?.text).not.toContain('Academic integrity');m.records[0]!.include.push('questionnaire');expect(mapCompiledRecords(d,m,'School')[0]?.text).toContain('Academic integrity of school\t7');});
+ it('rejects omitted/overlapping blocks, stale extraction and unconfirmed candidates',async()=>{const d=await doc(review(null)+review(null)),m=mapping(d);expect(()=>mapCompiledRecords(d,{...m,hash:'0'.repeat(64)},'School')).toThrow('stale');expect(()=>mapCompiledRecords(d,{...m,records:m.records.slice(1)},'School')).toThrow('partition');expect(structuralMappingInput.safeParse({...m,records:[{...m.records[0],confirmed:false}]}).success).toBe(false);});
+ it('accepts researcher split/join boundaries only with complete source coverage',async()=>{const d=await doc(review('Review 1) 2020')+p('Second paragraph.')),m=mapping(d);const r=m.records[0]!;m.records=[{...r,end:d.blocks.length-1},{...r,start:d.blocks.length-1}];expect(mapCompiledRecords(d,m,'School')).toHaveLength(2);m.records=[r];expect(mapCompiledRecords(d,m,'School')).toHaveLength(1);});
+ it('validates all institution states without treating proposals as confirmation',async()=>{const d=await doc(review(null)),m=mapping(d);for(const state of ['confirmed','proposed'] as const){m.records[0]!.institution={state,name:'Example School',note:'Researcher supplied'};expect(mapCompiledRecords(d,m,'School')[0]?.locator.institution.state).toBe(state);}expect(structuralMappingInput.safeParse({...m,records:[{...m.records[0],institution:{state:'confirmed',name:''}}]}).success).toBe(false);});
+ it('ignores unrelated tables and preserves unmatched leading content for review',async()=>{const d=await doc(p('Compilation introduction.')+review(null));expect(d.warnings).toContain('leading_content_requires_boundary_review');expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toContain('Compilation introduction.');});
+ it('does not split a narrative sentence mentioning a review number',async()=>{const d=await doc(review('Review 1) 2020')+p('I disagree with Review 2) and its description.')+review(null));expect(d.candidates).toHaveLength(2);expect(mapCompiledRecords(d,mapping(d),'School')[0]?.text).toContain('I disagree');});
+});
+
+const directorTable=()=>'<w:tbl>'+['Characteristics:','Fair','Genuine','Flexible','Consistent','Transparent','A Person of Integrity','A Person who acts with respect','Overall Rating to nearest number','Experience with this Director'].map(s=>`<w:tr><w:tc>${p(s)}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`).join('')+'</w:tbl>';
+describe('Director questionnaire and boundary guard',()=>{
+ it('detects headed and unheaded reviews without a Comments marker, preserving repeated wording',async()=>{
+  const d=await doc(p('Review 1) Person 2020')+directorTable()+p('After the Interview')+p('A shared narrative.')+directorTable()+p('Additional Comments, most outstanding characteristic of this director, etc.')+p('A shared narrative.'));
+  expect(d.profile.id).toBe('director-questionnaire');expect(d.candidates).toHaveLength(2);expect(d.candidates[1]?.originalReviewNumber).toBeNull();
+  const records=mapCompiledRecords(d,mapping(d),'Director');expect(records.map(r=>r.text)).toEqual(['A shared narrative.','A shared narrative.']);expect(records.every(r=>r.locator.institution.state==='unassigned')).toBe(true);
+  expect(d.blocks.filter(b=>b.component==='questionnaire')).toHaveLength(2);expect(d.blocks.filter(b=>b.component==='marker')).toHaveLength(2);
+ });
+ it('blocks a researcher merge that would recreate a compiled context boundary',async()=>{const d=await doc(directorTable()+p('First.')+directorTable()+p('Second.')),m=mapping(d);m.records=[{...m.records[0]!,end:d.blocks.length}];expect(()=>mapCompiledRecords(d,m,'Director')).toThrow('one individual review');});
+ it('keeps unmatched structures for manual splitting rather than declaring a single review',async()=>{const d=await doc(p('Characteristics:')+p('First.')+p('Characteristics:')+p('Second.'));expect(d.profile.id).toBe('manual-review-boundaries');expect(d.warnings).toContain('suspected_compilation_requires_manual_boundaries');expect(()=>mapCompiledRecords(d,mapping(d),'')).toThrow('one individual review');});
+});
+
+it('recognises the Director questionnaire when its optional rating row is absent',async()=>{const d=await doc(directorTable().replace(`<w:tr><w:tc>${p('Overall Rating to nearest number')}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`,'')+p('Narrative.')+directorTable()+p('Other narrative.'));expect(d.candidates).toHaveLength(2);expect(d.candidates[0]?.warnings).toContain('optional_questionnaire_fields_missing');expect(mapCompiledRecords(d,mapping(d),'Director')).toHaveLength(2);});
+import {nextUnchecked,reconcileReviewBreaks} from '../../../../apps/researched/frontend/src/workbench/review-navigation.js';
+const principalTable=()=>'<w:tbl>'+['Fair & equitable with all staff','Good listener, easily approachable','Provides disciplinary support','Displays effective leadership','Delegates responsibility well','Demonstrates curriculum knowledge','Fosters positive, supportive climate','Strong ability to relate to kids',"Principal's level of responsibility"].map(s=>`<w:tr><w:tc>${p(s)}</w:tc><w:tc>${p('')}</w:tc></w:tr>`).join('')+'</w:tbl>';
+it('splits mixed Director and Principal questionnaires and excludes headings and ratings from narrative',async()=>{
+ const d=await doc(directorTable()+p('Director narrative.')+principalTable()+p('Management style')+p('Principal narrative.')+directorTable()+p('Final narrative.'));
+ expect(d.profile.version).toBe('1.1');expect(d.candidates).toHaveLength(3);expect(d.candidates.every(c=>c.confidence==='high')).toBe(true);
+ expect(mapCompiledRecords(d,mapping(d),'').map(r=>r.text)).toEqual(['Director narrative.','Principal narrative.','Final narrative.']);
+ const m=mapping(d);m.records=[{...m.records[0]!,end:m.records[1]!.end},m.records[2]!];expect(()=>mapCompiledRecords(d,m,'')).toThrow('one individual review');
+ const repaired=reconcileReviewBreaks(m.records,d);expect(repaired.map(r=>r.confirmed)).toEqual([false,false,true]);expect(nextUnchecked(repaired)).toBe(0);expect(nextUnchecked([{confirmed:true},{confirmed:false},{confirmed:true},{confirmed:false}],1)).toBe(3);expect(nextUnchecked([{confirmed:false},{confirmed:true}],1)).toBe(0);
+ expect(reconcileReviewBreaks(repaired,d)).toEqual(repaired);
+});
+it('does not invent missing rating data or make it a boundary blocker',async()=>{
+ const d=await doc(directorTable().replace(`<w:tr><w:tc>${p('Overall Rating to nearest number')}</w:tc><w:tc>${p('7')}</w:tc></w:tr>`,'')+p('Narrative.'));
+ expect(d.candidates[0]?.confidence).toBe('high');expect(d.candidates[0]?.warnings).toContain('optional_questionnaire_fields_missing');expect(d.blocks[0]?.text).not.toContain('Overall Rating');
+});
+it('retains unrecognised tables as review-required rather than guessing a Principal boundary',async()=>{
+ const d=await doc(directorTable()+p('Narrative.')+'<w:tbl><w:tr><w:tc>'+p('Management style')+'</w:tc></w:tr></w:tbl>');expect(d.candidates).toHaveLength(1);expect(d.candidates[0]?.confidence).toBe('review-required');
+});
+import {documentComponents,applyDocumentComponents} from '../../../../apps/researched/frontend/src/workbench/review-navigation.js';
+it('defaults to narrative and questionnaire for every review and applies document choices uniformly',async()=>{
+ const d=await doc(directorTable()+p('First.')+directorTable()+p('Second.'));const records=reconcileReviewBreaks(undefined,d);expect(documentComponents(records)).toEqual(['narrative','questionnaire']);records[1]!.include=['narrative'];expect(documentComponents(records)).toBeNull();const all=applyDocumentComponents(records,['narrative','questionnaire']);expect(all.every(r=>r.include.includes('questionnaire'))).toBe(true);expect(records[1]!.include).toEqual(['narrative']);expect(all[0]!.confirmed).toBe(records[0]!.confirmed);
+ const m=mapping(d);m.documentComponents=['narrative','questionnaire'];expect(()=>mapCompiledRecords(d,m,'')).toThrow('same content selection');m.records=all.map(r=>({...r,confirmed:true})) as typeof m.records;expect(mapCompiledRecords(d,m,'').every(r=>r.text.includes('Fair\t7'))).toBe(true);
+});

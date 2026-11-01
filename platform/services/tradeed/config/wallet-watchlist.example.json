@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "wallets": [
+    {
+      "address": "REPLACE_WITH_SOLANA_WALLET_ADDRESS",
+      "enabled": false,
+      "label": "research-only until reconstructed qualification passes"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "appId": "dressed", "name": "Dress’Ed", "version": "1",
+  "instructions": "Support wardrobe organisation and outfit planning using supplied wardrobe records and preferences. Distinguish recorded properties from uncertain image-derived suggestions. Offer practical options without assuming unavailable items or preferences.",
+  "help": [{"id":"dressed:overview","content":"Dress’Ed manages a wardrobe catalogue, item photography, styling rules, outfit planning and item lifecycle. Start with accurate catalogue records and preferences before using outfit suggestions."}],
+  "workflows": ["wardrobe-updated", "plan-updated"]
+}

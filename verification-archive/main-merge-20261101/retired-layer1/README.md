@@ -1,0 +1,3 @@
+# Historical main Layer 1 implementation
+
+Preserved from main d8f767b1cc3470e6e67031a6a74e957e06925742 during the backend merge. The released read-only documentary projection and migration 002_retire_empty_model already superseded this empty legacy model before this merge. This archive retains main source/tests for review; it is outside executable module and test discovery. Restoring obsolete nb_records queries would break the already-recovered database. Active retirement and current Execution/HTTP contracts remain covered by platform/tests/unit/nb-retirement.test.js and platform integration tests. No data or runtime was changed.

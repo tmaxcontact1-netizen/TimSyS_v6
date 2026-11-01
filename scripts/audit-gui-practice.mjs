@@ -9,14 +9,14 @@ const sources = {
   principaled: ["apps/principaled/src/main.jsx", "apps/principaled/src/api/client.js", "apps/principaled/src/dashboard/Index.jsx"],
   dressed: ["apps/dressed/frontend/src/main.jsx"],
   researched: ["apps/researched/frontend/src/main.jsx", "apps/researched/frontend/src/content-ui.jsx", "apps/researched/frontend/src/mcf/McfWorkspace.jsx", "apps/researched/frontend/src/legacy-workflow.jsx"],
-  memecoined: ["apps/memecoined/frontend/app.js", "apps/memecoined/frontend/index.html"],
+  tradeed: ["apps/tradeed/frontend/app.js", "apps/tradeed/frontend/index.html"],
 };
 const all = Object.values(sources).flat().map(read).join("\n");
 if (/window\.(alert|confirm|prompt)\s*\(/.test(all)) failures.push("native browser prompt/confirm/alert remains in a user interface");
 for (const app of ["launcher", "principaled", "dressed", "researched"]) {
   if (!sources[app].map(read).join("\n").includes("ActionFeedbackHost")) failures.push(`${app} does not mount the shared action-feedback host`);
 }
-if (!sources.memecoined.map(read).join("\n").includes("installActionFeedback")) failures.push("memecoined does not install mutation feedback");
+if (!sources.tradeed.map(read).join("\n").includes("installActionFeedback")) failures.push("tradeed does not install mutation feedback");
 const contract = JSON.parse(read("platform/shared/contracts/application-ui-standard.json"));
 for (const requirement of ["successAndErrorFeedback", "loadingFeedback", "mutationFeedbackHost", "silentCompletionForbidden"]) if (contract.actions?.[requirement] !== true) failures.push(`UI contract does not require ${requirement}`);
 const sharedStyles = read("apps/shared-ui/styles/timsys-dark.css");

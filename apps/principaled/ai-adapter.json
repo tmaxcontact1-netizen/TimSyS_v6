@@ -1,0 +1,9 @@
+{
+  "appId": "principal-ed", "name": "Principal’Ed", "version": "1",
+  "instructions": "Support school administration and leadership. Explain patterns and missing evidence. Never assign standards, approve records or judge individual students or staff from incomplete evidence. Keep recommendations reviewable.",
+  "help": [
+    {"id":"principaled:overview","content":"Principal’Ed supports school administration through platform modules, including student and staff registries, scheduling, assessment evaluation and intelligence insights. Use the relevant module to inspect records and make changes."},
+    {"id":"principaled:assessment","content":"Assessment evaluation separates observed task demand from standards mapping and human review. AI interpretations are proposals and cannot confirm alignment or overwrite deterministic evidence."}
+  ],
+  "workflows": ["assessment-updated", "insight-created"]
+}

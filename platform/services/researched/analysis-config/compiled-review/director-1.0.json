@@ -1,0 +1,28 @@
+{
+  "id": "director-questionnaire",
+  "version": "1.0",
+  "labels": [
+    "Characteristics:",
+    "Fair",
+    "Genuine",
+    "Flexible",
+    "Consistent",
+    "Transparent",
+    "A Person of Integrity",
+    "A Person who acts with respect",
+    "Experience with this Director"
+  ],
+  "narrativeHeadings": [
+    "Interviewing style and information that will help candidates land a position",
+    "After the Interview",
+    "Additional Comments, most outstanding characteristic of this director, etc."
+  ],
+  "heading": "^(?:(.*?)\\s*-\\s*)?Review\\s+(\\d+)\\)\\s*(.*)$",
+  "comments": "",
+  "editorial": "^(?:Note:|This review (?:was posted by|came in with|received in))",
+  "parentNote": "This review was posted by a parent.",
+  "receiptPrefix": "This review received in ",
+  "optionalLabels": [
+    "Overall Rating to nearest number"
+  ]
+}

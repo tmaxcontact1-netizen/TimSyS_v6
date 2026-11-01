@@ -1,0 +1,12 @@
+{
+  "name": "tradeed",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "TimSyS frontend; all backend services are owned by TimSyS",
+  "scripts": {
+    "build": "node ../../scripts/build-static-tradeed.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

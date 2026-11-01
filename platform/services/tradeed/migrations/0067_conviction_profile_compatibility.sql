@@ -1,0 +1,34 @@
+BEGIN;
+
+-- Preserve the complete historical catalogue while admitting the dormant
+-- profile required by the immutable conviction branch migration.
+ALTER TABLE paper_profile_activations
+  DROP CONSTRAINT IF EXISTS paper_profile_activations_profile_id_check;
+ALTER TABLE paper_profile_activations
+  ADD CONSTRAINT paper_profile_activations_profile_id_check CHECK (profile_id IN (
+    'whale_tracker','fast_furious','slow_steady','trend_detector','capital_preservation',
+    'signal_consensus','breakout_retest','liquidity_expansion','social_catalyst',
+    'recovery_reversal','launch_transition','scalper','oscillation_trader','benchmark_buy_hold',
+    'benchmark_momentum','benchmark_ema_cross','benchmark_rsi_reversal',
+    'benchmark_macd_trend','benchmark_bollinger_reversion','benchmark_donchian_breakout',
+    'benchmark_volume_breakout','benchmark_atr_trend','conviction_scale'
+  ));
+
+ALTER TABLE paper_profile_accounts
+  DROP CONSTRAINT IF EXISTS paper_profile_accounts_profile_id_check;
+ALTER TABLE paper_profile_accounts
+  ADD CONSTRAINT paper_profile_accounts_profile_id_check CHECK (profile_id IN (
+    'whale_tracker','fast_furious','slow_steady','trend_detector','capital_preservation',
+    'signal_consensus','breakout_retest','liquidity_expansion','social_catalyst',
+    'recovery_reversal','launch_transition','scalper','oscillation_trader','benchmark_buy_hold',
+    'benchmark_momentum','benchmark_ema_cross','benchmark_rsi_reversal',
+    'benchmark_macd_trend','benchmark_bollinger_reversion','benchmark_donchian_breakout',
+    'benchmark_volume_breakout','benchmark_atr_trend','conviction_scale'
+  ));
+
+INSERT INTO paper_profile_activations
+  (wallet,profile_id,enabled,mode,allocation_bps,version,created_at,updated_at)
+SELECT wallet,'conviction_scale',false,'observe',0,1,now(),now()
+FROM paper_accounts ON CONFLICT (wallet,profile_id) DO NOTHING;
+
+COMMIT;

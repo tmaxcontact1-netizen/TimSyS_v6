@@ -1,5 +1,6 @@
 node_modules/
 apps/memecoined/diagnostics/
+platform/services/*/diagnostics/
 .npm-cache/
 **/dist/
 apps/launcher/runtime-stage/
@@ -16,3 +17,7 @@ data/*.sqlite-wal
 **/test_*.sqlite-wal
 # Original document bytes belong to the local data store, not source control.
 /platform/data/*.sqlite.documents/
+
+
+# Retained legacy local dependencies/data are not maintained app source.
+/apps/memecoined/

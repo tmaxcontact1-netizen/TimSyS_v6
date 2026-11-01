@@ -7,7 +7,8 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const stage = join(root, "apps", "launcher", "runtime-stage");
+const stageArgument=process.argv.find(v=>v.startsWith("--stage-dir="));
+const stage=stageArgument?resolve(stageArgument.slice(12)):join(root,"apps","launcher","runtime-stage");
 const failures = [];
 const execFileAsync = promisify(execFile);
 
@@ -26,6 +27,7 @@ async function digest(file) {
 async function inventory(directory, prefix = "") {
   const result = new Map();
   for (const entry of await readdir(directory, { withFileTypes: true })) {
+    if(["node_modules","modules-runtime","data",".git"].includes(entry.name)||(entry.name==="app-adapters"&&directory.endsWith("ai_gateway")))continue;
     const relative = prefix ? join(prefix, entry.name) : entry.name;
     const absolute = join(directory, entry.name);
     if (entry.isDirectory()) {
@@ -88,7 +90,7 @@ async function verifyManifest(relative) {
     failures.push(`invalid staged manifest ${relative}: ${error.message}`);
     return;
   }
-  if (manifest.schemaVersion !== 1 || manifest.kind !== "supervised-child") {
+  if (manifest.schemaVersion !== 1 || !["supervised-child","frontend"].includes(manifest.kind)) {
     failures.push(`unsupported staged manifest contract: ${relative}`);
   }
   if (manifest.health?.contract === "timsys.application.v1" && manifest.platform?.protocol !== manifest.health.contract) {
@@ -120,43 +122,46 @@ async function verifyManifest(relative) {
 
 await Promise.all([
   requirePath("platform/modules-runtime"),
-  requirePath("apps/memecoined/modules-runtime/pg/package.json"),
-  requirePath("apps/memecoined/modules-runtime/@timsys/app-sdk/package.json"),
-  requirePath("apps/memecoined/frontend/index.html"),
-  requirePath("apps/memecoined/frontend/app.js"),
-  requirePath("apps/memecoined/.env.example"),
-  requirePath("apps/dressed/modules-runtime/pg/package.json"),
-  requirePath("apps/dressed/modules-runtime/@timsys/app-sdk/package.json"),
-  requirePath("apps/dressed/modules-runtime/sharp/package.json"),
+  requirePath("platform/services/tradeed/modules-runtime/pg/package.json"),
+  requirePath("platform/services/tradeed/modules-runtime/@timsys/app-sdk/package.json"),
+  requirePath("apps/tradeed/frontend/index.html"),
+  requirePath("apps/tradeed/frontend/app.js"),
+  requirePath("platform/services/tradeed/.env.example"),
+  requirePath("platform/services/dressed/modules-runtime/pg/package.json"),
+  requirePath("platform/services/dressed/modules-runtime/@timsys/app-sdk/package.json"),
+  requirePath("platform/modules-runtime/sharp/package.json"),
   requirePath("apps/dressed/dist/frontend/index.html"),
-  requirePath("apps/dressed/.env.example"),
-  requirePath("apps/researched/modules-runtime/pg/package.json"),
-  requirePath("apps/researched/modules-runtime/@timsys/app-sdk/package.json"),
+  requirePath("platform/services/dressed/.env.example"),
+  requirePath("platform/services/researched/modules-runtime/pg/package.json"),
+  requirePath("platform/services/researched/modules-runtime/@timsys/app-sdk/package.json"),
   requirePath("apps/researched/dist/frontend/index.html"),
-  requirePath("apps/researched/.env.example"),
+  requirePath("platform/services/researched/.env.example"),
   requirePath("runtime/postgres/bin/postgres.exe"),
   requirePath("runtime/postgres/bin/pg_dump.exe"),
   requirePath("runtime/postgres/share/timezone"),
   requirePath("runtime/postgres/share/timezonesets/Default"),
   verifyManifest("platform/timsys.app.json"),
-  verifyManifest("apps/memecoined/timsys.app.json"),
+  verifyManifest("apps/tradeed/timsys.app.json"),
+  ...["dressed","researched","tradeed"].map(app=>verifyManifest("platform/services/"+app+"/timsys.app.json")),
   verifyManifest("apps/dressed/timsys.app.json"),
   verifyManifest("apps/researched/timsys.app.json"),
 ]);
 
 await Promise.all([
-  verifyNodeRuntime("platform/modules-runtime", ["better-sqlite3", "jsonwebtoken", "zod"]),
-  verifyNodeRuntime("apps/memecoined/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
-  verifyNodeRuntime("apps/dressed/modules-runtime", ["@timsys/app-sdk", "pg", "sharp", "zod"]),
-  verifyNodeRuntime("apps/researched/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
+  verifyNodeRuntime("platform/modules-runtime", ["better-sqlite3", "jsonwebtoken", "zod", "pg", "sharp"]),
+  verifyNodeRuntime("platform/services/tradeed/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
+  verifyNodeRuntime("platform/services/dressed/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
+  verifyNodeRuntime("platform/services/researched/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
 ]);
 
+await Promise.all(["principaled","dressed","researched","tradeed"].map(app=>verifyCurrent("apps/"+app+"/ai-adapter.json","platform/modules/ai_gateway/app-adapters/"+app+".json")));
+const adapterNames=(await readdir(join(stage,"platform/modules/ai_gateway/app-adapters"))).sort();if(adapterNames.join(",")!==["dressed.json","principaled.json","researched.json","tradeed.json"].join(","))failures.push("Unexpected staged app adapter inventory");
 await Promise.all([
-  ...["package.json","package-lock.json","index.js","timsys.app.json","config","contracts","engine","frontend","migrations","modules","packages","scripts","shared"].map((item) => verifyCurrent(`platform/${item}`)),
-  ...["package.json","package-lock.json","dist","frontend","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/memecoined/${item}`)),
+  ...["package.json","package-lock.json","index.js","timsys.app.json","config","contracts","engine","frontend","migrations","modules","packages","scripts","services","native","shared"].map((item) => verifyCurrent(`platform/${item}`)),
+  ...["frontend","timsys.app.json","timsys.services.json"].map((item) => verifyCurrent(`apps/tradeed/${item}`)),
   verifyCurrent("apps/principaled/dist"),
-  ...["package.json","package-lock.json","dist","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/dressed/${item}`)),
-  ...["package.json","package-lock.json","dist","migrations",".env.example","timsys.app.json"].map((item) => verifyCurrent(`apps/researched/${item}`)),
+  ...["dist/frontend","timsys.app.json","timsys.services.json"].map((item) => verifyCurrent(`apps/dressed/${item}`)),
+  ...["dist/frontend","timsys.app.json","timsys.services.json"].map((item) => verifyCurrent(`apps/researched/${item}`)),
   ...["bin", "lib", "share", "server_license.txt", "commandlinetools_3rd_party_licenses.txt"]
     .map((item) => verifyCurrent(`apps/launcher/.cache/postgres/${item}`, `runtime/postgres/${item}`)),
 ]);
@@ -164,12 +169,12 @@ await Promise.all([
 async function verifyMigrations(application, displayName) {
  try {
   const sourceMigrations = (
-    await readdir(join(root, "apps", application, "migrations"))
+    await readdir(join(root, ...(application === "dressed" ? ["platform","services","wardrobe","migrations"] : ["platform","services",application,"migrations"])))
   )
     .filter((name) => /^\d{4}_.+\.sql$/.test(name))
     .sort();
   const stagedMigrations = (
-    await readdir(join(stage, "apps", application, "migrations"))
+    await readdir(join(stage, ...(application === "dressed" ? ["platform","services","wardrobe","migrations"] : ["platform","services",application,"migrations"])))
   )
     .filter((name) => /^\d{4}_.+\.sql$/.test(name))
     .sort();
@@ -187,8 +192,24 @@ async function verifyMigrations(application, displayName) {
  }
 }
 
+try {
+  const baseline = JSON.parse(await readFile(join(stage, 'platform/installed-baseline.json'), 'utf8'));
+  if (baseline.schemaVersion !== 1) failures.push('Unsupported installed baseline metadata');
+  for (const app of ['principaled', 'dressed', 'researched', 'tradeed']) {
+    for (const file of ['package.json', 'timsys.app.json', 'ai-adapter.json', 'ai-assistant-contract.json']) {
+      const relative = `apps/${app}/${file}`;
+      try { await access(join(root, relative)); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      await verifyCurrent(relative);
+    }
+    if (app !== 'principaled') {
+      const appPackage = JSON.parse(await readFile(join(stage, 'apps', app, 'package.json'), 'utf8'));
+      if (baseline.bundles?.[app]?.version !== appPackage.version) failures.push(`Installed baseline disagrees with ${app} package version`);
+    }
+  }
+} catch (error) { failures.push(`Installed baseline/package metadata verification failed: ${error.message}`); }
+
 await Promise.all([
-  verifyMigrations("memecoined", "MemeCoined"),
+  verifyMigrations("tradeed", "TradeEd"),
   verifyMigrations("dressed", "Dress'Ed"),
   verifyMigrations("researched", "Research'Ed"),
 ]);
@@ -200,5 +221,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 process.stdout.write(
-  "Windows runtime verified: launcher, platform, MemeCoined, Dress'Ed, Research'Ed, PostgreSQL, migrations, and production dependencies are staged.\n",
+  "Windows runtime verified: launcher, platform, TradeEd, Dress'Ed, Research'Ed, PostgreSQL, migrations, and production dependencies are staged.\n",
 );
+
+

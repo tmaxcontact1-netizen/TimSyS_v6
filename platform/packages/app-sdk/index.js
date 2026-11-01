@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+export { TimSysAiClient } from './ai.cjs';
 
 export const APPLICATION_PROTOCOL = "timsys.application.v1";
 

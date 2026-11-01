@@ -2,12 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { copyFile } from 'node:fs/promises';
 
 const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(configDirectory, '../..');
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), { name: 'assistant-entry', async closeBundle() { await copyFile(path.join(configDirectory, 'dist/index.html'), path.join(configDirectory, 'dist/assistant.html')); } }],
   server: {
     port: 5173,
     fs: {
@@ -17,12 +18,13 @@ export default defineConfig({
       ignored: [
         '**/node_modules/**',
         '**/platform/**',
-        '**/apps/memecoined/**',
+        '**/apps/tradeed/**',
         '**/apps/principaled/**',
         '**/.git/**',
       ]
     },
     proxy: {
+      '/ai-gateway': { target: 'http://localhost:3000', changeOrigin: true },
       '/execution': { target: 'http://localhost:3000', changeOrigin: true },
       '/nervous-breakdown': { target: 'http://localhost:3000', changeOrigin: true },
       '/documents': { target: 'http://localhost:3000', changeOrigin: true },

@@ -6,7 +6,7 @@ Launcher 1.0.11 separates the stable Electron/PostgreSQL installation from repla
 
 1. Run the full platform verification and stage the Windows runtime.
 2. Build the Launcher UI.
-3. Run `npm run update:bundle -- 2026.09.1` from the repository root. To publish a cumulative subset relative to the 1.0.10 installer baseline, add—for example—`--only=principaled,memecoined,dressed,researched`.
+3. Run `npm run update:bundle -- 2026.09.1` from the repository root. To publish a cumulative subset relative to the 1.0.10 installer baseline, add—for example—`--only=principaled,tradeed,dressed,researched`.
 4. Create a GitHub Release whose tag is exactly `2026.09.1`.
 5. Upload every file from `dist-updates`, including `timsys-update.json`, as release assets.
 

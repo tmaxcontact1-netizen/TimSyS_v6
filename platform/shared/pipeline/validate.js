@@ -5,7 +5,7 @@ const path = require('path');
 const log = require('../services/log');
 
 var REQUIRED_FIELDS = ['name', 'version', 'author', 'dependencies', 'provides', 'requires', 'routes', 'functions', 'schema', 'events'];
-var VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+var VALID_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 function validateModule(moduleInfo) {
   var manifest = moduleInfo.manifest;

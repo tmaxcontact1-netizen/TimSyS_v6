@@ -1,0 +1,328 @@
+{
+  "id": "MCF",
+  "name": "Management Competency Framework",
+  "version": "1.0",
+  "domains": [
+    {
+      "id": "A",
+      "name": "Operational Management"
+    },
+    {
+      "id": "B",
+      "name": "Strategic Leadership"
+    },
+    {
+      "id": "C",
+      "name": "People Management"
+    },
+    {
+      "id": "D",
+      "name": "Organisational Culture"
+    },
+    {
+      "id": "E",
+      "name": "Data-Driven Decision-Making"
+    },
+    {
+      "id": "F",
+      "name": "Communication and Stakeholder Engagement"
+    },
+    {
+      "id": "G",
+      "name": "Ethical and Moral Leadership"
+    }
+  ],
+  "competencies": [
+    {
+      "id": "A1",
+      "domainId": "A",
+      "domain": "Operational Management",
+      "competency": "Resource Management",
+      "operationalDefinition": "organisation, allocation, and deployment of financial, human, physical, or technological resources in support of institutional objectives.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Exclude generic discussion of salaries, buildings, technology, or resources where no management/allocation dimension exists."
+      ],
+      "suppliedText": "organisation, allocation, and deployment of financial, human, physical, or technological resources in support of institutional objectives. Exclude generic discussion of salaries, buildings, technology, or resources where no management/allocation dimension exists.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "A2",
+      "domainId": "A",
+      "domain": "Operational Management",
+      "competency": "Process Efficiency",
+      "operationalDefinition": "organisation of institutional processes so activities are coordinated and implemented effectively.",
+      "inclusionCriteria": [
+        "Include workflows, procedures, scheduling, coordination, administrative efficiency, and unnecessary bureaucracy."
+      ],
+      "exclusionCriteria": [
+        "Exclude generic uses of “efficient” or “inefficient” without an organisational process."
+      ],
+      "suppliedText": "organisation of institutional processes so activities are coordinated and implemented effectively. Include workflows, procedures, scheduling, coordination, administrative efficiency, and unnecessary bureaucracy. Exclude generic uses of “efficient” or “inefficient” without an organisational process.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "A3",
+      "domainId": "A",
+      "domain": "Operational Management",
+      "competency": "Accountability Mechanisms",
+      "operationalDefinition": "structures through which responsibilities, expectations, performance, and implementation are monitored.",
+      "inclusionCriteria": [
+        "Include monitoring, role accountability, performance expectations, follow-through, and formal oversight."
+      ],
+      "exclusionCriteria": [
+        "Distinguish organisational accountability from purely moral responsibility."
+      ],
+      "suppliedText": "structures through which responsibilities, expectations, performance, and implementation are monitored. Include monitoring, role accountability, performance expectations, follow-through, and formal oversight. Distinguish organisational accountability from purely moral responsibility.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "B1",
+      "domainId": "B",
+      "domain": "Strategic Leadership",
+      "competency": "Strategic Planning",
+      "operationalDefinition": "establishment of organisational direction translated into planned longer-term institutional activity.",
+      "inclusionCriteria": [
+        "Include strategic priorities, institutional goals, long-term planning, and vision linked to action."
+      ],
+      "exclusionCriteria": [
+        "Exclude generic descriptions of someone as “visionary”."
+      ],
+      "suppliedText": "establishment of organisational direction translated into planned longer-term institutional activity. Include strategic priorities, institutional goals, long-term planning, and vision linked to action. Exclude generic descriptions of someone as “visionary”.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "B2",
+      "domainId": "B",
+      "domain": "Strategic Leadership",
+      "competency": "Change Management",
+      "operationalDefinition": "organisation, communication, and implementation of organisational change.",
+      "inclusionCriteria": [
+        "Include transitions, reforms, implementation processes, sequencing, and managing resistance."
+      ],
+      "exclusionCriteria": [
+        "Do not classify the word “change” merely because something became different."
+      ],
+      "suppliedText": "organisation, communication, and implementation of organisational change. Include transitions, reforms, implementation processes, sequencing, and managing resistance. Do not classify the word “change” merely because something became different.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "B3",
+      "domainId": "B",
+      "domain": "Strategic Leadership",
+      "competency": "Innovation and Adaptability",
+      "operationalDefinition": "modification of organisational activity in response to changing circumstances and development of appropriate new approaches.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Exclude novelty, new technology, or new facilities without evidence of organisational innovation/adaptation."
+      ],
+      "suppliedText": "modification of organisational activity in response to changing circumstances and development of appropriate new approaches. Exclude novelty, new technology, or new facilities without evidence of organisational innovation/adaptation.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "C1",
+      "domainId": "C",
+      "domain": "People Management",
+      "competency": "Talent Development",
+      "operationalDefinition": "recruitment, development, deployment, and retention of professional capability.",
+      "inclusionCriteria": [
+        "Include recruitment, induction, mentoring, coaching, professional development, succession, and retention."
+      ],
+      "exclusionCriteria": [
+        "Exclude generic statements that employees are talented or qualified."
+      ],
+      "suppliedText": "recruitment, development, deployment, and retention of professional capability. Include recruitment, induction, mentoring, coaching, professional development, succession, and retention. Exclude generic statements that employees are talented or qualified.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "C2",
+      "domainId": "C",
+      "domain": "People Management",
+      "competency": "Motivation and Engagement",
+      "operationalDefinition": "organisational/leadership practices affecting staff commitment, participation, morale, recognition, empowerment, and engagement.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Exclude personal happiness/dissatisfaction without an identifiable organisational relationship."
+      ],
+      "suppliedText": "organisational/leadership practices affecting staff commitment, participation, morale, recognition, empowerment, and engagement. Exclude personal happiness/dissatisfaction without an identifiable organisational relationship.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "C3",
+      "domainId": "C",
+      "domain": "People Management",
+      "competency": "Conflict and Performance Management",
+      "operationalDefinition": "management of employee performance, professional expectations, workplace conflict, corrective processes, appraisal, underperformance, feedback, mediation, and disciplinary procedures.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Student discipline alone does not qualify."
+      ],
+      "suppliedText": "management of employee performance, professional expectations, workplace conflict, corrective processes, appraisal, underperformance, feedback, mediation, and disciplinary procedures. Student discipline alone does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "D1",
+      "domainId": "D",
+      "domain": "Organisational Culture",
+      "competency": "Cultural Alignment",
+      "operationalDefinition": "relationship between organisational practices/norms and institutional values/context.",
+      "inclusionCriteria": [
+        "Include mission or values enacted in practice and alignment/misalignment between stated and enacted norms."
+      ],
+      "exclusionCriteria": [
+        "National/local culture mentioned descriptively does not qualify."
+      ],
+      "suppliedText": "relationship between organisational practices/norms and institutional values/context. Include mission or values enacted in practice and alignment/misalignment between stated and enacted norms. National/local culture mentioned descriptively does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "D2",
+      "domainId": "D",
+      "domain": "Organisational Culture",
+      "competency": "Equity and Inclusion",
+      "operationalDefinition": "organisational practices concerning fair and inclusive treatment and participation.",
+      "inclusionCriteria": [
+        "Include discrimination, equitable treatment, systemic bias, inclusion, representation, and access."
+      ],
+      "exclusionCriteria": [
+        "Demographic diversity alone does not qualify."
+      ],
+      "suppliedText": "organisational practices concerning fair and inclusive treatment and participation. Include discrimination, equitable treatment, systemic bias, inclusion, representation, and access. Demographic diversity alone does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "D3",
+      "domainId": "D",
+      "domain": "Organisational Culture",
+      "competency": "Organisational Climate",
+      "operationalDefinition": "organisational conditions involving trust, psychological safety, collegiality, wellbeing, fear, toxicity, and workplace relationships.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Exclude generic happiness/dissatisfaction unrelated to organisational conditions."
+      ],
+      "suppliedText": "organisational conditions involving trust, psychological safety, collegiality, wellbeing, fear, toxicity, and workplace relationships. Exclude generic happiness/dissatisfaction unrelated to organisational conditions.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "E1",
+      "domainId": "E",
+      "domain": "Data-Driven Decision-Making",
+      "competency": "Data Literacy",
+      "operationalDefinition": "understanding, interpretation, and evaluation of information used for organisational decision-making.",
+      "inclusionCriteria": [
+        "Include metrics, assessment data, surveys, evidence quality, and limitations."
+      ],
+      "exclusionCriteria": [
+        "Data collection alone does not qualify."
+      ],
+      "suppliedText": "understanding, interpretation, and evaluation of information used for organisational decision-making. Include metrics, assessment data, surveys, evidence quality, and limitations. Data collection alone does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "E2",
+      "domainId": "E",
+      "domain": "Data-Driven Decision-Making",
+      "competency": "Evidence-Based Decision-Making",
+      "operationalDefinition": "organisational decisions explicitly informed by relevant evidence, research, assessment, documented information, or data.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Ordinary use of the word “evidence” does not qualify."
+      ],
+      "suppliedText": "organisational decisions explicitly informed by relevant evidence, research, assessment, documented information, or data. Ordinary use of the word “evidence” does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "E3",
+      "domainId": "E",
+      "domain": "Data-Driven Decision-Making",
+      "competency": "Continuous Improvement",
+      "operationalDefinition": "systematic use of monitoring, feedback, evaluation, and evidence to refine organisational activity over time.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Generic statements involving “improvement”, “better”, or something needing improvement do not qualify."
+      ],
+      "suppliedText": "systematic use of monitoring, feedback, evaluation, and evidence to refine organisational activity over time. Generic statements involving “improvement”, “better”, or something needing improvement do not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "F1",
+      "domainId": "F",
+      "domain": "Communication and Stakeholder Engagement",
+      "competency": "Internal Communication",
+      "operationalDefinition": "organisational exchange of information with/between staff, including consultation, listening, feedback channels, and communication of decisions.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Simply speaking, emailing, or holding meetings does not automatically qualify."
+      ],
+      "suppliedText": "organisational exchange of information with/between staff, including consultation, listening, feedback channels, and communication of decisions. Simply speaking, emailing, or holding meetings does not automatically qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "F2",
+      "domainId": "F",
+      "domain": "Communication and Stakeholder Engagement",
+      "competency": "External Relations",
+      "operationalDefinition": "organisational relationships with parents, boards, owners, regulators, community organisations, and external partners.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Merely mentioning an external stakeholder does not qualify."
+      ],
+      "suppliedText": "organisational relationships with parents, boards, owners, regulators, community organisations, and external partners. Merely mentioning an external stakeholder does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "F3",
+      "domainId": "F",
+      "domain": "Communication and Stakeholder Engagement",
+      "competency": "Advocacy",
+      "operationalDefinition": "representing and advancing legitimate organisational or stakeholder interests.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Generic support/encouragement does not qualify."
+      ],
+      "suppliedText": "representing and advancing legitimate organisational or stakeholder interests. Generic support/encouragement does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "G1",
+      "domainId": "G",
+      "domain": "Ethical and Moral Leadership",
+      "competency": "Moral Decision-Making",
+      "operationalDefinition": "consideration of fairness, integrity, responsibility, conflicts of interest, and ethical consequences in organisational decisions.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Merely describing somebody as ethical/unethical does not qualify without behavioural context."
+      ],
+      "suppliedText": "consideration of fairness, integrity, responsibility, conflicts of interest, and ethical consequences in organisational decisions. Merely describing somebody as ethical/unethical does not qualify without behavioural context.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "G2",
+      "domainId": "G",
+      "domain": "Ethical and Moral Leadership",
+      "competency": "Transparency",
+      "operationalDefinition": "openness and intelligibility in organisational decisions, processes, expectations, and accountability.",
+      "inclusionCriteria": [
+        "Include disclosure, reasons for decisions, procedural clarity, and openness."
+      ],
+      "exclusionCriteria": [
+        "General communication alone does not qualify."
+      ],
+      "suppliedText": "openness and intelligibility in organisational decisions, processes, expectations, and accountability. Include disclosure, reasons for decisions, procedural clarity, and openness. General communication alone does not qualify.",
+      "frameworkVersion": "1.0"
+    },
+    {
+      "id": "G3",
+      "domainId": "G",
+      "domain": "Ethical and Moral Leadership",
+      "competency": "Social Responsibility",
+      "operationalDefinition": "consideration of wider consequences of organisational decisions for affected people and communities.",
+      "inclusionCriteria": [],
+      "exclusionCriteria": [
+        "Generic kindness, charity, or social activity does not qualify."
+      ],
+      "suppliedText": "consideration of wider consequences of organisational decisions for affected people and communities. Generic kindness, charity, or social activity does not qualify.",
+      "frameworkVersion": "1.0"
+    }
+  ]
+}

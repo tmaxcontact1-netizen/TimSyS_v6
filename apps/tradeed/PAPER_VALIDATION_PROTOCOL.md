@@ -1,0 +1,192 @@
+# Trade'Ed Paper Validation Protocol
+
+## Authority and scope
+
+This window is paper-only. It does not authorize real orders, wallet signing, or any live-money mode.
+The evaluation begins only after the verified build is installed and its engine version is visible.
+
+## Current window origin
+
+- Epoch 3 / release `2026.09.25.8` terminated as diagnostic and is not part of the current efficacy window.
+- The next validation window begins only after release `2026.09.26.9` is installed, migration `0062_epoch_9_clean_baseline.sql` creates the active epoch, the configuration hash is sealed, and the launcher-owned database, worker, dashboard, diagnostic capture, and resource ledger all report ready.
+- Release tag `2026.09.26.9` and its published source commit are the authoritative build identity; the installed verification artifact records the exact commit.
+- The exact source commit is recorded in the release verification artifact; that artifact is the authoritative build identity.
+- Data from an earlier release is never concatenated with or averaged into this window.
+- The release gate starts from a newly created database with zero persisted market observations and simulates four hours at the production 15-second dense/30-second rotating cadence across at least 50 competing tokens. It must demonstrate observation, qualification, eight pin assignments, entry eligibility, completed paper round trips and displayed results.
+
+## Declared instrumentation intervention
+
+- The worker process terminated without durable process output at `2026-09-25T21:18:30+03:00`; PostgreSQL remained healthy and the epoch/configuration hash survived unchanged.
+- The resulting inactive segment ended when the worker was reopened at `2026-09-26T06:42:15+03:00`. The `9h 24m 15s` gap is excluded from active scheduler time.
+- At `2026-09-26T06:51:35+03:00`, an instrumentation-only restart was declared and it became active at `2026-09-26T06:56:00+03:00`. The verified `.8` bundle and its database, epoch, profiles, allocations, thresholds, providers, balances and configuration hash remain unchanged. Worker/dashboard stdout and stderr are redirected to durable local files, and Node fatal-error and uncaught-exception diagnostic reports are enabled externally.
+- Windows Event IDs 1000/1001 and existing crash-dump locations contained no evidence for the first termination. Windows rejected LocalDumps registry configuration from the unelevated desktop session, so the Node diagnostic reports are the active crash-capture mechanism.
+
+## Frozen window
+
+- Terminal condition: 60 valid closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first.
+- Active scheduler time is derived from `paper_observation_cycles`. It is the sum of elapsed time within continuous run segments; a gap greater than twice the nominal cycle interval ends the current segment and is not counted.
+- All strategy constants, gates, sizing rules, sampling policy, provider configuration, fees and starting balances are frozen.
+- The epoch `.9` profile set, allocations, parameters, providers and balances carry forward unchanged from epoch `.8`; only runtime evidence is reset by epoch isolation.
+- A code, configuration, provider, allocation or parameter change invalidates the window and requires a fresh baseline.
+- Oscillation Trader and Fast & Furious are evaluated independently. Their records must never be pooled.
+- Breakout & Retest and Recovery & Reversal share a detector and are reported both separately for execution and together as the `shared_pullback` evaluation family. The family aggregate is the primary detector-level result.
+
+## Minimum evaluable sample
+
+Each evaluated profile requires at least 60 valid closed trades. A shorter active-time window with fewer than 60 closed trades is operational evidence but is not an efficacy verdict; the frozen run continues until either the trade-count target is reached or measured active scheduler time reaches 168 hours.
+
+## Recurrence policy
+
+- One unexplained process termination is retained as environmental noise only because the epoch/configuration hash and persisted evidence remained intact and the inactive interval is excluded.
+- A second unexplained worker termination ends this epoch as `diagnostic`. The crash cause must then be corrected in code, a new verified release and epoch created, and validation restarted.
+- Launcher/runtime ownership interference follows the same bounded rule. A repeated launcher-spawned worker or externally commanded database stop ends the epoch as `diagnostic`, because systematic gaps bias the sampled market conditions even when writes do not overlap.
+- Checkpoints remain read-only: cycle continuity, cohort occupancy, funnel counts, closed-trade evidence and captured process diagnostics. No mid-window strategy or runtime tuning is permitted.
+
+## Epoch 3 termination
+
+- At `2026-09-26T07:18:56+03:00`, the launcher-owned database lifecycle issued a fast PostgreSQL shutdown while the externally instrumented `.8` worker was active. Cycles were continuous at 15-second cadence through `07:18:45`, with zero overlap detections and a maximum scheduler lag of 22 ms.
+- During the attempted infrastructure recovery, a launcher-owned PostgreSQL instance and worker started on a temporary port before launcher supervision was neutralized. That worker stamped four additional epoch-3 cycles at `07:56:45`, `07:57:00`, `07:57:15`, and `07:57:30`. No overlaps were recorded, but this violated the precondition that no cycles be written during the inactive segment and constituted repeated supervision interference.
+- The installed launcher has no per-application supervision-disable switch. For recovery investigation it was neutralized by stopping the launcher process family; PostgreSQL was then returned to the same data directory and port `53318` under external ownership. No strategy, profile, allocation, balance, provider, schema, or configuration-hash change was made.
+- Epoch 3 (`2026.09.25.8`, configuration hash `c1c582432f85d60f97a5e628c2abe2dfd2bcf36c2ae46a017346f39b01dd671b`) therefore terminates as `diagnostic`. Its evidence must not be treated as an efficacy result or concatenated into a later validation epoch.
+
+## Pre-registered pass conditions
+
+For each profile independently:
+
+1. Mean realized net outcome is greater than 0 bps after measured friction.
+2. Win rate is at least 60%.
+3. Mean positive gap between realized loss and planned stop is no more than 50 bps.
+4. Mean `measured_round_trip_bps` divided by mean `planned_target_bps` is no more than 0.40.
+
+If condition 4 fails, the conclusion is `structurally uneconomic at observed friction`; thresholds must not be tuned to disguise it.
+
+## Required evidence per closed trade
+
+The immutable signal/outcome ledger must contain:
+
+- profile and token;
+- first qualifying signal time and executable output;
+- filled entry time and output;
+- entry-to-first-signal price delta in bps;
+- planned target, planned stop and planned loss in bps;
+- exit time and exit reason;
+- realized gross and net result in bps;
+- estimated friction, measured round-trip friction and their difference;
+- realized loss and realized-versus-planned loss gap;
+- maximum favorable and adverse excursion;
+- holding time.
+
+Missing required fields invalidate that trade for efficacy analysis and are reported as an instrumentation failure.
+The ledger stores both input and output amounts for the first signal and filled entry, so
+`entry_to_first_signal_bps` compares normalized executable prices rather than unlike raw
+token quantities. It also persists the signed estimated-to-measured friction difference
+and signed realized-to-planned loss difference; the pass test uses the positive portion
+of the latter.
+
+## Environment-interrupted trade classification
+
+- An `interruption event` is any timestamped event recorded in this protocol's event ledger: worker-process termination, launcher-caused runtime interference, database shutdown, or an interval in which `paper_observation_cycles` contains a gap greater than twice the nominal cadence.
+- A closed trade is `environment_interrupted` when its inclusive open interval, from entry-fill timestamp through exit-fill timestamp, intersects an interruption event's inclusive start-to-recovery interval. Every other closed trade is `clean`.
+- This classification is report-level for epoch 3; it does not alter the frozen runtime schema. It is derived from immutable fills, cycle gaps, and this protocol's event ledger and must be reproducible by the validation report.
+- Every closed trade counts toward the 60-trade terminal condition for its profile, regardless of classification. Excluding a trade from primary efficacy metrics cannot extend the window.
+- Win rate, expectancy, and exit-reason distribution are reported separately for the `clean` and `environment_interrupted` partitions. Both partitions remain visible and neither is deleted.
+- The `clean` partition is the primary efficacy basis. The `environment_interrupted` partition is reported as platform-reliability evidence.
+- This rule is fixed before evaluation and applies unchanged regardless of either partition's result. Trades cannot be reclassified post hoc.
+
+### Epoch 3 interruption ledger
+
+- `2026-09-25T21:18:30+03:00` through `2026-09-26T06:42:15+03:00`: unexplained worker-process termination and inactive scheduler interval.
+- `2026-09-26T06:54:00+03:00` through `2026-09-26T06:56:15+03:00`: instrumentation-only restart interval, represented by a cycle gap greater than twice nominal cadence.
+- `2026-09-26T07:18:56+03:00` through `2026-09-26T07:56:45+03:00`: launcher-caused PostgreSQL shutdown and inactive scheduler interval.
+- `2026-09-26T07:56:45+03:00` through `2026-09-26T07:57:30+03:00`: launcher-owned recovery worker interference. Cycles were written without overlap, but the interval remains an environmental event under the pre-registered recurrence policy.
+
+### Epoch 4 (`.9`) event ledger
+
+- `2026-09-26T09:15:00+03:00` through `2026-09-26T09:15:45+03:00` — event type: `operational_test`; cause: deliberate stop-lifecycle verification. The 45-second scheduler-cycle gap is excluded from measured active time under the gap-exclusion protocol. The launcher stopped the instrumented worker and dashboard without starting a duplicate, but the PostgreSQL master remained active. Trade'Ed then restarted cleanly against the same database; epoch 4 remained active and its sealed configuration hash `c1c582432f85d60f97a5e628c2abe2dfd2bcf36c2ae46a017346f39b01dd671b` was unchanged.
+- `2026-09-26T09:49:31.610+03:00` — event type: `worker_termination`; cause: entry-consumer concurrency collision. One Oscillation Trader BUY for `CbcyNo…kzpKoU` committed at `09:49:31.465`, while a competing pending-entry consumer reached the same profile/token position and treated the idempotency collision as fatal. Scheduler cadence remained exactly 15 seconds through the final cycle; memory was 118.57 MB and did not indicate exhaustion. The still-open position intersects the outage and is fixed as `environment_interrupted`. Epoch `.9` is terminated as `diagnostic`; completed trades and the interrupted position are preserved in `paper_validation_trade_archive` by migration `0063`.
+
+### Epoch 5 (`.10`) frozen protocol
+
+- Release: `2026.09.26.10`; protocol: `atomic-entry-v1`.
+- Terminal condition remains 60 closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first.
+- Oscillation Trader and Fast & Furious are both evaluated. Of four dense watch slots, at least one is reserved for a Fast & Furious watch; the other three remain score-ranked shared capacity.
+- Entry processing has one owner per simulation cycle. Position, cash, fill, decision, intent and signal outcome are one atomic database commit.
+- The `clean` / `environment_interrupted` classification and gap-exclusion rules apply from the first cycle.
+
+### Epoch 5 (`.10`) termination
+
+- Epoch 5 terminated as `diagnostic` at `2026-09-27T06:11:31.570339+03:00` without creating a successor epoch.
+- Primary cause: Oscillation Trader entry-state misclassification. The `extreme_oversold` transition could remain admissible after the current executable state had moved to neutral or overbought. Four of five rapid hard-stop entries filled within 1.38 bps of their stored signal while current-state RSI ranged from 55 to 78 and Z-score from +0.24 to +2.60.
+- Evidence artifact: `docs/epoch-5-entry-state-diagnostic.md`.
+- Confirmed telemetry defects: close-out MFE/MAE used fixed-size `paper_fast_market_observations` rather than position-sized `paper_profile_position_quote_paths`; this produced false zero adverse excursions and a false +352.38-bps favorable excursion.
+- Calibration constraint: executable-price discontinuities produced realized stop/trail gaps of approximately 120–265 bps. This is recorded as a limit of the calibration/execution model, not as a failed exit predicate.
+- The epoch contained eight closed trades and no open position at termination. The three cycle-gap intervals did not intersect any trade. All eight trades are archived as `clean`; no epoch-5 trade is `environment_interrupted`.
+
+### Epoch 7 (`.11`) frozen baseline
+
+- Epoch 7 was created at `2026-09-27T16:57:48.076515+03:00` under protocol `epoch-11-frozen-v1`. Its release label was corrected from the inherited `.10` configuration label to the actually installed release `2026.09.26.13`, bundle `6874d86a1f7aad13db054232`, source commit `7f04c47abd9cbe97e47a31368c21586a42b291ff`.
+- The sealed configuration hash is `c13679fc9fed901063ba8edd1cd505bb6c934776a34e2b04f6dda6c832952291`, exactly matching terminated epoch 5.
+- Enabled profiles remain unchanged: Fast & Furious version 8 at 5,000 allocation bps and Oscillation Trader version 2 at 5,000 allocation bps, both in `automatic_paper` mode.
+- The first confirmed observation cycle was scheduled at `2026-09-27T17:00:15+03:00`. The first ten cycles were exactly 15 seconds apart, with maximum scheduler lag of 268 ms.
+- The epoch began with zero positions and zero pending entry intents. Four Oscillation Trader probe tokens were active; dense watch slots remain qualification-driven and were empty at the initial checkpoint.
+- Terminal conditions remain 60 valid closed trades per evaluated profile or 168 hours of measured active scheduler time, whichever occurs first. Environment-interruption classification applies from the first cycle.
+- At `2026-09-27T17:06:22.880+03:00`, the worker terminated with a captured `pg-pool` connection-acquisition timeout. The last completed/partial cycle was scheduled at `17:05:30`; later running-cycle rows did not complete. No position or entry intent existed, so no trade required environment-interruption classification. Active-time accumulation stops at the last completed segment until a corrected worker resumes.
+
+### Epoch 10 (`.12`) termination
+
+- Epoch 10 terminated as `diagnostic` at `2026-09-28T02:54:06.251Z`.
+- Cause: `Profile gate stack eliminated patterns that meet manual trading criteria; simplification required`.
+- Seven closed Oscillation Trader trades were preserved in `paper_validation_trade_archive`; all seven are classified `clean`. The archive contains each signal/outcome record, both fills, entry and exit arithmetic, and the persisted position-sized quote path.
+- The archive contained the six pre-registered checkpoint cases plus one trade that closed after the checkpoint. The initial six-trade assertion was therefore rolled back rather than silently omitting the seventh trade.
+- No runtime worker or dashboard remained active after termination. No epoch 10 position, open intent, or watch is eligible for carryover to the successor epoch.
+
+### Epoch 13 (`.13`) protocol
+
+- Profiles: Fast & Furious and Oscillation Trader, each allocated 5,000 bps in automatic paper mode.
+- Terminal condition: 60 closed trades per profile or 168 hours of measured active scheduler time, whichever occurs first.
+- Fast & Furious uses only the 15-minute 20-100-bps pullback band, 45% five-minute buy pressure, $25,000 liquidity floor, and executable Jupiter route. Exit plan: +100 bps target, -50 bps hard stop, five-minute time exit.
+- Oscillation Trader uses only three or more 20-sample mean crossings inside 30 minutes, RSI <= 30 or Z-score <= -2, $25,000 liquidity floor, and executable Jupiter route. Exit plan: +80 bps target, -50 bps hard stop, ten-minute time exit.
+- Rug/honeypot controls and SEC-011 remain non-negotiable. SEC-006, SEC-008, SEC-010, SEC-012, score gates, cooldowns, cost caps, adaptive calibration, and cross-profile evidence are not admission gates.
+- The environment-interruption classification and active-time gap-exclusion rules apply from the first cycle. Parameters remain frozen throughout the window.
+
+### Epoch 15 (`2026.09.28.14`) evaluation completion
+
+- Epoch 15 ran release `2026.09.28.14` under protocol `simplified-pattern-v1-hotfix-clean` with sealed configuration hash `83e9bed190720a651f572928afe1060c05ec8664e94e5d85c5a54b2590aa94b1`.
+- The pre-registered checkpoint was reached at 26 closed trades. Fast & Furious recorded a 17.39% win rate against an approximately 70% break-even rate implied by its realized payoff ratio; mean hard-stop overshoot was 107.14 bps beyond the planned 50-bps stop.
+- Epoch 15 terminated as `completed` at `2026-09-28T19:44:20.667680+03:00`. Runtime continued briefly while the read-only report was prepared, so the immutable final archive contains 31 closed trades rather than the 26 present at the checkpoint. One position remained open when the worker was stopped and remains epoch-scoped rather than being represented as a completed efficacy result.
+- Conclusion: the simplified Fast & Furious and Oscillation Trader profiles as configured have negative expectancy at the observed liquidity tier. Realized stop geometry was dominated by spread and executable-quote discontinuity rather than the nominal 50-bps stop.
+- All epoch-15 signals, decisions, intents, fills, observations and position-sized quote paths remain physically preserved for offline cost-structure and geometry analysis. No successor epoch was created.
+
+### Release `.15` hypothesis-test protocol
+
+- This protocol is fixed before the successor epoch begins. Fast & Furious and Oscillation Trader each receive 5,000 allocation bps in automatic-paper mode.
+- Fast & Furious: 250-bps hard stop, 600-bps profit target and ten-minute maximum holding time. Oscillation Trader: 250-bps hard stop, 300-bps profit target and ten-minute maximum holding time. The former fixed 50-bps stop is not used by either profile.
+- Both profiles require at least USD 100,000 current pool liquidity.
+- Admission also requires the per-token median executable round-trip spread to be no greater than the smaller of 25% of the profile target or 150 bps. This selects the 50th percentile of the retained per-token spread distribution. The resulting limits are 150 bps for Fast & Furious and 75 bps for Oscillation Trader.
+- Candidate quote-path telemetry is collected for every evaluated token whose liquidity passes USD 100,000, whether or not the strategy admits it. Each record contains the executable buy and immediate position-sized exit quote. Retention is capped at the newest 128 measurements per wallet/token and records retain their source epoch for offline replay.
+- Oscillation Trader is explicitly `inconclusive_by_sample`: epoch 15 supplied only three trades, so this window accumulates evidence rather than defending a prior geometry claim.
+- Fast & Furious passes only if net expectancy after realized costs is positive across at least 30 closed trades. If expectancy is negative when the 30th trade closes, the hypothesis concludes negative; parameters are not changed inside the window.
+- Using the epoch-15 mean hard-stop overshoot of 107.14 bps, the expected realized loss for a nominal 250-bps stop is 357.14 bps. Against a 600-bps target, the pre-registered break-even win rate is `357.14 / (600 + 357.14) = 37.31%` before any additional time-exit effect.
+- The window otherwise ends at 60 closed trades per evaluated profile or 168 measured active scheduler hours, whichever first. Environment-interruption classification and gap exclusion apply from the first cycle.
+
+### Epoch 16 (`2026.09.28.15`) evaluation completion
+
+- Epoch 16 terminated as `completed` at `2026-09-29T14:42:21.441Z`, with configuration hash `c10d7e2834ca176c9454fc73d04f29ea8c113af3a33a84fd5fb906368b1039ef`. The immutable endpoint contains 57 Fast & Furious and eight Oscillation Trader closed trades, no open position, and 65 archived trade records. All position-sized quote paths remain epoch-scoped and queryable for offline replay.
+- At the pre-registered checkpoint, Fast & Furious recorded a 57.69% win rate against the 57% projection and 37.31% break-even hurdle. Excluding the three near-total-loss collapse events, ordinary-trade expectancy was approximately +140 bps per trade. The geometry hypothesis was therefore supported on win frequency and ordinary-trade behavior, while the profitability hypothesis failed because tail losses dominated the aggregate result.
+- Three collapse mechanisms were observed: `NVpUDQ…ECsw` was behaviorally foreseeable after two preceding token stop-outs; `BXG8go…8QGf` deteriorated through an executable quote near breakeven before collapse; `GhT9cg…PvUg` crossed from a favorable state into an effectively total loss without an executable breakeven quote. These are classified respectively as behavioral, gradual, and instantaneous/structural collapse mechanisms.
+- At the 52-trade checkpoint, the four-hour two-stop lockout and -500-bps per-token session cap replay blocked the third NVpUDQ entry and no other then-recorded entry. Against the immutable 65-trade endpoint it also blocks a later profitable BpoqtU entry (+610.22 bps), after two BpoqtU stop-outs. It does not prevent the first-exposure GhT9cg collapse or the BXG8go collapse after a preceding profitable trade.
+- The proposed breakeven arm at +150 bps for Fast & Furious and +75 bps for Oscillation Trader was replayed and rejected before release. It degraded eight previously profitable trades by 2,223 bps in aggregate, failed to rescue the instantaneous NVpUDQ and GhT9cg collapses because no executable quote existed near entry after arming, and produced combined replay expectancy of -220.03 bps per trade rather than the projected approximately +160 bps. It is not an approved runtime rule.
+- No successor epoch is authorized by this conclusion. Exit-rule research after termination is offline and replay-only until separately reviewed and approved.
+- The post-termination exit sweep tested breakeven arms, peak trails and ratcheted locks, alone and with the token defenses. No tested combination produced positive expectancy. Contrary to the initial structural expectation, GhT9cg can be exited before collapse by 150/200-bps peak trails or the +300/+150-bps ratchet because a favorable executable quote remained available during its decline; it is not rescued by any tested breakeven arm. The best aggregate result was the 150-bps peak trail without token defenses at -69.77 bps per trade, but it retained only 7.12% of AFFm3e and 12.08%/20.71% of the two protected B4znEr winners, so it fails the winner-retention requirement.
+
+## Interpretation order
+
+1. Verify build identity, frozen configuration and uninterrupted provider availability.
+2. Reconcile profile funnel totals and signal/outcome ownership.
+3. Confirm observation density and exactly eight allocated pins at every snapshot.
+4. Decompose exits by target, trail, hard stop and time limit.
+5. Apply the friction kill switch.
+6. Apply expectancy, win-rate and stop-slippage criteria.
+7. Only then examine rejected opportunities or consider a new hypothesis.
+
+No parameter is changed during the window. A failed result creates a new proposed experiment, not an edited result.

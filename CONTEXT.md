@@ -1,5 +1,13 @@
 # TimSyS v6 Context
 
+## Current baseline and architecture notice — 31 October 2026
+
+The August completion summary below is historical and is not current release certification. This isolated source now contains 57 backend module manifests, 603 declared module routes, 21 platform migrations, 86 module migrations and 138 platform test files. The new TimSyS-owned service host provides pinned, authenticated read contracts for all four apps; domain service migration remains incomplete. See [service host v1](docs/SERVICE_HOST_V1.md) and [the backend inventory](docs/BACKEND_INVENTORY.md).
+
+Tim requires all backend services, including domain-specific services, to reside in and be hosted by TimSyS, with apps consuming explicit versioned contracts. Dress'Ed's wardrobe catalogue is now hosted in TimSyS through wardrobe@1.0.0; its other services and the Research'Ed, Trade'Ed and launcher backend implementations remain migration work. See [wardrobe migration](docs/WARDROBE_SERVICE_MIGRATION.md). See [the required hosting boundary](docs/PLATFORM_EXTRACTION.md). Active Trade'Ed validation remains isolated; source implementation is not runtime cutover or publication authorization.
+
+## Historical context
+
 ## Current State
 
 **As Of:** 2026-08-07  
@@ -33,7 +41,7 @@
 |-------------|--------|
 | `launcher` | Active desktop shell |
 | `principaled` | Active school administration frontend |
-| `memecoined` | Active trading application under development |
+| `tradeed` | Active trading application under development |
 
 ---
 
@@ -272,3 +280,8 @@ Data capture (events/decisions) → Snapshots → Pattern analysis → Rule sugg
 - Platform layer: `csv_parser.js` handles raw parsing, quoting/escaping, and header normalization (lowercase + strip non-alphanumeric).
 - Module layer: Each registry defines its own column map (variant → schema column) and INSERT logic. Duplicate detection via unique field check (student_id, staff_id, room_number, item_number).
 - Transport: CSV sent as JSON body `{ "csv": "..." }`. No multipart/form-data, no file upload middleware, no external dependencies.
+
+
+## 2026-10-31 — Central backend integration
+
+The consolidated backend migration is integrated into main source. All maintained app packages contain frontend/contract/bootstrap code; TimSyS owns domain services and desktop host. A compatible 1.1.0 Windows build is prepared in verification-local/main-integration-20261031. Preexisting source changes are preserved with before-file backups and working/index patches. Existing user databases, images, configuration and Trade'Ed validation remain untouched. Legacy persisted trading identifiers are retained as read/adoption aliases to preserve upgrade continuity. Conflicting stores fail closed. See docs/MAIN_SOURCE_INTEGRATION.md and docs/BACKEND_INVENTORY.md. Installation and live cutover are not performed.

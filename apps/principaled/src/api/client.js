@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const client = axios.create({
-  baseURL: "/",
+  baseURL: "/api/timsys/v1/apps/principaled/backend/1.0.0/",
   timeout: 10000,
   headers: {
     "Content-Type": "application/json",

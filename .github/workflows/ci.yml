@@ -18,6 +18,7 @@ jobs:
           cache-dependency-path: |
             platform/package-lock.json
             apps/*/package-lock.json
+            platform/services/*/package-lock.json
       - name: Install locked workspace dependencies
         run: node scripts/workspace.mjs install
       - name: Run tests and production builds

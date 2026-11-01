@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { reportActionFeedback } from '../../../shared-ui/react/index.js';
 
-const names = { platform: 'TimSyS services', principaled: "Principal'Ed", memecoined: "MemeCoin'Ed", dressed: "Dress'Ed", researched: "Research'Ed", 'launcher-ui': 'Launcher' };
+const names = { platform: 'TimSyS services', principaled: "Principal'Ed", tradeed: "Trade'Ed", dressed: "Dress'Ed", researched: "Research'Ed", 'launcher-ui': 'Launcher' };
 const size = bytes => bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 export default function UpdatePrompt() {
@@ -30,7 +30,8 @@ export default function UpdatePrompt() {
     try {
       const result = await window.electronAPI.updates.install();
       if (!result.restartScheduled && result.restartRequired) throw new Error('The update was verified but the restart was not scheduled.');
-      reportActionFeedback({ method: 'POST', phase: 'success', message: 'Update installed and verified. Restarting TimSyS…' });
+      reportActionFeedback({ method: 'POST', phase: 'success', message: result.restartRequired ? 'Compatible updates installed. Restarting TimSyS…' : 'Incompatible updates held back. You can continue using TimSyS.' });
+      if (!result.restartRequired) { setBusy(false); setDismissed(true); }
     } catch (failure) {
       setBusy(false);
       setError(failure.message || 'The update could not be installed.');

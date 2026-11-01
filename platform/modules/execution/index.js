@@ -20,8 +20,7 @@ function load(req,ctx,id,who,allowDeleted=false) {
 }
 function redact(s,req,ctx) {
   const output=structuredClone(s);
-  output.links=output.links.map(l=>{
-    if(l.kind==='responsibility'&&(!perm(req,ctx,'nervous_breakdown:read')||(l.review_status!=='reviewed'||l.status!=='active')&&!perm(req,ctx,'nervous_breakdown:govern')))return {id:l.id,task_id:l.task_id,kind:l.kind,restricted:true};
+  output.links=output.links.filter(l=>l.kind!=='responsibility').map(l=>{
     if(l.kind==='evidence'&&l.document_id&&!perm(req,ctx,'documents:read'))return {id:l.id,task_id:l.task_id,kind:l.kind,restricted:true};
     return l;
   });return output;
@@ -55,13 +54,7 @@ function validatedLink(req,ctx) {
     const v=ctx.db.query('SELECT v.id,v.document_id,v.version_number,v.sha256,d.title FROM document_versions v JOIN documents d ON d.id=v.document_id WHERE v.id=? AND d.app_id=?',[b.document_version_id,scope.fromRequest(req)]).rows[0];
     if(!v)engine.fail('Document version not found');return {kind:'evidence',document_version_id:v.id,document_id:v.document_id,version_number:v.version_number,sha256:v.sha256,title:v.title};
   }
-  if(b.kind!=='responsibility'||!perm(req,ctx,'nervous_breakdown:read'))engine.fail('Responsibility read permission required',403);
-  const row=ctx.db.query("SELECT h.snapshot_json FROM nb_revisions h JOIN nb_records r ON r.id=h.record_id WHERE r.id=? AND r.app_id=? AND r.kind='responsibility' AND h.revision=?",[b.responsibility_id,scope.fromRequest(req),b.revision]).rows[0];
-  if(!row)engine.fail('Exact Layer 1 responsibility revision not found');
-  const r=JSON.parse(row.snapshot_json),d=r.data;
-  if(d.is_fixture)engine.fail('Synthetic Layer 1 context cannot be attached to operational work');
-  if((d.status!=='active'||d.review_status!=='reviewed')&&!perm(req,ctx,'nervous_breakdown:govern'))engine.fail('Draft Layer 1 context requires governance permission',403);
-  return {kind:'responsibility',responsibility_id:r.id,revision:r.revision,title:d.name,wording:d.normalized_statement,evidence:d.evidence,review_status:d.review_status,status:d.status};
+  engine.fail('Unsupported evidence link type',400);
 }
 const workspace=wrap((req,ctx)=>{
   const people=directory(ctx),who=identity(req,ctx,people),q=String(req.query?.q||'').toLowerCase();
@@ -107,26 +100,14 @@ const history=wrap((req,ctx)=>{
   const people=directory(ctx),who=identity(req,ctx,people),s=load(req,ctx,req.params.id,who),before=Number(req.query?.before)||Number.MAX_SAFE_INTEGER;
   const rows=ctx.db.query('SELECT * FROM execution_activity WHERE instance_id=? AND id<? ORDER BY id DESC LIMIT 50',[s.id,before]).rows;
   // Historical aggregate snapshots remain in audit storage. The read projection exposes
-  // only action facts; it cannot bypass current document/Layer 1 disclosure policy.
+  // only action facts; it cannot bypass current document disclosure policy.
   return {success:true,history:rows.map(r=>{const d=JSON.parse(r.detail_json),actors=people.filter(p=>p.actor_id!=null&&String(p.actor_id)===r.actor_id);return {id:r.id,type:r.type,actor_id:r.actor_id,actor_name:d.actor_name||(actors.length===1?actors[0].name:'Authorised user'),at:r.created_at,revision:r.revision,task_id:d.task_id||d.data?.task_id||null,title:d.title||d.after?.tasks?.find(t=>t.id===d.data?.task_id)?.title||d.before?.tasks?.find(t=>t.id===d.data?.task_id)?.title||null,reason:r.type==='link.add'?null:d.data?.reason||null};}),next_before:rows.length===50?rows[rows.length-1].id:null};
 });
 const references=wrap((req,ctx)=>{
   const docs=perm(req,ctx,'documents:read')?ctx.db.query('SELECT v.id,v.document_id,v.version_number,d.title FROM document_versions v JOIN documents d ON d.id=v.document_id WHERE d.app_id=? ORDER BY d.title,v.version_number DESC',[scope.fromRequest(req)]).rows:[];
-  const responsibilities=perm(req,ctx,'nervous_breakdown:read')?ctx.db.query("SELECT id,revision,data_json FROM nb_records WHERE app_id=? AND kind='responsibility'",[scope.fromRequest(req)]).rows.map(r=>({...r,data:JSON.parse(r.data_json)})).filter(r=>!r.data.is_fixture&&((r.data.status==='active'&&r.data.review_status==='reviewed')||perm(req,ctx,'nervous_breakdown:govern'))).map(r=>({id:r.id,revision:r.revision,title:r.data.name,review_status:r.data.review_status,evidence:r.data.evidence})):[];
-  return {success:true,documents:docs,responsibilities};
+  return {success:true,documents:docs};
 });
 const availability=wrap((req,ctx)=>({success:true,enabled:!!ctx.db.query("SELECT 1 FROM app_module_assignments WHERE app_id=? AND module_name='execution'",[scope.fromRequest(req)]).rows.length}));
-const context=wrap((req,ctx)=>{
- const people=directory(ctx),who=identity(req,ctx,people),s=load(req,ctx,req.params.id,who),l=redact(s,req,ctx).links.find(l=>l.id===req.query.link_id);
- if(!l||l.restricted||l.kind!=='responsibility')engine.fail('Responsibility context is unavailable',404);
- const read=(id,revision)=>{const r=revision?ctx.db.query('SELECT snapshot_json FROM nb_revisions WHERE record_id=? AND revision=?',[id,revision]).rows[0]:null;return r?JSON.parse(r.snapshot_json):null;};
- const record=read(l.responsibility_id,l.revision);if(!record)engine.fail('Pinned responsibility revision unavailable',404);
- let statement=read(record.data.statement_id,record.data.statement_revision);
- if(statement&&(statement.data.status!=='active'||statement.data.review_status!=='reviewed')&&!perm(req,ctx,'nervous_breakdown:govern'))statement=null;
- const sourceRow=statement?ctx.db.query("SELECT id,revision,data_json FROM nb_records WHERE id=? AND app_id=? AND kind='source'",[statement.data.source_id,scope.fromRequest(req)]).rows[0]:null;
- const source=sourceRow&&perm(req,ctx,'documents:read')?{id:sourceRow.id,revision:sourceRow.revision,data:JSON.parse(sourceRow.data_json)}:null;
- return {success:true,record,statement,source};
-});
 const bindIdentity=wrap((req,ctx)=>{
  if(!perm(req,ctx,'execution:manage')||!perm(req,ctx,'staff:write'))engine.fail('Execution management and staff write permission are required',403);
  const reason=engine.text(req.body.reason,'Binding reason',true),external=String(req.user.id);
@@ -144,4 +125,4 @@ const bindIdentity=wrap((req,ctx)=>{
   return {success:true,staff_id:staff.staff_id};
  });
 });
-module.exports={boot(ctx){ctx.log.info('Execution ready',{module:'execution'});},teardown(){},workspace,get,create,command,preview,history,references,availability,context,bindIdentity};
+module.exports={boot(ctx){ctx.log.info('Execution ready',{module:'execution'});},teardown(){},workspace,get,create,command,preview,history,references,availability,bindIdentity};

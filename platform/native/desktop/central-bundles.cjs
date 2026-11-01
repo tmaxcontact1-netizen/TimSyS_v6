@@ -1,0 +1,4 @@
+'use strict';
+const fs=require('node:fs'),path=require('node:path');
+function compatibleRoots(roots){const result={...roots};if(result.platform&&!fs.existsSync(path.join(result.platform,'services/domain-services.json')))delete result.platform;for(const id of ['dressed','researched','tradeed'])if(result[id]){try{const m=JSON.parse(fs.readFileSync(path.join(result[id],'timsys.app.json'),'utf8'));if(m.kind!=='frontend'||m.backend?.owner!=='timsys'||m.backend?.version!=='1.0.0')delete result[id];}catch{delete result[id];}}if(result['launcher-ui']){try{const c=JSON.parse(fs.readFileSync(path.join(result['launcher-ui'],'timsys.ui.json'),'utf8'));if(c.owner!=='timsys'||c.runtimeContract!=='1.1.0')delete result['launcher-ui'];}catch{delete result['launcher-ui'];}}return result;}
+module.exports={compatibleRoots};

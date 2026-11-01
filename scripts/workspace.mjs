@@ -9,22 +9,23 @@ const action = process.argv[2];
 const commands = {
   install: [
     ["ci", "--prefix", "platform"], ["ci", "--prefix", "apps/launcher"],
-    ["ci", "--prefix", "apps/principaled"], ["ci", "--prefix", "apps/memecoined"],
-    ["ci", "--prefix", "apps/dressed"],
-    ["ci", "--prefix", "apps/researched"],
+    ["ci", "--prefix", "apps/principaled"], ["ci", "--prefix", "platform/services/tradeed"], ["ci","--prefix","apps/tradeed"],
+    ["ci", "--prefix", "platform/services/dressed"], ["ci","--prefix","apps/dressed"],
+    ["ci", "--prefix", "platform/services/researched"], ["ci","--prefix","apps/researched"],
   ],
   test: [
     ["test", "--prefix", "platform", "--", "--runInBand"],
+    ["run", "test:wardrobe-client", "--prefix", "platform"],
     ["run", "test:electron", "--prefix", "apps/launcher"],
-    ["test", "--prefix", "apps/memecoined"],
-    ["test", "--prefix", "apps/dressed"],
-    ["test", "--prefix", "apps/researched"],
+    ["test", "--prefix", "platform/services/tradeed"],
+    ["test", "--prefix", "platform/services/dressed"],
+    ["test", "--prefix", "platform/services/researched"],
   ],
   build: [
     ["run", "build", "--prefix", "apps/principaled"],
-    ["run", "build", "--prefix", "apps/memecoined"],
-    ["run", "build", "--prefix", "apps/dressed"],
-    ["run", "build", "--prefix", "apps/researched"],
+    ["run", "build", "--prefix", "platform/services/tradeed"], ["run","build","--prefix","apps/tradeed"],
+    ["run", "build", "--prefix", "platform/services/dressed"], ["run","build","--prefix","apps/dressed"],
+    ["run", "build", "--prefix", "platform/services/researched"], ["run","build","--prefix","apps/researched"],
     ["run", "build", "--prefix", "apps/launcher"],
   ],
 };
@@ -54,3 +55,4 @@ for (const args of selected) {
     child.once("exit", (code) => code === 0 ? success() : failure(new Error(`npm ${args.join(" ")} failed with ${code}`)));
   });
 }
+

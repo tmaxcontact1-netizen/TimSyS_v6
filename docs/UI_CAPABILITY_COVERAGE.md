@@ -91,7 +91,7 @@ Operational gaps: **1**
 |---|---|---|---|
 | operational | ANY | `/api/outfits/:id` | dressed |
 
-## MemeCoined
+## TradeEd
 
 Declared capabilities: **21**
 Frontend-referenced: **19**
@@ -100,14 +100,14 @@ Operational gaps: **1**
 
 | Owner | Declared | Referenced | Unreferenced |
 |---|---:|---:|---:|
-| memecoined | 21 | 19 | 2 |
+| tradeed | 21 | 19 | 2 |
 
 ### Unreferenced capabilities
 
 | Exposure | Method | Endpoint | Owner |
 |---|---|---|---|
-| administration | ANY | `/api/application` | memecoined |
-| operational | ANY | `/api/watchlists/:id/tokens:parameter2)?` | memecoined |
+| administration | ANY | `/api/application` | tradeed |
+| operational | ANY | `/api/watchlists/:id/tokens:parameter2)?` | tradeed |
 
 ## Research'Ed
 
@@ -147,7 +147,7 @@ Operational gaps: **0**
       "declared": 31,
       "referenced": 30
     },
-    "MemeCoined": {
+    "TradeEd": {
       "declared": 21,
       "referenced": 19
     },

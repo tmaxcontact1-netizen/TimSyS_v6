@@ -1,3 +1,5 @@
+> Updated 2026-10-20: the former Layer 1 model and responsibility links have been removed. Execution retains document-version and evidence-note links only. Historical Layer 1 design statements below do not describe an available feature.
+
 # Execution — Layer 3 MVP
 
 Principal’Ed → Organisation → Execution. Separate from existing Tasks and formal Layer 1 records. No Layer 2, AI advice, performance scoring, notification-dependent readiness or automatic approvals.

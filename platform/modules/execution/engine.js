@@ -162,7 +162,7 @@ function mutate(original, command, env) {
     case 'milestone.waive': { const m=s.milestones.find(m=>m.id===b.milestone_id); if(!m) fail('Milestone not found'); if(type==='milestone.waive'){reason();const c=m.contributions.find(c=>c.task_id===b.task_id);if(!c)fail('Contribution not found');c.state='waived';c.reason=b.reason;c.actor=actor;}
       else if(type==='milestone.achieve'){if(s.lifecycle!=='active'||m.status!=='pending'||m.contributions.some(c=>c.state==='required'&&task(s,c.task_id).lifecycle!=='completed'))fail('Required milestone work is incomplete',409);m.status='achieved';m.achieved_at=new Date().toISOString();m.achieved_by=actor;}
       else {reason();m.status=type==='milestone.cancel'?'cancelled':'pending';} break; }
-    case 'link.add': { const t=owned(); if(!env.validatedLink)fail('Evidence or responsibility reference must be validated'); s.links.push(stamp({...env.validatedLink,task_id:t.id})); break; }
+    case 'link.add': { const t=owned(); if(!env.validatedLink)fail('Evidence reference must be validated'); s.links.push(stamp({...env.validatedLink,task_id:t.id})); break; }
     default: fail('Unknown Execution command',400);
   }
   validateGraph(s); reconcile(s); s.revision += 1;

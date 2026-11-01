@@ -1,1 +1,239 @@
-{"name":"ai_gateway","version":"1.0.0","author":"admin","dependencies":["db","auth","log","events"],"provides":["capability:ai_gateway.analyse","capability:ai_gateway.status"],"requires":[],"routes":[{"path":"/ai-gateway/status","method":"GET","handler":"ai_gateway_status","auth_required":true,"permissions":["admin:system:read"]}],"schema":{"tables":["ai_gateway_runs"],"migrations":["migrations/001_ai_gateway.sql"]},"events":{"publishes":["ai_gateway.analysis_completed","ai_gateway.analysis_failed"],"subscribes":[]},"functions":[{"name":"ai_gateway_status","exports":"status"}]}
+{
+  "name": "ai_gateway",
+  "version": "1.2.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "auth",
+    "log",
+    "events"
+  ],
+  "provides": [
+    "capability:ai_gateway.analyse",
+    "capability:ai_gateway.status",
+    "capability:ai_gateway.help",
+    "capability:ai_gateway.advise",
+    "capability:ai_gateway.watch"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/ai-gateway/status",
+      "method": "GET",
+      "handler": "ai_gateway_status",
+      "auth_required": true,
+      "permissions": [
+        "admin:system:read"
+      ]
+    },
+    {
+      "path": "/ai-gateway/apps/:appId",
+      "method": "GET",
+      "handler": "ai_gateway_describe",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/adapter",
+      "method": "PUT",
+      "handler": "ai_gateway_registerAdapter",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/ask",
+      "method": "POST",
+      "handler": "ai_gateway_ask",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/watches",
+      "method": "GET",
+      "handler": "ai_gateway_listWatches",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/watches",
+      "method": "PUT",
+      "handler": "ai_gateway_setWatch",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/events",
+      "method": "POST",
+      "handler": "ai_gateway_publishEvidence",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/runs",
+      "method": "GET",
+      "handler": "ai_gateway_listRuns",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/jobs",
+      "method": "GET",
+      "handler": "ai_gateway_listJobs",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/notifications",
+      "method": "GET",
+      "handler": "ai_gateway_notifications",
+      "auth_required": true
+    },
+    {
+      "path": "/ai-gateway/apps/:appId/notifications/:id",
+      "method": "PUT",
+      "handler": "ai_gateway_acknowledge",
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/ai-gateway/assistant",
+      "handler": "ai_gateway_assistantStatus",
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/ai-gateway/conversations",
+      "handler": "ai_gateway_conversations",
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/ai-gateway/conversations",
+      "handler": "ai_gateway_createConversation",
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/ai-gateway/conversations/:id",
+      "handler": "ai_gateway_messages",
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/ai-gateway/conversations/:id/messages",
+      "handler": "ai_gateway_sendMessage",
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/ai-gateway/conversations/:id/cancel",
+      "handler": "ai_gateway_cancelConversation",
+      "auth_required": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/ai-gateway/conversations/:id",
+      "handler": "ai_gateway_deleteConversation",
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/ai-gateway/assistant/configuration",
+      "handler": "ai_gateway_configureAssistant",
+      "auth_required": true
+    }
+  ],
+  "schema": {
+    "tables": [
+      "ai_gateway_runs",
+      "ai_adapters",
+      "ai_watches",
+      "ai_watch_jobs",
+      "ai_adviser_notifications",
+      "ai_conversations",
+      "ai_messages"
+    ],
+    "migrations": [
+      "migrations/001_ai_gateway.sql",
+      "migrations/002_adviser.sql",
+      "migrations/003_conversations.sql"
+    ]
+  },
+  "events": {
+    "publishes": [
+      "ai_gateway.analysis_completed",
+      "ai_gateway.analysis_failed"
+    ],
+    "subscribes": []
+  },
+  "functions": [
+    {
+      "name": "ai_gateway_status",
+      "exports": "status"
+    },
+    {
+      "name": "ai_gateway_describe",
+      "exports": "describe"
+    },
+    {
+      "name": "ai_gateway_registerAdapter",
+      "exports": "registerAdapter"
+    },
+    {
+      "name": "ai_gateway_ask",
+      "exports": "ask"
+    },
+    {
+      "name": "ai_gateway_listWatches",
+      "exports": "listWatches"
+    },
+    {
+      "name": "ai_gateway_setWatch",
+      "exports": "setWatch"
+    },
+    {
+      "name": "ai_gateway_publishEvidence",
+      "exports": "publishEvidence"
+    },
+    {
+      "name": "ai_gateway_listRuns",
+      "exports": "listRuns"
+    },
+    {
+      "name": "ai_gateway_listJobs",
+      "exports": "listJobs"
+    },
+    {
+      "name": "ai_gateway_notifications",
+      "exports": "notifications"
+    },
+    {
+      "name": "ai_gateway_acknowledge",
+      "exports": "acknowledge"
+    },
+    {
+      "name": "ai_gateway_assistantStatus",
+      "exports": "assistantStatus"
+    },
+    {
+      "name": "ai_gateway_conversations",
+      "exports": "conversations"
+    },
+    {
+      "name": "ai_gateway_createConversation",
+      "exports": "createConversation"
+    },
+    {
+      "name": "ai_gateway_messages",
+      "exports": "messages"
+    },
+    {
+      "name": "ai_gateway_sendMessage",
+      "exports": "sendMessage"
+    },
+    {
+      "name": "ai_gateway_cancelConversation",
+      "exports": "cancelConversation"
+    },
+    {
+      "name": "ai_gateway_deleteConversation",
+      "exports": "deleteConversation"
+    },
+    {
+      "name": "ai_gateway_configureAssistant",
+      "exports": "configureAssistant"
+    }
+  ]
+}

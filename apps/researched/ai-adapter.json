@@ -1,0 +1,9 @@
+{
+  "appId": "researched", "name": "Research’Ed", "version": "1",
+  "instructions": "Support research design, evidence reading and analysis. Distinguish source passages from interpretation. Never invent citations, reliability scores or accreditation. Explain limitations and suggest checkable next steps.",
+  "help": [
+    {"id":"researched:overview","content":"Research’Ed supports document and link intake, source evidence and analysis. Choose the research goal, add sources, inspect extracted evidence and review findings. AI notes remain separate from source evidence."},
+    {"id":"researched:mcf","content":"MCF analysis uses a frozen instrument, imported evidence segments, coding and review. AI coding proposals require review; they do not replace manual decisions or establish reliability on their own."}
+  ],
+  "workflows": ["source-imported", "analysis-completed"]
+}

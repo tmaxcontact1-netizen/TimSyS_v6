@@ -2,6 +2,8 @@
 
 4 October 2026. Built following authorisation to proceed from the reviewed Layer 3 design. No release, deployment or production database migration was performed. Existing uncommitted MemeCoin’Ed work was preserved.
 
+4 October 2026. Built following authorisation to proceed from the reviewed Layer 3 design. No release, deployment or production database migration was performed. Existing uncommitted Trade'Ed work was preserved.
+
 ## Delivered
 
 Principal’Ed → Organisation → Execution, with Portfolio, Overview, Tasks, Planning, Timeline, Dependency Wheel, My Work and History.
@@ -51,3 +53,4 @@ See [module contract](../platform/modules/execution/CONTRACT.md) for endpoints, 
 The task interface now follows the norms in `EXECUTION_UX_NORMS.md`: My Work first, Projects, a task list by default, and one selected task detail. Handoffs, project settings and activity remain available through More. No API, stored states, database schema or production records changed.
 
 Validation: 15 Execution unit/HTTP tests, production UI build and an isolated real-browser flow covering setup, task creation, selection, approvals, mixed dependency outcomes, staff completion, persistence and narrow layouts. Screenshots were reviewed for the task list, detail, draft setup and mobile presentation. Release archives receive launcher extraction and installed-runtime verification before publication. Synthetic fixtures are confined to diagnostics databases.
+

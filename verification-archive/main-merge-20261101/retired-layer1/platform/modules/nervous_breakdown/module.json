@@ -1,0 +1,146 @@
+{
+  "name": "nervous_breakdown",
+  "version": "1.0.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "auth",
+    "log",
+    "validate",
+    "events",
+    "documents",
+    "staff_registry",
+    "ownership"
+  ],
+  "provides": [
+    "capability:nervous_breakdown.read",
+    "capability:nervous_breakdown.govern",
+    "capability:nervous_breakdown.exchange"
+  ],
+  "requires": [
+    "capability:documents.read"
+  ],
+  "routes": [
+    {
+      "path": "/nervous-breakdown/workspace",
+      "method": "GET",
+      "handler": "nervous_breakdown_workspace",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:read"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/records",
+      "method": "POST",
+      "handler": "nervous_breakdown_save",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:govern"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/import",
+      "method": "POST",
+      "handler": "nervous_breakdown_import",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:govern"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/export",
+      "method": "GET",
+      "handler": "nervous_breakdown_export",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:read"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/records/:id/history",
+      "method": "GET",
+      "handler": "nervous_breakdown_history",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:read"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/graph",
+      "method": "GET",
+      "handler": "nervous_breakdown_graph",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:read"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/topology",
+      "method": "GET",
+      "handler": "nervous_breakdown_topology",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:read"
+      ]
+    },
+    {
+      "path": "/nervous-breakdown/records/:id/detail",
+      "method": "GET",
+      "handler": "nervous_breakdown_detail",
+      "auth_required": true,
+      "permissions": [
+        "admin:nervous_breakdown:read"
+      ]
+    }
+  ],
+  "schema": {
+    "tables": [
+      "nb_records",
+      "nb_revisions"
+    ],
+    "migrations": [
+      "migrations/001_responsibility_network.sql"
+    ]
+  },
+  "events": {
+    "publishes": [
+      "nervous_breakdown.changed"
+    ],
+    "subscribes": []
+  },
+  "functions": [
+    {
+      "name": "nervous_breakdown_workspace",
+      "exports": "workspace"
+    },
+    {
+      "name": "nervous_breakdown_save",
+      "exports": "save"
+    },
+    {
+      "name": "nervous_breakdown_import",
+      "exports": "importRecords"
+    },
+    {
+      "name": "nervous_breakdown_export",
+      "exports": "exportRecords"
+    },
+    {
+      "name": "nervous_breakdown_history",
+      "exports": "history"
+    },
+    {
+      "name": "nervous_breakdown_graph",
+      "exports": "graph"
+    },
+    {
+      "name": "nervous_breakdown_topology",
+      "exports": "topology"
+    },
+    {
+      "name": "nervous_breakdown_detail",
+      "exports": "detail"
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+export function aiAmbiguitySummary(units:any[],proposals:any[]){
+ const rows=units.filter(u=>u.original_text.trim()).map(u=>{const p=proposals.find(p=>p.unit_id===u.id&&p.payload?.method==='ai')?.payload,a=p?.ambiguity;return{unitId:u.id,recordId:u.record_id??p?.recordId??null,text:u.original_text,status:a?.version===1?a.status:'not-assessed',assessment:a?.version===1?a:null,supportedCompetencyIds:(p?.codes??[]).map((c:any)=>c.competencyId)};});
+ return{version:1,scope:'AI assessments only; researcher judgements are separate. Unassessed includes historical, pending and failed work. Alternatives are not supported findings.',total:rows.length,assessed:rows.filter(r=>r.status!=='not-assessed').length,flagged:rows.filter(r=>r.status==='identified').length,noAmbiguityIdentified:rows.filter(r=>r.status==='none').length,notAssessed:rows.filter(r=>r.status==='not-assessed').length,alternativeMentions:rows.reduce((n,r)=>n+(r.assessment?.alternatives.length??0),0),rows};
+}
