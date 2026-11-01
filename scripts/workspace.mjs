@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { existsSync, readFileSync } from "node:fs";
+import { verifyPackageLockfile } from './workspace-lockfiles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const npmCli = process.env.npm_execpath || resolve(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
@@ -32,6 +33,9 @@ const commands = {
 if (action === "verify") commands.verify = [...commands.test, ...commands.build];
 const selected = commands[action];
 if (!selected) throw new Error(`Unknown workspace action: ${action}`);
+if (action === 'install') {
+  for (const args of selected) verifyPackageLockfile(resolve(root, args[args.indexOf('--prefix') + 1]));
+}
 
 for (const args of selected) {
   await new Promise((success, failure) => {
