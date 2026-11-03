@@ -15,11 +15,13 @@ const require=createRequire(import.meta.url),{UpdateManager}=require(join(instal
 const updater=new UpdateManager({dataRoot:join(out,'isolated-updater-state'),currentLauncherVersion:'1.1.0',baselineFile:join(installed,'installed-baseline.json')});
 await updater.validateBundle('platform',stage);
 const filename='platform-'+release+'.zip',archive=join(out,filename);
-execFileSync('tar.exe',['-a','-cf',archive,'--exclude=./services/tradeed','--exclude=services/tradeed','--exclude=./node_modules','--exclude=./services/researched/node_modules','--exclude=./services/dressed/node_modules','-C',stage,'.'],{windowsHide:true});
+const fileList=Object.keys(await inventory(stage)).sort();assert.ok(fileList.every(p=>!/[\r\n]/.test(p)));const listPath=join(out,'archive-files.txt');await writeFile(listPath,fileList.map(p=>'./'+p).join('\n')+'\n');
+execFileSync('tar.exe',['-a','-cf',archive,'-C',stage,'-T',listPath],{windowsHide:true});
 execFileSync('tar.exe',['-xf',archive,'-C',extracted],{windowsHide:true});
 await updater.validateBundle('platform',extracted);
-async function inventory(dir,prefix=''){const map={};for(const e of await readdir(dir,{withFileTypes:true})){if(e.isSymbolicLink()){assert.equal(e.name,'node_modules','Unexpected symlink');continue;}const p=prefix+e.name;if(p==='services/tradeed')continue;assert.ok(!e.isSymbolicLink());if(e.isDirectory())Object.assign(map,await inventory(join(dir,e.name),p+'/'));else map[p]=createHash('sha256').update(await readFile(join(dir,e.name))).digest('hex');}return map;}
-const expected=await inventory(stage),actual=await inventory(extracted);assert.deepEqual(actual,expected,'Repack changed a retained file');
+async function inventory(dir){const paths=[];async function visit(at,prefix=''){for(const e of await readdir(at,{withFileTypes:true})){if(e.isSymbolicLink()){assert.equal(e.name,'node_modules');continue;}const p=prefix+e.name;if(p==='services/tradeed')continue;if(e.isDirectory())await visit(join(at,e.name),p+'/');else paths.push(p);}}await visit(dir);const map={};for(let i=0;i<paths.length;i+=32)await Promise.all(paths.slice(i,i+32).map(async p=>{map[p]=createHash('sha256').update(await readFile(join(dir,p))).digest('hex');}));return map;}
+
+const expected=await inventory(stage),actual=await inventory(extracted);const differences=[...new Set([...Object.keys(actual),...Object.keys(expected)])].filter(p=>actual[p]!==expected[p]);assert.equal(differences.length,0,'Archive differences: '+differences.slice(0,10).join(', '));
 const gates=['main.cjs','update-manager.cjs','tradeed-sandbox-update-gate.cjs','tradeed-sandbox-contract.json','inspection-host-gateway.cjs','database-update-gate.cjs','database-isolation-contract.json','app-database-gateway.cjs'];
 for(const name of gates)assert.ok((await readFile(join(installed,'native/desktop',name))).equals(await readFile(join(extracted,'native/desktop',name))),'Installed contract drift: '+name);
 const bytes=await readFile(archive),sha256=createHash('sha256').update(bytes).digest('hex'),baseline=JSON.parse(await readFile(manifestArg,'utf8'));
