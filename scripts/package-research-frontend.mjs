@@ -1,0 +1,24 @@
+import {cp,mkdir,readFile,readdir,writeFile} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {createRequire} from 'node:module';
+import assert from 'node:assert/strict';
+const [outArg,baselineArg,release,installedArg]=process.argv.slice(2);
+assert.ok(outArg&&baselineArg&&installedArg&&/^\d{4}\.\d{2}\.\d{2}\.\d+$/.test(release??''));
+const out=resolve(outArg),app=resolve('apps/researched'),stage=join(out,'stage'),installed=resolve(installedArg);await mkdir(out);await mkdir(stage);
+const files=['dist','package.json','timsys.app.json','timsys.services.json','ai-adapter.json','ai-assistant-contract.json'];
+for(const name of files)await cp(join(app,name),join(stage,name),{recursive:true});
+const declaration=JSON.parse(await readFile(join(stage,'timsys.services.json'),'utf8'));
+assert.ok(declaration.httpContracts?.some(c=>c.serviceId==='researched-backend'&&c.version==='1.0.0'&&c.owner==='timsys'),'Native host startup contract missing');
+for(const name of ['timsys.services.json','ai-adapter.json','ai-assistant-contract.json'])assert.ok((await readFile(join(stage,name))).equals(await readFile(join(installed,'apps/researched',name))),'Installed contract mismatch '+name);
+const require=createRequire(import.meta.url),{UpdateManager}=require(join(installed,'platform/native/desktop/update-manager.cjs'));
+const updater=new UpdateManager({dataRoot:join(out,'test-state'),currentLauncherVersion:'1.1.0',baselineFile:join(installed,'platform/installed-baseline.json')});await updater.validateBundle('researched',stage);
+const filename='researched-'+release+'.zip',archive=join(out,filename);execFileSync('tar.exe',['-a','-cf',archive,'-C',stage,'.'],{windowsHide:true});
+const extracted=join(out,'extracted');await mkdir(extracted);execFileSync('tar.exe',['-xf',archive,'-C',extracted],{windowsHide:true});
+async function compare(dir,prefix=''){let n=0;for(const e of await readdir(dir,{withFileTypes:true})){const p=prefix+e.name;if(e.isDirectory())n+=await compare(join(dir,e.name),p+'/');else{assert.ok((await readFile(join(stage,p))).equals(await readFile(join(extracted,p))),p);n++;}}return n;}
+const comparedFiles=await compare(stage);await updater.validateBundle('researched',extracted);
+const bytes=await readFile(archive),sha256=createHash('sha256').update(bytes).digest('hex'),baseline=JSON.parse(await readFile(baselineArg,'utf8'));
+const bundle={id:'researched',version:sha256.slice(0,24),url:'https://github.com/tmaxcontact1-netizen/TimSyS_v6/releases/download/'+release+'/'+filename,size:bytes.length,sha256};
+await writeFile(join(out,'timsys-update.json'),JSON.stringify({...baseline,releaseVersion:release,publishedAt:new Date().toISOString(),notes:'ResearchEd 0.10.14 frontend packaging correction: restores required TimSyS startup and AI contract files. Existing backend retained unchanged. No automatic analysis.',bundles:baseline.bundles.map(b=>b.id==='researched'?bundle:b)},null,2));
+await writeFile(join(out,'verification.json'),JSON.stringify({release,comparedFiles,nativeStartupContract:true,installedContractsIdentical:true,installedUpdaterPassed:true,backendUnchanged:true,bundle},null,2));console.log('PASS native startup contract, AI contracts, installed updater, extracted archive: '+comparedFiles+' files.');
