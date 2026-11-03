@@ -1,0 +1,7 @@
+# Runtime packaging correction — 2026.11.03.4
+
+The previous package filter excluded every directory called node_modules. This incorrectly removed legitimate nested dependencies, not just the generated root junctions. htmlparser2 10.1.0 therefore resolved entities 4.5.0 instead of its required nested 7.0.1 and failed with ERR_PACKAGE_PATH_NOT_EXPORTED for ./decode. Launcher startup rollback then made the frontend update available again, creating the reported install/restart loop.
+
+Restored the four nested dependency trees from the installed baseline: platform readable-stream and string_decoder, and ResearchEd htmlparser2 and parse5. No native gateway, MCF, application data or analysis code is changed. Retired services/tradeed remains excluded. Only actual generated root junctions are excluded from archives; real nested dependency directories are retained and compared after extraction.
+
+Regression evidence: the prior package reproduced the exact parser error in a fresh disposable database with the installed Electron executable. The repaired package passed migrations, reached supervised state running, and returned frontend HTTP 200 using the same test. No live database, external AI or corpus analysis was used. Added a repeatable packaged-startup smoke test and corrected packaging script. Final archive must pass installed sandbox/database gates and retained-file verification before publication.
