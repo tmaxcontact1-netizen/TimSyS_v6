@@ -1,0 +1,13 @@
+# ResearchEd 0.10.14 — Principal-review ingestion
+
+Principal questionnaires are detected from DOCX structure. The importer preserves four-category ISR respondent ratings separately, including raw marker provenance, and restricts Principal MCF targets/context to narrative within the same individual review. Other questionnaire profiles remain separate and excluded. Existing mappings and outputs remain unchanged.
+
+Versions: principal-questionnaire@1.0, isr-principal-ratings@1.0 and researched.isr-respondent-ratings.v1. Existing JSON mapping/locator storage is reused; no database migration. MCF v1.0 and semantic policy v9 are unchanged.
+
+Verification: 412 tests across 47 files passed in the consolidated service layout; TypeScript and frontend production builds passed; central service ownership validation passed. The original Principal DOCX reconciles to 111 reviews / 999 recovered ratings / zero unresolved ratings, matching the recovery JSON and both CSVs. Seven other-profile questionnaires remain separate and require boundary inspection. First-review calibration passed 9/9. Original Director extraction remained identical to the prior importer. A disposable database test through the versioned native API verified persistence, excluded records, same-review narrative-only synthetic AI requests, retained historical outputs after remapping, and separate respondent exports. No external AI or live corpus analysis was invoked.
+
+TimSyS 1.1.0 compatibility: backend changes are under platform/services/researched; the app is frontend-only. Publication includes platform and ResearchEd frontend bundles. Packaging compares all files against the installed 1.1.0 baseline and requires every changed platform file to be under services/researched. The installed updater's bundle validation must pass. TradeEd/shared runtime files are retained unchanged. Publishing does not install or restart anything.
+
+After installation: upload original Principal DOCX; verify 111/999/seven counts; accept clearly identified boundaries and inspect the remaining seven; confirm narrative-only scope. Ratings may be downloaded separately as wide/long CSV or provenance JSON. Do not start analysis until the installed version and AI connection have been checked.
+
+Limitations: malformed ratings remain unresolved. Principal structural anchors cannot be joined/split in this profile. Converted questionnaires with missing structural markers require the original DOCX. Five supplied output hashes matched; recover.py listed in the supplied manifest was absent from the supplied Downloads set and was not counted as verified. This release verifies ingestion, not Principal semantic accuracy.

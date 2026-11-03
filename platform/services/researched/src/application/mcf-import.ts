@@ -1,3 +1,4 @@
+import {PRINCIPAL_ITEMS} from './principal-review.js';
 import mammoth from 'mammoth';
 import JSZip from 'jszip';
 import {load} from 'cheerio';
@@ -64,10 +65,12 @@ export async function readMcfImport(bytes:Buffer,filename:string):Promise<RawImp
   if(!result.text.trim())result.warnings.push('No text layer. Original PDF preserved; supply a verified transcription before coding. OCR is not silently substituted.');
  }else if(format==='html'||format==='htm'){const $=load(decodeText(bytes));$('script,style,noscript').remove();$('h1,h2,h3,h4,h5,h6,p,li,tr').each((_,el)=>{if($(el).parents('p,li,tr').length)return;const text=$(el).text(),start=result.text.length;result.text+=text;result.blocks.push({start,end:result.text.length,location:{element:el.tagName,ordinal:result.blocks.length+1}});result.text+='\n\n';});result.warnings.push('HTML extraction is derived visible text; original markup is preserved.');}
  else throw Error('unsupported_import_format');
+ if(format!=='docx'&&PRINCIPAL_ITEMS.filter(([,p])=>result.text.includes(p)).length>=3)result.warnings.push('Principal rating selection markers may be absent after conversion. Upload the original DOCX to recover structured ratings; no ratings will be inferred from blank text.');
  if(result.text.length>5_000_000||result.sheets.reduce((n,s)=>n+s.rows.length,0)>25000)throw Error('import_record_limit');
  return result;
 }
 export function mapMcfRecords(raw:RawImport,m:z.infer<typeof mappingInput>,category:string){
+ if(raw.format!=='docx'&&PRINCIPAL_ITEMS.filter(([,p])=>raw.text.includes(p)).length>=3)throw Error('Principal questionnaire detected in converted text. Supply the original DOCX to preserve review boundaries and keep ratings out of narrative analysis.');
  const out:{text:string;institution:string;reviewIdentifier:string;reviewCategory:string;locator:Record<string,unknown>}[]=[];
  if(raw.sheets.length){
   const sheet=raw.sheets.find(s=>s.name===m.sheet);if(!sheet)throw Error('select_sheet');if(m.textColumn===null)throw Error('select_text_column');

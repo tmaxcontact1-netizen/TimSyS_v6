@@ -1,3 +1,4 @@
+import {principalRatingExport} from '../application/principal-review.js';
 import {aiAmbiguitySummary} from '../domain/ai-ambiguity.js';
 import {reviewAggregation} from '../domain/review-aggregation.js';
 import {McfValidation} from '../application/mcf-validation.js';
@@ -46,6 +47,7 @@ export function createMcfApi(database:Pick<Pool,'query'|'connect'>,storageRoot:s
    }
    if(resource==='imports'){
     if(!action&&method==='GET'){send(r,200,await repo.import(id));return true;}
+    if(action==='respondent-ratings'&&method==='GET'){const format=z.enum(['json','wide','long']).parse(url.searchParams.get('format')??'json'),preview=await repo.structuralPreview(id);const output=principalRatingExport(preview,format);r.writeHead(200,{'content-type':format==='json'?'application/json; charset=utf-8':'text/csv; charset=utf-8','content-disposition':`attachment; filename=principal-isr-respondent-ratings-${format}.${format==='json'?'json':'csv'}`,'cache-control':'no-store','x-content-type-options':'nosniff'});r.end(output);return true;}
     if(action==='structural-preview'&&method==='GET'){send(r,200,await repo.structuralPreview(id));return true;}
     if(action==='map'&&method==='POST'){send(r,201,await repo.map(id,mappingInput.parse(await body(q))));return true;}
     if(action==='original'&&method==='GET'){const file=await repo.import(id),root=resolve(storageRoot),target=resolve(root,file.storage_path),route=relative(root,target);if(isAbsolute(route)||route.startsWith('..'))throw Error('invalid_archive_path');r.writeHead(200,{'content-type':'application/octet-stream','content-disposition':`attachment; filename*=UTF-8''${encodeURIComponent(file.filename)}`,'cache-control':'no-store','x-content-type-options':'nosniff'});r.end(await readFile(target));return true;}

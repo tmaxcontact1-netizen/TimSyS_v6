@@ -1,3 +1,4 @@
+import {principalPreview} from './principal-review.js';
 import directorProfile from '../../analysis-config/compiled-review/director-1.1.json' with {type:'json'};
 import {suspectedCompilation} from '../domain/review-boundaries.js';
 import profile from '../../analysis-config/compiled-review/1.0.json' with {type:'json'};
@@ -32,6 +33,7 @@ export async function inspectCompiledDocx(bytes:Buffer):Promise<StructuralPrevie
  });
  if(blocks.reduce((n,b)=>n+b.text.length,0)>5_000_000)throw Error('import_record_limit');
  if($('w\\:drawing,w\\:pict,w\\:altChunk,w\\:ins,w\\:del,w\\:tbl w\\:tbl').length)warnings.push('nonstandard_content_requires_original_document_review');
+ const principal=principalPreview($,blocks,bytes);if(principal)return principal;
  const directorMatch=(b:DocBlock)=>b.kind==='table'&&directorProfile.labels.every(label=>(b.rows??[]).flat().flatMap(c=>c.split(/\r?\n/)).map(normal).includes(label));
  const principalMatch=(b:DocBlock)=>b.kind==='table'&&directorProfile.principalLabels.every(label=>(b.rows??[]).map(r=>normal(r[0]??'')).includes(label));
  const selected=blocks.some(b=>directorMatch(b)||principalMatch(b))?directorProfile:QUESTIONNAIRE_PROFILE;
@@ -84,13 +86,17 @@ export function mapCompiledRecords(preview:StructuralPreview,input:z.infer<typeo
  if(input.profile!==`${preview.profile.id}@${preview.profile.version}`)throw Error('structural_profile_mismatch');
  if(input.documentComponents&&input.records.some(r=>[...r.include].sort().join()!==[...input.documentComponents!].sort().join()))throw Error('Use the same content selection for every review in this document.');
  let next=0;
+ const principal=input.profile==='principal-questionnaire@1.0';
+ if(principal&&input.records.some(r=>r.include.length!==1||r.include[0]!=='narrative'))throw Error('Principal reviews require narrative-only analysis; ISR ratings remain separate.');
  const records=input.records.map((r,i)=>{
+  if(principal&&!preview.candidates.some(c=>c.start===r.start&&c.end===r.end))throw Error('Principal questionnaire boundaries must remain separate; resolve uncertain source structure before mapping.');
   if(r.start!==next||r.end<=r.start||r.end>preview.blocks.length)throw Error('boundaries_must_partition_all_source_blocks');next=r.end;
   const metadata=describeCandidate(preview.blocks,r.start,r.end),components=preview.blocks.slice(r.start,r.end);if(components.filter(b=>b.component==='questionnaire').length>1||suspectedCompilation(components.map(b=>b.text).join('\n')))throw Error('Each mapped record must contain one individual review; split the remaining compiled reviews.');const spans:{block:number;start:number;end:number}[]=[];let text='';
+  const questionnaire=principal?(components.find(b=>b.component==='questionnaire') as any)?.questionnaire:undefined;
   for(const b of components){if(!(r.include as string[]).includes(b.component)||!b.text)continue;if(text)text+='\n\n';const start=text.length;text+=b.text;spans.push({block:b.index,start,end:text.length});}
-  if(!text.trim())throw Error('selected_components_have_no_text');if(text.includes('\0'))throw Error('text_contains_null_character');
-  return{text,institution:r.institution.name,reviewIdentifier:metadata.originalReviewNumber??`source-block:${r.start+1}`,reviewCategory:category,
-   locator:{profile:input.profile,structuralHash:preview.hash,candidateOrdinal:i+1,blockStart:r.start,blockEnd:r.end,metadata,institution:r.institution,components:components.map(({index,bodyIndex,kind,component})=>({index,bodyIndex,kind,component})),analysisComponents:r.include,analysisSpans:spans,researcherNotes:r.notes,identifierIsGenerated:metadata.originalReviewNumber===null}};
+  if(!text.trim()&&!questionnaire?.excludeFromAnalysis)throw Error('selected_components_have_no_text');if(text.includes('\0'))throw Error('text_contains_null_character');
+  return{text,institution:r.institution.name,reviewIdentifier:questionnaire?.sourceOrderId??metadata.originalReviewNumber??`source-block:${r.start+1}`,reviewCategory:category,
+   locator:{...(questionnaire?{respondentRatings:questionnaire,analysisScope:'narrative-only',excludeFromAnalysis:questionnaire.excludeFromAnalysis,sourceOrderId:questionnaire.sourceOrderId,sourceHash:questionnaire.sourceHash}:{}),profile:input.profile,structuralHash:preview.hash,candidateOrdinal:i+1,blockStart:r.start,blockEnd:r.end,metadata,institution:r.institution,components:components.map(({index,bodyIndex,kind,component})=>({index,bodyIndex,kind,component})),analysisComponents:r.include,analysisSpans:spans,researcherNotes:r.notes,identifierIsGenerated:metadata.originalReviewNumber===null}};
  });
  if(next!==preview.blocks.length)throw Error('boundaries_must_partition_all_source_blocks');return records;
 }
