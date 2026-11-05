@@ -57,7 +57,7 @@ function Workbench(){
  async function prepareCompleteReviewCopy(){
   if(active)throw Error('Stop the analysis before preparing different inputs.');
   await model.flush();
-  const breaks={};for(const source of draft.sources.filter(x=>x.compiled)){const preview=sources[source.id].preview;breaks[source.id]=applyDocumentComponents(reconcileReviewBreaks(draft.breaks?.[source.id]??preview.previousRecords??undefined,preview),preview.profile.id==='principal-questionnaire'?['narrative']:['narrative','questionnaire']);}
+  const breaks={};for(const source of draft.sources.filter(x=>x.compiled)){const preview=sources[source.id].preview;breaks[source.id]=applyDocumentComponents(reconcileReviewBreaks(draft.breaks?.[source.id]??preview.previousRecords??undefined,preview),['principal-questionnaire','school-questionnaire'].includes(preview.profile.id)?['narrative']:['narrative','questionnaire']);}
   const state={step:1,title:draft.title+' — ratings and narrative',sources:draft.sources.map(x=>x.compiled?{...x,mappingId:null}:x),datasetId:draft.datasetId,mode:draft.mode,category:draft.category,researcher:draft.researcher,plan:draft.plan,useAi:draft.useAi,localOnly:draft.localOnly,coverage:draft.coverage,reviewBoundariesConfirmed:draft.reviewBoundariesConfirmed,breaks,decisions:{},observations:[],derivedFromProjectId:project.id};
   const p=await api('workbench',post({tool:'mcf',title:state.title,state}));model.load(p);await readContext(p);await list();setNotice('A corrected copy is ready with ratings and narrative selected for every review. Your previous work and results are unchanged. Nothing has been analysed.');
  }

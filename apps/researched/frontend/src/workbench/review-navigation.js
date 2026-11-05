@@ -1,7 +1,7 @@
 // Preserve researcher choices, splitting only at newly recognised questionnaire boundaries.
 export function reconcileReviewBreaks(value,preview){
- if(!value)return preview.candidates.map(c=>({start:c.start,end:c.end,confirmed:false,institution:{state:'unassigned',name:'',note:''},include:preview.profile?.id==='principal-questionnaire'?['narrative']:['narrative','questionnaire'],notes:''}));
- if(preview.profile?.id==='principal-questionnaire')value=value.map(r=>r.include.length===1&&r.include[0]==='narrative'?r:{...r,include:['narrative'],confirmed:false});
+ if(!value)return preview.candidates.map(c=>({start:c.start,end:c.end,confirmed:false,institution:{state:'unassigned',name:'',note:''},include:['principal-questionnaire','school-questionnaire'].includes(preview.profile?.id)?['narrative']:['narrative','questionnaire'],notes:''}));
+ if(['principal-questionnaire','school-questionnaire'].includes(preview.profile?.id))value=value.map(r=>r.include.length===1&&r.include[0]==='narrative'?r:{...r,include:['narrative'],confirmed:false});
  return value.flatMap(r=>{
   const starts=preview.blocks.filter(b=>b.component==='questionnaire'&&b.index>r.start&&b.index<r.end).map(b=>preview.candidates.find(c=>c.start<=b.index&&c.end>b.index)?.start??b.index).filter(n=>n>r.start&&n<r.end);
   if(!starts.length)return [r];
