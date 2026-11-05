@@ -1,4 +1,4 @@
-import {CLASSIFICATION_RULES_V9} from '../src/domain/mcf-semantic-policy.js';
+import {CLASSIFICATION_RULES_V10} from '../src/domain/mcf-semantic-policy.js';
 import {describe,it,expect} from 'vitest';
 import {isrRating,snapshotIsrRatings,isrMetadataForRequest} from '../src/domain/isr-rating-metadata.js';
 import {retainAiAmbiguity,aiAmbiguitySummary} from '../src/domain/ai-ambiguity.js';
@@ -76,7 +76,7 @@ describe('authoritative ISR numerical valence metadata',()=>{
   const repo:any={workspace:async()=>session,transaction:async(fn:any)=>fn(c),writable:async()=>{},active:async()=>{},audit:async()=>{}};
   await new SemanticWorker(repo,()=>null).enqueue('session','researcher',true);
   expect(configuration).toMatchObject({semanticProtocol:3,evidenceProtocol:2,ambiguityProtocol:2,instrumentHash:MCF_HASH});
-  expect(configuration.classificationConfig.rules).toBe(CLASSIFICATION_RULES_V9);
+  expect(configuration.classificationConfig.rules).toBe(CLASSIFICATION_RULES_V10);
   expect(configuration.classificationConfig.promptVersion).toBe('mcf-evidential-proposals.v3');
   expect(configuration.ambiguitySourceMetadata.ratings[0]).toMatchObject({field:'Transparent',value:1,numericalValence:'negative'});
  });

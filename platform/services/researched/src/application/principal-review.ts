@@ -3,8 +3,8 @@ import type {DocBlock,StructuralPreview} from './compiled-review.js';
 
 export const PRINCIPAL_PROFILE={id:'principal-questionnaire',version:'1.0',name:'Principal ISR reviews',heading:'^$',labels:[],comments:'',editorial:'^$',parentNote:'',receiptPrefix:''};
 export const PRINCIPAL_SCOPE='MCF will analyse the narrative. Structured ISR ratings are preserved separately and will not influence this run.';
-export const PRINCIPAL_ITEMS=[['fair_equitable','Fair & equitable with all staff'],['listener_approachable','Good listener, easily approachable'],['disciplinary_support','Provides disciplinary support'],['effective_leadership','Displays effective leadership'],['delegates_responsibility','Delegates responsibility well'],['curriculum_knowledge','Demonstrates curriculum knowledge'],['positive_supportive_climate','Fosters positive, supportive climate'],['relates_to_kids','Strong ability to relate to kids'],['overall_rating','Overall rating']] as const;
-export const PRINCIPAL_CATEGORIES=['Excellent','Good','Average','Poor'];
+import {PRINCIPAL_ITEMS,PRINCIPAL_CATEGORIES} from '../domain/principal-ratings.js';
+export {PRINCIPAL_ITEMS,PRINCIPAL_CATEGORIES} from '../domain/principal-ratings.js';
 export function principalRatingExport(preview:any,format:string){
  if(preview.profile.id!=='principal-questionnaire')throw Error('principal_profile_required');
  const questionnaires=preview.blocks.filter((b:any)=>b.questionnaire).map((b:any)=>b.questionnaire);
@@ -45,7 +45,7 @@ export function principalPreview($:any,blocks:DocBlock[],bytes:Buffer):Structura
    const selected=candidates.filter((c:any)=>c.state==='selected_empty_paragraph');
    if(selected.length!==1)warnings.push(selected.length?'multiple_selected_cells':'zero_selected_cells');
    if(candidates.some((c:any)=>c.state==='ambiguous')||candidates.filter((c:any)=>c.state==='non_selected_nbsp').length!==3)warnings.push('ambiguous_marker_structure');
-   return{itemId:id,prompt,value:warnings.length?'UNRESOLVED':selected[0].label,selectedColumn:warnings.length?null:selected[0].column,sourceTableIndex,sourceRowIndex:row?row.i+1:null,candidates,status:warnings.length?'UNRESOLVED':'RECOVERED',warnings};
+   return{itemId:id,prompt,value:warnings.length?'UNRESOLVED':selected[0].label,selectedColumn:warnings.length?null:selected[0].column,sourceTableIndex,sourceRowIndex:row?row.i+1:null,sourceRowIndices:matches.map(({i}:any)=>i+1),candidates,status:warnings.length?'UNRESOLVED':'RECOVERED',warnings};
   }):[];
   const questionnaire={schema:s.principal?'isr-principal-ratings@1.0':'other-questionnaire@1.0',sourceHash,sourceTableIndex,sourceTopLevelTableIndex:ordinal+1,sourceOrderId:s.principal?`principal_review_${String(++principalOrdinal).padStart(4,'0')}`:`other_questionnaire_${String(ordinal+1).padStart(4,'0')}`,ratings,headerCells:s.cells,excludeFromAnalysis:!s.principal};
   Object.assign(block,{questionnaire});return{block,questionnaire};

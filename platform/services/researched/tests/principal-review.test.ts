@@ -22,7 +22,7 @@ it.each(['space','all_empty','all_marked','object'])('leaves malformed %s select
  const d=await doc(principalFixture(false,s=>kind==='space'?s.replace('\u00a0',' '):kind==='all_empty'?'<w:p/>':kind==='all_marked'?p('\u00a0'):s.replace('</w:p>','<w:object/></w:p>')));
  expect((d as any).principalSummary.unresolved).toBe(9);expect(d.candidates[0]!.warnings).toContain('unresolved_structured_ratings');
 });
-it('flags duplicate and missing prompts rather than guessing',async()=>{const d=await doc(principalFixture().replace('Good listener, easily approachable','Fair &amp; equitable with all staff'));expect((d as any).principalSummary.unresolved).toBe(2);});
+it('flags duplicate and missing prompts rather than guessing',async()=>{const d=await doc(principalFixture().replace('Good listener, easily approachable','Fair &amp; equitable with all staff'));expect((d as any).principalSummary.unresolved).toBe(2);const q=(d.blocks.find((b:any)=>b.questionnaire) as any).questionnaire;expect(q.ratings[0].sourceRowIndices).toEqual([2,3]);expect(q.ratings[1].sourceRowIndices).toEqual([]);});
 it('rejects ratings, headings and editorial inclusion and cross-review joins',async()=>{
  const d=await doc(principalFixture()+principalFixture()),m=mapping(d);m.records.forEach(r=>r.include=['questionnaire']);m.documentComponents=['questionnaire'];expect(()=>mapCompiledRecords(d,m,'')).toThrow('narrative-only');
  const joined=mapping(d);joined.records=[{...joined.records[0]!,end:joined.records[1]!.end}];expect(()=>mapCompiledRecords(d,joined,'')).toThrow('boundaries must remain separate');

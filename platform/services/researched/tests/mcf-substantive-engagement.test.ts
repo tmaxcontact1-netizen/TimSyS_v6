@@ -1,7 +1,7 @@
 import {describe,it,expect} from 'vitest';
 import {randomUUID} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {CLASSIFICATION_RULES_V9,SUBSTANTIVE_ENGAGEMENT_RULES,resumedOperationalPolicy} from '../src/domain/mcf-semantic-policy.js';
+import {CLASSIFICATION_RULES_V9,CLASSIFICATION_RULES_V10,F1_RULE_REVISION,SUBSTANTIVE_ENGAGEMENT_RULES,resumedOperationalPolicy} from '../src/domain/mcf-semantic-policy.js';
 import {EVIDENTIAL_RULES,evidentialResponse,retainContext,competencyEvidenceCounts} from '../src/domain/mcf-evidence.js';
 import {AI_AMBIGUITY_RULES} from '../src/domain/ai-ambiguity.js';
 import {SEMANTIC_POLICY,SemanticWorker} from '../src/application/mcf-semantic.js';
@@ -16,15 +16,15 @@ describe('v9 reasoning policy and frozen history',()=>{
   expect(SUBSTANTIVE_ENGAGEMENT_RULES).toContain('retain every supported application');
   expect(MCF_HASH).toBe('0c10b62334e888084a0d293e8d2d0a08f634035f3b7212e1e791e57a011d5f24');
  });
- it('freezes v9 only for new runs without changing schemas or analysis protocols',async()=>{
+ it('freezes the F1 revision only for new runs without changing schemas or analysis protocols',async()=>{
   let configuration:any;const u={id:randomUUID(),unit_set_id:randomUUID(),original_text:'Staff receive mentoring.',start_offset:0,end_offset:24};
   const session={dataset_id:'dataset',instrument_hash:MCF_HASH,units:[u],contextUnits:[u],records:[],configuration:{unitSets:[]}};
   const c={query:async(sql:string,args:any[])=>{if(sql.startsWith('INSERT INTO researched.mcf_ai_runs'))configuration=JSON.parse(args[3]);return{rows:[]};}};
   const repo:any={workspace:async()=>session,transaction:async(fn:any)=>fn(c),writable:async()=>{},active:async()=>{},audit:async()=>{}};
   await new SemanticWorker(repo,()=>null).enqueue('session','researcher',true);
-  expect(configuration).toMatchObject({semanticProtocol:3,evidenceProtocol:2,ambiguityProtocol:2,semanticPolicy:{version:9},classificationConfig:{version:'3.1',rules:CLASSIFICATION_RULES_V9,promptVersion:'mcf-evidential-proposals.v3'}});
+  expect(configuration).toMatchObject({semanticProtocol:3,evidenceProtocol:2,ambiguityProtocol:2,semanticPolicy:{version:10},classificationConfig:{version:'3.2',competencyRuleRevisions:{F1:F1_RULE_REVISION},rules:CLASSIFICATION_RULES_V10,promptVersion:'mcf-evidential-proposals.v3'}});
  });
- it.each([4,5,6,7,8,9])('preserves reasoning identity when resuming policy %i',version=>{
+ it.each([4,5,6,7,8,9,10])('preserves reasoning identity when resuming policy %i',version=>{
   const saved=Object.freeze({version,timeoutMs:90000});const next=resumedOperationalPolicy(saved,SEMANTIC_POLICY);
   expect(next.version).toBe(version<8?8:version);expect(saved).toEqual({version,timeoutMs:90000});
   if(version>=8)expect(next).toBe(saved);

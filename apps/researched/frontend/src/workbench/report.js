@@ -1,3 +1,4 @@
+import {principalRatingsReport,principalRatingsHtml} from './principal-ratings-report.js';
 import {aiAmbiguityHtml} from './ai-ambiguity-report.js';
 import {coverageLabels} from '../../../../../platform/services/researched/src/domain/mcf-coverage.ts';
 import {summariseMcf} from './mcf-report.js';
@@ -5,6 +6,7 @@ import {formatWorkTime} from './time.js';
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 export function reportHtml({tool,draft,run,session,machine,instrument,project}){
  let content='';
+ if(tool==='mcf')content+=principalRatingsHtml(principalRatingsReport(session),{expanded:true});
  if(tool==='mcf'&&session?.records?.some(r=>r.locator?.analysisScope==='narrative-only'))content+='<h2>Principal narrative-only analysis</h2><p>Structured ISR respondent ratings are preserved separately. They are not MCF findings and were excluded from semantic target passages and context. The four-category Principal scale was not interpreted as the Director 1–5 scale.</p>';
 
  if(tool==='mcf'){const summary=summariseMcf(session,instrument,draft,machine);content+=aiAmbiguityHtml(summary.aiAmbiguity);content+='<h2>Evidence-location analysis</h2><p>Explicit and Contextual are equally valid supported applications. Counts are evidence locations within reviews, not independent observations. Historical classifications are separate. Percentages use Explicit + Contextual as denominator. No application means an assessed target and its permitted same-review context did not support the competency. Semantic zero-code results have no supported application across all 21 competencies but may retain unresolved alternatives. Alternatives are not No application. Pending and failed assessments are not No application.</p><table><tr><th>Competency</th><th>Total supported</th><th>Explicit</th><th>Contextual</th><th>Explicit %</th><th>Contextual %</th><th>Historical</th></tr>'+summary.competencies.map(c=>'<tr><td>'+escape(c.competency)+'</td>'+['totalFindings','explicitFindings','contextualFindings','explicitPercentage','contextualPercentage','historicalFindings'].map(k=>'<td>'+(c.counts[k]===null?'N/A':Number(c.counts[k].toFixed(1)))+'</td>').join('')+'</tr>').join('')+'</table>';}

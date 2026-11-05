@@ -12,6 +12,20 @@ Do not suppress a supported competency merely because another competency better 
 
 export const CLASSIFICATION_RULES_V9=EVIDENTIAL_RULES+'\n'+AI_AMBIGUITY_RULES+'\n'+SUBSTANTIVE_ENGAGEMENT_RULES;
 
+// F1-only interpretation revision, not an amendment to the frozen MCF instrument.
+export const F1_RULE_REVISION='f1-internal-communication.v1';
+export const F1_INTERNAL_COMMUNICATION_RULES=`F1 — Internal Communication (${F1_RULE_REVISION}). Apply these F1-specific rules; all other competency, evidence and ambiguity rules remain unchanged.
+SUPPORTED when the target, read with permitted SAME-review context, establishes an identifiable internal communication function, including informing staff, communicating a decision or directive, consultation, listening, or operating a feedback channel. Positive and negative accounts both qualify. A specific directive to a teacher can qualify even when its subject concerns a student or parent. Poor follow-through or failure to act on staff input does not erase an established communication function.
+NO APPLICATION when the evidence establishes only a medium, a meeting, availability, or unspecified support, with no grounded link to an internal communication function. Context may clarify the target; a separate example elsewhere in the review does not establish F1 for that target. Do not supply an unstated message, purpose, or participant role.
+Appraisal boundary: individual performance appraisal can support C3. Apply F1 as well when the evidence substantively describes how feedback was conveyed, understood, or exchanged, or how the feedback channel operated. Criticism confined to the basis or substance of an individual appraisal is insufficient for F1. This does not change C3's operational criterion.
+Mixed audiences: identify the internal communication function; staff attendance alone is insufficient. Mark F1 UNRESOLVED when an exchange is established but the evidence leaves materially plausible internal and external readings that the permitted context cannot resolve.
+Conditional directives: a conditional reference to a directive does not by itself establish that it was issued. Mark F1 UNRESOLVED when the wording plausibly describes either an actual directive or a hypothetical exception and the evidence cannot distinguish them. Apply SUPPORTED when the evidence establishes an actual directive and an identifiable internal communication function.
+UNRESOLVED is not NO APPLICATION: use the existing ambiguity mechanism with status identified and an F1 alternative, an explanation of the competing readings, and exact target/permitted same-review evidence citations. Do not also put unresolved F1 in supported codes. Do not turn a clear exclusion into ambiguity. For supported F1 use the existing codes, Explicit/Contextual rules and per-competency evidence; for NO APPLICATION omit F1 from both codes and ambiguity alternatives.`;
+
+// Replace only the v9 F1 paragraph; keep v9 intact for historical comparisons.
+const V9_F1_RULE=SUBSTANTIVE_ENGAGEMENT_RULES.split('\n').find(line=>line.startsWith('A meeting, email,'))!;
+export const CLASSIFICATION_RULES_V10=CLASSIFICATION_RULES_V9.replace(V9_F1_RULE,F1_INTERNAL_COMMUNICATION_RULES);
+
 // Versions through 8 changed execution/retry policy. Version 9 additionally
 // changes reasoning. An operational resume must never relabel an old run as 9.
 export function resumedOperationalPolicy<T extends {version:number}>(saved:T,current:any):T {
