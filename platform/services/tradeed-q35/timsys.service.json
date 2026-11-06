@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "id": "tradeed-q35",
+  "owner": "timsys",
+  "kind": "independent-scheduled-service",
+  "contract": "contract.json",
+  "entrypoint": "service.cjs",
+  "deployment": "prepare.cjs",
+  "activation": "disabled-by-default; separate sealed service and collection approvals required",
+  "lifecycleOwner": "windows-task-scheduler",
+  "launcherLifecycle": "excluded",
+  "database": "none; existing sealed Q35 file ledger",
+  "recovery": "atomic checkpoint; explicit gaps; fail closed on orphan identity or configuration ambiguity"
+}

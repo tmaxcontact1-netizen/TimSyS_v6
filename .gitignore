@@ -25,3 +25,5 @@ data/*.sqlite-wal
 # Local isolated UI release evidence
 /diagnostics/
 /dist-updates/
+# Local verification, backups and generated release artifacts.
+/verification-local/

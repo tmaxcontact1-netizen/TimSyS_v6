@@ -6,11 +6,21 @@ The subsequent main-branch merge retains main's school navigation/task controls,
 
 ## Ownership
 
+### Q35 integration and compatible release — 6 November 2026
+
+The installed platform component is d8a5ca23338e0149c56308f2. It preserves Research'Ed 2026.11.06.3, the repaired dashboard, isolated Research/Dress database bindings and the existing inspection-only Trade'Ed gateway. Q35 is TimSyS-owned source under platform/services/tradeed-q35 and an independent runtime outside launcher bundles. The registry is platform/services/independent-services.json; its read-only status contract is /api/timsys/v1/services/tradeed-q35/1.0.0.
+
+Q35 live validation remains inactive. No live collection configuration, activation authority or enabled task was installed. The old validation state file is stale; actual workers and protected ports were checked rather than trusting its active flag. Dedicated-account commissioning and actual boot acceptance remain prerequisites for separately authorized live validation. Synthetic cold/recovery and real disposable scheduled-task process-loss tests passed without rebooting the machine.
+
+The compatible update preserves all 176,722 records across 95 PostgreSQL tables and all 61 checked saved school/document SQLite tables. The dashboard repair preserves its JavaScript and adds the missing layout utilities. PostCSS and Tailwind now resolve configuration/content relative to the app, with a build guard against missing dashboard styles. Research source remains authoritative main source; its compiled output matches the installed release exactly.
+
+The earlier standalone installer is superseded. Distribution uses the compatible platform component, repaired UI bundle and independent inactive Q35 kit. No app data, credentials, backups or live validation configuration are published. See releases/2026.11.06.4.json and BACKEND_Q35_RELEASE.md.
+
 | App/component | TimSyS backend destination | App boundary |
 | --- | --- | --- |
 | Dress'Ed | Existing wardrobe/photography/styling services plus platform/services/dressed for planning, rotation, care, wear records, insights/preferences and outfit edits; CV scaffolding is central too | Frontend and pinned native JSON/HTTP contracts |
 | Research'Ed | platform/services/researched: APIs, repositories, migrations, acquisition/extraction/OCR, jobs, AI, exports/reporting, frozen instruments/configuration | Frontend and researched-backend@1.0.0 HTTP contract |
-| Trade'Ed | platform/services/tradeed: worker/dashboard/Telegram, providers, execution/risk/accounting, checkpoints/recovery, repositories and migrations | Static frontend and tradeed-backend@1.0.0 HTTP contract; active sealed validation unchanged |
+| Trade'Ed / Q35 | Existing inspection-only sandbox gateway; TimSyS owns the independent Q35 host under platform/services/tradeed-q35. Historical general trading source remains unbundled under platform/services/tradeed | Versioned inspection/status contracts; no live validation activation |
 | Principal'Ed | Existing platform/modules school/shared services | Frontend and pinned school HTTP namespace; JWT/module/app permissions retained |
 | Desktop shell | platform/native/desktop: lifecycle, database manager, backup/recovery, credentials/OAuth/provider probes, updater and OS/window adapters | UI plus minimal bootstrap loading the TimSyS native host |
 

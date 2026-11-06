@@ -27,7 +27,7 @@ async function digest(file) {
 async function inventory(directory, prefix = "") {
   const result = new Map();
   for (const entry of await readdir(directory, { withFileTypes: true })) {
-    if(["node_modules","modules-runtime","data",".git"].includes(entry.name)||(entry.name==="app-adapters"&&directory.endsWith("ai_gateway")))continue;
+    if((entry.name==="tradeed"&&/[\\/]platform[\\/]services$/.test(directory))||["node_modules","modules-runtime","data",".git"].includes(entry.name)||(entry.name==="app-adapters"&&directory.endsWith("ai_gateway")))continue;
     const relative = prefix ? join(prefix, entry.name) : entry.name;
     const absolute = join(directory, entry.name);
     if (entry.isDirectory()) {
@@ -122,11 +122,10 @@ async function verifyManifest(relative) {
 
 await Promise.all([
   requirePath("platform/modules-runtime"),
-  requirePath("platform/services/tradeed/modules-runtime/pg/package.json"),
-  requirePath("platform/services/tradeed/modules-runtime/@timsys/app-sdk/package.json"),
+  requirePath("platform/native/desktop/inspection-host-gateway.cjs"),
+  requirePath("platform/native/desktop/tradeed-sandbox-contract.json"),
   requirePath("apps/tradeed/frontend/index.html"),
   requirePath("apps/tradeed/frontend/app.js"),
-  requirePath("platform/services/tradeed/.env.example"),
   requirePath("platform/services/dressed/modules-runtime/pg/package.json"),
   requirePath("platform/services/dressed/modules-runtime/@timsys/app-sdk/package.json"),
   requirePath("platform/modules-runtime/sharp/package.json"),
@@ -142,14 +141,13 @@ await Promise.all([
   requirePath("runtime/postgres/share/timezonesets/Default"),
   verifyManifest("platform/timsys.app.json"),
   verifyManifest("apps/tradeed/timsys.app.json"),
-  ...["dressed","researched","tradeed"].map(app=>verifyManifest("platform/services/"+app+"/timsys.app.json")),
+  ...["dressed","researched"].map(app=>verifyManifest("platform/services/"+app+"/timsys.app.json")),
   verifyManifest("apps/dressed/timsys.app.json"),
   verifyManifest("apps/researched/timsys.app.json"),
 ]);
 
 await Promise.all([
   verifyNodeRuntime("platform/modules-runtime", ["better-sqlite3", "jsonwebtoken", "zod", "pg", "sharp"]),
-  verifyNodeRuntime("platform/services/tradeed/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
   verifyNodeRuntime("platform/services/dressed/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
   verifyNodeRuntime("platform/services/researched/modules-runtime", ["@timsys/app-sdk", "pg", "zod"]),
 ]);
@@ -209,7 +207,6 @@ try {
 } catch (error) { failures.push(`Installed baseline/package metadata verification failed: ${error.message}`); }
 
 await Promise.all([
-  verifyMigrations("tradeed", "TradeEd"),
   verifyMigrations("dressed", "Dress'Ed"),
   verifyMigrations("researched", "Research'Ed"),
 ]);

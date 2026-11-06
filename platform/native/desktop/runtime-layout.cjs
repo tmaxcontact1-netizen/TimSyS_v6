@@ -1,5 +1,4 @@
 const path = require('node:path');
-const { resolveTradingDataRoot } = require('./data-continuity.cjs');
 
 function createRuntimeLayout({ packaged, resourcesPath, userDataPath, sourceRoot, bundleRoots = {} }) {
   const resourceRoot = packaged ? resourcesPath : sourceRoot;
@@ -14,8 +13,8 @@ function createRuntimeLayout({ packaged, resourcesPath, userDataPath, sourceRoot
     postgresRoot: path.join(resourceRoot, 'runtime', 'postgres'),
     launcherUi: packaged ? bundled('launcher-ui', path.join(resourcesPath, 'launcher-ui')) : null,
     dataRoot: userDataPath,
+    databaseData: path.join(userDataPath, 'shared-database'),
     platformData: path.join(userDataPath, 'platform'),
-    tradeedData: resolveTradingDataRoot(userDataPath),
     dressedData: path.join(userDataPath, 'dressed'),
     researchedData: path.join(userDataPath, 'researched'),
   });

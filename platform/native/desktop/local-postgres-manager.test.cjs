@@ -10,6 +10,13 @@ test('database URLs encode credentials and bind to loopback', () => {
   assert.equal(result, 'postgresql://runtime:unsafe%3A%2F%20password@127.0.0.1:54321/tradeed');
 });
 
+test('shared infrastructure neither discovers nor creates a trading database or role',async()=>{
+  const manager=new LocalPostgresManager({binaryRoot:'unused',dataRoot:'unused',infrastructureOnly:true,execute:()=>{throw Error('unexpected database discovery');}});
+  await manager.ensureDatabase({},5432,{},true);
+  assert.equal(manager.databaseName,'postgres');
+  await assert.rejects(manager.grantSchemaPrivileges('public'),/cannot grant/);
+});
+
 test('production stop path invokes pg_ctl fast stop and releases manager ownership', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'timsys-pg-stop-'));
   const binaryRoot = path.join(root, 'runtime');

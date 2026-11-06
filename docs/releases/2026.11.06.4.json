@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "release": "2026.11.06.4",
+  "kind": "compatible-component-update",
+  "q35": {
+    "owner": "timsys",
+    "version": "1.0.0",
+    "root": "platform/services/tradeed-q35",
+    "liveValidationActive": false,
+    "taskEnabled": false
+  },
+  "dashboard": {
+    "cssRepaired": true,
+    "installedJavaScriptPreserved": true,
+    "buildGuard": true
+  },
+  "research": {
+    "retainedRelease": "2026.11.06.3",
+    "compiledSourceMatchesInstalled": true
+  },
+  "preservation": {
+    "postgresRows": 176722,
+    "postgresTables": 95,
+    "sqliteTables": 61,
+    "privateDataPublished": false
+  },
+  "artifacts": [
+    {
+      "name": "launcher-ui-2026.11.06.4.zip",
+      "size": 233080,
+      "sha256": "2bbe25c646dc829048244e18d57eff558012293c4fe75e1af80fceae3088de11"
+    },
+    {
+      "name": "platform-2026.11.06.4.zip",
+      "size": 184279349,
+      "sha256": "d8a5ca23338e0149c56308f2011ba4a46c3d75a0dd09ef586c55d3d980319894"
+    },
+    {
+      "name": "timsys-q35-service-1.0.0-windows-x64.zip",
+      "size": 35910598,
+      "sha256": "513a193574c413fbca4bc52cab546ca13a1bdad37c9e87917929869c76d10092"
+    }
+  ]
+}

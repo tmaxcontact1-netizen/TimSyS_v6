@@ -16,13 +16,7 @@
       "manifest": "platform/services/researched/timsys.app.json",
       "contract": "platform/services/researched/contract.json",
       "basePath": "/api/timsys/v1/apps/researched/backend/1.0.0"
-    },
-    {
-      "appId": "tradeed",
-      "root": "platform/services/tradeed",
-      "manifest": "platform/services/tradeed/timsys.app.json",
-      "contract": "platform/services/tradeed/contract.json",
-      "basePath": "/api/timsys/v1/apps/tradeed/backend/1.0.0"
     }
-  ]
+  ],
+  "externalGateways": [{"appId":"tradeed","contract":"platform/native/desktop/tradeed-sandbox-contract.json","implementationOwner":"tradeed-sandbox","mode":"inspection","basePath":"/api/timsys/v1/apps/tradeed/backend/1.0.0"}]
 }

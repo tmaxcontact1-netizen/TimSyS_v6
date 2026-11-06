@@ -12,6 +12,8 @@
     "owner": "timsys",
     "serviceId": "tradeed-backend",
     "version": "1.0.0",
-    "manifest": "platform/services/tradeed/timsys.app.json"
+    "manifest": "platform/native/desktop/tradeed-sandbox-contract.json",
+    "implementationOwner": "tradeed-sandbox",
+    "mode": "inspection"
   }
 }

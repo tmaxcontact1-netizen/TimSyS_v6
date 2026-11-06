@@ -34,8 +34,9 @@ describe("app declarations consume versioned TimSyS services", () => {
           appId,
           host: "timsys",
           protocol: "timsys.services.v1",
-          migrationState: "frontend-only",
+          migrationState: appId === "tradeed" ? "external-sandbox-inspection" : "frontend-only",
         });
+        if (appId === "tradeed") expect(declaration.implementationOwner).toBe("tradeed-sandbox");
         expect(declaration.requiredPermissions).toContain(
           "app:" + appId + ":use",
         );

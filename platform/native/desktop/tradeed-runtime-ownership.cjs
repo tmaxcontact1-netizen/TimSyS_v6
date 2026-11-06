@@ -13,4 +13,12 @@ async function stopLauncherOwnedRuntime({ stopApplications, stopDatabase }) {
   await stopDatabase();
 }
 
-module.exports = { claimTradeedRuntime, stopLauncherOwnedRuntime };
+// Individual applications do not own the shared PostgreSQL lifecycle. Only
+// full launcher shutdown may invoke stopLauncherOwnedRuntime.
+async function stopScopedApplication({ appId, stopApplication }) {
+  if (!['tradeed', 'dressed', 'researched'].includes(appId) || typeof stopApplication !== 'function')
+    throw new Error('Scoped application stop requires a known application');
+  return stopApplication(appId);
+}
+
+module.exports = { claimTradeedRuntime, stopLauncherOwnedRuntime, stopScopedApplication };

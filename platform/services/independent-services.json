@@ -1,0 +1,15 @@
+{
+  "protocol": "timsys.independent-services.v1",
+  "owner": "timsys",
+  "services": [
+    {
+      "id": "tradeed-q35",
+      "root": "platform/services/tradeed-q35",
+      "manifest": "platform/services/tradeed-q35/timsys.service.json",
+      "contract": "platform/services/tradeed-q35/contract.json",
+      "basePath": "/api/timsys/v1/services/tradeed-q35/1.0.0",
+      "launcherManaged": false,
+      "activationDefault": "disabled"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion":1,
+  "owner":"timsys",
+  "applicationDatabases":["dressed","researched"],
+  "sharedStorage":"shared-database/postgres",
+  "bindingFile":"database-binding.private.json",
+  "legacyFallbackAllowed":false
+}

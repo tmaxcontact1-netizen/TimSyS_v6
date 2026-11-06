@@ -13,7 +13,7 @@
     "migrate": "tsx scripts/migrate.ts",
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && npm run test:validation",
     "verify:environment": "tsx scripts/verify-environment.ts",
     "verify:providers": "tsx scripts/verify-environment.ts --probe-providers",
     "verify:handoff": "npm run typecheck && npm test && npm run build",
@@ -22,7 +22,8 @@
     "report:paper": "tsx scripts/generate-report.ts",
     "dashboard:paper": "node dist/src/entrypoints/dashboard.js",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test:validation": "node --test ../tradeed-q35/tests/*.test.cjs"
   },
   "keywords": [],
   "author": "",

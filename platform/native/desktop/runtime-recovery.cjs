@@ -47,8 +47,8 @@ function diagnostics({ layout, statuses = [] }) {
     osRelease: os.release(), electron: process.versions.electron || null, node: process.versions.node,
     runtime: {
       platformDatabasePresent: exists(path.join(layout.platformData, 'timsys.sqlite')),
-      postgresClusterPresent: exists(path.join(layout.tradeedData, 'postgres', 'data', 'PG_VERSION')),
-      postgresLogPresent: exists(path.join(layout.tradeedData, 'postgres', 'postgres.log')),
+      postgresClusterPresent: Boolean(layout.databaseData && exists(path.join(layout.databaseData, 'postgres', 'data', 'PG_VERSION'))),
+      postgresLogPresent: Boolean(layout.databaseData && exists(path.join(layout.databaseData, 'postgres', 'postgres.log'))),
     },
     apps: statuses.map(({ id, state, detail, processes }) => ({ id, state, detail: detail || null, processCount: Array.isArray(processes) ? processes.length : 0 })),
   });

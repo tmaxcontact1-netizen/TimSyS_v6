@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "protocol": "tradeed.sandbox.inspection.v1",
+  "implementationOwner": "tradeed-sandbox",
+  "mode": "inspection",
+  "backendBundledWithTimSys": false,
+  "task": "TradeEd-Sandbox-Inspection-2026.11.01-r1",
+  "gateways": ["hosting", "launch-status-stop", "updates", "native-session", "ai-help", "database-infrastructure"],
+  "tradingEnabled": false,
+  "collectionEnabled": false,
+  "automaticRestart": false
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "file": "process-telemetry.cjs",
+    "sha256": "44a67aa4d2169da04407c6afe47d657845f99802f50316e90653a0e761be6418",
+    "originalSha256": "44a67aa4d2169da04407c6afe47d657845f99802f50316e90653a0e761be6418"
+  },
+  {
+    "file": "q35-core.cjs",
+    "sha256": "8db2436600899a34177fe01573dae9d7da0bf3be14ad5821dc7896956990caf3",
+    "originalSha256": "8db2436600899a34177fe01573dae9d7da0bf3be14ad5821dc7896956990caf3"
+  },
+  {
+    "file": "q35-prospective-adapter-fixture.cjs",
+    "sha256": "b67d3a83ba569215f58699caaf3e4280584c2290c93672e0fabfe8e201a1dd73",
+    "originalSha256": "b67d3a83ba569215f58699caaf3e4280584c2290c93672e0fabfe8e201a1dd73"
+  },
+  {
+    "file": "q35-prospective-adapter.cjs",
+    "sha256": "824ef8c7cadf1b9ee1a8e9cc1ae76d3c53e3e84ad33ff4795e5dc0f9cdb2c05b",
+    "originalSha256": "824ef8c7cadf1b9ee1a8e9cc1ae76d3c53e3e84ad33ff4795e5dc0f9cdb2c05b"
+  },
+  {
+    "file": "q35-prospective-core.cjs",
+    "sha256": "b3558a306b75c1ba847c9f5d6a5c5edb05c2b82521f68f46a83f600fbe6c0054",
+    "originalSha256": "b3558a306b75c1ba847c9f5d6a5c5edb05c2b82521f68f46a83f600fbe6c0054"
+  },
+  {
+    "file": "q35-prospective-fixture.cjs",
+    "sha256": "768546030d7238bae068d55cbdbf082ffe372d90b1f8a3dc06197bfd1e578152",
+    "originalSha256": "768546030d7238bae068d55cbdbf082ffe372d90b1f8a3dc06197bfd1e578152"
+  },
+  {
+    "file": "q35-prospective-statistics.cjs",
+    "sha256": "8a12b574ae1c8bca002a2acde164b7cc455794c1cadc74ce6946459cdf2dbbcc",
+    "originalSha256": "8a12b574ae1c8bca002a2acde164b7cc455794c1cadc74ce6946459cdf2dbbcc"
+  },
+  {
+    "file": "q35-prospective-worker.cjs",
+    "sha256": "b6f5b19dcd949821dde0871111e373fbb403eb3b212bf91b4bb3e723099faf31",
+    "originalSha256": "b6f5b19dcd949821dde0871111e373fbb403eb3b212bf91b4bb3e723099faf31"
+  },
+  {
+    "file": "q35-runtime-continuation.cjs",
+    "sha256": "fee9736bbe92b9b7f33b275e14001fe98351662a4bd3b01aad7523e74e4e2732",
+    "originalSha256": "fee9736bbe92b9b7f33b275e14001fe98351662a4bd3b01aad7523e74e4e2732"
+  },
+  {
+    "file": "replay-durability.cjs",
+    "sha256": "0f3a70f3944e91a2ec99d13b1982a9691765af18a72f1e0e2b64df0a326195e6",
+    "originalSha256": "0f3a70f3944e91a2ec99d13b1982a9691765af18a72f1e0e2b64df0a326195e6"
+  },
+  {
+    "file": "research-artifacts.cjs",
+    "sha256": "3bc0bfc30392460493e24d35a3af21fbc41f445edb543d1a4c485c9f776f4f5e",
+    "originalSha256": "3bc0bfc30392460493e24d35a3af21fbc41f445edb543d1a4c485c9f776f4f5e"
+  },
+  {
+    "file": "research2-core.cjs",
+    "sha256": "9f984b48c94ed23d44006b35a94a0fa493c1639cf83927ea3a1c9a3888b44be6",
+    "originalSha256": "9f984b48c94ed23d44006b35a94a0fa493c1639cf83927ea3a1c9a3888b44be6"
+  },
+  {
+    "file": "research2-statistics.cjs",
+    "sha256": "2931c24a57971687aa2240a1a1b708fa451b01673582e53fca238f37405998a8",
+    "originalSha256": "2931c24a57971687aa2240a1a1b708fa451b01673582e53fca238f37405998a8"
+  },
+  {
+    "file": "sealed-a-view.cjs",
+    "sha256": "41915bf1e72a43d303fd9bf3b8eaa529b1f7b25b3ad265e8b865846df0ba1ad6",
+    "originalSha256": "41915bf1e72a43d303fd9bf3b8eaa529b1f7b25b3ad265e8b865846df0ba1ad6"
+  }
+]

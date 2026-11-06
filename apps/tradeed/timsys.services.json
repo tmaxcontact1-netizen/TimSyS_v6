@@ -17,7 +17,8 @@
     "app:tradeed:use",
     "service:runtime:read"
   ],
-  "migrationState": "frontend-only",
+  "migrationState": "external-sandbox-inspection",
+  "implementationOwner": "tradeed-sandbox",
   "httpContracts": [
     {
       "serviceId": "tradeed-backend",

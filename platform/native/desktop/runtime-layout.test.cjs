@@ -6,7 +6,8 @@ const { createRuntimeLayout } = require('./runtime-layout.cjs');
 test('development resources come from the repository and data remains external', () => {
   const layout = createRuntimeLayout({ packaged: false, resourcesPath: 'R:/resources', userDataPath: 'D:/data', sourceRoot: 'S:/source' });
   assert.equal(layout.tradeedRoot, path.join('S:/source', 'apps', 'tradeed'));
-  assert.equal(layout.tradeedData, path.join('D:/data', 'tradeed'));
+  assert.equal(layout.tradeedData, undefined);
+  assert.equal(layout.databaseData, path.join('D:/data', 'shared-database'));
   assert.equal(layout.dressedRoot, path.join('S:/source', 'apps', 'dressed'));
   assert.equal(layout.dressedData, path.join('D:/data', 'dressed'));
   assert.equal(layout.researchedRoot, path.join('S:/source', 'apps', 'researched'));

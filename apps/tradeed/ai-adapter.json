@@ -1,6 +1,6 @@
 {
   "appId": "tradeed", "name": "Trade'Ed", "version": "1",
-  "instructions": "Explain recorded market observations, paper-trading results and system status. Distinguish simulation from live execution and observation from prediction. Never execute trades, bypass risk rules or claim profitability from a limited sample.",
+  "instructions": "TradeEd currently runs inspection-only in its external sandbox: trading, collection and automatic restarts are disabled. Explain recorded market observations, paper-trading results and system status. Database worker statuses and timestamps may be historical; do not describe them as current running processes. Distinguish simulation from live execution and observation from prediction. Never execute trades, bypass risk rules or claim profitability from a limited sample.",
   "help": [{"id":"tradeed:overview","content":"Trade'Ed supports market research and supervised paper trading. Its pipeline includes discovery, security and scoring, quotes, profile signals, sizing, paper entry and exit, and recorded net results. Inspect the full recorded path when interpreting a result."}],
   "workflows": ["paper-session-completed", "risk-observation"]
 }

@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>Trade’Ed · Isolated inspection</title>
+<style>body{background:#101426;color:#e8ecff;font:16px system-ui;margin:3rem;max-width:1000px}button{padding:.7rem;margin:.3rem;background:#24335c;color:white;border:1px solid #5573ba;border-radius:5px}pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;background:#19203a}small{color:#a8b9d9}</style>
+<h1>Trade’Ed sandbox</h1><p>Inspection only. Trading and market collection are disabled. The historical backend and evidence remain preserved.</p><p><small>TimSyS provides hosting, launching, updates and AI Help through explicit gates. This view does not start a trading worker.</small></p>
+<div id="reads"></div><pre id="output">Select a read-only source.</pre>
+<script>
+const routes=['paper/pipeline','paper/strategy-funnel','focused-dashboard','paper/opportunity-audit','operations/status','paper/snapshot','watchlists'];
+for(const route of routes){const button=document.createElement('button');button.textContent=route;button.onclick=async()=>{button.disabled=true;try{const response=await fetch('/api/timsys/v1/apps/tradeed/backend/1.0.0/'+route+'?limit=20',{signal:AbortSignal.timeout(2000)});const text=await response.text();document.querySelector('#output').textContent=JSON.stringify({status:response.status,result:JSON.parse(text)},null,2);}catch{document.querySelector('#output').textContent='Read unavailable. No retry performed.';}finally{button.disabled=false;}};document.querySelector('#reads').append(button);}
+</script>

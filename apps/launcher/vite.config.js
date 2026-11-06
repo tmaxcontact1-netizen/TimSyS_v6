@@ -12,6 +12,8 @@ export default defineConfig({
   plugins: [react(), { name: 'assistant-entry', async closeBundle() {
     const assets=path.join(configDirectory,'dist/assets');
     const code=(await Promise.all((await readdir(assets)).filter(f=>f.endsWith('.js')).map(f=>readFile(path.join(assets,f),'utf8')))).join('\n');
+    const css=(await Promise.all((await readdir(assets)).filter(f=>f.endsWith('.css')).map(f=>readFile(path.join(assets,f),'utf8')))).join('\n');
+    for(const selector of ['flex','grid','p-6','px-6','min-h-screen','rounded-lg','gap-6'])assert.ok(new RegExp('\\.'+selector+'\\s*\\{').test(css),`Launcher build lost dashboard styling: ${selector}`);
     for(const marker of ['Documentary destinations','Connection evidence','dl-viewport'])assert.ok(code.includes(marker),`Launcher build lost Phase 2A UI: ${marker}`);
     assert.ok(!code.includes('Formal responsibilities, source evidence and the connections between them.'),'Launcher includes superseded Nervous Breakdown interface');
     await copyFile(path.join(configDirectory, 'dist/index.html'), path.join(configDirectory, 'dist/assistant.html')); } }],

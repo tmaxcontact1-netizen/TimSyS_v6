@@ -189,6 +189,12 @@ class UpdateManager {
   }
 
   async validateBundle(id, root) {
+    if (id === 'tradeed') {
+      const ui = await fsp.readFile(path.join(root,'frontend/inspection.html'),'utf8').catch(()=>null);
+      if (!ui || Buffer.byteLength(ui)>131072 || !ui.includes('Inspection only.')) throw Object.assign(new Error('TradeEd update must retain bounded inspection UI; backend activation is separate.'),{code:'BACKEND_UPDATE_INCOMPATIBLE'});
+    }
+    if (id === 'platform') require('./tradeed-sandbox-update-gate.cjs').assertTradeedSandboxBundle(root);
+    if (id === 'platform') require('./database-update-gate.cjs').assertDatabaseIsolationBundle(root);
     if (compareVersions(this.currentLauncherVersion, '1.1.0') >= 0 && id === 'platform') {
       for (const file of ['services/domain-services.json', 'native/desktop/main.cjs', 'packages/domain-http/index.cjs']) {
         if (!fs.existsSync(path.join(root, file))) throw Object.assign(new Error('This services update predates the TimSyS-owned backend host.'), { code: 'BACKEND_UPDATE_INCOMPATIBLE' });

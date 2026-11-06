@@ -41,7 +41,8 @@ async function availablePort() {
 }
 
 class LocalPostgresManager {
-  constructor({ binaryRoot, dataRoot, execute = run, choosePort = availablePort }) {
+  constructor({ binaryRoot, dataRoot, execute = run, choosePort = availablePort, infrastructureOnly = false }) {
+    this.infrastructureOnly = infrastructureOnly === true;
     this.binaryRoot = binaryRoot;
     this.dataRoot = dataRoot;
     this.execute = execute;
@@ -127,6 +128,8 @@ class LocalPostgresManager {
   }
 
   async ensureDatabase(credentials, port, environment, existingCluster = false) {
+    // Shared infrastructure must not discover, create or depend on a trading DB.
+    if (this.infrastructureOnly) { this.databaseName = 'postgres'; return; }
     const common = ['-h', '127.0.0.1', '-p', String(port), '-U', credentials.administrator];
     const databases = await this.execute(this.executable('psql'), [
       ...common, '-d', 'postgres', '-tAc', "SELECT datname FROM pg_database WHERE datname IN ('memecoined','tradeed') ORDER BY datname",
@@ -154,6 +157,7 @@ class LocalPostgresManager {
   }
 
   async grantSchemaPrivileges(schema) {
+    if (this.infrastructureOnly) throw new Error('Shared infrastructure cannot grant application schema privileges');
     if (!this.state) throw new Error('PostgreSQL is not running');
     if (!/^[a-z][a-z0-9_]*$/.test(schema)) throw new Error('Invalid PostgreSQL schema name');
     const credentials = await this.credentials();
@@ -185,11 +189,14 @@ class LocalPostgresManager {
     const credentials = await this.credentials();
     await fsp.mkdir(this.backupRoot, { recursive: true });
     const timestamp = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
-    const destination = path.join(this.backupRoot, `tradeed-${timestamp}.dump`);
+    const destination = path.join(this.backupRoot, `${this.infrastructureOnly ? 'infrastructure-control' : 'tradeed'}-${timestamp}.dump`);
     await this.execute(this.executable('pg_dump'), [
       '-h', '127.0.0.1', '-p', String(this.state.port), '-U', credentials.administrator,
       '-d', this.databaseName, '--format=custom', '--file', destination,
     ], { env: { ...process.env, PGPASSWORD: credentials.administratorPassword } });
+    // Application data snapshots are app-owned/gated, not this control DB dump.
+    // Preservation cutover never prunes existing backups or historical evidence.
+    if (this.infrastructureOnly) return destination;
     const backups = (await fsp.readdir(this.backupRoot))
       .filter((name) => /^tradeed-.*\.dump$/.test(name)).sort().reverse();
     for (const expired of backups.slice(7)) await fsp.rm(path.join(this.backupRoot, expired), { force: true });

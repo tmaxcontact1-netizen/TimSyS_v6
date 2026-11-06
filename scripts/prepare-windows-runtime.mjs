@@ -17,10 +17,10 @@ async function copy(relative, destination = relative) {
   const target = join(stage, destination);
   if(sourceOnly && relative==="platform/services")throw Error("Backend consolidation requires a full restage, including central service dependencies.");
   if (sourceOnly) await rm(target, { recursive: true, force: true });
-  await cp(join(root, relative), target, { recursive: true, filter: file => !file.split(/[\\/]/).some(part => ["node_modules","data",".git","modules-runtime"].includes(part)) });
+  await cp(join(root, relative), target, { recursive: true, filter: file => !/\/platform\/services\/tradeed(?:\/|$)/.test(file.replaceAll('\\','/')) && !file.split(/[\\/]/).some(part => ["node_modules","data",".git","modules-runtime"].includes(part)) });
 }
 async function installProduction(directory) {
-  if(offlineDependencies){const {indexInstalled,copyProductionRuntime}=await import("../platform/scripts/build/production-runtime.cjs");if(!dependencyIndex)dependencyIndex=await indexInstalled([join(root,"platform/node_modules"),...["dressed","researched","tradeed"].map(id=>join(root,"platform/services",id,"node_modules")),...extraDependencyRoots]);runtimeReport.push(await copyProductionRuntime({sourceDirectory:join(root,directory),targetDirectory:join(stage,directory,"node_modules"),index:dependencyIndex}));return;}
+  if(offlineDependencies){const {indexInstalled,copyProductionRuntime}=await import("../platform/scripts/build/production-runtime.cjs");if(!dependencyIndex)dependencyIndex=await indexInstalled([join(root,"platform/node_modules"),...["dressed","researched"].map(id=>join(root,"platform/services",id,"node_modules")),...extraDependencyRoots]);runtimeReport.push(await copyProductionRuntime({sourceDirectory:join(root,directory),targetDirectory:join(stage,directory,"node_modules"),index:dependencyIndex}));return;}
 
   try { await access(npmCli); }
   catch {
@@ -91,7 +91,7 @@ for (const app of ['principaled', 'dressed', 'researched', 'tradeed']) {
 if (!sourceOnly) {
   await installProduction("platform");
   await rename(join(stage, "platform", "node_modules"), join(stage, "platform", "modules-runtime"));
-  for(const app of ["dressed","researched","tradeed"]){const dir="platform/services/"+app;await installProduction(dir);await rename(join(stage,dir,"node_modules"),join(stage,dir,"modules-runtime"));await copy("platform/packages/app-sdk",dir+"/modules-runtime/@timsys/app-sdk");await copy("platform/packages/domain-http",dir+"/modules-runtime/@timsys/domain-http");}
+  for(const app of ["dressed","researched"]){const dir="platform/services/"+app;await installProduction(dir);await rename(join(stage,dir,"node_modules"),join(stage,dir,"modules-runtime"));await copy("platform/packages/app-sdk",dir+"/modules-runtime/@timsys/app-sdk");await copy("platform/packages/domain-http",dir+"/modules-runtime/@timsys/domain-http");}
   for (const item of ["bin", "lib", "share", "server_license.txt", "commandlinetools_3rd_party_licenses.txt"])
     await copy(`apps/launcher/.cache/postgres/${item}`, `runtime/postgres/${item}`);
 }

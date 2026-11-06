@@ -38,5 +38,6 @@ test('legacy services and launcher interfaces cannot override a central host', a
   await assert.rejects(manager.validateBundle('launcher-ui', candidate), error => error.code === 'BACKEND_UPDATE_INCOMPATIBLE');
   await fs.writeFile(path.join(candidate, 'timsys.ui.json'), JSON.stringify({ owner: 'timsys', runtimeContract: '1.1.0' }));
   await manager.validateBundle('launcher-ui', candidate);
-  await assert.rejects(manager.validateBundle('platform', candidate), error => error.code === 'BACKEND_UPDATE_INCOMPATIBLE');
+  await assert.rejects(manager.validateBundle('platform', candidate), error =>
+    error.code === 'BACKEND_UPDATE_INCOMPATIBLE' || error.message === 'TRADEED_SANDBOX_UPDATE_INCOMPATIBLE');
 });

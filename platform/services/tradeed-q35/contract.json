@@ -1,0 +1,15 @@
+{
+  "protocol": "timsys.http.v1",
+  "serviceId": "tradeed-q35",
+  "owner": "timsys",
+  "version": "1.0.0",
+  "basePath": "/api/timsys/v1/services/tradeed-q35/1.0.0",
+  "authentication": "private per-deployment bearer token; loopback only",
+  "routes": [
+    { "method": "GET", "path": "/health", "success": 200, "unhealthy": 503 },
+    { "method": "GET", "path": "/status", "success": 200 }
+  ],
+  "mutations": "No HTTP activation, stop, restart or collection controls. Independent Windows Task Scheduler and sealed explicit activation authority only.",
+  "status": ["schemaVersion", "serviceId", "contractVersion", "configHash", "ledgerConfigHash", "supervisorPid", "workerPid", "status", "lastCheck", "failures", "healthy", "workerAlive", "heartbeatIntervalMs"],
+  "ownership": "Independent scheduled task; excluded from launcher lifecycle and general trading database"
+}

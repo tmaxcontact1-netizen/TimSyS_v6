@@ -5,8 +5,10 @@ const fsp = require('node:fs/promises');
 const path = require('path');
 const { spawn } = require('node:child_process');
 const { SupervisedAppManager } = require('./supervised-app-manager.cjs');
-const { claimTradeedRuntime, stopLauncherOwnedRuntime } = require('./tradeed-runtime-ownership.cjs');
+const { stopLauncherOwnedRuntime, stopScopedApplication } = require('./tradeed-runtime-ownership.cjs');
+const { InspectionBroker } = require('./inspection-host-gateway.cjs');
 const { LocalPostgresManager, availablePort } = require('./local-postgres-manager.cjs');
+const { appDatabase, grantAppSchemaPrivileges } = require('./app-database-gateway.cjs');
 const { createRuntimeLayout } = require('./runtime-layout.cjs');
 const { backupPlatformDatabase, diagnostics } = require('./runtime-recovery.cjs');
 const { AiCredentialVault } = require('./ai-credential-vault.cjs');
@@ -34,19 +36,18 @@ let quitting = false;
 const sourceRoot = path.resolve(__dirname, '../../..');
 let layout;
 let supervisedApps;
+let inspectionBroker;
+const appStatus = id => id === 'tradeed' ? inspectionBroker.status() : supervisedApps.status(id);
+const appDashboardUrl = id => id === 'tradeed' ? inspectionBroker.dashboardUrl() : supervisedApps.dashboardUrl(id);
+const stopApplication = id => id === 'tradeed' ? inspectionBroker.stop() : supervisedApps.stop(id);
 let postgres;
 let desktopToken;
-let tradeedConfigurationStatus = null;
 let platformUrl = null;
 let aiCredentialVault;
 let chatGptPlan;
 let applyingResearchedProfile = false;
 let updateManager;
 
-const paperConfigurationFields = Object.freeze([
-  'SOLANA_PRIMARY_RPC_URL', 'SOLANA_FALLBACK_RPC_URL', 'HELIUS_API_KEY', 'JUPITER_API_KEY',
-  'PAPER_TRADING_WALLET_ADDRESS', 'PAPER_INITIAL_CASH_LAMPORTS',
-]);
 
 async function persistentSecret(file) {
   try { return (await fsp.readFile(file, 'utf8')).trim(); }
@@ -71,46 +72,6 @@ function runNode(script, args, options) {
     child.once('error', reject);
     child.once('exit', (code) => code === 0 ? resolve(stdout) : reject(new Error(stderr.trim() || `Child process exited with ${code}`)));
   });
-}
-
-function parseEnvironment(content) {
-  const result = {};
-  for (const sourceLine of content.split(/\r?\n/)) {
-    const line = sourceLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const separator = line.indexOf('=');
-    if (separator < 1) continue;
-    const key = line.slice(0, separator).trim();
-    let value = line.slice(separator + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) value = value.slice(1, -1);
-    if (value) result[key] = value;
-  }
-  return result;
-}
-
-async function tradeedEnvironment(database) {
-  const configRoot = path.join(layout.tradeedData, 'config');
-  const environmentFile = path.join(configRoot, '.env');
-  await fsp.mkdir(configRoot, { recursive: true });
-  if (!fs.existsSync(environmentFile)) {
-    await fsp.copyFile(path.join(layout.platformRoot,'services/tradeed/.env.example'), environmentFile);
-  }
-  const content = await fsp.readFile(environmentFile, 'utf8');
-  const configured = require('./data-continuity.cjs').normalizeTradingEnvironment(parseEnvironment(content));
-  if (configured.TRADEED_MODE === 'supervised_live' && !paperConfigurationFields.some(name => configured[name])) configured.TRADEED_MODE = 'paper';
-  return {
-    ...configured,
-    TRADEED_APP_ROOT: path.join(layout.platformRoot,'services/tradeed'),
-    TRADEED_CONFIG_DIR: configRoot,
-    TRADEED_INSTANCE_ID: configured.TRADEED_INSTANCE_ID || 'local-desktop',
-    TRADEED_LOG_LEVEL: configured.TRADEED_LOG_LEVEL || 'info',
-    TRADEED_MANAGED_DATABASE: '1',
-    DATABASE_URL: database.runtimeUrl,
-    DATABASE_MIGRATION_URL: database.migrationUrl,
-    TIMSYS_DOMAIN_TOKEN: domainTokens['tradeed'], TIMSYS_SERVICE_ROOT:path.join(layout.platformRoot,'services/tradeed'), TIMSYS_FRONTEND_ROOT: path.join(layout.tradeedRoot,'frontend'),
-    NODE_PATH: path.join(layout.platformRoot,'services/tradeed/modules-runtime'),
-    NODE_OPTIONS: packagedNodeOptions(process.env.NODE_OPTIONS),
-  };
 }
 
 async function ensureNodeModulesLink(applicationRoot) {
@@ -158,38 +119,12 @@ async function startPlatform() {
 
 async function assertDomainFrontend(id){const d=JSON.parse(await fsp.readFile(path.join(layout[id+'Root'],'timsys.services.json'),'utf8'));if(!d.httpContracts?.some(c=>c.serviceId===id+'-backend'&&c.version==='1.0.0'&&c.owner==='timsys'))throw Error('Update '+id+' to the TimSyS-owned backend contract before starting it');}
 async function startTradeed() {
-  await assertDomainFrontend('tradeed');
-  await ensureNodeModulesLink(path.join(layout.platformRoot,'services/tradeed'));
-  domainTokens['tradeed'] ||= randomBytes(48).toString('base64url');
-  const database = await claimTradeedRuntime({ probeHealth: fetch, startDatabase: () => postgres.start() });
-  try {
-    const environment = await tradeedEnvironment(database);
-    const instrumentationRoot = path.join(layout.tradeedData, 'instrumentation', new Date().toISOString().replaceAll(':', '-'));
-    await fsp.mkdir(instrumentationRoot, { recursive: true });
-    environment.TIMSYS_CHILD_LOG_ROOT = instrumentationRoot;
-    environment.NODE_OPTIONS = packagedNodeOptions(`${environment.NODE_OPTIONS || ''} --report-on-fatalerror --report-uncaught-exception --report-directory=${JSON.stringify(instrumentationRoot)}`);
-    const missing = paperConfigurationFields.filter((name) => !environment[name]);
-    if (environment.TRADEED_MODE === 'paper' && missing.length > 0) {
-      await postgres.stop();
-      tradeedConfigurationStatus = {
-        id: 'tradeed', name: 'Tradeed', state: 'configuration_required',
-        detail: `Paper configuration required: ${missing.join(', ')}`,
-        missing, configFile: path.join(layout.tradeedData, 'config', '.env'), processes: [],
-      };
-      forwardStatus(tradeedConfigurationStatus);
-      return tradeedConfigurationStatus;
-    }
-    tradeedConfigurationStatus = null;
-    environment.PAPER_DASHBOARD_PORT = String(await availablePort());
-    await runNode(path.join(layout.platformRoot,'services/tradeed/dist/scripts/migrate.js'), [], {
-      cwd: layout.tradeedRoot, env: { ...process.env, ...environment },
-    });
-    await postgres.grantRuntimePrivileges();
-    return await supervisedApps.start(path.join(layout.platformRoot, 'services/tradeed/timsys.app.json'), environment);
-  } catch (error) {
-    await postgres.stop().catch(() => {});
-    throw error;
-  }
+  const database = await postgres.start();
+  const ui=await fsp.readFile(path.join(layout.tradeedRoot,'frontend/inspection.html'),'utf8');
+  const status = await inspectionBroker.start({databasePort:database.port,port:await availablePort(),ui});
+  domainTokens.tradeed=inspectionBroker.token();
+  forwardStatus(status);
+  return status;
 }
 
 async function dressedEnvironment(database) {
@@ -221,7 +156,7 @@ async function startDressed() {
   require('./photography-bridge.cjs').assertPhotographyDeclaration(JSON.parse(await fsp.readFile(path.join(layout.dressedRoot,'timsys.services.json'),'utf8')));
   await ensureNodeModulesLink(path.join(layout.platformRoot,'services/dressed'));
   domainTokens['dressed'] ||= randomBytes(48).toString('base64url');
-  const database = await postgres.start();
+  const database = appDatabase('dressed', await postgres.start(), layout.dataRoot);
   const environment = await dressedEnvironment(database);
   const sessionResponse=await fetch(new URL('/api/auth/desktop-session',platformUrl),{method:'POST',headers:{'X-TimSyS-Desktop-Token':desktopToken,'X-Requested-With':'XMLHttpRequest'}});
   const session=await sessionResponse.json();if(!sessionResponse.ok)throw Error('TimSyS wardrobe authentication failed');
@@ -235,7 +170,7 @@ async function startResearched() {
   await assertDomainFrontend('researched');
   await ensureNodeModulesLink(path.join(layout.platformRoot,'services/researched'));
   domainTokens['researched'] ||= randomBytes(48).toString('base64url');
-  const database = await postgres.start();
+  const database = appDatabase('researched', await postgres.start(), layout.dataRoot);
   const aiSnapshot = await aiRuntime.resolve(aiCredentialVault);
   const environment = {
     RESEARCHED_ENV: app.isPackaged ? 'production' : 'development',
@@ -254,7 +189,7 @@ async function startResearched() {
   await runNode(path.join(layout.platformRoot,'services/researched/dist/scripts/migrate.js'), [], {
     cwd: layout.researchedRoot, env: { ...process.env, ...environment, RESEARCHED_DATABASE_URL: database.migrationUrl },
   });
-  await postgres.grantSchemaPrivileges('researched');
+  await grantAppSchemaPrivileges('researched', database, { Client: require(path.join(layout.platformRoot,'modules-runtime/pg')).Client });
   const status = await supervisedApps.start(path.join(layout.platformRoot, 'services/researched/timsys.app.json'), environment);
   aiRuntime.markStarted('researched', aiSnapshot);
   return status;
@@ -298,17 +233,7 @@ function focusLauncher() {
 }
 
 async function stopChild(appId) {
-  if (appId !== 'tradeed') {
-    try { await supervisedApps.stop(appId); } catch {}
-    return;
-  }
-  await stopLauncherOwnedRuntime({
-    stopApplications: async () => {
-      try { await supervisedApps.stop(appId); } catch {}
-      await postgres.backup().catch(() => {});
-    },
-    stopDatabase: () => postgres.stop(),
-  });
+  try { await stopScopedApplication({ appId, stopApplication }); } catch {}
 }
 
 function bindAppWindowLifecycle(window, appId) {
@@ -367,12 +292,14 @@ app.whenReady().then(async () => {
     runtimeExecutable: process.execPath,
     runtimeEnvironment: { ELECTRON_RUN_AS_NODE: '1' },
   });
-  postgres = new LocalPostgresManager({ binaryRoot: layout.postgresRoot, dataRoot: layout.tradeedData });
+  postgres = new LocalPostgresManager({ binaryRoot: layout.postgresRoot, dataRoot: layout.databaseData, infrastructureOnly: true });
+  inspectionBroker = new InspectionBroker({onStatus:forwardStatus});
   chatGptPlan = new ChatGptPlan({ file: path.join(app.getPath('userData'), 'secrets', 'chatgpt-plan.enc'), safeStorage, openExternal: url => shell.openExternal(url) });
   aiCredentialVault = new AiCredentialVault({ file: path.join(layout.researchedData, 'secrets', 'ai-provider-profiles.json'), safeStorage, resolvePlan: (id, model) => chatGptPlan.environment(id, model) });
   desktopToken = randomBytes(48).toString('base64url');
   supervisedApps.on('status', forwardStatus);
   try {
+    await inspectionBroker.attach();
     await startPlatform();
     createWindow();
   } catch (error) {
@@ -401,7 +328,7 @@ app.on('before-quit', (event) => {
   quitting = true;
   chatGptPlan?.close();
   Promise.resolve(stopLauncherOwnedRuntime({
-    stopApplications: () => supervisedApps?.stopAll(),
+    stopApplications: async () => { await inspectionBroker?.stop(); await supervisedApps?.stopAll(); },
     stopDatabase: () => postgres?.stop(),
   }))
     .then(() => backupPlatformDatabase(layout.dataRoot))
@@ -430,7 +357,7 @@ ipcMain.handle('supervised-app:start', async (_event, appId) => {
   try { return await (appId === 'tradeed' ? startTradeed() : appId === 'dressed' ? startDressed() : startResearched()); }
   catch (error) {
     if (String(error?.message).includes('already owned outside launcher supervision')) throw error;
-    if (await updateManager.rollbackBundle(appId)) { app.relaunch(); app.exit(1); }
+    if (appId !== 'tradeed' && await updateManager.rollbackBundle(appId)) { app.relaunch(); app.exit(1); }
     throw error;
   }
 });
@@ -451,14 +378,7 @@ ipcMain.handle('launcher:return', async (event) => {
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
   requireSupervisedChild(appId);
   let status;
-  if (appId !== 'tradeed') status = await supervisedApps.stop(appId);
-  else await stopLauncherOwnedRuntime({
-      stopApplications: async () => {
-        status = await supervisedApps.stop(appId);
-        await postgres.backup();
-      },
-      stopDatabase: () => postgres.stop(),
-    });
+  status = await stopScopedApplication({ appId, stopApplication });
   const window = activeAppWindow(appId);
   if (window) {
     window.__timsysStopHandled = true;
@@ -470,7 +390,7 @@ ipcMain.handle('supervised-app:stop', async (_event, appId) => {
 ipcMain.handle('runtime:diagnostics', async () => {
   const statuses = [];
   for (const id of ['timsys-platform', 'tradeed', 'dressed', 'researched']) {
-    try { statuses.push(supervisedApps.status(id)); }
+    try { statuses.push(appStatus(id)); }
     catch { statuses.push({ id, state: 'stopped', detail: null, processes: [] }); }
   }
   return diagnostics({ layout, statuses });
@@ -501,6 +421,7 @@ ipcMain.handle('updates:install', async (event) => {
   });
   if (!result.restartRequired) return result;
   setTimeout(async () => {
+    await inspectionBroker?.stop();
     await supervisedApps.stopAll().catch(() => {});
     if (postgres?.state) await postgres.backup().catch(() => {});
     await postgres?.stop().catch(() => {});
@@ -524,9 +445,8 @@ ipcMain.handle('platform:session', async () => {
 
 ipcMain.handle('supervised-app:status', async (_event, appId) => {
   requireSupervisedChild(appId);
-  if (appId === 'tradeed' && tradeedConfigurationStatus) return tradeedConfigurationStatus;
   try {
-    return supervisedApps.status(appId);
+    return appStatus(appId);
   } catch {
     return { id: appId, state: 'stopped', detail: null, processes: [] };
   }
@@ -534,22 +454,9 @@ ipcMain.handle('supervised-app:status', async (_event, appId) => {
 
 ipcMain.handle('supervised-app:open', async (_event, appId) => {
   requireSupervisedChild(appId);
-  if (appId === 'tradeed' && tradeedConfigurationStatus) {
-    const existing = activeAppWindow(appId);
-    if (existing) { existing.focus(); return tradeedConfigurationStatus; }
-    const appWindow = new BrowserWindow({ width: 860, height: 680, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true } });
-    installAppWindowMenu(appWindow, appId);
-    const fields = tradeedConfigurationStatus.missing.map((name) => `<li><code>${name}</code></li>`).join('');
-    const configFile = tradeedConfigurationStatus.configFile.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    const html = `<!doctype html><meta charset="utf-8"><title>TradeEd setup</title><style>body{font:16px system-ui;background:#101426;color:#e8ecff;padding:48px;line-height:1.55}main{max-width:720px;margin:auto}h1{color:#fff}code{color:#9ed0ff}li{margin:.45rem 0}.safe{color:#8ee6ae}</style><main><p class="safe">SAFE PAPER MODE · LIVE TRADING DISABLED</p><h1>TradeEd configuration required</h1><p>The application and its private PostgreSQL database are installed correctly. Add the following values before starting the paper engine:</p><ul>${fields}</ul><p>Configuration file:</p><p><code>${configFile}</code></p><p>Close this window after updating the file, then select <strong>Start and open</strong> again.</p></main>`;
-    await appWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
-    appWindows.set(appId, appWindow);
-    bindAppWindowLifecycle(appWindow, appId);
-    return tradeedConfigurationStatus;
-  }
-  const status = supervisedApps.status(appId);
+  const status = appStatus(appId);
   if (status.state !== 'running') throw new Error(`${appId} is not running`);
-  const dashboardUrl = supervisedApps.dashboardUrl(appId);
+  const dashboardUrl = appDashboardUrl(appId);
   const existing = activeAppWindow(appId);
   if (existing) {
     const currentUrl = existing.webContents.getURL();
@@ -574,7 +481,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
   appWindows.set(appId, appWindow);
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   appWindow.webContents.on('will-navigate', (event, url) => {
-    if (new URL(url).origin !== new URL(supervisedApps.dashboardUrl(appId)).origin) event.preventDefault();
+    if (new URL(url).origin !== new URL(appDashboardUrl(appId)).origin) event.preventDefault();
   });
   try {
     await bindDomainSession(appWindow,appId,dashboardUrl);
@@ -604,7 +511,7 @@ async function applyAssistantProfile() {
   const env = (await aiRuntime.resolve(aiCredentialVault)).environment;
   const appUrls = {};
   for (const appId of ['researched', 'dressed', 'tradeed']) {
-    try { if (supervisedApps.status(appId)?.state === 'running') appUrls[appId] = supervisedApps.dashboardUrl(appId); } catch (_) { /* App has not been started in this session. */ }
+    try { if (appStatus(appId)?.state === 'running') appUrls[appId] = appDashboardUrl(appId); } catch (_) { /* App has not been started in this session. */ }
   }
   const response = await fetch(new URL('/ai-gateway/assistant/configuration', platformUrl), { method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.token, 'X-TimSyS-Desktop-Token': desktopToken },
