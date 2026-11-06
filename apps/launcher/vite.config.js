@@ -2,13 +2,19 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { copyFile } from 'node:fs/promises';
+import { copyFile, readFile, readdir } from 'node:fs/promises';
+import assert from 'node:assert/strict';
 
 const configDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(configDirectory, '../..');
 
 export default defineConfig({
-  plugins: [react(), { name: 'assistant-entry', async closeBundle() { await copyFile(path.join(configDirectory, 'dist/index.html'), path.join(configDirectory, 'dist/assistant.html')); } }],
+  plugins: [react(), { name: 'assistant-entry', async closeBundle() {
+    const assets=path.join(configDirectory,'dist/assets');
+    const code=(await Promise.all((await readdir(assets)).filter(f=>f.endsWith('.js')).map(f=>readFile(path.join(assets,f),'utf8')))).join('\n');
+    for(const marker of ['Documentary destinations','Connection evidence','dl-viewport'])assert.ok(code.includes(marker),`Launcher build lost Phase 2A UI: ${marker}`);
+    assert.ok(!code.includes('Formal responsibilities, source evidence and the connections between them.'),'Launcher includes superseded Nervous Breakdown interface');
+    await copyFile(path.join(configDirectory, 'dist/index.html'), path.join(configDirectory, 'dist/assistant.html')); } }],
   server: {
     port: 5173,
     fs: {
