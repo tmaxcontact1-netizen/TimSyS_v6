@@ -4,6 +4,15 @@ const fs=require('node:fs/promises'),path=require('node:path'),{pathToFileURL}=r
 async function frozenMatrix() {
   if(process.env.NODE_ENV==='test'&&process.env.NB_FROZEN_JD_MATRIX)
     return import(pathToFileURL(path.resolve(process.env.NB_FROZEN_JD_MATRIX)).href);
+  // TimSyS 1.1 owns application backends inside this platform bundle. Resolve
+  // alongside this module so a UI-only ResearchEd bundle is never used as code.
+  const central=path.resolve(__dirname,'../../services/researched/dist/src/domain/jd-matrix.js');
+  try {
+    await fs.access(central);
+    return import(pathToFileURL(central).href);
+  } catch(error) {
+    if(error.code!=='ENOENT')throw error;
+  }
   if(!process.env.DB_PATH)throw Error('The frozen documentary projection is unavailable.');
   const dataRoot=path.resolve(path.dirname(process.env.DB_PATH),'..');
   const state=JSON.parse(await fs.readFile(path.join(dataRoot,'updates/state.json'),'utf8'));

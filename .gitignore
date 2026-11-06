@@ -21,3 +21,7 @@ data/*.sqlite-wal
 
 # Retained legacy local dependencies/data are not maintained app source.
 /apps/memecoined/
+
+# Local isolated UI release evidence
+/diagnostics/
+/dist-updates/
