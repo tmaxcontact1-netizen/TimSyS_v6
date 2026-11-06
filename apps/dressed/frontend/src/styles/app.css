@@ -1224,3 +1224,28 @@ td small {
 .personal-colouring details, .personal-colouring-advice { margin: 18px 0; border: 1px solid #39342d; padding: 14px; border-radius: 8px; }
 .personal-colouring summary, .personal-colouring-advice summary { cursor: pointer; font-weight: 600; }
 .colouring-portrait { display: block; max-width: 100%; max-height: 600px; width: auto; height: auto; margin: 16px auto; }
+
+.saved-outfits-disclosure > summary { cursor: pointer; font-size: 1.25rem; font-weight: 700; }
+.saved-outfits-disclosure[open] > summary { margin-bottom: 1rem; }
+
+.planner-mode-switch { display:flex; gap:12px; margin:16px 0; flex-wrap:wrap; }
+.planner-mode-switch [aria-pressed="true"] { border-color:var(--ts-accent, #c9a96e); background:#353025; }
+.planner-mode-content > .modal-backdrop { position:static; inset:auto; display:block; padding:0; background:transparent; z-index:auto; }
+.planner-mode-content > .modal-backdrop > .modal { width:100%; max-width:none; max-height:none; overflow:visible; box-shadow:none; }
+.weekly-plan-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr)); gap:20px; margin:20px 0; }
+.weekly-plan-week { border:1px solid var(--ts-border,#514737); border-radius:10px; padding:16px; }
+.weekly-plan-day { display:flex; gap:8px; align-items:end; margin:12px 0; }
+.weekly-plan-day label { flex:1; min-width:0; }
+.weekly-plan-day select { width:100%; }
+
+.weekly-plan-day { flex-wrap:wrap; }
+.weekly-plan-day > .planned-outfit-details { flex-basis:100%; order:2; }
+.planned-outfit-details { width:100%; min-width:0; margin:10px 0; }
+.planned-outfit-details > summary { cursor:pointer; font-weight:600; padding:8px 0; }
+.planned-outfit-content { padding:14px; border:1px solid var(--ts-border,#514737); border-radius:8px; }
+.planned-outfit-content h4 { margin:0 0 12px; }
+.planned-outfit-garments { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; }
+.planned-outfit-garments h5 { margin:0 0 4px; font-size:1rem; }
+.planned-outfit-garments ul { margin:0; padding-left:20px; }
+.planned-outfit-garments li { overflow-wrap:anywhere; }
+.plan-days > div:has(> .planned-outfit-details[open]) { grid-column:1 / -1; min-width:0; }

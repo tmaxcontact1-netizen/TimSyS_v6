@@ -1,9 +1,12 @@
+import PlannedOutfit from "./planned-outfit.jsx";
+import WeeklyPlanner from "./weekly-planner.jsx";
+import {saveOutfitConfirmed} from "./save-outfit.js";
 import PersonalColouring, {ColouringProvider} from "./personal-colouring.jsx";
 import { accessorySlots } from "../../../../platform/services/dressed/src/domain/garment/visual-style.ts";
 import OutfitPreview from './outfit-preview.jsx';
 import { evaluationAdvice, explainComparison } from '../../../../platform/services/dressed/src/domain/outfit/evaluation-advice.ts';
 import { withCompanions, companionSlots, companionReasons } from "../../../../platform/services/dressed/src/domain/outfit/garment-dependencies.ts";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import PhotoIntake from "./photo-intake.jsx";
 import ReactDOM from "react-dom/client";
 import {
@@ -531,22 +534,44 @@ function EvaluationNotes({ evaluation, garments }) {
       <h3>{group.name}</h3><ul>{group.items.map((text,index) => <li key={index}><p>{text}</p></li>)}</ul>
     </section>)}</div>;
 }
+async function saveVerifiedOutfit(payload) {
+  try {
+    const {saved,items} = await saveOutfitConfirmed(api,payload);
+    window.dispatchEvent(new CustomEvent('dressed:outfits-saved',{detail:{items}}));
+    reportActionFeedback({method:'POST',phase:'success',message:`Saved outfit: ${saved.name}. It is now in Saved outfits.`});
+    return saved;
+  } catch(error) {
+    reportActionFeedback({method:'POST',phase:'error',message:error.message});
+    throw error;
+  }
+}
+function RenameOutfit({outfit,onRenamed}) {
+  const [editing,setEditing]=useState(false),[name,setName]=useState(outfit.name),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const submit=async e=>{e.preventDefault();if(busy||!name.trim())return;setBusy(true);setError('');try{
+    const saved=await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/outfits/${outfit.id}`,{method:'PATCH',actionFeedback:false,body:JSON.stringify({name:name.trim()})});
+    if(saved.id!==outfit.id||saved.name!==name.trim())throw new Error('The new name was not confirmed. Reopen Dress’Ed to load the updated service, then try again.');
+    onRenamed(saved.name);setEditing(false);reportActionFeedback({method:'PATCH',phase:'success',message:`Outfit renamed to ${saved.name}.`});
+  }catch(e){setError(e.message);}finally{setBusy(false);}};
+  return editing?<form onSubmit={submit}><label>Outfit name<input autoFocus required maxLength={120} value={name} disabled={busy} onChange={e=>setName(e.target.value)}/></label><div className="row-actions"><button type="submit" disabled={busy||!name.trim()}>{busy?'Saving name…':'Save name'}</button><button type="button" disabled={busy} onClick={()=>setEditing(false)}>Cancel</button></div>{error&&<p className="error" role="alert">{error}</p>}</form>:<button type="button" onClick={()=>{setName(outfit.name);setError('');setEditing(true);}}>Rename</button>;
+}
 function SavedOutfits({ edit, plan, refreshKey }) {
   const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[target,setTarget]=useState(null),[busy,setBusy]=useState(false);
-  const load=useCallback(async()=>{setLoading(true);try{setItems((await api('/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved')).items);setError("");}catch(e){setError(e.message);}finally{setLoading(false);}},[]);
-  useEffect(()=>{void load();},[load,refreshKey]);
+  const requestSequence=useRef(0);
+  const load=useCallback(async()=>{const sequence=++requestSequence.current;setLoading(true);try{const value=await api('/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved');if(sequence===requestSequence.current){setItems(value.items);setError("");}}catch(e){if(sequence===requestSequence.current)setError(e.message);}finally{if(sequence===requestSequence.current)setLoading(false);}},[]);
+  useEffect(()=>{void load();return()=>{requestSequence.current++;};},[load,refreshKey]);
+  useEffect(()=>{const receive=event=>{requestSequence.current++;setItems(event.detail.items);setError("");setLoading(false);};window.addEventListener('dressed:outfits-saved',receive);return()=>window.removeEventListener('dressed:outfits-saved',receive);},[]);
   const remove=async()=>{setBusy(true);try{await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved/${target.id}`,{method:'DELETE'});setTarget(null);await load();}catch(e){setError(e.message);}finally{setBusy(false);}};
-  return <Panel title="Saved outfits" description="Your completed combinations, ready to view, edit or plan.">
+  return <Panel><details open className="saved-outfits-disclosure"><summary>Saved outfits{!loading && ` (${items.length})`}</summary><p className="muted">Your completed combinations, ready to view, edit or plan.</p><button type="button" disabled={loading} onClick={load}>Refresh saved outfits</button>
     {error&&<p className="error" role="alert">{error}</p>}
     {loading?<p>Loading saved outfits…</p>:!items.length?<p>No saved outfits yet. Build or evaluate a combination, then save it here.</p>:<div className="ensemble-grid">{items.map(outfit=><article key={outfit.id}>
-      <h3>{outfit.name}</h3><p>{outfit.score.toFixed(1)}/100 · {outfit.contextName}</p>
+      <h3>{outfit.name}</h3><RenameOutfit outfit={outfit} onRenamed={name=>setItems(current=>current.map(item=>item.id===outfit.id?{...item,name}:item))}/><p>{outfit.score.toFixed(1)}/100 · {outfit.contextName}</p>
       <ul>{groupOutfitGarments(outfit.items).flatMap(group=>group.items.map(g=><li key={g.id}>{g.name}</li>))}</ul>
       {outfit.notes&&<p>{outfit.notes}</p>}
       <OutfitPreview garments={outfit.items} api={api}/>
-      <div className="row-actions"><button onClick={()=>edit(outfit)}>Edit outfit</button><button onClick={()=>plan({name:outfit.name,contextId:outfit.contextId,garmentIds:outfit.items.map(g=>g.id)})}>Open in planner</button><button onClick={()=>setTarget(outfit)}>Delete outfit</button></div>
+      <div className="row-actions"><button onClick={()=>edit(outfit)}>Edit outfit</button><button onClick={()=>plan({id:outfit.id,name:outfit.name,contextId:outfit.contextId,garmentIds:outfit.items.map(g=>g.id)})}>Add to planner</button><button onClick={()=>setTarget(outfit)}>Delete outfit</button></div>
     </article>)}</div>}
     <ConfirmationDialog open={!!target} title="Delete saved outfit?" description={target?`Remove “${target.name}” from saved outfits?`:""} consequence="This removes it from your saved list and future planning choices. Your garments, existing plans and wear history are kept." confirmLabel="Delete outfit" destructive busy={busy} onConfirm={remove} onCancel={()=>setTarget(null)}/>
-  </Panel>;
+  </details></Panel>;
 }
 function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) {
   const [catalogue, setCatalogue] = useState(null),
@@ -618,13 +643,10 @@ function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) 
     if (!result?.evaluation.eligible || busy) return;
     setBusy(true); setError("");
     try {
-      const saved = savedOutfit || await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/save", {
-        method: "POST",
-        body: JSON.stringify({...(editingId ? {replaceId:editingId} : {}), name: (outfitName.trim() || defaultName), garmentIds: selected, contextId, useId: useId || null, season: season || null, notes: outfitNotes.trim() || null}),
-      });
+      const saved = savedOutfit || await saveVerifiedOutfit({...(editingId ? {replaceId:editingId} : {}), name: (outfitName.trim() || defaultName), garmentIds: selected, contextId, useId: useId || null, season: season || null, notes: outfitNotes.trim() || null});
       setSavedOutfit(saved);
       if(initialOutfit) setEditingId(saved.id);
-      if (plan) openPlanner({name: saved.name, contextId, garmentIds: [...selected]});
+      if (plan) openPlanner({id:saved.id,name: saved.name, contextId, garmentIds: [...selected]});
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   };
@@ -733,7 +755,8 @@ function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) 
   );
 }
 const outfitCategories = [["top","Shirts / tops"],["bottom","Trousers / bottoms"],["footwear","Shoes / boots"],["belt","Belts"],["neckwear","Ties / neckwear"],["pocket_square","Pocket squares"],["outerwear","Jackets / outerwear"],["jacket","Blazers / suit jackets"],["waistcoat","Waistcoats"],["socks","Socks"],["base_layer","Base layers"],["accessory","Other accessories"],...accessorySlots.map(slot=>[slot,({headwear:"Hats / caps",eyewear:"Glasses / sunglasses",tie_clip:"Tie clips",lapel_pin:"Lapel pins"}[slot]||slot.charAt(0).toUpperCase()+slot.slice(1).replaceAll("_"," "))])];
-function groupOutfitGarments(garments) {
+const fixedGarmentOrder = ["bottom", "jacket", "outerwear", "top", "footwear", "belt", "neckwear", "pocket_square"];
+function groupOutfitGarments(garments, order = []) {
   const groups = new Map();
   const compare = new Intl.Collator('en', { sensitivity: 'base', numeric: true }).compare;
   for (const garment of garments) {
@@ -741,9 +764,10 @@ function groupOutfitGarments(garments) {
     if (!groups.has(slot)) groups.set(slot, { slot, label: outfitCategories.find(([id]) => id === slot)?.[1] || slot.replaceAll('_', ' ').replaceAll('-', ' '), items: [] });
     groups.get(slot).items.push(garment);
   }
-  return [...groups.values()].sort((a, b) => compare(a.label, b.label)).map(group => ({ ...group, items: group.items.sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id)) }));
+  const rank = slot => order.includes(slot) ? order.indexOf(slot) : order.length;
+  return [...groups.values()].sort((a, b) => rank(a.slot) - rank(b.slot) || compare(a.label, b.label)).map(group => ({ ...group, items: group.items.sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id)) }));
 }
-function OutfitBuilder({ close }) {
+function OutfitBuilder({ close, openPlanner }) {
   const [catalogue, setCatalogue] = useState(null),
     [fixedIds, setFixedIds] = useState([]),
     [contextId, setContext] = useState(""),
@@ -790,6 +814,7 @@ function OutfitBuilder({ close }) {
     }
   };
   const act = async (candidate, type) => {
+    if(busy)return;setBusy(true);setError("");
     try {
       if (type === "save") {
         const names = candidate.garments
@@ -797,17 +822,7 @@ function OutfitBuilder({ close }) {
           .map((item) => item.name)
           .join(" + ");
         const name = (names || `Outfit ${new Date().toLocaleDateString()}`).slice(0, 120);
-        await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/save", {
-          method: "POST",
-          body: JSON.stringify({
-            name,
-            garmentIds: candidate.garments.map((x) => x.id),
-            contextId,
-            useId: useId || null,
-            season: season || null,
-            notes: null,
-          }),
-        });
+        await saveVerifiedOutfit({name,garmentIds:candidate.garments.map(x=>x.id),contextId,useId:useId||null,season:season||null,notes:null});
         await load();
       } else {
         await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/overrides", {
@@ -823,7 +838,7 @@ function OutfitBuilder({ close }) {
       }
     } catch (cause) {
       setError(cause.message);
-    }
+    } finally {setBusy(false);}
   };
   const tiers = results
     ? [["Ranked suggestions", [...results.a, ...results.b, ...results.c].sort((a,b) => b.evaluation.score-a.evaluation.score)]]
@@ -857,7 +872,7 @@ function OutfitBuilder({ close }) {
             Add a fixed garment
             <select value="" disabled={busy} onChange={(e) => { if(e.target.value) setFixedIds(current => [...current, e.target.value]); setResults(null); }}>
               <option value="">Choose a garment to keep…</option>
-              {groupOutfitGarments(eligibleGarments.filter(g => !fixedSlots.has(g.slotId))).map(group => (
+              {groupOutfitGarments(eligibleGarments.filter(g => !fixedSlots.has(g.slotId)), fixedGarmentOrder).map(group => (
                 <optgroup key={group.slot} label={group.label}>
                   {group.items.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
                 </optgroup>
@@ -907,7 +922,7 @@ function OutfitBuilder({ close }) {
           <h3>Garments to keep ({fixedGarments.length})</h3>
           <p className="muted">Every recommendation keeps these exact items. Remove an item to choose another from its category.</p>
           {!fixedGarments.length && <p>Choose one or more garments above to start your partial outfit.</p>}
-          <ul>{groupOutfitGarments(fixedGarments).flatMap(group => group.items.map(g => <li key={g.id}><span><strong>{g.name}</strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
+          <ul>{groupOutfitGarments(fixedGarments, fixedGarmentOrder).flatMap(group => group.items.map(g => <li key={g.id}><span><strong>{g.name}</strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
           {unavailableFixed.length > 0 && <p className="banner">These fixed garments do not match the selected use: {unavailableFixed.map(g => g.name).join(', ')}. Change the use filter or remove them before generating.</p>}
         </section>
         <fieldset className="outfit-category-checks" disabled={busy}>
@@ -981,7 +996,7 @@ function OutfitBuilder({ close }) {
                       <EvaluationNotes evaluation={candidate.evaluation} garments={candidate.garments} />
                     </details>
                     <div className="row-actions">
-                      <button disabled={!results.isComplete} title={!results.isComplete ? "Add missing required items before saving" : undefined} onClick={() => act(candidate, "save")}>
+                      <button disabled={busy || !results.isComplete} title={!results.isComplete ? "Add missing required items before saving" : undefined} onClick={() => act(candidate, "save")}>
                         Save
                       </button>
                       <button onClick={() => act(candidate, "favourite")}>
@@ -1006,11 +1021,13 @@ function OutfitBuilder({ close }) {
             {catalogue.saved.map((x) => (
               <article key={x.id}>
                 <strong>{x.name}</strong>
+                <RenameOutfit outfit={x} onRenamed={name=>{setCatalogue(current=>({...current,saved:current.saved.map(item=>item.id===x.id?{...item,name}:item)}));}}/>
                 <span>
                   {x.score}/100 ·{" "}
                   {x.contextName}
                 </span>
                 <OutfitPreview garments={x.items} api={api} />
+                <button type="button" onClick={()=>openPlanner({id:x.id,name:x.name,contextId:x.contextId,garmentIds:x.items.map(g=>g.id)})}>Add to planner</button>
               </article>
             ))}
           </section>
@@ -1019,7 +1036,13 @@ function OutfitBuilder({ close }) {
     </div>
   );
 }
-function Planner({ close, initialOutfit }) {
+function Planner({close,initialOutfit}) {
+ const [mode,setMode]=useState('calendar');
+ return <><div className="planner-mode-switch" role="group" aria-label="Planner type"><button aria-pressed={mode==='calendar'} onClick={()=>setMode('calendar')}>Calendar planner</button><button aria-pressed={mode==='weekly'} onClick={()=>setMode('weekly')}>Week-by-week planner</button></div><div className="planner-mode-content" hidden={mode!=='calendar'}><CalendarPlanner close={close} initialOutfit={initialOutfit}/></div><div className="planner-mode-content" hidden={mode!=='weekly'}><WeeklyPlanner api={api} close={close} initialOutfit={initialOutfit}/></div></>;
+}
+function CalendarPlanner({ close, initialOutfit }) {
+  const [chosenOutfitId,setChosenOutfitId]=useState(initialOutfit?.id||"");
+  const [planMessage,setPlanMessage]=useState("");
   const [catalogue, setCatalogue] = useState(null),
     [form, setForm] = useState({
       name: initialOutfit?.name || "Work rotation",
@@ -1062,13 +1085,16 @@ function Planner({ close, initialOutfit }) {
     );
   const generate = async () => {
     setBusy(true);
-    setError("");
+    setError("");setPlanMessage("");
     try {
-      await api("/api/timsys/v1/apps/dressed/backend/1.0.0/planner/generate", {
-        method: "POST",
+      const result=await api("/api/timsys/v1/apps/dressed/backend/1.0.0/planner/generate", {
+        method: "POST", actionFeedback:false,
         body: JSON.stringify(form),
       });
-      await load();
+      if(!result?.id||!result.assignments?.length)throw new Error('No dates were added. Check the date range, selected weekdays and rotation policy.');
+      const updated=await api('/api/timsys/v1/apps/dressed/backend/1.0.0/planner/catalogue');
+      if(!updated.plans.some(p=>p.id===result.id))throw new Error('The plan could not be confirmed in the planner. Refresh before trying again.');
+      setCatalogue(updated);setPlanMessage(`Added to planner for ${result.assignments.length} day${result.assignments.length===1?'':'s'}. See the plan below.`);
     } catch (cause) {
       setError(cause.message);
     } finally {
@@ -1102,7 +1128,9 @@ function Planner({ close, initialOutfit }) {
             Close
           </button>
         </header>
-        {initialOutfit && <p className="banner">“{initialOutfit.name}” is saved. Its garments are fixed below. Choose a date and generate the plan to schedule a saved outfit containing these pieces. Nothing is scheduled until you do.</p>}
+        <label>Use a saved outfit<select value={chosenOutfitId} onChange={e=>{const id=e.target.value;setChosenOutfitId(id);setPlanMessage("");const outfit=catalogue?.outfits.find(x=>x.id===id);setForm(current=>outfit?{...current,name:outfit.name,contextId:outfit.contextId,fixedGarmentIds:outfit.garments.map(g=>g.id),excludedGarmentIds:[],endDate:current.startDate,weekdays:[0,1,2,3,4,5,6]}:{...current,fixedGarmentIds:[],excludedGarmentIds:[]});}}><option value="">Build a rotation from saved outfits</option>{catalogue?.outfits.map(outfit=><option key={outfit.id} value={outfit.id}>{outfit.name}</option>)}</select></label>
+        {chosenOutfitId && <PlannedOutfit key={chosenOutfitId} outfit={catalogue?.outfits.find(outfit=>outfit.id===chosenOutfitId)} api={api}/>}
+        {chosenOutfitId && <p className="banner">The selected outfit's garments and context are filled in below. Choose a date, then click Add to planner. The planner uses saved combinations containing these garments, subject to the rotation policy.</p>}
         <div className="planner-form">
           <label>
             Plan name
@@ -1222,9 +1250,10 @@ function Planner({ close, initialOutfit }) {
           }
           onClick={generate}
         >
-          {busy ? "Optimising…" : "Generate and save plan"}
+          {busy ? "Adding to planner…" : chosenOutfitId ? "Add to planner" : "Generate and save plan"}
         </button>
         {error && <p className="error banner">{error}</p>}
+        {planMessage&&<p role="status" className="banner">{planMessage}</p>}
         <section className="plans">
           <h3>Plans</h3>
           {!catalogue?.plans.length ? (
@@ -1249,6 +1278,7 @@ function Planner({ close, initialOutfit }) {
                     <div key={entry.id} className={entry.status}>
                       <time>{String(entry.date).slice(0, 10)}</time>
                       <strong>{entry.outfitName}</strong>
+                      <PlannedOutfit outfit={entry.garments ? {name:entry.outfitName,garments:entry.garments} : catalogue.outfits.find(outfit=>outfit.id===entry.outfitId)} api={api}/>
                       <span>
                         {entry.grade} · rotation{" "}
                         {Math.round(Number(entry.rotationScore))}
@@ -2264,10 +2294,10 @@ function ModernApp() {
       )}{" "}
       {duplicateNotice && <p className="banner" role="status">{duplicateNotice}</p>}
       {modal?.type === "styling" && (
-        <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);setView("outfits");}} />
+        <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);setView("outfits");setTimeout(()=>{const section=document.querySelector('.saved-outfits-disclosure');if(section){section.open=true;section.scrollIntoView({block:'start',behavior:'smooth'});}},0);}} />
       )}{" "}
       {modal?.type === "ensemble" && (
-        <OutfitBuilder close={() => setModal(null)} />
+        <OutfitBuilder close={() => setModal(null)} openPlanner={initialOutfit=>setModal({type:"planner",initialOutfit})} />
       )}{" "}
       {modal?.type === "planner" && <Planner close={() => setModal(null)} initialOutfit={modal.initialOutfit} />}{" "}
       {modal?.type === "wear" && (
