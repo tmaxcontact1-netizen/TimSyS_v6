@@ -26,10 +26,10 @@ describe('semantic analytical integrity',()=>{
  it('uses finite retries only for transient failures',()=>{
   for(const message of ['This operation was aborted','ai_provider_http_429','ai_provider_http_503','fetch failed','timeout'])expect(transientSemanticError(message)).toBe(true);
   for(const message of ['ai_provider_http_401','ai_provider_http_403','incomplete_mcf_response','evidence_must_be_an_exact_unit_substring'])expect(transientSemanticError(message)).toBe(false);
-  expect(SEMANTIC_POLICY).toMatchObject({version:10,scheduling:"untouched-first-retry-rounds",maximumAttempts:3,retryDelaysMs:[30000,120000],timeoutMs:120000,maximumBatchUnits:6,maximumBatchCharacters:10000,concurrency:2});
+  expect(SEMANTIC_POLICY).toMatchObject({version:10,scheduling:"untouched-first-retry-rounds",maximumAttempts:3,retryDelaysMs:[30000,120000],timeoutMs:150000,maximumBatchUnits:6,maximumBatchCharacters:10000,concurrency:2});
  });
  it('uses bounded escalating deadlines below the bridge deadline and preserves legacy policies until resume',()=>{
-  expect([1,2,3].map(n=>semanticAttemptTimeout(SEMANTIC_POLICY,n))).toEqual([120000,180000,210000]);
+  expect([1,2,3].map(n=>semanticAttemptTimeout(SEMANTIC_POLICY,n))).toEqual([150000,180000,210000]);
   expect(Math.max(...SEMANTIC_POLICY.attemptTimeoutsMs)).toBeLessThan(240000);
   expect(semanticAttemptTimeout({timeoutMs:90000},3)).toBe(90000);
  });
@@ -38,6 +38,6 @@ describe('semantic analytical integrity',()=>{
  });
  it('enforces a per-request timeout through the real HTTP adapter',async()=>{
   const provider=new GenericJsonAnalysisProvider('fixture',{protocol:'generic-json',model:'fixture',baseUrl:'http://127.0.0.1/fixture',timeoutMs:60000,fetch:async(_url,init)=>new Promise((_resolve,reject)=>{init!.signal!.addEventListener('abort',()=>reject(new Error('This operation was aborted')));})});
-  await expect(provider.analyse({requestId:'fixture',analysisType:'fixture',instructions:'fixture',evidence:[],timeoutMs:5})).rejects.toThrow('aborted');
+  await expect(provider.analyse({requestId:'fixture',analysisType:'fixture',instructions:'fixture',evidence:[],timeoutMs:5})).rejects.toThrow('ai_provider_local_timeout');
  });
 });

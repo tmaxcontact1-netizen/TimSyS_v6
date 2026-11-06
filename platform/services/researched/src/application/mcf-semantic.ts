@@ -15,8 +15,9 @@ import {runGroundedAiAnalysis,type AiAnalysisProvider} from './ai-analysis.js';
 import {deterministicMcf,DETERMINISTIC_CONFIG,DETERMINISTIC_HASH} from './mcf-deterministic.js';
 import {proposalResponse,validateProposals} from './mcf-ai.js';
 
-export const SEMANTIC_POLICY=Object.freeze({version:10,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:120000,attemptTimeoutsMs:[120000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:2});
+export const SEMANTIC_POLICY=Object.freeze({version:10,executionRevision:"bounded-retry-batches.v1",maximumRetryBatchUnits:3,scheduling:"untouched-first-retry-rounds",firstBatchGate:false,maximumBatchUnits:6,maximumBatchCharacters:10000,timeoutMs:150000,attemptTimeoutsMs:[150000,180000,210000],maximumAttempts:3,retryDelaysMs:[30000,120000],concurrency:2});
 export function semanticAttemptTimeout(policy:{timeoutMs:number;attemptTimeoutsMs?:readonly number[]},attempt:number){return policy.attemptTimeoutsMs?.[attempt-1]??policy.timeoutMs;}
+export function retryGroups<T>(ids:T[],limit:number):T[][]{if(!Number.isInteger(limit)||limit<1)throw Error("invalid_retry_batch_limit");return Array.from({length:Math.ceil(ids.length/limit)},(_,i)=>ids.slice(i*limit,(i+1)*limit));}
 export function transientSemanticError(error:string){return /abort|timeout|timed out|429|(?:^|[_\s])5\d\d(?:$|\b)|fetch failed|network|econn|socket/i.test(error);}
 export class SemanticWorker{
  stopped=false;
@@ -54,7 +55,7 @@ export class SemanticWorker{
    if(run.status==='completed')throw Error('Semantic analysis is already complete.');
    checkResumeProvider(run.configuration.provider,identity(provider)!,confirmLegacyProvider);
    if((await c.query("SELECT 1 FROM researched.mcf_ai_tasks WHERE run_id=$1 AND status='running'",[id])).rowCount)throw Error('Wait for the interrupted request to settle before resuming.');
-   await c.query("UPDATE researched.mcf_semantic_tasks s SET cycle=cycle+1,next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE t.id=s.task_id AND t.run_id=$1 AND t.status<>'completed'",[id]);
+   await c.query("UPDATE researched.mcf_semantic_tasks s SET cycle=cycle+1,inherited_attempts=0,next_attempt_at=now() FROM researched.mcf_ai_tasks t WHERE t.id=s.task_id AND t.run_id=$1 AND t.status<>'completed'",[id]);
    await c.query("UPDATE researched.mcf_ai_tasks SET status='queued',error=NULL WHERE run_id=$1 AND status<>'completed'",[id]);
    // Upgrade execution limits only on explicit resume. Completed tasks and their outputs are immutable.
    const policy=resumedOperationalPolicy(run.configuration.semanticPolicy,SEMANTIC_POLICY);
@@ -79,15 +80,15 @@ export class SemanticWorker{
   // statement sees claims committed while waiting for the advisory lock.
   const task=await this.repo.transaction(async c=>{
    await c.query("SELECT pg_advisory_xact_lock(hashtext('researched.mcf.semantic.claim'),0)");
-  return (await c.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_semantic_tasks s ON s.task_id=t.id JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE t.status='queued' AND r.status IN ('queued','running') AND s.next_attempt_at<=now() AND (r.configuration->'semanticPolicy'->>'firstBatchGate'='false' OR EXISTS(SELECT 1 FROM researched.mcf_ai_tasks ok WHERE ok.run_id=r.id AND ok.status='completed') OR t.ordinal=(SELECT min(first.ordinal) FROM researched.mcf_ai_tasks first WHERE first.run_id=r.id)) AND (SELECT count(*) FROM researched.mcf_ai_tasks busy JOIN researched.mcf_semantic_tasks bs ON bs.task_id=busy.id WHERE busy.status='running')<2 AND (SELECT count(*) FROM researched.mcf_ai_tasks busy WHERE busy.run_id=r.id AND busy.status='running')<LEAST(2,GREATEST(1,COALESCE((r.configuration->'semanticPolicy'->>'concurrency')::int,1))) ORDER BY r.created_at,(SELECT count(*) FROM researched.mcf_semantic_attempts a WHERE a.task_id=t.id AND a.cycle=s.cycle),t.ordinal FOR UPDATE OF t,r SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running',error=NULL FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];
+  return (await c.query("WITH next AS(SELECT t.id FROM researched.mcf_ai_tasks t JOIN researched.mcf_semantic_tasks s ON s.task_id=t.id JOIN researched.mcf_ai_runs r ON r.id=t.run_id WHERE t.status='queued' AND r.status IN ('queued','running') AND s.next_attempt_at<=now() AND (r.configuration->'semanticPolicy'->>'firstBatchGate'='false' OR EXISTS(SELECT 1 FROM researched.mcf_ai_tasks ok WHERE ok.run_id=r.id AND ok.status='completed') OR t.ordinal=(SELECT min(first.ordinal) FROM researched.mcf_ai_tasks first WHERE first.run_id=r.id)) AND (SELECT count(*) FROM researched.mcf_ai_tasks busy JOIN researched.mcf_semantic_tasks bs ON bs.task_id=busy.id WHERE busy.status='running')<2 AND (SELECT count(*) FROM researched.mcf_ai_tasks busy WHERE busy.run_id=r.id AND busy.status='running')<LEAST(2,GREATEST(1,COALESCE((r.configuration->'semanticPolicy'->>'concurrency')::int,1))) ORDER BY r.created_at,s.inherited_attempts+(SELECT count(*) FROM researched.mcf_semantic_attempts a WHERE a.task_id=t.id AND a.cycle=s.cycle),t.ordinal FOR UPDATE OF t,r SKIP LOCKED LIMIT 1) UPDATE researched.mcf_ai_tasks t SET status='running',error=NULL FROM next WHERE t.id=next.id RETURNING t.*")).rows[0];
   });if(!task)return;
-  const started=new Date(),attemptId=randomUUID();let attempt=0,cycle=0,responsePhase=false;let policy=SEMANTIC_POLICY;
+  const started=new Date(),attemptId=randomUUID();let attempt=0,cycle=0,responsePhase=false;let policy=SEMANTIC_POLICY;const diagnostics:Record<string,unknown>={attemptId,targetCount:task.unit_ids.length};
   try{
    const run=(await this.repo.db.query('SELECT * FROM researched.mcf_ai_runs WHERE id=$1',[task.run_id])).rows[0],session=await this.repo.session(run.session_id);policy=run.configuration.semanticPolicy;
    await this.repo.transaction(async c=>{await this.repo.writable(session.dataset_id,c);await this.repo.active('sessions',session.id,c);});
-   const state=(await this.repo.db.query('SELECT s.cycle,(SELECT count(*)::int FROM researched.mcf_semantic_attempts a WHERE a.task_id=s.task_id AND a.cycle=s.cycle) AS attempts FROM researched.mcf_semantic_tasks s WHERE task_id=$1',[task.id])).rows[0];cycle=state.cycle;attempt=state.attempts+1;
+   const state=(await this.repo.db.query('SELECT s.cycle,s.inherited_attempts,(SELECT count(*)::int FROM researched.mcf_semantic_attempts a WHERE a.task_id=s.task_id AND a.cycle=s.cycle) AS attempts FROM researched.mcf_semantic_tasks s WHERE task_id=$1',[task.id])).rows[0];cycle=state.cycle;attempt=(state.inherited_attempts??0)+state.attempts+1;
    if(attempt>policy.maximumAttempts)throw Error('Finite semantic retry limit exhausted.');
-   await this.repo.db.query("INSERT INTO researched.mcf_semantic_attempts(id,task_id,cycle,attempt,started_at,outcome) VALUES($1,$2,$3,$4,$5,'running')",[attemptId,task.id,cycle,attempt,started]);
+   await this.repo.db.query("INSERT INTO researched.mcf_semantic_attempts(id,task_id,cycle,attempt,started_at,outcome,target_unit_ids) VALUES($1,$2,$3,$4,$5,'running',$6)",[attemptId,task.id,cycle,attempt,started,JSON.stringify(task.unit_ids)]);
    if(session.instrument_hash!==MCF_HASH||run.configuration.instrumentHash!==MCF_HASH)throw Error('instrument_version_mismatch');
    const provider=this.provider(),wanted=run.configuration.provider;
    if(!provider||provider.id!==wanted?.id||provider.model!==wanted?.model||(provider.configurationId??null)!==wanted?.connectionId)throw Error('Semantic provider unavailable or changed; reconnect and resume.');
@@ -99,8 +100,9 @@ export class SemanticWorker{
    if(modern&&(units.some(u=>u.unit_set_id!==units[0].unit_set_id)||units.some(u=>!pool.some(x=>x.id===u.id))))throw Error('Invalid same-review context population.');
    if(modern&&pool.reduce((n,u)=>n+u.original_text.length,0)>run.configuration.contextPolicy.maximumCharacters)throw Error('Review exceeds the permitted context budget. No context was truncated; assessment remains unresolved.');
    const {metadata:ratingMetadata,instructions:scaleInstructions}=isrMetadataForRequest(run.configuration,units[0].unit_set_id);
+   Object.assign(diagnostics,{requestedTimeoutMs:semanticAttemptTimeout(policy,attempt),contextUnits:pool.length,contextCharacters:pool.reduce((n,u)=>n+u.original_text.length,0),executionRevision:policy.executionRevision??null});
    responsePhase=true;
-   const answer=await runGroundedAiAnalysis(provider,{requestId:attemptId,timeoutMs:semanticAttemptTimeout(policy,attempt),analysisType:modern?(assessAmbiguity?'mcf-evidential-proposals.v3':'mcf-evidential-proposals.v2'):run.configuration.classificationConfig.promptVersion,instructions:`${run.configuration.classificationConfig.rules}${scaleInstructions}\nCitation formatting: do not repeat an identical unit ID and quotation within a competency. Distinct exact quotations from the same permitted contextual unit may be cited separately.\nMode: ${session.mode}. ${modern?'TARGET unit IDs: '+JSON.stringify(units.map(u=>u.id)):'Return exactly one entry per supplied section.'} Frozen MCF instrument: ${JSON.stringify(MCF)}`,evidence:pool.map(u=>({segmentId:u.id,sourceId:u.unit_set_id,content:u.original_text})),outputSchema:z.toJSONSchema(assessAmbiguity?ambiguityResponse:modern?evidentialResponse:proposalResponse)});
+   const answer=await runGroundedAiAnalysis(provider,{requestId:attemptId,onDiagnostics:d=>Object.assign(diagnostics,d),timeoutMs:semanticAttemptTimeout(policy,attempt),analysisType:modern?(assessAmbiguity?'mcf-evidential-proposals.v3':'mcf-evidential-proposals.v2'):run.configuration.classificationConfig.promptVersion,instructions:`${run.configuration.classificationConfig.rules}${scaleInstructions}\nCitation formatting: do not repeat an identical unit ID and quotation within a competency. Distinct exact quotations from the same permitted contextual unit may be cited separately.\nMode: ${session.mode}. ${modern?'TARGET unit IDs: '+JSON.stringify(units.map(u=>u.id)):'Return exactly one entry per supplied section.'} Frozen MCF instrument: ${JSON.stringify(MCF)}`,evidence:pool.map(u=>({segmentId:u.id,sourceId:u.unit_set_id,content:u.original_text})),outputSchema:z.toJSONSchema(assessAmbiguity?ambiguityResponse:modern?evidentialResponse:proposalResponse)});
    let proposals:any[];
    if(modern){
     const parsed=(assessAmbiguity?ambiguityResponse:evidentialResponse).parse(answer.value);
@@ -109,7 +111,7 @@ export class SemanticWorker{
      if(codes.length&&!answer.evidenceSegmentIds.includes(target.id))throw Error('unsupported_mcf_citation');
      if(codes.flatMap(c=>c.context).some(r=>!answer.evidenceSegmentIds.includes(r.unitId)))throw Error('unsupported_context_citation');
      const ambiguity=assessAmbiguity?retainAiAmbiguity((p as any).ambiguity,codes,target,pool,answer.evidenceSegmentIds,{runId:run.id,attemptId,provider:identity(provider),protocolVersion:run.configuration.ambiguityProtocol,...(ratingMetadata?.ratings.length?{sourceMetadata:ratingMetadata}:{}),promptVersion:run.configuration.classificationConfig.promptVersion}):undefined;
-     return{...(ambiguity?{ambiguity,unresolvedCompetencyIds:ambiguity.alternatives.map(a=>a.competencyId)}:{}),unitId:p.unitId,recordId:target.record_id,evidenceProtocol:2,codes:retainContext(codes,target,pool),noApplicationCompetencyIds:MCF.competencies.filter(c=>!codes.some(x=>x.competencyId===c.id)&&!ambiguity?.alternatives.some(a=>a.competencyId===c.id)).map(c=>c.id),valence:p.valence,notes:p.notes,reviewedNoCode:!codes.length,provenance:{runId:run.id,attemptId,provider:identity(provider),normalization,semanticPolicyVersion:policy.version,timeoutMs:semanticAttemptTimeout(policy,attempt)}};
+     return{...(ambiguity?{ambiguity,unresolvedCompetencyIds:ambiguity.alternatives.map(a=>a.competencyId)}:{}),unitId:p.unitId,recordId:target.record_id,evidenceProtocol:2,codes:retainContext(codes,target,pool),noApplicationCompetencyIds:MCF.competencies.filter(c=>!codes.some(x=>x.competencyId===c.id)&&!ambiguity?.alternatives.some(a=>a.competencyId===c.id)).map(c=>c.id),valence:p.valence,notes:p.notes,reviewedNoCode:!codes.length,provenance:{runId:run.id,attemptId,provider:identity(provider),normalization,semanticPolicyVersion:policy.version,executionRevision:policy.executionRevision??null,timeoutMs:semanticAttemptTimeout(policy,attempt)}};
     });
    }else proposals=validateProposals(answer.value,units,session.mode,answer.evidenceSegmentIds);
    proposals=proposals.map(p=>({...p,method:'ai',pathway:p.codes.length?'semantic_success':'semantic_zero_code'}));
@@ -124,20 +126,32 @@ export class SemanticWorker{
     // A peer may have paused the run before this in-flight success was retained.
     // Reflect partial coverage without releasing queued work or undoing cancellation.
     await c.query("UPDATE researched.mcf_ai_runs SET status='partial' WHERE id=$1 AND status='failed'",[run.id]);
-    await c.query("UPDATE researched.mcf_semantic_attempts SET finished_at=now(),duration_ms=$2,outcome='semantic_success' WHERE id=$1",[attemptId,Date.now()-started.getTime()]);
+    await c.query("UPDATE researched.mcf_semantic_attempts SET finished_at=now(),duration_ms=$2,outcome='semantic_success',diagnostics=$3 WHERE id=$1",[attemptId,Date.now()-started.getTime(),JSON.stringify(diagnostics)]);
    });
   }catch(error){
    const message=error instanceof Error?error.message:String(error);
    await this.repo.transaction(async c=>{
     const run=(await c.query('SELECT * FROM researched.mcf_ai_runs WHERE id=$1 FOR UPDATE',[task.run_id])).rows[0];if(!run)return;
     const category=responsePhase?semanticFailureCategory(error):'integrity';
-    await c.query("UPDATE researched.mcf_semantic_attempts SET finished_at=now(),duration_ms=$2,outcome='semantic_failed',error=$3,failure_category=$4,diagnostics=$5 WHERE id=$1 AND outcome='running'",[attemptId,Date.now()-started.getTime(),message,category,JSON.stringify(safeFailureDiagnostics(error))]);
+    await c.query("UPDATE researched.mcf_semantic_attempts SET finished_at=now(),duration_ms=$2,outcome='semantic_failed',error=$3,failure_category=$4,diagnostics=$5 WHERE id=$1 AND outcome='running'",[attemptId,Date.now()-started.getTime(),message,category,JSON.stringify({...diagnostics,...safeFailureDiagnostics(error)})]);
     // Transient failures belong to a batch; they must not consume another batch's retry budget.
     const circuitOpen=category==='connection';
     const hasSuccess=(await c.query("SELECT 1 FROM researched.mcf_ai_tasks WHERE run_id=$1 AND status='completed' LIMIT 1",[task.run_id])).rowCount;
 
     const retry=!circuitOpen&&!this.stopped&&['queued','running'].includes(run.status)&&attempt>0&&attempt<policy.maximumAttempts&&(transientSemanticError(message)||(responsePhase&&!/401|403|429|provider.*unavailable|provider.*changed/i.test(message)));
     await c.query('UPDATE researched.mcf_ai_tasks SET status=$2,error=$3 WHERE id=$1 AND status=\'running\'',[task.id,retry?'queued':'failed',message]);
+    // Partition only unresolved work. The original attempt freezes its full target list;
+    // child tasks inherit the consumed budget and reference that attempt for audit.
+    if(retry&&policy.maximumRetryBatchUnits&&task.unit_ids.length>policy.maximumRetryBatchUnits){
+     const groups=retryGroups(task.unit_ids,policy.maximumRetryBatchUnits);
+     await c.query('UPDATE researched.mcf_ai_tasks SET unit_ids=$2 WHERE id=$1',[task.id,JSON.stringify(groups[0])]);
+     let ordinal=Number((await c.query('SELECT max(ordinal) AS ordinal FROM researched.mcf_ai_tasks WHERE run_id=$1',[task.run_id])).rows[0].ordinal);
+     for(const group of groups.slice(1)){
+      const child=randomUUID();
+      await c.query("INSERT INTO researched.mcf_ai_tasks(id,run_id,ordinal,unit_ids,status,error) VALUES($1,$2,$3,$4,'queued',$5)",[child,task.run_id,++ordinal,JSON.stringify(group),message]);
+      await c.query("INSERT INTO researched.mcf_semantic_tasks(task_id,cycle,inherited_attempts,parent_attempt_id,next_attempt_at) VALUES($1,$2,$3,$4,now()+$5*interval '1 millisecond')",[child,cycle,attempt,attemptId,policy.retryDelaysMs[attempt-1]]);
+     }
+    }
     if(retry)await c.query("UPDATE researched.mcf_semantic_tasks SET next_attempt_at=now()+$2*interval '1 millisecond' WHERE task_id=$1",[task.id,policy.retryDelaysMs[attempt-1]]);
     else if(circuitOpen||(!hasSuccess&&policy.firstBatchGate)||!responsePhase)await c.query("UPDATE researched.mcf_ai_runs SET status=CASE WHEN EXISTS(SELECT 1 FROM researched.mcf_ai_outputs WHERE run_id=$1) THEN 'partial' ELSE 'failed' END,finished_at=now() WHERE id=$1 AND status IN ('queued','running')",[task.run_id]);
     if(circuitOpen||(!hasSuccess&&policy.firstBatchGate&&!retry)||(!responsePhase&&!retry))await this.repo.audit(c,(await this.repo.session(run.session_id,c)).dataset_id,'mcf_semantic_gate_paused',task.run_id,'Semantic worker',{operationalPolicy:policy.version,reason:circuitOpen?'Authentication or provider configuration requires intervention before explicit resume.':!responsePhase?'Integrity or retention check failed; explicit review required.':'First-batch verification failed; remaining population was not released.',attemptId,successfulResultsPreserved:true});

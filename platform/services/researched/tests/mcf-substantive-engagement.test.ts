@@ -27,7 +27,7 @@ describe('v9 reasoning policy and frozen history',()=>{
  it.each([4,5,6,7,8,9,10])('preserves reasoning identity when resuming policy %i',version=>{
   const saved=Object.freeze({version,timeoutMs:90000});const next=resumedOperationalPolicy(saved,SEMANTIC_POLICY);
   expect(next.version).toBe(version<8?8:version);expect(saved).toEqual({version,timeoutMs:90000});
-  if(version>=8)expect(next).toBe(saved);
+  expect(next).toMatchObject({timeoutMs:150000,maximumRetryBatchUnits:3,executionRevision:'bounded-retry-batches.v1'});
  });
  it('request construction reads saved rules rather than appending current rules to historical work',()=>{
   const source=readFileSync(new URL('../src/application/mcf-semantic.ts',import.meta.url),'utf8');
