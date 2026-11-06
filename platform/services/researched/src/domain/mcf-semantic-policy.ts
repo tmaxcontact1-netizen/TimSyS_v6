@@ -29,5 +29,5 @@ export const CLASSIFICATION_RULES_V10=CLASSIFICATION_RULES_V9.replace(V9_F1_RULE
 // Versions through 8 changed execution/retry policy. Version 9 additionally
 // changes reasoning. An operational resume must never relabel an old run as 9.
 export function resumedOperationalPolicy<T extends {version:number}>(saved:T,current:any):T {
- return saved.version<8?{...saved,version:8,timeoutMs:current.timeoutMs,attemptTimeoutsMs:current.attemptTimeoutsMs,scheduling:current.scheduling,firstBatchGate:false,concurrency:current.concurrency}:saved;
+ return {...saved,version:saved.version<8?8:saved.version,executionRevision:current.executionRevision,maximumRetryBatchUnits:current.maximumRetryBatchUnits,timeoutMs:current.timeoutMs,attemptTimeoutsMs:current.attemptTimeoutsMs,scheduling:current.scheduling,firstBatchGate:false,concurrency:current.concurrency};
 }
