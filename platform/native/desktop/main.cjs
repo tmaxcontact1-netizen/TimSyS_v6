@@ -16,6 +16,7 @@ const { UpdateManager } = require('./update-manager.cjs');
 const { AppWindowRegistry } = require('./app-window-registry.cjs');
 const { AssistantPanels } = require('./assistant-panel.cjs');
 const { workspaceMenu, popoutTarget } = require('./workspace-menu.cjs');
+const { appWindowTitle, launcherWindowTitle, bindWindowTitle } = require('./window-title.cjs');
 const { testConnection } = require('./assistant-connection.cjs');
 const { ChatGptPlan } = require('./chatgpt-plan.cjs');
 const { AiRuntimeState } = require('./ai-runtime-state.cjs');
@@ -212,6 +213,7 @@ function createWindow() {
     titleBarStyle: 'default',
   });
 
+  bindWindowTitle(mainWindow, () => launcherWindowTitle(mainWindow.webContents.getURL()));
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
   installWorkspaceMenu(mainWindow);
   const refreshMenu = () => { if (mainWindow && !mainWindow.isDestroyed()) installWorkspaceMenu(mainWindow); };
@@ -287,7 +289,7 @@ async function openWorkspaceWindow(senderWindow) {
   const window = new BrowserWindow({ width: 1440, height: 900, minWidth: 900, minHeight: 640, show: false, backgroundColor: '#171222', title: /^\/app\/principal-?ed/.test(new URL(target).pathname) ? 'Principal’Ed · TimSyS' : 'Builder · TimSyS',
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') } });
   workspaceWindows.set(target, window);
-  window.webContents.on('page-title-updated', event => event.preventDefault());
+  bindWindowTitle(window, appWindowTitle(/^\/app\/principal-?ed/.test(new URL(target).pathname) ? 'principal-ed' : 'builder'));
   installWorkspaceMenu(window, /^\/app\/principal-?ed/.test(new URL(target).pathname) ? 'principal-ed' : 'builder');
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.webContents.on('will-navigate', (event, address) => { try { popoutTarget(address, target); } catch { event.preventDefault(); } });
@@ -515,6 +517,7 @@ ipcMain.handle('supervised-app:open', async (_event, appId) => {
     minHeight: 768,
     webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') },
   });
+  bindWindowTitle(appWindow, appWindowTitle(appId));
   installAppWindowMenu(appWindow, appId);
   appWindows.set(appId, appWindow);
   appWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

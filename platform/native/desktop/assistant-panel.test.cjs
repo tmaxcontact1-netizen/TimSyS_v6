@@ -7,6 +7,7 @@ class FakeWindow extends EventEmitter {
   static instances=[];
   constructor(options={}){super();this.id=FakeWindow.instances.length+1;this.options=options;this.dead=false;this.messages=[];this.webContents=new EventEmitter();this.webContents.send=(...value)=>this.messages.push(value);this.webContents.setWindowOpenHandler=fn=>{this.openHandler=fn;};FakeWindow.instances.push(this);}
   isDestroyed(){return this.dead;}isMinimized(){return false;}show(){this.shown=true;}focus(){this.focused=true;}
+  setTitle(title){this.title=title;}
   async loadURL(url){this.url=url;}
   close(){this.dead=true;this.emit('closed');}
 }

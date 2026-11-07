@@ -1,4 +1,5 @@
 const path = require('node:path');
+const { appWindowTitle, bindWindowTitle } = require('./window-title.cjs');
 
 // Utility windows never resize the app or replace its current page.
 class AssistantPanels {
@@ -47,7 +48,7 @@ class AssistantPanels {
     this.panels.set(window.id, entry); window.once('closed', entry.ownerClosed);
     view.once('closed', () => { if (this.panels.get(window.id) === entry) this.panels.delete(window.id); window.removeListener('closed', entry.ownerClosed); });
     this.configureWindow(view, appId);
-    view.webContents.on('page-title-updated', event => event.preventDefault());
+    bindWindowTitle(view, appWindowTitle('assistant'));
     view.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     view.webContents.on('will-navigate', (event, next) => { try { const target = new URL(next); if (target.origin !== url.origin || target.pathname !== '/assistant') event.preventDefault(); } catch { event.preventDefault(); } });
     try { await view.loadURL(url.href); if (!view.isDestroyed()) { view.show(); view.focus(); } }
