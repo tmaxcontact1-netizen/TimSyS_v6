@@ -770,6 +770,8 @@ function groupOutfitGarments(garments, order = []) {
 function OutfitBuilder({ close, openPlanner }) {
   const [catalogue, setCatalogue] = useState(null),
     [fixedIds, setFixedIds] = useState([]),
+    [excludedIds, setExcludedIds] = useState([]),
+    [usedOnly, setUsedOnly] = useState(true),
     [contextId, setContext] = useState(""),
     [useId, setUseId] = useState(""),
     [season, setSeason] = useState(""),
@@ -799,6 +801,7 @@ function OutfitBuilder({ close, openPlanner }) {
           method: "POST",
           body: JSON.stringify({
             fixedGarmentIds: fixedIds,
+            excludedGarmentIds: excludedIds,
             contextId,
             useId: useId || null,
             season: season || null,
@@ -843,7 +846,12 @@ function OutfitBuilder({ close, openPlanner }) {
   const tiers = results
     ? [["Ranked suggestions", [...results.a, ...results.b, ...results.c].sort((a,b) => b.evaluation.score-a.evaluation.score)]]
     : [];
-  const eligibleGarments = catalogue?.garments.filter((garment) => !useId || garment.useIds.includes(useId)) || [];
+  const eligibleGarments = catalogue?.garments.filter((garment) => !excludedIds.includes(garment.id) && (!useId || garment.useIds.includes(useId))) || [];
+  const savedUsage = new Map();
+  for (const outfit of catalogue?.saved || []) for (const garment of outfit.items || []) {
+    savedUsage.set(garment.id, [...(savedUsage.get(garment.id) || []), outfit.name]);
+  }
+  const exclusionChoices = (catalogue?.garments || []).filter(g => !usedOnly || savedUsage.has(g.id) || excludedIds.includes(g.id));
   const fixedGarments = (catalogue?.garments || []).filter(g => fixedIds.includes(g.id));
   const fixedSlots = new Set(fixedGarments.map(g => g.slotId));
   const unavailableFixed = fixedGarments.filter(g => !eligibleGarments.some(item => item.id === g.id));
@@ -925,6 +933,21 @@ function OutfitBuilder({ close, openPlanner }) {
           <ul>{groupOutfitGarments(fixedGarments, fixedGarmentOrder).flatMap(group => group.items.map(g => <li key={g.id}><span><strong>{g.name}</strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
           {unavailableFixed.length > 0 && <p className="banner">These fixed garments do not match the selected use: {unavailableFixed.map(g => g.name).join(', ')}. Change the use filter or remove them before generating.</p>}
         </section>
+        <details className="builder-exclusions" open>
+          <summary>Items to leave out ({excludedIds.length})</summary>
+          <p>Select individual items you do not want in new recommendations. Nothing is excluded automatically. Your wardrobe and saved outfits stay unchanged. These choices last until you close the builder.</p>
+          <fieldset disabled={busy}>
+            <legend>Choose exclusions</legend>
+            <label><input type="checkbox" checked={usedOnly} onChange={e=>setUsedOnly(e.target.checked)}/> Show only items used in saved outfits</label>
+            <button type="button" disabled={!excludedIds.length} onClick={()=>{setExcludedIds([]);setResults(null);}}>Make all items available again</button>
+            <div className="builder-exclusion-list">{groupOutfitGarments(exclusionChoices, fixedGarmentOrder).map(group=><section key={group.slot}>
+              <h4>{group.label}</h4>
+              {group.items.map(g=><label key={g.id}><input type="checkbox" checked={excludedIds.includes(g.id)} disabled={fixedIds.includes(g.id)} onChange={e=>{setExcludedIds(current=>e.target.checked?[...current,g.id]:current.filter(id=>id!==g.id));setResults(null);}}/><span><strong>{g.name}</strong><small>{savedUsage.has(g.id)?`Used in: ${savedUsage.get(g.id).join(', ')}`:'Not used in a saved outfit'}{fixedIds.includes(g.id)?' · Fixed: remove from garments to keep before excluding':''}</small></span></label>)}
+            </section>)}</div>
+            {!exclusionChoices.length&&<p>No matching items. Untick the filter to choose from all available garments.</p>}
+          </fieldset>
+          {!!excludedIds.length&&<p className="banner">{excludedIds.length} item(s) excluded. Untick an item to make it available again.</p>}
+        </details>
         <fieldset className="outfit-category-checks" disabled={busy}>
           <legend>Categories to add or keep</legend>
           <p>Tick the categories you want in the finished combination. Fixed categories are already covered; recommendations fill the others. Required companions are included automatically.</p>
@@ -935,7 +958,7 @@ function OutfitBuilder({ close, openPlanner }) {
         </fieldset>
         {requiredSlots.filter(slot => companionReasons[slot]).map(slot => <p className="muted" key={slot}>{companionReasons[slot]}</p>)}
         {requiredSlots.length < 2 && <p className="muted">Select at least two categories to build a combination.</p>}
-        {missingSelected.length > 0 && <p className="banner">No available items for: {missingSelected.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Untick these categories, change the use filter, or add an item.</p>}
+        {missingSelected.length > 0 && <p className="banner">No available items for: {missingSelected.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Untick these categories, restore an excluded item, change the use filter, or add an item.</p>}
         <p className="muted">Suggestions are ranked by coordination score out of 100. Confidence describes the supporting evidence separately. Equivalent descriptions are grouped, with up to three suggestions per score and two per tie or pocket square unless you fixed that item. Each recommended tie–square pair appears only once; a pair you fixed can accompany different recommendations. Shortlist variety never changes an outfit’s score.</p>
         <p className="muted">Uses are optional filters. Suggestions use your reviewed colour families and patterns; exact shade and pattern scale remain uncertain.</p>
         {results?.missingSlots?.length > 0 && <p className="banner">This combination excludes required outfit categories: {results.missingSlots.map(slot => outfitCategories.find(x => x[0] === slot)?.[1] || slot).join(", ")}. Include these before saving a complete outfit.</p>}
@@ -2108,7 +2131,6 @@ function ModernApp() {
             </Button>
           </div>
         </Panel>
-        <SavedOutfits refreshKey={modal} edit={initialOutfit=>setModal({type:"styling",initialOutfit})} plan={initialOutfit=>setModal({type:"planner",initialOutfit})}/>
         </>
       )}
       {view === "planner" && (
@@ -2300,6 +2322,9 @@ function ModernApp() {
         <OutfitBuilder close={() => setModal(null)} openPlanner={initialOutfit=>setModal({type:"planner",initialOutfit})} />
       )}{" "}
       {modal?.type === "planner" && <Planner close={() => setModal(null)} initialOutfit={modal.initialOutfit} />}{" "}
+      {view === "outfits" && (
+        <SavedOutfits refreshKey={modal} edit={initialOutfit=>setModal({type:"styling",initialOutfit})} plan={initialOutfit=>setModal({type:"planner",initialOutfit})}/>
+      )}
       {modal?.type === "wear" && (
         <WearConfirmation close={() => setModal(null)} />
       )}{" "}

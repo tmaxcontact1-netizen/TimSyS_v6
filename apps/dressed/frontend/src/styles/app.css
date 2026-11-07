@@ -1249,3 +1249,16 @@ td small {
 .planned-outfit-garments ul { margin:0; padding-left:20px; }
 .planned-outfit-garments li { overflow-wrap:anywhere; }
 .plan-days > div:has(> .planned-outfit-details[open]) { grid-column:1 / -1; min-width:0; }
+
+.builder-exclusions { margin:20px 0; padding:16px; border:1px solid var(--ts-border,#514737); border-radius:8px; }
+.builder-exclusions summary { font-weight:600; cursor:pointer; }
+.builder-exclusion-list { max-height:360px; overflow:auto; display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin:16px 0; }
+.builder-exclusion-list label { display:flex; align-items:start; gap:8px; margin:10px 0; }
+.builder-exclusions input[type=checkbox] { width:auto; flex:none; }
+.builder-exclusion-list small { display:block; line-height:1.5; }
+
+.mannequin-comparison { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.mannequin-comparison.is-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mannequin-body-label { position: absolute; top: 12px; left: 14px; color: #f1f4f6; font-weight: 600; pointer-events: none; }
+.mannequin-body-options button[aria-pressed="true"] { background: #335e75; color: white; border-color: #80bddc; }
+@media(max-width:700px) { .mannequin-comparison.is-pair { grid-template-columns: minmax(0, 1fr); } }

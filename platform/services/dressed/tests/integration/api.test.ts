@@ -7,6 +7,10 @@ import { afterEach, describe, expect, test, vi } from "vitest";
 
 import { createDressedServer } from "../../src/entrypoints/api.js";
 
+import { StylingRepository } from "../../src/infrastructure/database/styling-repository.js";
+import { EnsembleRepository } from "../../src/infrastructure/database/ensemble-repository.js";
+import * as engine from "../../src/domain/outfit/ensemble-engine.js";
+
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
@@ -74,5 +78,30 @@ describe("Dress'Ed Phase 1 API", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ error: "validation_failed" });
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("manual builder exclusions",()=>{
+  const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
+  test("only selected garments are removed, restoring them works, and exhausted categories are reported",async()=>{
+    const items=[{id:id(1),name:"Fixed shirt",slotId:"top"},{id:id(2),name:"Used pink square",slotId:"pocket_square"},{id:id(3),name:"Other used square",slotId:"pocket_square"},{id:id(4),name:"Jacket",slotId:"jacket"}];
+    vi.spyOn(StylingRepository.prototype,"catalogue").mockResolvedValue({contexts:[{id:id(9)}],ruleSet:{id:id(8),thresholds:{a:90,b:80,c:70}}} as never);
+    vi.spyOn(StylingRepository.prototype,"parameters").mockResolvedValue({});
+    vi.spyOn(EnsembleRepository.prototype,"candidates").mockResolvedValue(items as never);
+    vi.spyOn(EnsembleRepository.prototype,"requirements").mockResolvedValue([]);
+    vi.spyOn(EnsembleRepository.prototype,"overrides").mockResolvedValue([]);
+    const generate=vi.spyOn(engine,"generateEnsembles").mockReturnValue({a:[],b:[],c:[],examined:0,rejected:0} as never);
+    try{
+      const {baseUrl}=await runningServer();
+      const request=async(excludedGarmentIds:string[])=>fetch(`${baseUrl}/api/ensembles/generate`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({fixedGarmentIds:[id(1)],contextId:id(9),selectedSlotIds:["top","pocket_square"],excludedGarmentIds})});
+      expect((await request([id(2)])).status).toBe(200);
+      expect(generate.mock.lastCall?.[0].available.map(g=>g.id)).toEqual([id(1),id(3),id(4)]);
+      expect((await request([])).status).toBe(200);
+      expect(generate.mock.lastCall?.[0].available.map(g=>g.id)).toEqual(items.map(g=>g.id));
+      const exhausted=await request([id(2),id(3)]);
+      expect(await exhausted.json()).toMatchObject({missingSelectedSlots:["pocket_square"]});
+      expect((await request([id(1)])).status).toBe(400);
+    }finally{vi.restoreAllMocks();}
   });
 });
