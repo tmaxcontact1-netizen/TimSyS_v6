@@ -49,7 +49,7 @@ function Connections({ onApplied }) {
   async function signIn(id) { setSigningIn(true); try { await action(() => bridge.chatgptSignIn(id), 'Waiting for ChatGPT sign-in in your browser, then testing…'); } finally { setSigningIn(false); } }
   if (!bridge) return <p>Provider connections are managed in the TimSyS desktop assistant.</p>;
   return <section className="ai-connections" aria-label="AI connections">
-    <h2>AI Integration</h2>
+    <h2>Connections and models</h2>
     {appConnections.map(app => <React.Fragment key={app.app}>{app.restartRequired && <p role="status">Research’Ed is still using its previous AI connection. Close and reopen Research’Ed to apply the selected connection. The shared assistant uses the current selection immediately.</p>}{app.warning && <p role="status">{app.warning}</p>}</React.Fragment>)}
     <div className="ai-connection-tabs" role="tablist" aria-label="Connection type">
       {[['accounts', 'AI connections'], ['api', 'API connections']].map(([value, label]) => <button key={value} id={'connection-tab-' + value} role="tab" aria-selected={tab === value} aria-controls={'connection-panel-' + value} tabIndex={tab === value ? 0 : -1} disabled={busy} onClick={() => selectTab(value)} onKeyDown={e => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const next = e.key === 'Home' ? 'accounts' : e.key === 'End' ? 'api' : tab === 'accounts' ? 'api' : 'accounts'; selectTab(next); document.getElementById('connection-tab-' + next)?.focus(); } }}>{label}</button>)}
@@ -103,6 +103,7 @@ export default function AssistantPanel({ onClose }) {
   const [status, setStatus] = useState(null), [conversations, setConversations] = useState([]), [id, setId] = useState('');
   const [messages, setMessages] = useState([]), [draft, setDraft] = useState(''), [settings, setSettings] = useState(() => new URLSearchParams(window.location.search).get('settings') === 'connections');
   useEffect(() => window.electronAPI?.assistant?.onSettings?.(() => setSettings(true)), []);
+  useEffect(() => { const back = event => { event.preventDefault(); setSettings(false); setHistory(false); }; window.addEventListener('timsys:navigate-back', back); return () => window.removeEventListener('timsys:navigate-back', back); }, []);
   const [error, setError] = useState(''), [sending, setSending] = useState(false), [history, setHistory] = useState(false);
   const [context, setContext] = useState(null);
   const [connection, setConnection] = useState(null);
@@ -144,7 +145,9 @@ export default function AssistantPanel({ onClose }) {
     try { await call('delete', '/conversations/' + id); setId(''); await refreshHistory(); } catch (e) { setError(e.message); }
   }
   return <aside className="ai-panel" aria-label="TimSyS AI assistant">
-    <header className="ai-header"><div><strong>TimSyS AI</strong><span>{status?.configured ? `${connection?.protocol === 'chatgpt-plan' ? 'ChatGPT plan' : status.provider === 'gemini' ? 'Gemini API' : 'OpenAI API'} · ${status.model}` : 'Your thinking partner'}</span></div>
+    <header className="ai-header"><div><strong>{settings ? 'AI integration' : 'TimSyS AI'}</strong><span>{status?.configured ? `${connection?.protocol === 'chatgpt-plan' ? 'ChatGPT plan' : status.provider === 'gemini' ? 'Gemini API' : 'OpenAI API'} · ${status.model}` : 'Your thinking partner'}</span></div>
+      {(settings || history) && <button onClick={() => { setSettings(false); setHistory(false); }}>← Back</button>}
+      <button onClick={() => window.electronAPI?.returnToLauncher?.()}>Return to launcher</button>
       <button aria-label="Assistant settings" title="Connections" onClick={() => setSettings(!settings)}>⚙</button>
       <button aria-label="Close assistant" onClick={onClose || (() => window.electronAPI?.assistant?.close())}>×</button>
     </header>

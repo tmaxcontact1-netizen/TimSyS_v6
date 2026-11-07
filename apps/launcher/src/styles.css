@@ -96,3 +96,7 @@ button:disabled {
   cursor: wait;
   opacity: 0.55;
 }
+
+.launcher-workspace{height:100vh;display:flex;flex-direction:column;background:#15101f}.launcher-workspace>.workspace-bar{flex-shrink:0}.launcher-workspace-content{flex:1;min-height:0;overflow:auto}.launcher-workspace-content>.min-h-screen{min-height:100%}.launcher-account{display:flex;justify-content:flex-end;align-items:center;gap:16px;max-width:1280px;margin:auto;padding:16px 24px;color:#c9badb;font-size:13px}.launcher-account button{padding:7px 12px;border:1px solid #4a365c;border-radius:7px}.launcher-workspace .bg-gray-900{background-color:#1e172a}.launcher-workspace .border-gray-800{border-color:#42304f}.launcher-workspace .text-gray-400{color:#bcaacc}.launcher-workspace .bg-timsys-dark{background:#15101f}
+
+.builder-workspace{background:#15101f}.builder-workspace .bg-gray-900,.builder-workspace .bg-gray-950{background:#21182d}.builder-workspace .border-gray-800,.builder-workspace .border-gray-700{border-color:#493653}.builder-workspace .text-gray-400{color:#c1aed2}.builder-workspace .text-gray-500{color:#b49dc7}

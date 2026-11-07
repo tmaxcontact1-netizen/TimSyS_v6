@@ -1,7 +1,8 @@
 import React from "react";
+import { WorkspaceBar } from "./workspace-bar.jsx";
 
-export function AppShell({ brand, context, navigation, active, onNavigate, onBack, onLauncher, children }) {
-  return <div className="ts-shell"><aside className="ts-sidebar"><div className="ts-brand"><span>TimSyS</span><strong>{brand}</strong>{context && <small>{context}</small>}</div><SidebarNav items={navigation} active={active} onNavigate={onNavigate}/><div className="ts-sidebar-actions"><Button variant="quiet" onClick={onBack}>Back</Button><Button variant="quiet" onClick={onLauncher}>Return to launcher</Button></div></aside><main className="ts-main">{children}</main></div>;
+export function AppShell({ brand, context, navigation, active, onNavigate, onBack, backDisabled, onLauncher, children }) {
+  return <div className="ts-workspace"><WorkspaceBar brand={brand} context={context} onBack={onBack} backDisabled={backDisabled} onLauncher={onLauncher}/><div className="ts-shell"><aside className="ts-sidebar"><div className="ts-brand"><span>TimSyS</span><strong>{brand}</strong>{context && <small>{context}</small>}</div><SidebarNav items={navigation} active={active} onNavigate={onNavigate}/></aside><main className="ts-main">{children}</main></div></div>;
 }
 
 export function SidebarNav({ items = [], active, onNavigate }) {

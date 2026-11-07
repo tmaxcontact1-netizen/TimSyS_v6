@@ -877,7 +877,8 @@ function PrincipalEdDashboard() {
       window.removeEventListener("principaled:dirty-state", onDirtyState);
   }, []);
 
-  const navigateToView = async (view) => {
+  const previousViews = useRef([]);
+  const navigateToView = async (view, goingBack = false) => {
     if (view === activeView) return;
     if (hasUnsavedChanges) {
       const leave = await askConfirmation({
@@ -889,6 +890,7 @@ function PrincipalEdDashboard() {
       });
       if (!leave) return;
     }
+    if (goingBack) previousViews.current.pop(); else previousViews.current.push(activeView);
     window.history.pushState(
       { ...window.history.state, principaledView: view },
       "",
@@ -899,6 +901,8 @@ function PrincipalEdDashboard() {
   };
 
   const returnToLauncher = async () => {
+    // Desktop return focuses the launcher and keeps this form/window alive.
+    if (window.electronAPI?.windows?.popOut && window.electronAPI.returnToLauncher) return window.electronAPI.returnToLauncher();
     if (hasUnsavedChanges) {
       const leave = await askConfirmation({
         title: "Discard unsaved changes?",
@@ -937,6 +941,8 @@ function PrincipalEdDashboard() {
       navigation={navItems}
       pages={moduleNavItems}
       active={activeView}
+      onBack={() => void navigateToView(previousViews.current.at(-1) || "overview", true)}
+      canGoBack={previousViews.current.length > 0}
       onNavigate={(view) => void navigateToView(view)}
       onLauncher={() => void returnToLauncher()}
     >

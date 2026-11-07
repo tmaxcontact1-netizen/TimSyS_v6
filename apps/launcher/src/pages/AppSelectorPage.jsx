@@ -29,15 +29,8 @@ function AppSelectorPage() {
 
   return (
     <div className="min-h-screen bg-timsys-dark">
-      <nav className="border-b border-gray-800 bg-gray-900/50 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-timsys-primary">TimSyS Launcher</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-400 text-sm">{user?.username || 'User'}</span>
-            <button onClick={handleLogout} className="text-gray-400 hover:text-white text-sm">Logout</button>
-          </div>
-        </div>
-      </nav>
+      <div className="launcher-account"><span>{user?.username || "User"}</span><button onClick={handleLogout}>Sign out</button></div>
+
 
       <main className="max-w-7xl mx-auto px-6 py-12">
         <h2 className="text-3xl font-bold text-white mb-2">Select an Application</h2>

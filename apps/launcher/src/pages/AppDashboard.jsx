@@ -13,6 +13,11 @@ function AppDashboard() {
   const canUseBuilder = useAnyPermission(['admin:*', 'admin:builder:access', 'admin:principal']);
   const [status, setStatus] = useState(null);
   const [error, setError] = useState(null);
+  useEffect(() => {
+    if ((['principal-ed','principaled'].includes(appId) || (appId === 'builder' && canUseBuilder)) && window.electronAPI?.windows) {
+      window.electronAPI.windows.popOut().catch(cause => setError(cause.message));
+    }
+  }, [appId,canUseBuilder]);
 
   useEffect(() => {
     if (!app?.supervised) return undefined;

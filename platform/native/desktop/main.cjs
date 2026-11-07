@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, safeStorage, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, safeStorage, Menu, shell } = require('electron');
 const { randomBytes } = require('node:crypto');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -15,12 +15,13 @@ const { AiCredentialVault } = require('./ai-credential-vault.cjs');
 const { UpdateManager } = require('./update-manager.cjs');
 const { AppWindowRegistry } = require('./app-window-registry.cjs');
 const { AssistantPanels } = require('./assistant-panel.cjs');
+const { workspaceMenu, popoutTarget } = require('./workspace-menu.cjs');
 const { testConnection } = require('./assistant-connection.cjs');
 const { ChatGptPlan } = require('./chatgpt-plan.cjs');
 const { AiRuntimeState } = require('./ai-runtime-state.cjs');
 const aiRuntime = new AiRuntimeState();
 const researchAssistantToken = randomBytes(48).toString('base64url');
-const assistantPanels = new AssistantPanels({ WebContentsView, getUrl: () => app.isPackaged ? platformUrl : 'http://localhost:5173', onOpen: () => applyAssistantProfile() });
+const assistantPanels = new AssistantPanels({ BrowserWindow, getUrl: () => app.isPackaged ? platformUrl : 'http://localhost:5173', onOpen: () => applyAssistantProfile(), configureWindow: (window, appId) => installWorkspaceMenu(window, appId, true) });
 
 // The launcher UI does not require GPU acceleration; disabling it improves compatibility on headless and older Windows systems.
 app.disableHardwareAcceleration();
@@ -32,6 +33,7 @@ const domainTokens=Object.create(null);
 async function bindDomainSession(window,appId,url){if(!domainTokens[appId])return;await window.webContents.session.cookies.set({url:new URL(url).origin,name:"timsys_domain_"+appId,value:domainTokens[appId],httpOnly:true,sameSite:"strict",path:"/"});}
 let mainWindow;
 const appWindows = new AppWindowRegistry();
+const workspaceWindows = new Map();
 let quitting = false;
 const sourceRoot = path.resolve(__dirname, '../../..');
 let layout;
@@ -211,7 +213,10 @@ function createWindow() {
   });
 
   const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
-  mainWindow.setMenu(Menu.buildFromTemplate([{ label: 'TimSyS AI', submenu: [{ label: 'Open assistant', accelerator: 'CommandOrControl+Shift+Space', click: () => assistantPanels.toggle(mainWindow).catch(console.error) }] }]));
+  installWorkspaceMenu(mainWindow);
+  const refreshMenu = () => { if (mainWindow && !mainWindow.isDestroyed()) installWorkspaceMenu(mainWindow); };
+  mainWindow.webContents.on('did-navigate-in-page', refreshMenu);
+  mainWindow.webContents.on('did-finish-load', refreshMenu);
 
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
@@ -226,7 +231,8 @@ function createWindow() {
 }
 
 function focusLauncher() {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (quitting || !app.isReady() || !platformUrl) return;
+  if (!mainWindow || mainWindow.isDestroyed()) createWindow();
   if (mainWindow.isMinimized()) mainWindow.restore();
   mainWindow.show();
   mainWindow.focus();
@@ -248,31 +254,54 @@ function activeAppWindow(appId) {
   return appWindows.active(appId);
 }
 
-function returnAppWindowToLauncher(appId, window) {
-  window.__timsysStopHandled = true;
-  if (!window.isDestroyed()) window.close();
+async function returnAppWindowToLauncher(appId, window) {
+  if (mainWindow && !mainWindow.isDestroyed() && new URL(mainWindow.webContents.getURL()).pathname !== '/') await mainWindow.loadURL(new URL('/', app.isPackaged ? platformUrl : 'http://localhost:5173').href);
   focusLauncher();
-  return { returned: true, appId };
+  return { returned: true, appId, preservedWindow: true };
 }
 
 function installAppWindowMenu(window, appId) {
-  window.setMenu(Menu.buildFromTemplate([
-    { label: 'TimSyS AI', submenu: [{ label: 'Open assistant', accelerator: 'CommandOrControl+Shift+Space', click: () => assistantPanels.toggle(window, appId).catch(console.error) }] },
-    {
-      label: 'File',
-      submenu: [
-        {
-          label: 'Exit to Launcher',
-          accelerator: 'Alt+Left',
-          click: () => returnAppWindowToLauncher(appId, window),
-        },
-      ],
-    },
-  ]));
+  installWorkspaceMenu(window, appId);
+}
+
+function installWorkspaceMenu(window, appId = 'timsys', utility = false) {
+  const safely = action => () => Promise.resolve().then(action).catch(console.error);
+  let canPopOut = false;
+  if (window === mainWindow) { try { popoutTarget(window.webContents.getURL(), app.isPackaged ? platformUrl : 'http://localhost:5173'); canPopOut = true; } catch { /* The launcher home has no workspace to detach. */ } }
+  window.setMenu(Menu.buildFromTemplate(workspaceMenu({
+    back: () => window.webContents.send('workspace:back'),
+    launcher: utility ? safely(() => returnAppWindowToLauncher(appId, window)) : () => window.webContents.send('workspace:launcher'),
+    assistant: safely(() => utility ? window.focus() : assistantPanels.toggle(window, appId)),
+    settings: safely(() => utility ? window.webContents.send('assistant:show-settings') : assistantPanels.openSettings(window, appId)),
+    popOut: safely(() => openWorkspaceWindow(window)),
+    canPopOut,
+    close: () => window.close(),
+  })));
+}
+
+async function openWorkspaceWindow(senderWindow) {
+  if (senderWindow !== mainWindow) { senderWindow.focus(); return { alreadyIndependent: true }; }
+  const target = popoutTarget(senderWindow.webContents.getURL(), app.isPackaged ? platformUrl : 'http://localhost:5173');
+  const existing = workspaceWindows.get(target);
+  if (existing && !existing.isDestroyed()) { await mainWindow.loadURL(new URL('/', target).href); if (existing.isMinimized()) existing.restore(); existing.show(); existing.focus(); return { opened: true }; }
+  const window = new BrowserWindow({ width: 1440, height: 900, minWidth: 900, minHeight: 640, show: false, backgroundColor: '#171222', title: /^\/app\/principal-?ed/.test(new URL(target).pathname) ? 'Principal’Ed · TimSyS' : 'Builder · TimSyS',
+    webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, preload: path.join(__dirname, 'preload.cjs') } });
+  workspaceWindows.set(target, window);
+  window.webContents.on('page-title-updated', event => event.preventDefault());
+  installWorkspaceMenu(window, /^\/app\/principal-?ed/.test(new URL(target).pathname) ? 'principal-ed' : 'builder');
+  window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  window.webContents.on('will-navigate', (event, address) => { try { popoutTarget(address, target); } catch { event.preventDefault(); } });
+  window.once('closed', () => { workspaceWindows.delete(target); assistantPanels.close(window); focusLauncher(); });
+  try { await window.loadURL(target); window.show(); window.focus(); }
+  catch (error) { window.destroy(); workspaceWindows.delete(target); throw error; }
+  await mainWindow.loadURL(new URL('/', target).href);
+  return { opened: true };
 }
 
 function appWindowForSender(sender) {
-  return appWindows.forSender(sender);
+  const app = appWindows.forSender(sender); if (app) return app;
+  for (const [address, window] of workspaceWindows) if (!window.isDestroyed() && window.webContents === sender) return { window, appId: /^\/app\/principal-?ed/.test(new URL(address).pathname) ? 'principal-ed' : 'builder', detached: true };
+  return null;
 }
 
 app.whenReady().then(async () => {
@@ -363,6 +392,8 @@ ipcMain.handle('supervised-app:start', async (_event, appId) => {
 });
 
 ipcMain.handle('launcher:return', async (event) => {
+  const assistantHost = assistantPanels.hostFor(event.sender);
+  if (assistantHost) return returnAppWindowToLauncher('timsys', assistantHost);
   const owned = appWindowForSender(event.sender);
   if (owned) {
     return returnAppWindowToLauncher(owned.appId, owned.window);
@@ -373,6 +404,13 @@ ipcMain.handle('launcher:return', async (event) => {
     return { returned: true, appId: 'principal-ed' };
   }
   throw new Error('Return to Launcher is only available from a TimSyS application window');
+});
+
+ipcMain.handle('workspace:pop-out', event => {
+  const owner = appWindowForSender(event.sender);
+  const window = owner?.window || (event.sender === mainWindow?.webContents ? mainWindow : null);
+  if (!window) throw new Error('Only TimSyS workspaces can open application windows.');
+  return openWorkspaceWindow(window);
 });
 
 ipcMain.handle('supervised-app:stop', async (_event, appId) => {
@@ -526,8 +564,10 @@ ipcMain.handle('assistant:open', async event => {
 });
 ipcMain.handle('assistant:close', event => { requireAssistant(event); assistantPanels.closeFor(event.sender); });
 ipcMain.handle('assistant:settings', event => {
-  if (event.sender !== mainWindow?.webContents) throw new Error('Open AI Integration from the launcher.');
-  return assistantPanels.openSettings(mainWindow);
+  const owned = appWindowForSender(event.sender);
+  const host = owned?.window || assistantPanels.hostFor(event.sender) || (event.sender === mainWindow?.webContents ? mainWindow : null);
+  if (!host) throw new Error('Open AI integration from a TimSyS application.');
+  return assistantPanels.openSettings(host, owned?.appId || 'timsys');
 });
 ipcMain.handle('assistant:context', event => { requireAssistant(event); return assistantPanels.contextFor(event.sender); });
 ipcMain.handle('assistant:open-source', (event, address) => { requireAssistant(event); const url = new URL(address); if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid source link.'); return shell.openExternal(url.href); });

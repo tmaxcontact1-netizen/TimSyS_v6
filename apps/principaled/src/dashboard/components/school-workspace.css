@@ -172,3 +172,7 @@
 .school-body{display:flex;flex-direction:column;height:100%;min-height:0;overflow:hidden}
 .school-topbar{flex:0 0 54px}
 .school-content{flex:1 1 auto;min-height:0;width:100%;overflow:auto;scrollbar-gutter:stable}
+
+.school-workspace{height:100vh;display:flex;flex-direction:column;overflow:hidden}.school-workspace>.workspace-bar{flex-shrink:0}.school-workspace>.school-shell{flex:1;min-height:0;height:auto;--ts-bg:#15101f;--ts-surface:#1e182a;--ts-raised:#2a2138;--ts-hover:#352940;--ts-border:#45344f;--ts-border-strong:#6c4e7e;--ts-accent:#c5a3fb;--ts-accent-strong:#895acd;--ts-accent-soft:#352348}.school-workspace .school-sidebar{background:#17111f;height:100%;min-height:0;overflow:auto;top:0}.school-workspace .school-group-toggle[aria-current=page]{background:var(--ts-accent-soft);color:var(--ts-accent)}
+
+.school-workspace .school-topbar{background:#21182d;border-color:#493653}.school-workspace .school-sidebar nav button[aria-current=page]{background:#352348;color:#ead9ff;box-shadow:inset 3px 0 #b38ae3}.school-workspace .school-page-search input{background:#251b32;border-color:#604772;color:#f0e7f9}

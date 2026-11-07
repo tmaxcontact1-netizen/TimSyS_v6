@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "installed-and-activated-locally",
+  "appearance": {
+    "palette": "dark purple surfaces, lavender accents, semantic status colours",
+    "font": "Inter, Segoe UI, system-ui, sans-serif",
+    "sharedChrome": "apps/shared-ui/react/workspace-bar.jsx",
+    "sharedChromeStyles": "apps/shared-ui/styles/workspace.css"
+  },
+  "desktopMenuOrder": [
+    "File",
+    "AI integration",
+    "View"
+  ],
+  "navigation": {
+    "back": "Previous application page; never close the app or return to launcher implicitly",
+    "returnToLauncher": "Show app selection while preserving the app window and supervised runtime",
+    "closedLauncher": "Restore the launcher when another app requests it; never recreate windows during shutdown or startup",
+    "dirtyForms": "Retain PrincipalEd leave guards and flush ResearchEd drafts before navigation",
+    "analysis": "Back from running or completed ResearchEd analyses returns to saved work without reverting confirmation or analysis state",
+    "sidebar": "Navigate to dedicated pages or workspace hubs; supporting evidence may remain expandable"
+  },
+  "windows": {
+    "principalEdAndBuilder": "Separate desktop workspaces, reusing existing windows",
+    "assistant": "Separate 640x820 utility window, minimum 420x560; one per owner, focus on repeat open",
+    "assistantSettings": "Connections and models in the same utility window for every application",
+    "requiresCoordinatedNativeUpdate": true,
+    "desktopCapability": "electronAPI.windows.popOut"
+  },
+  "applications": {
+    "launcher": "Consistent entry points, account controls and update status",
+    "principaled": "Workspace hubs, direct page navigation, guarded Back and purple school workspace",
+    "dressed": "Visited-page Back, consistent typography and readable purple wardrobe controls",
+    "researched": "Six-step workbench preserved; shared navigation across workbench, specialist tools and responsibilities",
+    "tradeed": "Read-only inspection pages; no worker, trading, collection or validation controls",
+    "builder": "Application selection, module list and dedicated module settings instead of expandable module cards"
+  },
+  "preserved": [
+    "application data and bindings",
+    "AI accounts and credential handling",
+    "ResearchEd analysis and report implementation",
+    "TradeEd independent validation isolation"
+  ],
+  "deployment": "Installed and activated locally on 2026-11-07. Not committed, pushed or published. Q35 live validation inactive."
+}

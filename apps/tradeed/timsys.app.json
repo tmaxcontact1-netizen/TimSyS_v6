@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "tradeed",
+  "version": "0.1.0",
   "name": "Trade'Ed",
   "kind": "frontend",
   "uiStandard": {

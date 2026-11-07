@@ -3,7 +3,7 @@ import { accessorySlots } from "../../../../platform/services/dressed/src/domain
 import OutfitPreview from './outfit-preview.jsx';
 import { evaluationAdvice, explainComparison } from '../../../../platform/services/dressed/src/domain/outfit/evaluation-advice.ts';
 import { withCompanions, companionSlots, companionReasons } from "../../../../platform/services/dressed/src/domain/outfit/garment-dependencies.ts";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import PhotoIntake from "./photo-intake.jsx";
 import ReactDOM from "react-dom/client";
 import {
@@ -1578,6 +1578,8 @@ function ModernApp() {
   const [view, setView] = useState(
     navigation.some((item) => item.id === initialView) ? initialView : "home",
   );
+  const previousViews = useRef([]);
+  const navigateView = next => { if (next !== view) { previousViews.current.push(view); setView(next); } };
   const [health, setHealth] = useState(null);
   const [application, setApplication] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -1863,8 +1865,8 @@ function ModernApp() {
     </Panel>
   );
   const goBack = () => {
-    if (view !== "home") setView("home");
-    else if (history.length > 1) history.back();
+    if (modal) { setModal(null); return; }
+    setView(previousViews.current.pop() || "home");
   };
   return (
     <AppShell
@@ -1872,9 +1874,10 @@ function ModernApp() {
       context="Personal wardrobe"
       navigation={navigation}
       active={view}
-      onNavigate={setView}
+      onNavigate={navigateView}
       onBack={goBack}
-      onLauncher={() => window.electronAPI?.returnToLauncher?.() ?? window.close()}
+      backDisabled={!modal && !previousViews.current.length && view === "home"}
+      onLauncher={() => window.electronAPI?.returnToLauncher?.() ?? window.location.assign("/")}
     >
       <ConfirmationDialog
         open={Boolean(archiveTarget)}
@@ -1985,7 +1988,7 @@ function ModernApp() {
                   <button
                     key={item.id}
                     onClick={() => {
-                      setView("wardrobe");
+                      navigateView("wardrobe");
                       setModal({ type: "garment", item });
                     }}
                   >
@@ -2264,7 +2267,7 @@ function ModernApp() {
       )}{" "}
       {duplicateNotice && <p className="banner" role="status">{duplicateNotice}</p>}
       {modal?.type === "styling" && (
-        <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);setView("outfits");}} />
+        <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);navigateView("outfits");}} />
       )}{" "}
       {modal?.type === "ensemble" && (
         <OutfitBuilder close={() => setModal(null)} />
@@ -2276,7 +2279,7 @@ function ModernApp() {
       {modal?.type === "lifecycle" && (
         <Lifecycle close={() => setModal(null)} />
       )}{" "}
-      {modal?.type === "insights" && <Insights close={() => setModal(null)} onNavigate={(target) => { setModal(null); setView(target); window.location.hash = `/${target}`; }} />}
+      {modal?.type === "insights" && <Insights close={() => setModal(null)} onNavigate={(target) => { setModal(null); navigateView(target); window.location.hash = `/${target}`; }} />}
     </AppShell>
   );
 }
