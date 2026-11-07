@@ -78,8 +78,8 @@ export class McfRepository {
   await c.query('INSERT INTO researched.mcf_sessions(id,dataset_id,title,kind,blind,instrument_version,instrument_hash,engine_version,software_version,configuration,actor) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',[id,datasetId,v.title,v.kind,v.blind,MCF.version,MCF_HASH,MANUAL_ENGINE,SOFTWARE_VERSION,JSON.stringify(config),v.actor]);
   for(const [i,unit] of selected.entries())await c.query('INSERT INTO researched.mcf_session_units VALUES($1,$2,$3)',[id,unit,i+1]);await this.audit(c,datasetId,'manual_session_created',id,v.actor,{...v,unitCount:selected.length});return{id};});}
  async session(id:string,c:Query=this.db){const s=(await c.query('SELECT s.*,d.mode,d.review_category FROM researched.mcf_sessions s JOIN researched.mcf_datasets d ON d.id=s.dataset_id WHERE s.id=$1',[id])).rows[0];if(!s)throw Error('session_not_found');return s;}
- async workspace(id:string){const s=await this.session(id);
-  const units=(await this.db.query(`SELECT u.*,su.ordinal AS session_ordinal,r.id AS record_id,r.review_identifier,r.institution,r.review_category,r.locator,i.filename,
+ async workspace(id:string,compact=false){const s=await this.session(id);
+  const units=(await this.db.query(`SELECT u.*,su.ordinal AS session_ordinal,r.id AS record_id,r.review_identifier,r.institution,r.review_category,${compact?'NULL':'r.locator'} AS locator,i.filename,
    left(right(left(r.original_text,u.start_offset),150),150) AS context_before,substring(r.original_text FROM u.end_offset+1 FOR 150) AS context_after,
    (SELECT row_to_json(d) FROM researched.mcf_decisions d WHERE d.session_id=su.session_id AND d.unit_id=u.id ORDER BY d.revision DESC LIMIT 1) AS decision
    FROM researched.mcf_session_units su JOIN researched.mcf_units u ON u.id=su.unit_id JOIN researched.mcf_unit_sets us ON us.id=u.unit_set_id JOIN researched.mcf_records r ON r.id=us.record_id JOIN researched.mcf_imports i ON i.id=r.import_id WHERE su.session_id=$1 ORDER BY su.ordinal`,[id])).rows;

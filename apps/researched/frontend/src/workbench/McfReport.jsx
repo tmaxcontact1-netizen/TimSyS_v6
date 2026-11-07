@@ -1,19 +1,21 @@
-import {schoolRatingsReport,schoolRatingsHtml} from './school-ratings-report.js';
-import {principalRatingsReport,principalRatingsHtml} from './principal-ratings-report.js';
+import {schoolRatingsReport} from './school-ratings-report.js';
+import {principalRatingsReport} from './principal-ratings-report.js';
 import {AiAmbiguityReport} from './AiAmbiguityReport.jsx';
 import ReviewSummary from './ReviewSummary.jsx';
 import {ContextEvidence,evidenceLabel} from '../mcf/EvidenceBasis.jsx';
 import {coverageLabels} from '../../../../../platform/services/researched/src/domain/mcf-coverage.ts';
-import React,{useState} from 'react';
+import React,{useState,useMemo} from 'react';
 import {summariseMcf} from './mcf-report.js';
 import {CodeEditor} from './Review.jsx';
-import {Pager} from './shared.jsx';
+import {RatingsSummary} from './RatingsSummary.jsx';
+import {Pager,LazyDetails} from './shared.jsx';
 
 export function McfReport({session,instrument,draft,machine,change,readonly=false}){
  const [filter,setFilter]=useState('all');
  const [editing,setEditing]=useState(null),[open,setOpen]=useState(null);
- const ratings=principalRatingsReport(session),schoolRatings=schoolRatingsReport(session);
- const report=summariseMcf(session,instrument,draft,machine,filter);
+ const ratings=useMemo(()=>principalRatingsReport(session),[session]),schoolRatings=useMemo(()=>schoolRatingsReport(session),[session]);
+ const fullReport=useMemo(()=>summariseMcf(session,instrument,draft,machine),[session,instrument,draft.decisions,draft.step,draft.machineRunId,draft.machineReport,machine]);
+ const report=useMemo(()=>filter==='all'?fullReport:{...fullReport,competencies:fullReport.competencies.map(c=>({...c,findings:c.findings.filter(f=>filter==='historical'?!f.local&&f.code.evidenceProtocol!==2:f.code.evidenceProtocol===2&&f.code.evidenceStrength===filter)}))},[fullReport,filter]);
  if(!session||!instrument||(draft.step===5&&draft.useAi&&!machine?.snapshot))return <p>Preparing your analysis…</p>;
  const edit=report.findings.find(f=>f.unit.id===editing);
  function evidence(f,key){return <article className="wb-finding" key={key??f.unit.id}>
@@ -23,17 +25,17 @@ export function McfReport({session,instrument,draft,machine,change,readonly=fals
   {!readonly&&<><button onClick={()=>setEditing(f.unit.id)}>Correct this passage</button>{f.human&&<button onClick={()=>{const decisions={...draft.decisions};delete decisions[f.unit.id];change({decisions},'Restored AI finding');}}>Undo my correction</button>}</>}
  </article>;}
  return <section aria-label="MCF competency report"><h3>Management competencies in your documents</h3>{session?.records?.some(r=>r.locator?.profile==='principal-questionnaire@1.0')&&<p>Principal narrative-only analysis. Structured ISR respondent ratings are preserved separately; they are not MCF findings and were excluded from target passages and context.</p>}
-  {schoolRatings&&<div dangerouslySetInnerHTML={{__html:schoolRatingsHtml(schoolRatings)}}/>}{ratings&&<div dangerouslySetInnerHTML={{__html:principalRatingsHtml(ratings)}}/>}
+  {schoolRatings&&<RatingsSummary report={schoolRatings} kind="school"/>}{ratings&&<RatingsSummary report={ratings} kind="principal"/>}
   <SemanticCoverage coverage={report.coverage}/><AiAmbiguityReport value={report.aiAmbiguity}/><p>Explicit and Contextual are equally supported applications, not confidence levels. Counts describe evidence locations, not independent observations. Historical results retain their original meanings.</p><label>Show applications<select aria-label="Show applications" value={filter} onChange={e=>setFilter(e.target.value)}><option value="all">All findings</option><option value="Explicit">Explicit</option><option value="Contextual">Contextual</option><option value="historical">Historical classifications</option></select></label><p>Summary counts include all findings; the selection below filters the evidence list.</p><h3>Evidence-location analysis</h3><table><thead><tr><th>Competency</th><th>Total supported</th><th>Explicit</th><th>Contextual</th><th>Explicit %</th><th>Contextual %</th><th>Historical</th></tr></thead><tbody>{report.competencies.map(c=><tr key={c.id}><td>{c.competency}</td>{['totalFindings','explicitFindings','contextualFindings','explicitPercentage','contextualPercentage','historicalFindings'].map(k=><td key={k}>{c.counts[k]===null?'N/A':Number(c.counts[k].toFixed(1))}</td>)}</tr>)}</tbody></table>{report.reviewLevel?<ReviewSummary value={report.reviewLevel} ratings={ratings}/>:<p>Review-level analysis unavailable: individual-review record IDs are missing. No replacement identities have been inferred.</p>}
   <p>All 21 competencies included. Deterministic candidates do not assess meaning, context, evidence strength or valence. No match does not establish absence.</p>
   {report.run&&['failed','partial'].includes(report.run.status)&&report.run.attempts?.some(a=>['provider','connection'].includes(a.failure_category))&&<p className="wb-warning" role="status">The AI connection failed. Further submissions may have been paused to protect the remaining work. Check the AI connection before resuming. Successful results are retained; pending and failed passages are not findings.</p>}
   {report.run?.legacyAuditOnly&&<p className="wb-warning">Historical pilot: the stored completion label is retained for audit. Semantic coverage below is the analytical status.</p>}
   {report.missing.length>0&&<p className="wb-warning">{report.missing.length} passages still need semantic assessment. This report is incomplete.</p>}
   {(draft.machineReport?.limitations??[]).map((text,i)=><p className="wb-muted" key={i}>Limitation: {text}</p>)}
-  <details><summary>Contextual applications ({report.contextual.length} passages)</summary><p>These applications rely on additional same-review context and count equally with Explicit applications.</p><Pager items={report.contextual} render={items=>items.map(f=>evidence(f))}/></details>
+  <LazyDetails title={`Contextual applications (${report.contextual.length} passages)`}>{()=> <><p>These applications rely on additional same-review context and count equally with Explicit applications.</p><Pager items={report.contextual} render={items=>items.map(f=>evidence(f))}/></>}</LazyDetails>
   {instrument.domains.filter(domain=>report.competencies.some(c=>c.domainId===domain.id&&c.findings.length)).map(domain=><section key={domain.id}><h3>{domain.name}</h3>{report.competencies.filter(c=>c.domainId===domain.id&&c.findings.length).map(c=><section className="wb-finding" key={c.id}><h4>{c.competency}</h4>{c.findings.length?<><p>{c.findings[0].code.rationale}</p><blockquote>{c.findings[0].code.evidence}</blockquote><small>Example evidence · {c.findings[0].unit.filename} · Passage {c.findings[0].unit.session_ordinal}</small><p>{c.findings.length} matched passages · {c.findings.filter(f=>f.local).length} local rule matches · {c.counts.explicitFindings} Explicit · {c.counts.contextualFindings} Contextual</p><button aria-expanded={open===c.id} onClick={()=>setOpen(open===c.id?null:c.id)}>{open===c.id?'Hide':'Read'} evidence for {c.competency}</button>{open===c.id&&<Pager items={c.findings} render={items=>items.map(f=>evidence(f))}/>}</>:<p>No supporting evidence identified in the analysed passages. This is not a documentary representation score.</p>}</section>)}</section>)}
   <details><summary>No displayed findings ({report.competencies.filter(c=>!c.findings.length).length} competencies)</summary><p>No application means an assessed target and its permitted context did not support a competency. Pending and failed assessments are not No application. Deterministic candidates are separate. This is not a documentary representation score.</p><ul>{report.competencies.filter(c=>!c.findings.length).map(c=><li key={c.id}>{c.competency}</li>)}</ul></details>
-  <details><summary>No application — assessed passages ({report.noCode.length})</summary><Pager items={report.noCode} render={items=>items.map(f=>evidence(f))}/></details>
+  <LazyDetails title={`No application — assessed passages (${report.noCode.length})`}>{()=> <Pager items={report.noCode} render={items=>items.map(f=>evidence(f))}/>}</LazyDetails>
   {edit&&!readonly&&<div className="wb-overlay"><section role="dialog" aria-modal="true" aria-label="Correct passage"><h3>Correct this passage</h3><blockquote>{edit.unit.original_text}</blockquote><CodeEditor key={editing} value={{codes:edit.value.codes.map(c=>({...c})),valence:edit.value.valence,notes:edit.value.notes,reviewedNoCode:edit.value.reviewedNoCode}} unit={edit.unit} contextUnits={session.contextUnits} instrument={instrument} documentary={session.mode==='documentary'} save={value=>{change({decisions:{...draft.decisions,[editing]:value}},'Corrected AI finding');setEditing(null);}} cancel={()=>setEditing(null)}/></section></div>}
  </section>;
 }

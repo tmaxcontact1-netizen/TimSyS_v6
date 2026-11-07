@@ -6,6 +6,7 @@ export function summariseMcf(session,instrument,draft,machine,filter='all'){
  const saved=draft.step===5?(machine?.snapshot??draft.machineReport):null;
  const run=saved?.run??machine?.runs?.find(r=>r.id===draft.machineRunId);
  const proposals=(saved?.proposals??machine?.proposals??[]).filter(p=>p.run_id===run?.id);
+ const assessedIds=new Set(proposals.filter(p=>p.payload.method!=='deterministic').map(p=>p.unit_id));
  const candidates=saved?.candidates??run?.candidates??[];
  const byUnit=new Map([...candidates,...proposals].map(p=>[p.unit_id,p.payload]));
  const units=(session?.units??[]).filter(u=>u.original_text.trim());
@@ -17,5 +18,5 @@ export function summariseMcf(session,instrument,draft,machine,filter='all'){
  });
  const competencies=(instrument?.competencies??[]).map(c=>{const all=findings.flatMap(f=>f.value.codes.filter(code=>code.competencyId===c.id).map(code=>({...f,code})));return {...c,counts:evidenceCounts(all.filter(f=>!f.local).map(f=>f.code)),findings:all.filter(f=>filter==='all'||(filter==='historical'? !f.local&&f.code.evidenceProtocol!==2:f.code.evidenceProtocol===2&&f.code.evidenceStrength===filter))};});
  const reviewLevel=units.every(u=>u.record_id)?reviewAggregation(units,findings.filter(f=>!f.local).map(f=>({unit_id:f.unit.id,payload:f.value}))):null;
- return {aiAmbiguity:aiAmbiguitySummary(units,proposals),run,coverage,reviewLevel,deterministic:coverage.deterministicCandidateMatches+coverage.deterministicNoMatch,competencies,findings,total:units.length,analysed:coverage.semanticAssessed,missing:units.filter(u=>!proposals.some(p=>p.unit_id===u.id&&p.payload.method!=='deterministic')),human:findings.filter(f=>f.human).length,noCode:findings.filter(f=>!f.local&&!f.value.codes.length),contextual:findings.filter(f=>f.value.codes.some(c=>c.evidenceProtocol===2&&c.evidenceStrength==='Contextual'))};
+ return {aiAmbiguity:aiAmbiguitySummary(units,proposals),run,coverage,reviewLevel,deterministic:coverage.deterministicCandidateMatches+coverage.deterministicNoMatch,competencies,findings,total:units.length,analysed:coverage.semanticAssessed,missing:units.filter(u=>!assessedIds.has(u.id)),human:findings.filter(f=>f.human).length,noCode:findings.filter(f=>!f.local&&!f.value.codes.length),contextual:findings.filter(f=>f.value.codes.some(c=>c.evidenceProtocol===2&&c.evidenceStrength==='Contextual'))};
 }
