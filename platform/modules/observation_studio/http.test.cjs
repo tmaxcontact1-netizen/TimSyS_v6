@@ -6,6 +6,7 @@ test('isolated platform boots, registers observations and serves authenticated C
     process.env.REFRESH_TOKEN_SECRET = 'synthetic-observation-refresh-at-least-32';
     process.env.DB_PATH = file;
     process.env.PORT = '0';
+    if(process.env.OBSERVATION_VERIFY_UI)process.env.TIMSYS_LAUNCHER_DIST=process.env.OBSERVATION_VERIFY_UI;
     const runtime=process.env.OBSERVATION_VERIFY_PLATFORM||path.resolve(__dirname,'../..');
     const platform = require(path.join(runtime,'index.js'));
     let server;
@@ -16,6 +17,7 @@ test('isolated platform boots, registers observations and serves authenticated C
         const login = await request('POST', '/api/auth/dev-login', {});
         assert.equal(login.status, 200);
         const token = login.data.token;
+        if(process.env.OBSERVATION_VERIFY_UI){const page=await fetch(base+'/app/principal-ed');assert.equal(page.status,200);const frame=await fetch(base+'/observation-studio/index.html');assert.equal(frame.status,200);const html=await frame.text();assert.ok(html.includes('window.nativeRpc'));assert.doesNotMatch(html,/bahrain|bayan|\bbbs\b/i);const workspace=fs.readFileSync(path.resolve(__dirname,'../../../apps/principaled/src/dashboard/widgets/ObservationWorkspace.jsx'),'utf8'),src=workspace.match(/title="Observation Studio" src="([^"]+)"/)[1];assert.equal(new URL(src,base+'/app/principal-ed').pathname,'/observation-studio/index.html');}
         const modules = await request('GET', '/modules/list-for-app?appId=principal-ed', null, token);
         assert.ok(modules.data.data.find(m => m.name === 'observation_studio' && m.enabled));
         const db = require(path.join(runtime,'shared/services/db.js'));
