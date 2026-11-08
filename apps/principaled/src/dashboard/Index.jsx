@@ -1,3 +1,4 @@
+import ObservationStudioWidget from './widgets/ObservationWorkspace';
 import React, { useState, useEffect, useRef } from "react";
 import * as api from "../api/client";
 import OverviewWidget from "./widgets/OverviewWidget";
@@ -47,6 +48,7 @@ import {
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
+  observation_studio: {id:"observation_studio",label:"Observations",widget:ObservationStudioWidget,requiresAdmin:false},
   execution: { id: "execution", label: "Projects & tasks", widget: ExecutionWidget, requiresAdmin: false },
   nervous_breakdown: { id: "nervous_breakdown", label: "Responsibilities", widget: NervousBreakdownWidget, requiresAdmin: true },
   // Existing operational modules (non-admin)
@@ -242,7 +244,7 @@ const WORKSPACES = {
   organisation: { label: "Organisation", icon: "N", description: "Responsibilities and shared projects", modules: ["nervous_breakdown", "execution"] },
   people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
   learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
-  planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
+  planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["observation_studio", "calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
   operations: { label: "Operations", icon: "O", description: "Rooms, resources, safety and services", modules: ["rooms", "inventory", "venue_bookings", "resource_reservations", "transportation", "catering", "risk_assessments", "safeguarding_requirements", "contingency"] },
   administration: { label: "Administration", icon: "A", description: "Tasks, approvals, records, communications and finance", modules: ["tasks", "approvals", "documents", "communications", "audiences", "invitations", "ownership", "financial_planning"] },
   system: { label: "System", icon: "S", description: "Builder, health and technical services", modules: ["backend_builder", "backend_system_health", "backend_app_registry", "backend_auto_rules", "backend_decision_log", "backend_event_store", "backend_insight_management", "backend_intelligence", "backend_knowledge_store", "backend_notification", "backend_relationship_registry", "backend_snapshot_service", "backend_user_management"] },
@@ -253,6 +255,7 @@ const VIEW_DESCRIPTIONS = {
   nervous_breakdown: "Nervous Breakdown: explore and govern the responsibility network",
   students: "Student records and enrolment", student_profiles: "Complete student information", staff: "Staff records and employment", staff_profiles: "Complete staff information", student_exits: "Live student movement", late_entries: "Late arrival and attendance changes",
   assessment_evaluator: "Check what an assessment measures", gradebook: "Class evidence, grades and reports", attendance: "Attendance at events",
+  observation_studio: "Plan visits, capture evidence and review development",
   calendar: "School dates and commitments", scheduler: "Timetable configuration and review", programme_manager: "Activities, electives and enrichment", teacher_preferences: "Advisory staff preferences", cover: "Absence cover recommendations", event_record: "Event records", event_planner: "Plan complete events",
   rooms: "Rooms and teaching spaces", inventory: "Equipment and other resources", venue_bookings: "Reserve spaces", resource_reservations: "Reserve equipment", transportation: "Transport requirements", catering: "Food and service plans", risk_assessments: "Operational risk reviews", safeguarding_requirements: "Safeguarding checks", contingency: "Alternative plans",
   tasks: "Individual tasks outside a project", approvals: "Decisions awaiting a person", documents: "Managed school documents", communications: "Messages and communication history", audiences: "Groups of participants", invitations: "Invite and track participants", ownership: "Accountability and responsibility", financial_planning: "Budgets and requests",
@@ -410,8 +413,10 @@ function PrincipalEdDashboard() {
       if (!response.ok) {
         // Personal Execution access must not require Builder administration.
         if (response.status === 403) {
-          const execution = await fetch('/execution/availability', { headers: { Authorization: `Bearer ${token}` } });
-          if (execution.ok && (await execution.json()).enabled) { setEnabledModules(['execution']); return; }
+          const available=[];
+          const checks=await Promise.allSettled([api.default.get('/execution/availability'),api.default.get('/observations/access')]);
+          checks.forEach((result,i)=>{if(result.status==='fulfilled'&&result.value.data.enabled)available.push(i===0?'execution':'observation_studio');});
+          if(available.length){setEnabledModules(available);return;}
         }
         throw new Error(`HTTP ${response.status}`);
       }
@@ -600,6 +605,7 @@ function PrincipalEdDashboard() {
     if (moduleName === "gradebook") return <GradebookWidget askConfirmation={askConfirmation} />;
     if (moduleName === "assessment_evaluator") return <AssessmentEvaluatorWidget />;
     if (moduleName === "nervous_breakdown") return <NervousBreakdownWidget askConfirmation={askConfirmation} />;
+    if (moduleName === "observation_studio") return <ObservationStudioWidget askConfirmation={askConfirmation} />;
     if (moduleName === "scheduler") return <SchedulerWidget askConfirmation={askConfirmation} />;
     if (moduleName === "teacher_preferences") return <TeacherPreferencesWidget askConfirmation={askConfirmation} />;
     if (moduleName === "cover") return <CoverWidget askConfirmation={askConfirmation} askText={askText} />;

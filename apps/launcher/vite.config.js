@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { copyFile, readFile, readdir } from 'node:fs/promises';
+import { cp, copyFile, readFile, readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 
 const configDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -16,6 +16,7 @@ export default defineConfig({
     for(const selector of ['flex','grid','p-6','px-6','min-h-screen','rounded-lg','gap-6'])assert.ok(new RegExp('\\.'+selector+'\\s*\\{').test(css),`Launcher build lost dashboard styling: ${selector}`);
     for(const marker of ['Documentary destinations','Connection evidence','dl-viewport'])assert.ok(code.includes(marker),`Launcher build lost Phase 2A UI: ${marker}`);
     assert.ok(!code.includes('Formal responsibilities, source evidence and the connections between them.'),'Launcher includes superseded Nervous Breakdown interface');
+    await cp(path.join(repositoryRoot,'apps/principaled/public/observation-studio'),path.join(configDirectory,'dist/observation-studio'),{recursive:true});
     await copyFile(path.join(configDirectory, 'dist/index.html'), path.join(configDirectory, 'dist/assistant.html')); } }],
   server: {
     port: 5173,

@@ -1,0 +1,130 @@
+{
+  "name": "observation_studio",
+  "version": "0.1.0",
+  "author": "admin",
+  "dependencies": [
+    "db",
+    "auth",
+    "log",
+    "staff_registry",
+    "calendar",
+    "scheduler",
+    "cover"
+  ],
+  "provides": [
+    "capability:observation_studio.read",
+    "capability:observation_studio.write"
+  ],
+  "requires": [],
+  "routes": [
+    {
+      "path": "/observations/workspace",
+      "method": "GET",
+      "handler": "observation_studio_workspace",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations/settings",
+      "method": "PUT",
+      "handler": "observation_studio_saveSettings",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations",
+      "method": "POST",
+      "handler": "observation_studio_create",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations/availability",
+      "method": "POST",
+      "handler": "observation_studio_preview",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations/:id/commands",
+      "method": "POST",
+      "handler": "observation_studio_command",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations/:id/history",
+      "method": "GET",
+      "handler": "observation_studio_history",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations/studio/rpc",
+      "method": "POST",
+      "handler": "observation_studio_fullRpc",
+      "auth_required": true,
+      "permissions": []
+    },
+    {
+      "path": "/observations/access",
+      "method": "GET",
+      "handler": "observation_studio_access",
+      "auth_required": true,
+      "permissions": []
+    }
+  ],
+  "schema": {
+    "tables": [
+      "observation_settings",
+      "observation_records",
+      "observation_audit",
+      "observation_receipts",
+      "observation_stores",
+      "observation_rpc_receipts"
+    ],
+    "migrations": [
+      "migrations/001_observations.sql",
+      "migrations/002_full_studio.sql",
+      "migrations/003_enable_existing_installs.sql"
+    ]
+  },
+  "events": {
+    "publishes": [],
+    "subscribes": []
+  },
+  "functions": [
+    {
+      "name": "observation_studio_workspace",
+      "exports": "workspace"
+    },
+    {
+      "name": "observation_studio_saveSettings",
+      "exports": "saveSettings"
+    },
+    {
+      "name": "observation_studio_create",
+      "exports": "create"
+    },
+    {
+      "name": "observation_studio_preview",
+      "exports": "preview"
+    },
+    {
+      "name": "observation_studio_command",
+      "exports": "command"
+    },
+    {
+      "name": "observation_studio_history",
+      "exports": "history"
+    },
+    {
+      "name": "observation_studio_fullRpc",
+      "exports": "fullRpc"
+    },
+    {
+      "name": "observation_studio_access",
+      "exports": "access"
+    }
+  ]
+}

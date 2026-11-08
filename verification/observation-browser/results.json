@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-08",
+  "scope": "isolated PrincipalEd observation-studio-prototype checkout",
+  "automated": {
+    "unitAndDomain": {
+      "passed": 22,
+      "failed": 0
+    },
+    "fullPlatformHttp": {
+      "passed": 1,
+      "failed": 0
+    },
+    "productionBuild": "passed",
+    "inlineScriptSyntax": "passed"
+  },
+  "browser": {
+    "tboEvidenceAndReload": "passed",
+    "rowTimerResumeAndLog": "passed",
+    "reflectionAndEvidenceReview": "passed",
+    "probationSaveReload": "passed",
+    "schedulePreviewSaveRescheduleLinkedCompletion": "passed",
+    "pdAttendanceAndHumanContribution": "passed",
+    "observeeNavigationReadOnlyReopen": "passed",
+    "settingsAndTemplateSnapshots": "passed",
+    "jsonDownloadContent": "passed",
+    "duplicateImportRejection": "passed",
+    "syntheticImport": "passed",
+    "overview": "passed",
+    "nativePrintPdfFile": "not verified: native dialog blocks embedded browser automation",
+    "cleanStartZeroObservations": "passed",
+    "unbrandedNewForm": "passed: no school text, logo or embedded school document"
+  },
+  "cleanup": {
+    "isolatedServerStopped": true,
+    "syntheticDatabaseRemoved": true,
+    "installedAppsModified": false,
+    "published": false
+  },
+  "report": "../../../docs/observation-studio-verification.md"
+}

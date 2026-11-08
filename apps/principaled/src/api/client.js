@@ -657,3 +657,5 @@ export const composeBuilderModule = data => client.post("/builder/compose",data)
 export const validateBuilderModule = data => client.post("/builder/validate",data);
 export const listBuilderDrafts = () => client.get("/builder/drafts");
 export const activateBuilderDraft = moduleName => client.post(`/builder/drafts/${encodeURIComponent(moduleName)}/activate`,{});
+
+export default client;
