@@ -60,7 +60,19 @@ export class ContentWorker {
           const browserCheck=captured.status===202 || /challenge\.js|challenge-platform|verify you are human|checking your browser/i.test(captured.bytes.toString("utf8"));
           const dynamic=browserCheck || $("details,[aria-expanded=false],[data-toggle=collapse],[data-bs-toggle=collapse]").length>0 || $("main").text().trim().length<200 || /loading (?:course|content|programme|program)|enable javascript/i.test($("body").text());
           if(dynamic) {
-            try {const original=captured;captured=await(this.options.render??acquireRenderedSource)(captured.resolvedUrl,{waitForReadyPage:true,expandInteractiveContent:true,maximumInteractions:40,timeoutMs:35000,signal});captured={...captured,requestedUrl:url,metadata:{...captured.metadata,httpResolvedUrl:original.resolvedUrl,httpStatus:original.status}};}
+            try {
+              const original=captured;
+              for(let attempt=1;attempt<=2;attempt++) {
+                try {
+                  captured=await(this.options.render??acquireRenderedSource)(original.resolvedUrl,{waitForReadyPage:true,expandInteractiveContent:true,maximumInteractions:40,timeoutMs:35000,signal});
+                  captured={...captured,requestedUrl:url,metadata:{...captured.metadata,httpResolvedUrl:original.resolvedUrl,httpStatus:original.status,browserAttempts:attempt}};
+                  break;
+                } catch(error) {
+                  signal.throwIfAborted();
+                  if(attempt===2 || !(error instanceof Error) || error.message!=="browser_check_not_completed")throw error;
+                }
+              }
+            }
             catch(error){signal.throwIfAborted();if(browserCheck)throw error;captured={...captured,metadata:{...captured.metadata,renderWarning:error instanceof Error?error.message:String(error)}};}
           }
         }
