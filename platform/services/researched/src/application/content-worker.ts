@@ -57,10 +57,11 @@ export class ContentWorker {
         signal.throwIfAborted();
         if(captured.mediaType.includes("html")) {
           const $=load(captured.bytes.toString("utf8"));
-          const dynamic=$("details,[aria-expanded=false],[data-toggle=collapse],[data-bs-toggle=collapse]").length>0 || $("main").text().trim().length<200 || /loading (?:course|content|programme|program)|enable javascript/i.test($("body").text());
+          const browserCheck=captured.status===202 || /challenge\.js|challenge-platform|verify you are human|checking your browser/i.test(captured.bytes.toString("utf8"));
+          const dynamic=browserCheck || $("details,[aria-expanded=false],[data-toggle=collapse],[data-bs-toggle=collapse]").length>0 || $("main").text().trim().length<200 || /loading (?:course|content|programme|program)|enable javascript/i.test($("body").text());
           if(dynamic) {
-            try {captured=await(this.options.render??acquireRenderedSource)(url,{expandInteractiveContent:true,maximumInteractions:40,timeoutMs:35000,signal});}
-            catch(error){signal.throwIfAborted();captured={...captured,metadata:{...captured.metadata,renderWarning:error instanceof Error?error.message:String(error)}};}
+            try {const original=captured;captured=await(this.options.render??acquireRenderedSource)(captured.resolvedUrl,{waitForReadyPage:true,expandInteractiveContent:true,maximumInteractions:40,timeoutMs:35000,signal});captured={...captured,requestedUrl:url,metadata:{...captured.metadata,httpResolvedUrl:original.resolvedUrl,httpStatus:original.status}};}
+            catch(error){signal.throwIfAborted();if(browserCheck)throw error;captured={...captured,metadata:{...captured.metadata,renderWarning:error instanceof Error?error.message:String(error)}};}
           }
         }
         signal.throwIfAborted();
@@ -98,7 +99,7 @@ export class ContentWorker {
           if(!page.blocks.length)throw new Error("empty_extraction");
           pages.push(page); observations.push({url:key,status:capture.resolvedUrl!==key?"redirected":"available",detail:capture.resolvedUrl,parentUrl:item.parentUrl,httpStatus:capture.status});
           if(capture.mediaType.includes("html") && item.depth<plan.maxDepth && (plan.followWebpages||plan.followDocuments)) {
-            for(const link of rankSupportingLinks(capture.bytes.toString("utf8"),capture.resolvedUrl,context.url,plan)) {
+            for(const link of rankSupportingLinks(capture.bytes.toString("utf8"),capture.resolvedUrl,pages[0]!.url,plan)) {
               if(seen.has(link.url)||queue.some(x=>x.url===link.url))continue;
               if(link.allowed)queue.push({url:link.url,depth:item.depth+1,parentUrl:page.url,reason:link.reason});
               else suggestions.push({url:link.url,label:link.label,reason:`Review this host before following: ${link.reason}`});

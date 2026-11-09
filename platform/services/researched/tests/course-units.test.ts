@@ -33,4 +33,8 @@ describe('course units only',()=>{
  it('does not change historical plans or reinterpret accreditation as units',async()=>{
   expect(contentPlanInput.parse({}).mode).toBe('general');const page=await readContentPage(Buffer.from('<main><h1>Accreditation standards</h1><h2>Curriculum</h2><li>EDU 501 Requirements</li></main>'),'text/html',meta.requestedUrl,meta);expect(analyseContent([page],plan).courseUnits).toEqual([]);
  });
+ it('keeps archived catalogue section labels out of the unit list',async()=>{
+  const page=await readContentPage(Buffer.from('<main><h1>Archived programme</h1><h2>Research Courses (15 units):</h2><h3>P-12 Specialization:</h3><li>EDLD 751 Organizational Culture (3 units)</li></main>'),'text/html',meta.requestedUrl,meta);
+  const units=analyseContent([page],plan).courseUnits!;expect(units).toHaveLength(1);expect(units[0]!.code).toBe('EDLD 751');
+ });
 });

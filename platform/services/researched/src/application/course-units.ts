@@ -13,7 +13,7 @@ export function extractCourseUnits(pages:CapturedPage[]):CourseUnit[]{
    const inCurriculum=curriculum.test(section);
    const heading=/^h[2-6]$/.test(tag)||tag==='dt';
    const coded=match&&match.index<45&&(inCurriculum||heading||tag==='tr'||tag==='dt')&&!/admission|contact|privacy|tuition|fee/i.test(section);
-   const titleOnly=!coded&&inCurriculum&&(heading||tag==='li')&&b.text.length<160&&!/[.!?]$/.test(b.text)&&!generic.test(b.text)&&!/^(?:(?:explore|view|see|browse|download)\b|\d+\s*(?:credits?|hours?))/i.test(b.text);
+   const titleOnly=!coded&&inCurriculum&&(heading||tag==='li')&&b.text.length<160&&!/[.!?]$/.test(b.text)&&!generic.test(b.text)&&!/(?:courses?\s*\(\d+ units?\)|specialization)\s*:\s*$/i.test(b.text)&&!/^(?:(?:explore|view|see|browse|download)\b|\d+\s*(?:credits?|hours?))/i.test(b.text);
    if(coded||titleOnly){
     const raw=coded?match![2]!:b.text;
     const split=[raw]; // Colons and dashes may be part of the published unit title.

@@ -216,6 +216,7 @@ export async function acquireRenderedSource(
     executablePath?: string;
     maximumBytes?: number;
     timeoutMs?: number;
+    waitForReadyPage?: boolean;
     expandInteractiveContent?: boolean;
     maximumInteractions?: number;
     signal?: AbortSignal;
@@ -251,12 +252,35 @@ export async function acquireRenderedSource(
         await route.abort("blockedbyclient");
       }
     });
+    const navigations: {url:string; status:number}[]=[];
+    let latestResponse: import("playwright-core").Response | null = null;
+    page.on("response", response => {
+      if(response.request().isNavigationRequest() && response.frame()===page.mainFrame()) {
+        latestResponse=response;
+        navigations.push({url:response.url(),status:response.status()});
+      }
+    });
     const response = await page.goto(initial.href, {
       waitUntil: "domcontentloaded",
       timeout: options.timeoutMs ?? 45_000,
     });
     if (!response) throw new Error("rendered_source_no_response");
-    if (!response.ok()) throw Object.assign(new Error("source_http_error"), {status:response.status()});
+    let ready=!options.waitForReadyPage;
+    if(options.waitForReadyPage) {
+      const until=Date.now()+(options.timeoutMs??35_000);
+      while(Date.now()<until) {
+        options.signal?.throwIfAborted();
+        const pending=await page.evaluate(()=> {
+          const text=document.body?.innerText?.trim()??"";
+          return text.length<80 || /just a moment|verify you are human|checking your browser|javascript is disabled/i.test(document.title+" "+text) || !!document.querySelector('script[src*="challenge.js"],script[src*="challenge-platform"],meta[http-equiv="refresh" i]');
+        }).catch(()=>true);
+        const current=latestResponse??response;
+        if(!pending && current.status()!==202) {ready=true;break;}
+        await page.waitForTimeout(250);
+      }
+    }
+    const finalResponse=latestResponse??response;
+    if (!finalResponse.ok()) throw Object.assign(new Error("source_http_error"), {status:finalResponse.status()});
     await page.waitForLoadState("networkidle", {timeout:5_000}).catch(()=>undefined);
     const interactions: {kind:string;label:string}[]=[];
     if(options.expandInteractiveContent !== false){
@@ -274,6 +298,8 @@ export async function acquireRenderedSource(
         try{await control.click({timeout:2_500}); interactions.push({kind:"click",label}); await page.waitForTimeout(100);}catch{/* A stale or covered control remains visible in the audit only by its absence. */}
       }
     }
+    if(options.waitForReadyPage && (!ready || (latestResponse??response).status()===202 || await page.locator('script[src*="challenge.js"],script[src*="challenge-platform"]').count()))
+      throw Object.assign(new Error("browser_check_not_completed"),{status:403});
     const html = await page.content(),
       bytes = Buffer.from(html, "utf8"),
       maximum = options.maximumBytes ?? 25_000_000;
@@ -283,11 +309,12 @@ export async function acquireRenderedSource(
     return Object.freeze({
       requestedUrl,
       resolvedUrl,
-      status: response.status(),
+      status: finalResponse.status(),
       mediaType: "text/html",
       bytes,
       hash: contentHash(bytes),
       metadata: Object.freeze({
+        navigations,
         rendered: true,
         browser: "system-chromium",
         title: await page.title(),
