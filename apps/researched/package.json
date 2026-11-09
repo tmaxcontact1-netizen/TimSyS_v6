@@ -1,6 +1,6 @@
 {
   "name": "researched",
-  "version": "0.10.14",
+  "version": "0.10.15",
   "private": true,
   "type": "module",
   "description": "TimSyS frontend; all backend services are owned by TimSyS",

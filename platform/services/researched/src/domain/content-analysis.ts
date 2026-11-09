@@ -14,10 +14,11 @@ export type ContentField = typeof FIELD_CATALOG[number]["id"];
 export const DEFAULT_FIELDS: ContentField[] = ["curriculum", "outcomes", "assessment", "practice", "delivery", "duration", "admissions"];
 const field = z.enum(["curriculum", "outcomes", "assessment", "practice", "delivery", "duration", "admissions"]);
 export const contentPlanInput = z.object({
+  mode: z.enum(["general", "course-units"]).default("general"),
   goal: z.string().trim().min(1).max(3000).default("Explain the curriculum, modules and professional development offered, with evidence."),
   fields: z.array(field).min(1).transform(values => [...new Set(values)]).default(DEFAULT_FIELDS),
-  maxDepth: z.number().int().min(0).max(2).default(2),
-  maxPages: z.number().int().min(1).max(15).default(8),
+  maxDepth: z.number().int().min(0).max(4).default(2),
+  maxPages: z.number().int().min(1).max(40).default(8),
   allowedHosts: z.array(z.string().trim().toLowerCase().regex(/^(?:[a-z0-9-]+\.)+[a-z]{2,}$/)).max(30).default([]),
   followWebpages: z.boolean().default(true),
   followDocuments: z.boolean().default(true),
@@ -33,6 +34,7 @@ export type CapturedPage = {id: string; url: string; requestedUrl: string; title
 export type LinkObservation = {url: string; status: string; detail: string; parentUrl: string | null; httpStatus?: number};
 export type ContentResult = {
   version: string; title: string; kind: "programme" | "training" | "accreditation" | "directory" | "unresolved";
+  courseUnits?: import("../application/course-units.js").CourseUnit[];
   fields: Record<string, EvidenceBlock[]>; pages: CapturedPage[]; observations: LinkObservation[];
   warnings: string[]; suggestions: {url: string; label: string; reason: string}[];
   coverage: {found: number; requested: number; missing: string[]};

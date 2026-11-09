@@ -1,3 +1,4 @@
+import {extractCourseUnits} from "./course-units.js";
 import { load } from "cheerio";
 import mammoth from "mammoth";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
@@ -132,7 +133,7 @@ export function analyseContent(pages: CapturedPage[], plan: ContentPlan): Conten
   if (kind === "accreditation") warnings.push("Accreditation context is retained separately. No programme comparison or accreditation judgement has been made.");
   if (pages.some(p => new Set(p.blocks.flatMap(b => b.heading.match(/master|doctor|bachelor/gi) ?? []).map(x => x.toLowerCase())).size > 1)) warnings.push("This page may describe several qualifications. Check the section attached to each passage before attributing it to a programme.");
   if (pages.some(p => p.blocks.some(b => b.text.length > 4000))) warnings.push("Some source passages are long; verify the relevant programme and section in the preserved evidence.");
-  return {version: CONTENT_VERSION, title: first?.title ?? "No readable source", kind, fields, pages, observations: [], suggestions: [], warnings, coverage: {found: plan.fields.length - missing.length, requested: plan.fields.length, missing}, ai: {status: "off", notes: [], detail: "Deterministic extraction only."}};
+  return {version: CONTENT_VERSION, title: first?.title ?? "No readable source", kind, ...(plan.mode==="course-units"?{courseUnits:kind==="accreditation"?[]:extractCourseUnits(pages)}:{}), fields, pages, observations: [], suggestions: [], warnings, coverage: {found: plan.fields.length - missing.length, requested: plan.fields.length, missing}, ai: {status: "off", notes: [], detail: "Deterministic extraction only."}};
 }
 
 export function rankSupportingLinks(html: string, baseUrl: string, rootUrl: string, plan: ContentPlan) {
@@ -147,11 +148,15 @@ export function rankSupportingLinks(html: string, baseUrl: string, rootUrl: stri
       const attachment = /\.(?:pdf|docx|txt|xlsx|csv|doc)(?:$|\?)/i.test(url)||/pdf|word|spreadsheet|officedocument/i.test($(anchor).attr("type")??"")||$(anchor).attr("download")!==undefined;
       if(attachment&&!plan.followDocuments||!attachment&&!plan.followWebpages)return;
       const goalWords = [plan.goal,...plan.questions].join(' ').toLowerCase().match(/[a-z]{5,}/g) ?? [];
-      const score = matches.length * 5 + (attachment ? 4 : 0) + Math.min(2, goalWords.filter(w => searchable.toLowerCase().includes(w)).length);
+      const courseLink=plan.mode==="course-units"&&/curricul|catalog|catalogue|handbook|degree.requirements|course|module|[A-Z]{2,8}\s?\d{3,5}/i.test(searchable);
+      if(plan.mode==='course-units'&&!courseLink)return;
+      const score = (courseLink?8:0) + matches.length * 5 + (attachment ? 4 : 0) + Math.min(2, goalWords.filter(w => searchable.toLowerCase().includes(w)).length);
       if (score < (plan.questions.length?1:4) || url === canonicalContentUrl(baseUrl)) return;
       const rootHost = root.hostname.replace(/^www\./, ""), host = target.hostname.replace(/^www\./, "");
       // Exact source host and its subdomains are automatic. Other hosts must be explicitly trusted.
-      const allowed = host === rootHost || host.endsWith(`.${rootHost}`) || plan.allowedHosts.includes(target.hostname) || plan.allowedHosts.includes(host);
+      const academicRoot=(h:string)=>h.match(/(?:^|\.)([^.]+\.edu)$/)?.[1]??h.match(/(?:^|\.)([^.]+\.(?:ac\.uk|edu\.au))$/)?.[1];
+      const sibling=plan.mode==="course-units"&&academicRoot(host)&&academicRoot(host)===academicRoot(rootHost);
+      const allowed = !!sibling || host === rootHost || host.endsWith(`.${rootHost}`) || plan.allowedHosts.includes(target.hostname) || plan.allowedHosts.includes(host);
       found.set(url, {url, label: label || target.pathname, reason: matches.map(x => x.label).join(", ") || "Programme handbook or specification", allowed, score});
     } catch { /* Non-HTTP links are not research sources. */ }
   });

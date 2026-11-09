@@ -15,6 +15,14 @@ async function body(request:IncomingMessage,maximum=1_000_000) {const chunks:Buf
 async function jsonBody(request:IncomingMessage) {try{return JSON.parse((await body(request)).toString("utf8"));}catch(error){if(error instanceof Error&&error.message==="request_too_large")throw error;throw new Error("invalid_json");}}
 const csvCell=(value:unknown)=>{let text=String(value??"");if(/^[=+@\-\t\r]/.test(text))text=`'${text}`;return `"${text.replaceAll('"','""')}"`;};
 export function contentCsv(run:{tasks:{url:string;status:string;error?:{status?:string};result?:ContentResult}[]}) {
+  if(run.tasks.some(t=>t.result?.courseUnits!==undefined)){
+    const rows:unknown[][]=[['Programme URL','Status','Programme title','Section','Unit code','Unit title','Published overview','Source URL','Source locator']];
+    for(const task of run.tasks){const units=task.result?.courseUnits??[];
+      for(const unit of units)rows.push([task.url,task.status,task.result?.title,unit.programmeSection,unit.code,unit.title,unit.overview.join('\n\n'),unit.sourceUrl,unit.locator]);
+      if(!units.length)rows.push([task.url,task.error?.status??task.status,task.result?.title,'','','','No reliably identifiable unit list found in inspected material.','','']);
+    }
+    return '\uFEFF'+rows.map(row=>row.map(csvCell).join(',')).join('\r\n');
+  }
   const rows:unknown[][]=[["URL","Status","Title","Resource type",...FIELD_CATALOG.map(f=>f.label),"Missing sections","Source URLs","AI answers"]];
   for(const task of run.tasks){const result=task.result;rows.push([task.url,task.error?.status??task.status,result?.title,result?.kind,...FIELD_CATALOG.map(f=>result?.fields[f.id]?.map(b=>`${b.text} [${result.pages.find(p=>p.id===b.pageId)?.url} — ${b.locator}]`).join("\n")??""),result?.coverage.missing.join("; "),result?.pages.map(p=>p.url).join("\n"),result?.ai.answers?.map(a=>a.question+": "+(a.status==="not-found"?"Not found in inspected evidence":a.findings.map(f=>f.text+" ["+f.evidence.map(e=>e.quote).join("; ")+"]").join("\n"))).join("\n\n")??""]);}
   return "\uFEFF"+rows.map(row=>row.map(csvCell).join(",")).join("\r\n");

@@ -122,7 +122,7 @@ export class ContentWorker {
       }
       const documentLabels=context.occurrences.map((x:{context:string})=>x.context).join(" | ");
       if(documentLabels)result.warnings.push("Document labels are supplied context, not verified provider or qualification identities. Refer to the captured page title and passages.");
-      if(plan.aiEnabled) result=await this.assist(result,plan,signal);
+      if(plan.aiEnabled && plan.mode!=="course-units") result=await this.assist(result,plan,signal);
       await check();await this.repo.finish(task.id,result);
     }catch(error){if(!signal.aborted)await this.repo.fail(task.id,failureObservation(error,context.url,null));}
     finally{this.active.delete(task.id);}
