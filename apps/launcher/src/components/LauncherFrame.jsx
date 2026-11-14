@@ -13,5 +13,6 @@ export default function LauncherFrame({children}){
     if(!popup)throw Error('Allow pop-out windows to open AI integration.');
   };
   const builder=location.pathname.includes('modules')||location.pathname==='/app/builder';
-  return <div className="launcher-workspace"><WorkspaceBar brand="TimSyS Launcher" context={builder?'Builder':'Applications'} backDisabled={location.pathname==='/'} onBack={()=>{if((window.history.state?.idx||0)>0)navigate(-1);else navigate('/');}} onLauncher={()=>navigate('/')} onAssistant={()=>assistant(false)} onAiSettings={()=>assistant(true)} popOut={builder}/><div className="launcher-workspace-content">{children}</div></div>;
+  const isLauncherHome=location.pathname==='/';
+  return <div className="launcher-workspace"><WorkspaceBar brand="TimSyS Launcher" context={builder?'Builder':'Applications'} backDisabled={isLauncherHome} showLauncher={!isLauncherHome} onBack={()=>{if((window.history.state?.idx||0)>0)navigate(-1);else navigate('/');}} onLauncher={()=>navigate('/')} onAssistant={()=>assistant(false)} onAiSettings={()=>assistant(true)} popOut={builder}/><div className="launcher-workspace-content">{children}</div></div>;
 }
