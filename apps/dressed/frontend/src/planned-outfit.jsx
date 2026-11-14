@@ -1,3 +1,4 @@
+import GarmentName from "./garment-name.jsx";
 import React, {useState} from 'react';
 import OutfitPreview from './outfit-preview.jsx';
 
@@ -15,7 +16,7 @@ export default function PlannedOutfit({outfit, api}) {
       {!garments.length?<p role="status">The garments for this outfit are unavailable. Reopen Dress’Ed to load the latest planner; if the outfit was removed, choose a replacement.</p>:<>
         <div className="planned-outfit-garments">{slots.map(slot=><section key={slot}>
           <h5>{types.find(([id])=>id===slot)?.[1]||slot.replaceAll('_',' ').replace(/^./,letter=>letter.toUpperCase())}</h5>
-          <ul>{garments.filter(g=>(g.slotId||'accessory')===slot).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})).map(g=><li key={g.id}>{g.name}</li>)}</ul>
+          <ul>{garments.filter(g=>(g.slotId||'accessory')===slot).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true,sensitivity:'base'})).map(g=><li key={g.id}><GarmentName garment={g} api={api}/></li>)}</ul>
         </section>)}</div>
         {outfit.notes&&<p>{outfit.notes}</p>}
         <OutfitPreview garments={garments} api={api}/>

@@ -1,3 +1,6 @@
+import GarmentName from "./garment-name.jsx";
+import GarmentPage from "./garment-page.jsx";
+import OutfitCollections,{CollectionPicker,CollectionMembership} from "./outfit-collections.jsx";
 import PlannedOutfit from "./planned-outfit.jsx";
 import WeeklyPlanner from "./weekly-planner.jsx";
 import {saveOutfitConfirmed} from "./save-outfit.js";
@@ -554,26 +557,31 @@ function RenameOutfit({outfit,onRenamed}) {
   }catch(e){setError(e.message);}finally{setBusy(false);}};
   return editing?<form onSubmit={submit}><label>Outfit name<input autoFocus required maxLength={120} value={name} disabled={busy} onChange={e=>setName(e.target.value)}/></label><div className="row-actions"><button type="submit" disabled={busy||!name.trim()}>{busy?'Saving name…':'Save name'}</button><button type="button" disabled={busy} onClick={()=>setEditing(false)}>Cancel</button></div>{error&&<p className="error" role="alert">{error}</p>}</form>:<button type="button" onClick={()=>{setName(outfit.name);setError('');setEditing(true);}}>Rename</button>;
 }
-function SavedOutfits({ edit, plan, refreshKey }) {
+function SavedOutfits({ edit, plan, build, refreshKey }) {
   const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(""),[target,setTarget]=useState(null),[busy,setBusy]=useState(false);
+  const [collections,setCollections]=useState([]),[collection,setCollection]=useState('all');
+  const loadCollections=useCallback(async()=>{const value=await api('/api/timsys/v1/apps/dressed/backend/1.0.0/outfit-collections');setCollections(value.items);},[]);
+  useEffect(()=>{loadCollections().catch(e=>setError(e.message));},[loadCollections,refreshKey]);
+  const shown=items.filter(o=>collection==='all'||(collection==='none'?!collections.some(c=>c.outfitIds.includes(o.id)):collections.find(c=>c.id===collection)?.outfitIds.includes(o.id)));
   const requestSequence=useRef(0);
   const load=useCallback(async()=>{const sequence=++requestSequence.current;setLoading(true);try{const value=await api('/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved');if(sequence===requestSequence.current){setItems(value.items);setError("");}}catch(e){if(sequence===requestSequence.current)setError(e.message);}finally{if(sequence===requestSequence.current)setLoading(false);}},[]);
   useEffect(()=>{void load();return()=>{requestSequence.current++;};},[load,refreshKey]);
   useEffect(()=>{const receive=event=>{requestSequence.current++;setItems(event.detail.items);setError("");setLoading(false);};window.addEventListener('dressed:outfits-saved',receive);return()=>window.removeEventListener('dressed:outfits-saved',receive);},[]);
   const remove=async()=>{setBusy(true);try{await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/saved/${target.id}`,{method:'DELETE'});setTarget(null);await load();}catch(e){setError(e.message);}finally{setBusy(false);}};
-  return <Panel><details open className="saved-outfits-disclosure"><summary>Saved outfits{!loading && ` (${items.length})`}</summary><p className="muted">Your completed combinations, ready to view, edit or plan.</p><button type="button" disabled={loading} onClick={load}>Refresh saved outfits</button>
+  return <Panel><details open className="saved-outfits-disclosure"><summary>Saved outfits{!loading && ` (${items.length})`}</summary><p className="muted">Your completed combinations, ready to view, edit or plan.</p><OutfitCollections api={api} collections={collections} selected={collection} onSelect={setCollection} reload={loadCollections}/>{build&&collections.some(c=>c.id===collection)&&<button type="button" onClick={()=>build(collection)}>Build an outfit for this collection</button>}<button type="button" disabled={loading} onClick={load}>Refresh saved outfits</button>
     {error&&<p className="error" role="alert">{error}</p>}
-    {loading?<p>Loading saved outfits…</p>:!items.length?<p>No saved outfits yet. Build or evaluate a combination, then save it here.</p>:<div className="ensemble-grid">{items.map(outfit=><article key={outfit.id}>
+    {loading?<p>Loading saved outfits…</p>:!shown.length?<p>{items.length?"No outfits in this collection yet. Choose All outfits to add existing outfits, or select this collection when saving a new outfit.":"No saved outfits yet. Build or evaluate a combination, then save it here."}</p>:<div className="ensemble-grid">{shown.map(outfit=><article key={outfit.id}>
       <h3>{outfit.name}</h3><RenameOutfit outfit={outfit} onRenamed={name=>setItems(current=>current.map(item=>item.id===outfit.id?{...item,name}:item))}/><p>{outfit.score.toFixed(1)}/100 · {outfit.contextName}</p>
-      <ul>{groupOutfitGarments(outfit.items).flatMap(group=>group.items.map(g=><li key={g.id}>{g.name}</li>))}</ul>
+      <ul>{groupOutfitGarments(outfit.items).flatMap(group=>group.items.map(g=><li key={g.id}><GarmentName garment={g} api={api}/></li>))}</ul>
       {outfit.notes&&<p>{outfit.notes}</p>}
-      <OutfitPreview garments={outfit.items} api={api}/>
+      <CollectionMembership api={api} outfit={outfit} collections={collections} reload={loadCollections}/><OutfitPreview garments={outfit.items} api={api}/>
       <div className="row-actions"><button onClick={()=>edit(outfit)}>Edit outfit</button><button onClick={()=>plan({id:outfit.id,name:outfit.name,contextId:outfit.contextId,garmentIds:outfit.items.map(g=>g.id)})}>Add to planner</button><button onClick={()=>setTarget(outfit)}>Delete outfit</button></div>
     </article>)}</div>}
     <ConfirmationDialog open={!!target} title="Delete saved outfit?" description={target?`Remove “${target.name}” from saved outfits?`:""} consequence="This removes it from your saved list and future planning choices. Your garments, existing plans and wear history are kept." confirmLabel="Delete outfit" destructive busy={busy} onConfirm={remove} onCancel={()=>setTarget(null)}/>
   </details></Panel>;
 }
 function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) {
+  const [collectionId,setCollectionId]=useState('');
   const [catalogue, setCatalogue] = useState(null),
     [selected, setSelected] = useState(initialOutfit?.items.map(g => g.id) || []),
     [outfitName, setOutfitName] = useState(initialOutfit?.name || ""),
@@ -636,14 +644,14 @@ function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) 
     }
   };
   // Any change invalidates both the evaluation and the saved-selection marker.
-  useEffect(() => { setSavedOutfit(null); }, [selected, contextId, season, useId, outfitName, outfitNotes]);
+  useEffect(() => { setSavedOutfit(null); }, [selected, contextId, season, useId, outfitName, outfitNotes, collectionId]);
   const selectedGarments = (catalogue?.garments || []).filter(g => selected.includes(g.id));
   const defaultName = selectedGarments.slice(0, 3).map(g => g.name).join(" + ").slice(0, 120);
   const save = async (plan = false) => {
     if (!result?.evaluation.eligible || busy) return;
     setBusy(true); setError("");
     try {
-      const saved = savedOutfit || await saveVerifiedOutfit({...(editingId ? {replaceId:editingId} : {}), name: (outfitName.trim() || defaultName), garmentIds: selected, contextId, useId: useId || null, season: season || null, notes: outfitNotes.trim() || null});
+      const saved = savedOutfit || await saveVerifiedOutfit({...(collectionId?{collectionId}:{}),...(editingId ? {replaceId:editingId} : {}), name: (outfitName.trim() || defaultName), garmentIds: selected, contextId, useId: useId || null, season: season || null, notes: outfitNotes.trim() || null});
       setSavedOutfit(saved);
       if(initialOutfit) setEditingId(saved.id);
       if (plan) openPlanner({id:saved.id,name: saved.name, contextId, garmentIds: [...selected]});
@@ -667,7 +675,7 @@ function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) 
         </header>
         {initialOutfit && <p className="muted">Save changes to replace this outfit for future use. Existing plans and wear records keep the original version.</p>}
         {missingItems.length > 0 && <div className="banner"><p>Some saved garments are unavailable or do not match this use. Change the use filter, or remove and replace them before evaluating.</p>{missingItems.map(id => <button key={id} onClick={() => {setSelected(current => current.filter(x => x !== id));setResult(null);}}>Remove {initialOutfit?.items.find(g => g.id === id)?.name || 'unavailable garment'}</button>)}</div>}
-        <div className="lab-controls">
+        <CollectionPicker api={api} value={collectionId} onChange={setCollectionId}/><div className="lab-controls">
           <label>
             Use
             <select value={useId} disabled={busy} onChange={e => changeUse(e.target.value)}>
@@ -714,7 +722,7 @@ function StylingLab({ garments, close, openPlanner, openSaved, initialOutfit }) 
                 onChange={() => toggle(x.id)}
               />
               <span>
-                <strong>{x.name}</strong>
+                <strong><GarmentName garment={x} api={api}/></strong>
                 <small>{garments.find(g => g.id === x.id)?.categoryName || x.categorySlug.replaceAll("-", " ")}</small>
               </span>
             </label>
@@ -767,11 +775,11 @@ function groupOutfitGarments(garments, order = []) {
   const rank = slot => order.includes(slot) ? order.indexOf(slot) : order.length;
   return [...groups.values()].sort((a, b) => rank(a.slot) - rank(b.slot) || compare(a.label, b.label)).map(group => ({ ...group, items: group.items.sort((a, b) => compare(a.name, b.name) || compare(a.id, b.id)) }));
 }
-function OutfitBuilder({ close, openPlanner }) {
+function OutfitBuilder({ close, openPlanner, initialCollectionId }) {
+  const [collectionId,setCollectionId]=useState(initialCollectionId||'');
   const [catalogue, setCatalogue] = useState(null),
     [fixedIds, setFixedIds] = useState([]),
     [excludedIds, setExcludedIds] = useState([]),
-    [usedOnly, setUsedOnly] = useState(true),
     [contextId, setContext] = useState(""),
     [useId, setUseId] = useState(""),
     [season, setSeason] = useState(""),
@@ -825,7 +833,7 @@ function OutfitBuilder({ close, openPlanner }) {
           .map((item) => item.name)
           .join(" + ");
         const name = (names || `Outfit ${new Date().toLocaleDateString()}`).slice(0, 120);
-        await saveVerifiedOutfit({name,garmentIds:candidate.garments.map(x=>x.id),contextId,useId:useId||null,season:season||null,notes:null});
+        await saveVerifiedOutfit({...(collectionId?{collectionId}:{}),name,garmentIds:candidate.garments.map(x=>x.id),contextId,useId:useId||null,season:season||null,notes:null});
         await load();
       } else {
         await api("/api/timsys/v1/apps/dressed/backend/1.0.0/ensembles/overrides", {
@@ -851,7 +859,7 @@ function OutfitBuilder({ close, openPlanner }) {
   for (const outfit of catalogue?.saved || []) for (const garment of outfit.items || []) {
     savedUsage.set(garment.id, [...(savedUsage.get(garment.id) || []), outfit.name]);
   }
-  const exclusionChoices = (catalogue?.garments || []).filter(g => !usedOnly || savedUsage.has(g.id) || excludedIds.includes(g.id));
+  const exclusionChoices = catalogue?.garments || [];
   const fixedGarments = (catalogue?.garments || []).filter(g => fixedIds.includes(g.id));
   const fixedSlots = new Set(fixedGarments.map(g => g.slotId));
   const unavailableFixed = fixedGarments.filter(g => !eligibleGarments.some(item => item.id === g.id));
@@ -875,16 +883,17 @@ function OutfitBuilder({ close, openPlanner }) {
             Close
           </button>
         </header>
-        <div className="lab-controls">
+        <CollectionPicker api={api} value={collectionId} onChange={setCollectionId}/><div className="lab-controls">
           <label>
             Add a fixed garment
-            <select value="" disabled={busy} onChange={(e) => { if(e.target.value) setFixedIds(current => [...current, e.target.value]); setResults(null); }}>
-              <option value="">Choose a garment to keep…</option>
-              {groupOutfitGarments(eligibleGarments.filter(g => !fixedSlots.has(g.slotId)), fixedGarmentOrder).map(group => (
-                <optgroup key={group.slot} label={group.label}>
-                  {group.items.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
-                </optgroup>
-              ))}
+            <select value="" disabled={busy} onChange={e=>{
+              const id=e.target.value;
+              if(!id)return;
+              setFixedIds(current=>current.includes(id)?current:[...current,id]);
+              setResults(null);
+            }}>
+              <option value="">Choose a garment…</option>
+              {groupOutfitGarments(eligibleGarments.filter(g=>!fixedSlots.has(g.slotId)),fixedGarmentOrder).map(group=><optgroup key={group.slot} label={group.label}>{group.items.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</optgroup>)}
             </select>
           </label>
           <label>
@@ -928,26 +937,24 @@ function OutfitBuilder({ close, openPlanner }) {
         </div>
         <section className="fixed-outfit-garments" aria-label="Fixed garments">
           <h3>Garments to keep ({fixedGarments.length})</h3>
-          <p className="muted">Every recommendation keeps these exact items. Remove an item to choose another from its category.</p>
+          <p className="muted">Every recommendation keeps these exact items. Remove an item to choose another from its category. Hover over a garment name to preview its photo.</p>
           {!fixedGarments.length && <p>Choose one or more garments above to start your partial outfit.</p>}
-          <ul>{groupOutfitGarments(fixedGarments, fixedGarmentOrder).flatMap(group => group.items.map(g => <li key={g.id}><span><strong>{g.name}</strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
+          <ul>{groupOutfitGarments(fixedGarments, fixedGarmentOrder).flatMap(group => group.items.map(g => <li key={g.id}><span><strong><GarmentName garment={g} api={api}/></strong> <small>{group.label}</small></span><button disabled={busy} aria-label={`Remove ${g.name} from fixed garments`} onClick={() => { setFixedIds(current => current.filter(id => id !== g.id)); setResults(null); }}>Remove</button></li>))}</ul>
           {unavailableFixed.length > 0 && <p className="banner">These fixed garments do not match the selected use: {unavailableFixed.map(g => g.name).join(', ')}. Change the use filter or remove them before generating.</p>}
         </section>
-        <details className="builder-exclusions" open>
-          <summary>Items to leave out ({excludedIds.length})</summary>
-          <p>Select individual items you do not want in new recommendations. Nothing is excluded automatically. Your wardrobe and saved outfits stay unchanged. These choices last until you close the builder.</p>
-          <fieldset disabled={busy}>
-            <legend>Choose exclusions</legend>
-            <label><input type="checkbox" checked={usedOnly} onChange={e=>setUsedOnly(e.target.checked)}/> Show only items used in saved outfits</label>
-            <button type="button" disabled={!excludedIds.length} onClick={()=>{setExcludedIds([]);setResults(null);}}>Make all items available again</button>
-            <div className="builder-exclusion-list">{groupOutfitGarments(exclusionChoices, fixedGarmentOrder).map(group=><section key={group.slot}>
-              <h4>{group.label}</h4>
-              {group.items.map(g=><label key={g.id}><input type="checkbox" checked={excludedIds.includes(g.id)} disabled={fixedIds.includes(g.id)} onChange={e=>{setExcludedIds(current=>e.target.checked?[...current,g.id]:current.filter(id=>id!==g.id));setResults(null);}}/><span><strong>{g.name}</strong><small>{savedUsage.has(g.id)?`Used in: ${savedUsage.get(g.id).join(', ')}`:'Not used in a saved outfit'}{fixedIds.includes(g.id)?' · Fixed: remove from garments to keep before excluding':''}</small></span></label>)}
-            </section>)}</div>
-            {!exclusionChoices.length&&<p>No matching items. Untick the filter to choose from all available garments.</p>}
-          </fieldset>
-          {!!excludedIds.length&&<p className="banner">{excludedIds.length} item(s) excluded. Untick an item to make it available again.</p>}
-        </details>
+        <section className="builder-exclusions">
+          <h3>Items to leave out ({excludedIds.length})</h3>
+          <p>Open a garment type to choose exclusions. “Select all used” selects items already in saved outfits; you can adjust each item yourself. Fixed garments cannot be excluded. Choices last until you close the builder.</p>
+          <button type="button" disabled={busy||!excludedIds.length} onClick={()=>{setExcludedIds([]);setResults(null);}}>Make all items available again</button>
+          {groupOutfitGarments(exclusionChoices,fixedGarmentOrder).map(group=>{
+            const used=group.items.filter(g=>savedUsage.has(g.id)&&!fixedIds.includes(g.id)).map(g=>g.id);
+            const count=group.items.filter(g=>excludedIds.includes(g.id)).length;
+            return <details key={group.slot} className="exclusion-category"><summary>{group.label} — {count} excluded</summary><fieldset disabled={busy}><legend>{group.label}</legend>
+              <label><input type="checkbox" disabled={!used.length} checked={used.length>0&&used.every(id=>excludedIds.includes(id))} ref={node=>{if(node)node.indeterminate=used.some(id=>excludedIds.includes(id))&&!used.every(id=>excludedIds.includes(id));}} onChange={e=>{setExcludedIds(current=>e.target.checked?[...new Set([...current,...used])]:current.filter(id=>!used.includes(id)));setResults(null);}}/>Select all used ({used.length})</label>
+              {group.items.map(g=><label key={g.id}><input type="checkbox" checked={excludedIds.includes(g.id)} disabled={fixedIds.includes(g.id)} onChange={e=>{setExcludedIds(current=>e.target.checked?[...current,g.id]:current.filter(id=>id!==g.id));setResults(null);}}/><span><GarmentName garment={g} api={api}/><small>{fixedIds.includes(g.id)?'Fixed garment':savedUsage.has(g.id)?`Used in: ${savedUsage.get(g.id).join(', ')}`:'Not used in a saved outfit'}</small></span></label>)}
+            </fieldset></details>;
+          })}
+        </section>
         <fieldset className="outfit-category-checks" disabled={busy}>
           <legend>Categories to add or keep</legend>
           <p>Tick the categories you want in the finished combination. Fixed categories are already covered; recommendations fill the others. Required companions are included automatically.</p>
@@ -1007,7 +1014,7 @@ function OutfitBuilder({ close, openPlanner }) {
                             <div className="image-placeholder">No photo</div>
                           )}
                           <figcaption>
-                            {x.name}
+                            <GarmentName garment={x} api={api}/>
                             <small>{x.slotId}</small>
                           </figcaption>
                         </figure>
@@ -1059,9 +1066,9 @@ function OutfitBuilder({ close, openPlanner }) {
     </div>
   );
 }
-function Planner({close,initialOutfit}) {
+function Planner({close,initialOutfit,openCollections}) {
  const [mode,setMode]=useState('calendar');
- return <><div className="planner-mode-switch" role="group" aria-label="Planner type"><button aria-pressed={mode==='calendar'} onClick={()=>setMode('calendar')}>Calendar planner</button><button aria-pressed={mode==='weekly'} onClick={()=>setMode('weekly')}>Week-by-week planner</button></div><div className="planner-mode-content" hidden={mode!=='calendar'}><CalendarPlanner close={close} initialOutfit={initialOutfit}/></div><div className="planner-mode-content" hidden={mode!=='weekly'}><WeeklyPlanner api={api} close={close} initialOutfit={initialOutfit}/></div></>;
+ return <><div className="planner-mode-switch" role="group" aria-label="Planner type"><button aria-pressed={mode==='calendar'} onClick={()=>setMode('calendar')}>Calendar planner</button><button aria-pressed={mode==='weekly'} onClick={()=>setMode('weekly')}>Week-by-week planner</button><button onClick={openCollections}>Outfit collections</button></div><div className="planner-mode-content" hidden={mode!=='calendar'}><CalendarPlanner close={close} initialOutfit={initialOutfit}/></div><div className="planner-mode-content" hidden={mode!=='weekly'}><WeeklyPlanner api={api} close={close} initialOutfit={initialOutfit}/></div></>;
 }
 function CalendarPlanner({ close, initialOutfit }) {
   const [chosenOutfitId,setChosenOutfitId]=useState(initialOutfit?.id||"");
@@ -1238,7 +1245,7 @@ function CalendarPlanner({ close, initialOutfit }) {
                     checked={form.fixedGarmentIds.includes(x.id)}
                     onChange={() => toggle("fixedGarmentIds", x.id)}
                   />
-                  {x.name}
+                  <GarmentName garment={x} api={api}/>
                 </label>
               ))}
           </section>
@@ -1257,7 +1264,7 @@ function CalendarPlanner({ close, initialOutfit }) {
                     checked={form.excludedGarmentIds.includes(x.id)}
                     onChange={() => toggle("excludedGarmentIds", x.id)}
                   />
-                  {x.name}
+                  <GarmentName garment={x} api={api}/>
                 </label>
               ))}
           </section>
@@ -1646,6 +1653,7 @@ function ModernApp() {
   const [useId, setUseId] = useState("");
   const [page, setPage] = useState(0);
   const [modal, setModal] = useState(null);
+  useEffect(()=>{if(modal){window.scrollTo(0,0);document.querySelector('.ts-main')?.scrollTo(0,0);}},[modal?.type,modal?.item?.id]);
   const [duplicatingId, setDuplicatingId] = useState(null);
   const [duplicateNotice, setDuplicateNotice] = useState("");
   const [archiveTarget, setArchiveTarget] = useState(null);
@@ -1734,7 +1742,7 @@ function ModernApp() {
         method: "POST",
         body: JSON.stringify({ version: archiveTarget.version }),
       });
-      setArchiveTarget(null);
+      setArchiveTarget(null);setModal(null);
       await load();
     } catch (cause) {
       setError(cause.message);
@@ -1747,7 +1755,7 @@ function ModernApp() {
     setDeleteBusy(true);
     try {
       await api(`/api/timsys/v1/apps/dressed/backend/1.0.0/garments/${deleteTarget.id}`, { method: "DELETE", body: JSON.stringify({ version: deleteTarget.version }) });
-      setDeleteTarget(null);
+      setDeleteTarget(null);setModal(null);
       await load();
     } catch (cause) {
       setError(cause.message);
@@ -1772,7 +1780,7 @@ function ModernApp() {
       setCalibrationDeleteBusy(false);
     }
   };
-  const photoIntake = () => setModal({ type: "garment" });
+  const photoIntake = () => {setView("wardrobe");setModal({ type: "garment" });};
   const healthy = ["ok", "healthy"].includes(health?.status);
   const status = (
     <StatusBadge tone={error ? "danger" : healthy ? "success" : "warning"}>
@@ -1843,10 +1851,10 @@ function ModernApp() {
             <tbody>
               {catalogue.items.map((item, index) => (
                 <React.Fragment key={item.id}>
-                <tr aria-expanded={modal?.type === "garment" && modal.item?.id === item.id}>
+                <tr>
                   <td>{catalogue.offset + index + 1}</td>
                   <td>
-                    <strong>{item.name}</strong>
+                    <button className="garment-open" onClick={()=>setModal({type:"garment-view",item})}>{item.name}</button>
                     <small>
                       {[item.brand, item.productName]
                         .filter(Boolean)
@@ -1884,13 +1892,6 @@ function ModernApp() {
                     </div>
                   </td>
                 </tr>
-                {view === "wardrobe" && modal?.type === "garment" && modal.item?.id === item.id && (
-                  <tr className="garment-editor-row">
-                    <td colSpan={8}>
-                      <PhotoIntake inline garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
-                    </td>
-                  </tr>
-                )}
                 </React.Fragment>
               ))}
             </tbody>
@@ -1916,6 +1917,7 @@ function ModernApp() {
     </Panel>
   );
   const goBack = () => {
+    if(modal){setModal(null);return;}
     if (view !== "home") setView("home");
     else if (history.length > 1) history.back();
   };
@@ -1925,7 +1927,7 @@ function ModernApp() {
       context="Personal wardrobe"
       navigation={navigation}
       active={view}
-      onNavigate={setView}
+      onNavigate={target=>{setModal(null);setView(target);}}
       onBack={goBack}
       onLauncher={() => window.electronAPI?.returnToLauncher?.() ?? window.close()}
     >
@@ -1955,6 +1957,7 @@ function ModernApp() {
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+      <div hidden={!!modal}>
       <PageHeader
         eyebrow="Personal wardrobe"
         title={heading[0]}
@@ -2012,17 +2015,17 @@ function ModernApp() {
                   Add photos and all garment details in one place.
                 </span>
               </button>
-              <button onClick={() => setModal({ type: "ensemble" })}>
+              <button onClick={() => {setView("outfits");setModal({ type: "ensemble" });}}>
                 <strong>Build an outfit</strong>
                 <span>
                   Keep your chosen garments and get recommendations to complete the outfit.
                 </span>
               </button>
-              <button onClick={() => setModal({ type: "planner" })}>
+              <button onClick={() => {setView("planner");setModal({ type: "planner" });}}>
                 <strong>Plan what to wear</strong>
                 <span>Create a rotation from outfits you have saved.</span>
               </button>
-              <button onClick={() => setModal({ type: "wear" })}>
+              <button onClick={() => {setView("planner");setModal({ type: "wear" });}}>
                 <strong>Confirm a wear</strong>
                 <span>Record what was actually worn, not merely planned.</span>
               </button>
@@ -2039,7 +2042,7 @@ function ModernApp() {
                     key={item.id}
                     onClick={() => {
                       setView("wardrobe");
-                      setModal({ type: "garment", item });
+                      setModal({ type: "garment-view", item });
                     }}
                   >
                     <strong>{item.name}</strong>
@@ -2122,7 +2125,7 @@ function ModernApp() {
           <div className="dressed-actions">
             <Button
               variant="primary"
-              onClick={() => setModal({ type: "ensemble" })}
+              onClick={() => {setView("outfits");setModal({ type: "ensemble" });}}
             >
               Build an outfit
             </Button>
@@ -2141,7 +2144,7 @@ function ModernApp() {
           >
             <Button
               variant="primary"
-              onClick={() => setModal({ type: "planner" })}
+              onClick={() => {setView("planner");setModal({ type: "planner" });}}
             >
               Open planner
             </Button>
@@ -2150,7 +2153,7 @@ function ModernApp() {
             title="Confirm actual wear"
             description="A plan counts as worn only after you confirm it."
           >
-            <Button onClick={() => setModal({ type: "wear" })}>
+            <Button onClick={() => {setView("planner");setModal({ type: "wear" });}}>
               Review planned outfits
             </Button>
           </Panel>
@@ -2282,6 +2285,7 @@ function ModernApp() {
         </>
       )}
 
+      </div>
       {modal?.type === "category" && (
         <CategoryForm
           categories={categories}
@@ -2311,19 +2315,20 @@ function ModernApp() {
         onConfirm={confirmCalibrationDelete}
         onCancel={() => setCalibrationDeleteTarget(null)}
       />
-      {(modal?.type === "photos" || (modal?.type === "garment" && !(view === "wardrobe" && modal.item))) && (
-        <PhotoIntake key={modal.item?.id || "new"} garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={load} />
+      {(modal?.type === "photos" || modal?.type === "garment") && (
+        <PhotoIntake key={modal.item?.id || "new"} garment={modal.item} categories={categories} uses={uses} api={api} close={() => { setModal(null); void load(); }} saved={async()=>{setModal(null);setView("wardrobe");await load();}} />
       )}{" "}
+      {modal?.type === "garment-view" && <GarmentPage key={modal.item.id} garment={modal.item} api={api} close={()=>{setModal(null);setView("wardrobe");}} edit={item=>setModal({type:"garment",item})} duplicate={duplicate} archive={archive} remove={setDeleteTarget} busy={!!duplicatingId||archiveBusy||deleteBusy}/>}
       {duplicateNotice && <p className="banner" role="status">{duplicateNotice}</p>}
       {modal?.type === "styling" && (
         <StylingLab key={modal.initialOutfit?.id || "new"} initialOutfit={modal.initialOutfit} garments={catalogue.items} close={() => setModal(null)} openPlanner={initialOutfit => setModal({type:"planner", initialOutfit})} openSaved={() => {setModal(null);setView("outfits");setTimeout(()=>{const section=document.querySelector('.saved-outfits-disclosure');if(section){section.open=true;section.scrollIntoView({block:'start',behavior:'smooth'});}},0);}} />
       )}{" "}
       {modal?.type === "ensemble" && (
-        <OutfitBuilder close={() => setModal(null)} openPlanner={initialOutfit=>setModal({type:"planner",initialOutfit})} />
+        <OutfitBuilder initialCollectionId={modal.collectionId} close={() => setModal(null)} openPlanner={initialOutfit=>setModal({type:"planner",initialOutfit})} />
       )}{" "}
-      {modal?.type === "planner" && <Planner close={() => setModal(null)} initialOutfit={modal.initialOutfit} />}{" "}
-      {view === "outfits" && (
-        <SavedOutfits refreshKey={modal} edit={initialOutfit=>setModal({type:"styling",initialOutfit})} plan={initialOutfit=>setModal({type:"planner",initialOutfit})}/>
+      {modal?.type === "planner" && <Planner openCollections={()=>{setModal(null);setView("outfits");}} close={() => setModal(null)} initialOutfit={modal.initialOutfit} />}{" "}
+      {view === "outfits" && !modal && (
+        <SavedOutfits build={collectionId=>setModal({type:"ensemble",collectionId})} refreshKey={modal} edit={initialOutfit=>setModal({type:"styling",initialOutfit})} plan={initialOutfit=>setModal({type:"planner",initialOutfit})}/>
       )}
       {modal?.type === "wear" && (
         <WearConfirmation close={() => setModal(null)} />

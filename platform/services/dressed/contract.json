@@ -43,6 +43,18 @@
     {
       "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/preferences",
       "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/outfit-collections",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/outfit-collections/:collectionId",
+      "source": "src/entrypoints/api.ts"
+    },
+    {
+      "path": "/api/timsys/v1/apps/dressed/backend/1.0.0/outfit-collections/:collectionId/outfits/:outfitId",
+      "source": "src/entrypoints/api.ts"
     }
   ],
   "schemas": "src/domain; authoritative validators and frozen instruments retained in the TimSyS service",

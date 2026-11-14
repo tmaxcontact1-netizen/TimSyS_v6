@@ -1262,3 +1262,26 @@ td small {
 .mannequin-body-label { position: absolute; top: 12px; left: 14px; color: #f1f4f6; font-weight: 600; pointer-events: none; }
 .mannequin-body-options button[aria-pressed="true"] { background: #335e75; color: white; border-color: #80bddc; }
 @media(max-width:700px) { .mannequin-comparison.is-pair { grid-template-columns: minmax(0, 1fr); } }
+/* Dedicated task pages retain the main navigation without displaying the old page beneath. */
+.ts-main > [hidden], .planner-mode-content[hidden] { display:none !important; }
+.garment-open { padding:0; border:0; background:none; color:var(--ts-text); font-weight:600; text-align:left; text-decoration:underline; cursor:pointer; }
+.garment-photo-gallery { display:flex; flex-wrap:wrap; gap:16px; margin:24px 0; }
+.garment-photo-gallery img { max-width:300px; width:100%; height:280px; object-fit:contain; background:#202630; border-radius:8px; }
+.garment-readonly-details { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:18px; }
+.garment-readonly-details dt { font-weight:600; text-transform:capitalize; }
+.garment-readonly-details dd { margin:6px 0; white-space:pre-wrap; overflow-wrap:anywhere; }
+.garment-name { cursor:help; text-decoration:underline dotted; text-underline-offset:3px; }
+.garment-name:focus-visible { outline:2px solid #c5a0ff; outline-offset:3px; }
+.garment-photo-tooltip { position:fixed; z-index:10000; display:flex; flex-direction:column; width:220px; max-height:245px; padding:10px; box-sizing:border-box; background:#222935; color:#fff; border:1px solid #8c7aa6; border-radius:8px; box-shadow:0 8px 30px #0008; pointer-events:none; }
+.garment-photo-tooltip img { width:100%; height:190px; object-fit:contain; }
+.garment-photo-tooltip strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.exclusion-category { margin-top:12px; padding:10px; border:1px solid var(--ts-border); border-radius:6px; }
+.exclusion-category label { display:flex; align-items:baseline; gap:10px; margin:12px 0; }
+.exclusion-category small { display:block; }
+.fixed-garment-picker { min-width:240px; max-height:420px; overflow:auto; padding:12px; border:1px solid var(--ts-border); }
+.fixed-garment-picker details { margin:10px 0; }
+.fixed-garment-choice { display:flex; justify-content:space-between; align-items:center; gap:12px; margin:8px 0; }
+.outfit-collections { padding:18px 0; border-bottom:1px solid var(--ts-border); margin-bottom:18px; }
+.outfit-collections form { display:flex; flex-wrap:wrap; align-items:end; gap:12px; margin:12px 0; }
+.collection-row { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+.outfit-collections button[aria-pressed=true] { border-color:#c5a0ff; background:#41324f; }

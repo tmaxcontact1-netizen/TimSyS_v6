@@ -1,0 +1,142 @@
+// Real PostgreSQL + built HTTP application acceptance. Never uses the user's cluster.
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {mkdtemp,mkdir,writeFile,readFile,access,readdir} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {resolve,join} from 'node:path';
+import {once} from 'node:events';
+import {createHash} from 'node:crypto';
+import pg from 'pg';
+import sharp from 'sharp';
+import {pathToFileURL} from 'node:url';
+
+const require=createRequire(import.meta.url),app=resolve(process.env.DRESSED_VERIFY_APP_ROOT??resolve(import.meta.dirname,'..'));
+const {createDressedServer}=await import(pathToFileURL(join(app,'dist/src/entrypoints/api.js')).href);
+const {migrate}=await import(pathToFileURL(join(app,'dist/scripts/migrate.js')).href);
+const {LocalPostgresManager}=require('../../../native/desktop/local-postgres-manager.cjs');
+const workingRoot=process.env.DRESSED_VERIFY_ROOT??tmpdir();await mkdir(workingRoot,{recursive:true});
+const work=await mkdtemp(join(workingRoot,'dressed-card-free-'));
+const manager=new LocalPostgresManager({binaryRoot:process.env.DRESSED_VERIFY_POSTGRES_BIN??'C:/Users/tmaxc/AppData/Local/Programs/TimSyS/resources/runtime/postgres',dataRoot:work,infrastructureOnly:true});
+process.env.TIMSYS_DOMAIN_TOKEN='isolated-workspace-test';
+const checks=[];let server,pool,base;
+const check=(name)=>{checks.push(name);console.log(`PASS ${name}`);};
+async function request(path,method='GET',body){const response=await fetch(base+path,{method,headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined});return{status:response.status,data:await response.json()};}
+async function startServer(){server=createDressedServer({database:pool,publicDirectory:resolve(app,'../../../apps/dressed/dist/frontend'),storageRoot:join(work,'storage')});server.prependListener('request',req=>{req.headers['x-timsys-domain-token']=process.env.TIMSYS_DOMAIN_TOKEN;const prefix='/api/timsys/v1/apps/dressed/backend/1.0.0';if(req.url.startsWith('/api/')&&!req.url.startsWith(prefix))req.url=prefix+req.url.slice(4);});server.listen(0,'127.0.0.1');await once(server,'listening');base=`http://127.0.0.1:${server.address().port}`;}
+async function stopServer(){if(server){server.closeAllConnections();await new Promise(r=>server.close(r));server=null;}}
+async function fixture(flat=false){const w=1000,h=1000,pixels=Buffer.alloc(w*h*3,235);if(!flat)for(let y=100;y<900;y++)for(let x=300;x<700;x++){const p=(y*w+x)*3;pixels[p]=25;pixels[p+1]=40;pixels[p+2]=80;}return sharp(pixels,{raw:{width:w,height:h,channels:3}}).png().toBuffer();}
+const photo=await fixture(),flat=await fixture(true);
+await writeFile(join(work,'garment.png'),photo);await writeFile(join(work,'low-contrast.png'),flat);
+try{
+ const state=await manager.start();
+ const legacy=join(work,'legacy-migrations');await mkdir(legacy);
+ for(const name of (await readdir(join(app,'migrations'))).filter(n=>/^000\d_.*\.sql$/.test(n))){
+  const sql=await readFile(join(app,'migrations',name),'utf8');const lf=sql.replace(/\r\n/g,'\n');
+  await writeFile(join(legacy,name),sql.includes('\r\n')?lf:lf.replace(/\n/g,'\r\n'));
+ }
+ await migrate({connectionString:state.migrationUrl,migrationDirectory:legacy});
+ check('Existing schema with opposite line endings created');
+ const migrations=await migrate({connectionString:state.migrationUrl,migrationDirectory:join(app,'migrations')});assert(migrations.includes('0010_card_free_intake.sql'));
+ assert.deepEqual(await migrate({connectionString:state.migrationUrl,migrationDirectory:join(app,'migrations')}),[]);
+ const foundation=join(legacy,'0000_foundation.sql');await writeFile(foundation,(await readFile(foundation,'utf8'))+'\nSELECT 42;\n');
+ await assert.rejects(migrate({connectionString:state.migrationUrl,migrationDirectory:legacy}),/Applied migration changed: 0000_foundation.sql/);
+ check('Real SQL modification still blocked after successful upgrade');
+ pool=new pg.Pool({connectionString:state.migrationUrl});await startServer();
+ assert.equal((await request('/api/health')).status,200);check('Fresh migrations, replay and built API health');
+ const categories=(await request('/api/categories')).data.items,uses=(await request('/api/garment-uses')).data.items;
+ const create=async(slug,name)=>(await request('/api/garments','POST',{categoryId:categories.find(x=>x.slug===slug).id,name,brand:'Preserve brand',materials:[{material:'Wool',percentage:100}]})).data;
+ const upload=async(id,bytes=photo)=>{const response=await fetch(`${base}/api/garments/${id}/images?role=whole&filename=phone.png`,{method:'POST',body:bytes});assert.equal(response.status,201);return(await response.json()).image;};
+ const analyse=async(id,image,crop=null)=>{const result=await request(`/api/garments/${id}/intake/analyse`,'POST',{imageId:image.id,crop});assert.equal(result.status,201);return result.data;};
+ const appearance={primaryColour:'navy',secondaryColour:null,lightness:'dark',saturation:'muted',pattern:'unknown',texture:'unknown'};
+ const reviewPayload=async(g,a=null)=>( {version:(await request(`/api/garments/${g.id}`)).data.version,analysisId:a?.id??null,name:g.name,categoryId:g.categoryId,formality:4,seasons:['all-season'],useIds:[uses[0].id],appearance} );
+ const garments=[];let firstImage,firstAnalysis,firstPayload;
+ for(const [slug,name] of [['formal-shirts','Review shirt'],['formal-trousers','Review trousers'],['oxford-shoes','Review shoes']]){
+  const g=await create(slug,name),image=await upload(g.id),analysis=await analyse(g.id,image),payload=await reviewPayload(g,analysis);
+  assert.equal(image.calibrationProfileId,null);assert.equal(analysis.result.appearance.primaryColour,'navy');
+  assert(!(await request('/api/ensembles/catalogue')).data.garments.some(x=>x.id===g.id));
+  const saved=await request(`/api/garments/${g.id}/intake/review`,'POST',payload);assert.equal(saved.status,201);
+  const after=(await request(`/api/garments/${g.id}`)).data;assert.equal(after.brand,'Preserve brand');assert.equal(after.materials[0].material,'Wool');
+  garments.push(g);if(!firstImage){firstImage=image;firstAnalysis=analysis;firstPayload=payload;}
+ }
+ check('One card-free photograph per garment: detection, editable review, preserved metadata, eligibility only after confirmation');
+ const original=Buffer.from(await(await fetch(`${base}/api/images/${firstImage.id}/content`)).arrayBuffer());assert.deepEqual(original,photo);check('Original bytes preserved');
+ const g=garments[0];
+ const crop=await analyse(g.id,firstImage,{x:.32,y:.15,width:.34,height:.65});assert.equal(crop.result.selection,'manual');assert.deepEqual(Buffer.from(await(await fetch(`${base}/api/images/${firstImage.id}/content`)).arrayBuffer()),photo);
+ const unchanged=(await request(`/api/garments/${g.id}/intake`)).data.review;assert.equal(unchanged.values.appearance.pattern,'unknown');assert.equal(unchanged.is_current,true);check('In-app crop and reanalysis preserve originals and confirmed values');
+ assert.equal((await request(`/api/garments/${g.id}/intake/analyse`,'POST',{imageId:firstImage.id,crop:{x:.9,y:0,width:.5,height:1}})).status,400);
+ assert.equal((await request(`/api/garments/${g.id}/intake/review`,'POST',firstPayload)).status,409);check('Crop bounds and concurrent edits rejected');
+ const bad=await create('casual-shirts','Manual fallback');const badImage=await upload(bad.id,flat);const failed=await analyse(bad.id,badImage);assert.equal(failed.result.fingerprint,null);assert.equal(failed.result.appearance.primaryColour,'unknown');
+ assert.equal((await request(`/api/garments/${bad.id}/intake/review`,'POST',await reviewPayload(bad,failed))).status,201);check('Undetectable photograph offers manual review that can be saved');
+ const context=(await request('/api/styling/catalogue')).data.contexts.find(x=>x.slug==='formal-business');
+ const generate=()=>request('/api/ensembles/generate','POST',{selectedGarmentId:g.id,contextId:context.id,useId:uses[0].id});
+ const generation=await generate();assert.equal(generation.status,200);const outfit=[...generation.data.a,...generation.data.b,...generation.data.c][0];assert(outfit);assert(outfit.evaluation.outcomes.some(x=>x.ruleId==='appearance.uncertainty'));assert.equal(outfit.evaluation.outcomes.find(x=>x.ruleId==='colour.contrast').scoreDelta,0);
+ const savedOutfit=await request('/api/ensembles/save','POST',{name:'Reviewed outfit',garmentIds:outfit.garments.map(x=>x.id),contextId:context.id,useId:uses[0].id});assert.equal(savedOutfit.status,201);check('Reviewed appearance flows into generated and saved outfits with uncertainty and no precise colour penalty');
+ await upload(g.id);assert.equal((await request(`/api/garments/${g.id}/fingerprint`)).status,404);
+ const stale={...await reviewPayload(g,firstAnalysis)};assert.equal((await request(`/api/garments/${g.id}/intake/review`,'POST',stale)).status,409);
+ const stateAfter=(await request(`/api/garments/${g.id}/intake`)).data;assert.equal(stateAfter.review.values.appearance.primaryColour,'navy');assert.equal(stateAfter.review.is_current,false);check('Replacement invalidates fingerprint, retains review history and blocks stale analysis');
+ assert.equal((await request(`/api/garments/${g.id}/intake/review`,'POST',await reviewPayload(g))).status,201);
+ const invalid=await fetch(`${base}/api/garments/${g.id}/images?role=whole`,{method:'POST',body:'not an image'});assert.equal(invalid.status,415);check('Invalid upload rejected without blocking manual correction');
+ await stopServer();await startServer();assert.equal((await request(`/api/garments/${g.id}/intake`)).data.review.values.appearance.primaryColour,'navy');assert.deepEqual(Buffer.from(await(await fetch(`${base}/api/images/${firstImage.id}/content`)).arrayBuffer()),photo);check('Application restart preserves confirmed values and historical original images');
+ const artifacts=['dist/src/entrypoints/api.js','dist/src/infrastructure/images/card-free-analysis.js','dist/src/infrastructure/database/intake-repository.js','dist/src/domain/outfit/appearance-uncertainty.js'];
+ const full=await create('casual-shirts','Complete garment');
+ const review=await reviewPayload(full);
+ const details={name:full.name,categoryId:full.categoryId,brand:'Test brand',productName:'Model A',sku:'SKU-1',fit:'Regular',size:'M',tailoringNotes:'Sleeves shortened',notes:'Keep these notes',materials:[{material:'Cotton',percentage:80},{material:'Linen',percentage:20}],restrictions:['Dry clean'],acquisition:{condition:'used',purchaseDate:'2026-10-01',purchasePriceMinor:12550,originalRetailPriceMinor:20000,currency:'SAR',source:'Test shop',isGift:true,notes:'Receipt retained'}};
+ assert.equal((await request(`/api/garments/${full.id}/intake/review`,'POST',{...review,details})).status,201);
+ const fullSaved=(await request(`/api/garments/${full.id}`)).data;
+ for(const key of ['brand','productName','sku','fit','size','tailoringNotes','notes'])assert.equal(fullSaved[key],details[key]);
+ assert.deepEqual(fullSaved.materials,details.materials);assert.deepEqual(fullSaved.restrictions,details.restrictions);
+ for(const [key,value] of Object.entries(details.acquisition))assert.equal(fullSaved.acquisition[key],value);
+ const fullImage=await upload(full.id),fullAnalysis=await analyse(full.id,fullImage);
+ assert.equal((await request(`/api/garments/${full.id}/intake/review`,'POST',{...await reviewPayload(full,fullAnalysis),details:{...details,size:'L'}})).status,201);
+ assert.equal((await request(`/api/garments/${full.id}`)).data.size,'L');
+ const invalidDetails={...details,materials:[{material:'Cotton',percentage:110}]};
+ assert.equal((await request(`/api/garments/${full.id}/intake/review`,'POST',{...await reviewPayload(full),details:invalidDetails})).status,400);
+ assert.equal((await request(`/api/garments/${full.id}`)).data.size,'L');
+ check('Complete details save without a photo, survive later upload/reanalysis, and invalid metadata does not partially save');
+ const beforeArchive=(await request(`/api/garments/${full.id}`)).data;
+ assert.equal((await request(`/api/garments/${full.id}/archive`,'POST',{version:beforeArchive.version})).status,200);
+ const archived=(await request(`/api/garments/${full.id}`)).data;
+ assert.equal((await request(`/api/garments/${full.id}`,'DELETE',{version:archived.version})).status,200);
+ check('Archive and delete complete reviewed garments without reference errors');
+ const duplicateSource=(await request(`/api/garments/${g.id}`)).data;
+ const duplicate=await request(`/api/garments/${g.id}/duplicate`,'POST',{version:duplicateSource.version});
+ assert.equal(duplicate.status,201);assert.notEqual(duplicate.data.id,g.id);
+ assert.equal((await request(`/api/garments/${duplicate.data.id}/intake`)).data.review.values.appearance.primaryColour,'navy');
+ check('Duplicate creates an independent garment with confirmed appearance');
+ const profile={...(await request('/api/personal-colouring')).data,enabled:true,depth:'light',mannequinColour:'#c69275'};
+ assert.equal((await request('/api/personal-colouring','PUT',profile)).status,200);
+ await stopServer();await startServer();
+ assert.equal((await request('/api/personal-colouring')).data.mannequinColour,'#c69275');
+ assert.equal((await request('/api/personal-colouring','PUT',{...profile,mannequinColour:null})).status,200);
+ assert.equal((await request('/api/personal-colouring')).data.mannequinColour,null);
+ check('Personal colouring and mannequin colour persist across restart and reset to grey');
+ const c1=await request('/api/outfit-collections','POST',{title:'Work week'}),c2=await request('/api/outfit-collections','POST',{title:'Occasions'});
+ assert.equal(c1.status,201);assert.equal(c2.status,201);
+ assert.equal((await request('/api/outfit-collections','POST',{title:' '})).status,400);
+ for(const c of [c1,c2])assert.equal((await request(`/api/outfit-collections/${c.data.id}/outfits/${savedOutfit.data.id}`,'PUT')).status,200);
+ assert.equal((await request(`/api/outfit-collections/${c1.data.id}`,'PATCH',{title:'Office collection'})).status,200);
+ await stopServer();await startServer();
+ const persisted=(await request('/api/outfit-collections')).data.items;
+ assert.equal(persisted.find(c=>c.id===c1.data.id).title,'Office collection');
+ assert(persisted.every(c=>c.outfitIds.includes(savedOutfit.data.id)));
+ check('Named collections persist across restart, support multiple membership, and reject blank titles');
+ const updated=await request('/api/ensembles/save','POST',{replaceId:savedOutfit.data.id,name:'Edited outfit',garmentIds:outfit.garments.map(x=>x.id),contextId:context.id,useId:uses[0].id});
+ assert.equal(updated.status,201);
+ const inherited=(await request('/api/outfit-collections')).data.items;
+ assert(inherited.every(c=>c.outfitIds.includes(updated.data.id)&&!c.outfitIds.includes(savedOutfit.data.id)));
+ assert.equal((await request(`/api/outfit-collections/${c1.data.id}/outfits/${updated.data.id}`,'DELETE')).status,200);
+ assert.equal((await request(`/api/outfit-collections/${c2.data.id}`,'DELETE')).status,200);
+ assert((await request('/api/ensembles/saved')).data.items.some(o=>o.id===updated.data.id));
+ const direct=await request('/api/ensembles/save','POST',{name:'Collection save',collectionId:c1.data.id,garmentIds:outfit.garments.map(x=>x.id),contextId:context.id,useId:uses[0].id});
+ assert.equal(direct.status,201);
+ assert((await request('/api/outfit-collections')).data.items.find(c=>c.id===c1.data.id).outfitIds.includes(direct.data.id));
+ check('Editing preserves collections; removal and collection deletion keep outfits; saving into a collection is atomic');
+ const saved=(await request('/api/ensembles/saved')).data.items;
+ assert(saved.some(x=>x.id===updated.data.id));assert(!saved.some(x=>x.id===savedOutfit.data.id));
+ assert.equal((await request(`/api/ensembles/saved/${updated.data.id}`,'DELETE')).status,200);
+ assert(!(await request('/api/ensembles/saved')).data.items.some(x=>x.id===updated.data.id));
+ check('Saved outfit editing and removal preserve prior versions while updating the active list');
+ const hashes=Object.fromEntries(await Promise.all(artifacts.map(async file=>[file,createHash('sha256').update(await readFile(join(app,file))).digest('hex')])));
+ await writeFile(join(work,'verification.json'),JSON.stringify({passed:true,observedAt:new Date().toISOString(),controlledSyntheticFixture:true,checks,hashes},null,2));
+ console.log(JSON.stringify({passed:true,checks:checks.length,work,base,fixture:join(work,'garment.png')}));
+ if(process.argv.includes('--serve')){console.log('UI verification server ready; create stop file in work directory to finish.');while(true){try{await access(join(work,'stop'));break;}catch{await new Promise(r=>setTimeout(r,500));}}}
+}finally{await stopServer();if(pool)await pool.end();await manager.stop();}

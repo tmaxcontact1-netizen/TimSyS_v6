@@ -52,8 +52,17 @@ def main():
         if name.startswith(prefix):
             del platform[name]
     platform.update({prefix + name: data for name, data in backend.items()})
+    # New DressEd schema additions must accompany its backend in both supported
+    # migration runners. Existing migration bytes are immutable.
+    for directory in ('services/dressed/migrations', 'services/wardrobe/migrations'):
+        for path in (root / 'platform' / directory).glob('*outfit_collections.sql'):
+            name = directory + '/' + path.name
+            if name in platform and platform[name] != path.read_bytes():
+                raise ValueError(f'Existing migration changed: {name}')
+            platform[name] = path.read_bytes()
+    platform['services/dressed/contract.json'] = (root / 'platform/services/dressed/contract.json').read_bytes()
     for name, data in original.items():
-        if not name.startswith(prefix) and platform.get(name) != data:
+        if not name.startswith(prefix) and name != 'services/dressed/contract.json' and platform.get(name) != data:
             raise ValueError(f'Unrelated platform file changed: {name}')
     frontend = read_tree(root / 'apps/dressed/dist/frontend')
     index = frontend['index.html'].decode()
@@ -83,7 +92,7 @@ def main():
                             url=f'https://github.com/tmaxcontact1-netizen/TimSyS_v6/releases/download/{release}/{filename}'))
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
     manifest = dict(schemaVersion=1, releaseVersion=release, minimumLauncherVersion='1.1.0',
-                    publishedAt=datetime.now(timezone.utc).isoformat(), notes='Dress’Ed saved outfits and planners; complete backend dependency closure.', bundles=bundles)
+                    publishedAt=datetime.now(timezone.utc).isoformat(), notes='Dress’Ed outfit collections, dedicated task pages, garment details and hover photos, grouped exclusions and fixed-garment dropdown.', bundles=bundles)
     (output / 'timsys-update.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     changed = sorted(name for name in set(original) | set(platform) if original.get(name) != platform.get(name))
     evidence = dict(sourceCommit=commit, baselineSha256=hashlib.sha256(Path(baseline).read_bytes()).hexdigest(),

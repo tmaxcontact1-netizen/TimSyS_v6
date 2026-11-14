@@ -6,3 +6,10 @@ test('editing versions the outfit without rewriting existing plans or wear histo
 test('failed replacement rolls back retirement and the new outfit',async()=>{const f=fixture(true);await expect(f.repo.saveOutfit(input)).rejects.toThrow('write failed');expect(f.query).toHaveBeenCalledWith('ROLLBACK');expect(f.query).not.toHaveBeenCalledWith('COMMIT');expect(f.release).toHaveBeenCalled();});
 test('stale edit cannot replace an already removed or edited outfit',async()=>{const f=fixture(false,true);await expect(f.repo.saveOutfit(input)).rejects.toThrow('saved_outfit_no_longer_available');expect(f.query.mock.calls.some(c=>c[0].startsWith('INSERT'))).toBe(false);});
 test('deleting only retires the saved outfit, leaving garments and references intact',async()=>{const f=fixture();expect(await f.repo.remove('old','2026-10-25')).toBe(true);expect(f.query).toHaveBeenCalledTimes(1);expect(f.query.mock.calls[0]![0]).toMatch(/^UPDATE dressed.saved_outfits SET retired_at/);});
+
+test('failed collection assignment rolls back the entire saved outfit',async()=>{
+ const query=vi.fn(async(sql:string)=>{if(sql.startsWith('INSERT INTO dressed.outfit_collection_items'))throw Error('collection removed');return {rows:[],rowCount:1};});
+ const release=vi.fn(),repo=new EnsembleRepository({query,connect:async()=>({query,release})} as never);
+ await expect(repo.saveOutfit({...input as any,replaceId:undefined,collectionId:'missing'})).rejects.toThrow('collection removed');
+ expect(query).toHaveBeenCalledWith('ROLLBACK');expect(query).not.toHaveBeenCalledWith('COMMIT');expect(release).toHaveBeenCalled();
+});
