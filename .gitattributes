@@ -1,0 +1,2 @@
+# Preserve the vendored grammar distribution byte-for-byte and its documented hashes.
+apps/principaled/public/comment-builder/harper/* -text
