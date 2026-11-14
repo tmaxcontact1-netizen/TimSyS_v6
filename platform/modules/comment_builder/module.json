@@ -1,0 +1,12 @@
+{
+ "name":"comment_builder","version":"1.0.0","author":"admin",
+ "dependencies":["db","auth","log"],"provides":["capability:comment_builder.use"],"requires":[],
+ "routes":[
+  {"path":"/comment-builder/workspace","method":"GET","handler":"comment_builder_workspace","auth_required":true,"permissions":[]},
+  {"path":"/comment-builder/commands","method":"POST","handler":"comment_builder_command","auth_required":true,"permissions":[]},
+  {"path":"/comment-builder/access","method":"GET","handler":"comment_builder_access","auth_required":true,"permissions":[]}
+ ],
+ "schema":{"tables":["comment_builder_workspaces","comment_builder_receipts"],"migrations":["migrations/001_comment_builder.sql"]},
+ "events":{"publishes":[],"subscribes":[]},
+ "functions":[{"name":"comment_builder_workspace","exports":"workspace"},{"name":"comment_builder_command","exports":"command"},{"name":"comment_builder_access","exports":"access"}]
+}

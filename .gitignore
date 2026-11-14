@@ -27,3 +27,4 @@ data/*.sqlite-wal
 /dist-updates/
 # Local verification, backups and generated release artifacts.
 /verification-local/
+/.verification/

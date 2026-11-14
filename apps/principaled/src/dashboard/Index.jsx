@@ -1,3 +1,4 @@
+import CommentBuilderWidget from './widgets/CommentBuilderWidget';
 import ObservationStudioWidget from './widgets/ObservationWorkspace';
 import React, { useState, useEffect, useRef } from "react";
 import * as api from "../api/client";
@@ -48,6 +49,7 @@ import {
 
 // Module to UI mapping - operational modules show in sidebar
 const MODULE_TO_VIEW = {
+  comment_builder: {id:"comment_builder",label:"Comment Builder",widget:CommentBuilderWidget,requiresAdmin:false},
   observation_studio: {id:"observation_studio",label:"Observations",widget:ObservationStudioWidget,requiresAdmin:false},
   execution: { id: "execution", label: "Projects & tasks", widget: ExecutionWidget, requiresAdmin: false },
   nervous_breakdown: { id: "nervous_breakdown", label: "Responsibilities", widget: NervousBreakdownWidget, requiresAdmin: true },
@@ -243,7 +245,7 @@ const MODULE_TO_VIEW = {
 const WORKSPACES = {
   organisation: { label: "Organisation", icon: "N", description: "Responsibilities and shared projects", modules: ["nervous_breakdown", "execution"] },
   people: { label: "People", icon: "P", description: "Students, staff, profiles and movement", modules: ["students", "student_profiles", "staff", "staff_profiles", "student_exits", "late_entries"] },
-  learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["assessment_evaluator", "gradebook", "attendance"] },
+  learning: { label: "Learning", icon: "L", description: "Assessment, attendance, gradebooks and reporting", modules: ["comment_builder", "assessment_evaluator", "gradebook", "attendance"] },
   planning: { label: "Planning", icon: "C", description: "Calendar, timetable, programmes and cover", modules: ["observation_studio", "calendar", "scheduler", "programme_manager", "teacher_preferences", "cover", "event_record", "event_planner"] },
   operations: { label: "Operations", icon: "O", description: "Rooms, resources, safety and services", modules: ["rooms", "inventory", "venue_bookings", "resource_reservations", "transportation", "catering", "risk_assessments", "safeguarding_requirements", "contingency"] },
   administration: { label: "Administration", icon: "A", description: "Tasks, approvals, records, communications and finance", modules: ["tasks", "approvals", "documents", "communications", "audiences", "invitations", "ownership", "financial_planning"] },
@@ -251,6 +253,7 @@ const WORKSPACES = {
 };
 
 const VIEW_DESCRIPTIONS = {
+  comment_builder: "Write student comments using your own private class lists and wording",
   execution: "Plan shared work, inspect dependencies and see what requires you",
   nervous_breakdown: "Nervous Breakdown: explore and govern the responsibility network",
   students: "Student records and enrolment", student_profiles: "Complete student information", staff: "Staff records and employment", staff_profiles: "Complete staff information", student_exits: "Live student movement", late_entries: "Late arrival and attendance changes",
@@ -414,8 +417,8 @@ function PrincipalEdDashboard() {
         // Personal Execution access must not require Builder administration.
         if (response.status === 403) {
           const available=[];
-          const checks=await Promise.allSettled([api.default.get('/execution/availability'),api.default.get('/observations/access')]);
-          checks.forEach((result,i)=>{if(result.status==='fulfilled'&&result.value.data.enabled)available.push(i===0?'execution':'observation_studio');});
+          const checks=await Promise.allSettled([api.default.get('/execution/availability'),api.default.get('/observations/access'),api.default.get('/comment-builder/access')]);
+          checks.forEach((result,i)=>{if(result.status==='fulfilled'&&result.value.data.enabled)available.push(['execution','observation_studio','comment_builder'][i]);});
           if(available.length){setEnabledModules(available);return;}
         }
         throw new Error(`HTTP ${response.status}`);
@@ -602,6 +605,7 @@ function PrincipalEdDashboard() {
     if (moduleName === "financial_planning") return planning(<FinanceWidget askConfirmation={askConfirmation} />);
     if (moduleName === "event_record") return planning(<EventsWidget askConfirmation={askConfirmation} askText={askText} />);
     if (moduleName === "event_planner") return planning(<EventPlannerWidget onNavigate={navigateToView} />);
+    if (moduleName === "comment_builder") return <CommentBuilderWidget />;
     if (moduleName === "gradebook") return <GradebookWidget askConfirmation={askConfirmation} />;
     if (moduleName === "assessment_evaluator") return <AssessmentEvaluatorWidget />;
     if (moduleName === "nervous_breakdown") return <NervousBreakdownWidget askConfirmation={askConfirmation} />;
