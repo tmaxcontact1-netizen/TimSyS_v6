@@ -26,7 +26,7 @@ The one-time migration enrolls existing Principal’Ed installations without ove
 
 Harper.js 2.4.0 is vendored with its license and hashes under the component's public assets. The launcher build copies those assets alongside the compiled UI. Dynamic import and WASM URLs are absolute same-origin paths, including at `/app/principal-ed`. No Google runtime or external executable CDN is required. English grammar checks use British English, matching the supplied app; comments themselves are configurable and not subject-bound. Timeout/failure is reported without changing wording.
 
-Original deterministic contradiction checks are retained, including explicit opposing claims and optional skill-tag conflicts. The bank check examines all cross-category option pairs, avoiding an exponential Cartesian product, and checks each option's grammar. These checks cannot establish factual accuracy and never rewrite comments.
+Original deterministic contradiction checks are retained, including explicit opposing claims and optional skill-tag conflicts. The full-bank check lazily examines complete combinations across supported pronouns, reports progress and supports cancellation. Live checks cover the edited option and its immediate neighbours. Grammar failure leaves deterministic checks running and is explicitly reported. These checks cannot establish factual accuracy and never rewrite comments.
 
 ## Verification
 
@@ -37,3 +37,11 @@ Production launcher build passed; existing bundle-size advice remains. `git diff
 Browser acceptance used a random loopback port and disposable database, not the installed app. Verified empty startup, creating class/student, saving a partial bank, writing/saving/reopening comments, local grammar, personal edits, clipboard text, downloaded CSV content, removed-option warning and preservation, quarter copy, scoped student deletion, two-tab conflict and retained recovery text, bank review and class deletion returning to empty state. At 390px the document width was 390px without horizontal overflow; fields remained readable in dark mode. Tab moved from the comment to Save. The internal workspace scroll exposed the lower controls.
 
 Trade’Ed isolation: watchdog's saved November 1 status was stale; recorded PIDs absent, no validation worker/watchdog, no listeners on 18860/18861, no running TradeEd scheduled tasks, and no recent incidents. All implementation and testing used the isolated checkout. No installed app was restarted and no release was published.
+
+## Supplied revision — 2026-11-15
+
+The revised Apps Script backend matches the original exactly; changes are client-side. Native equivalents add previous/next navigation (saving pending edits before moving), lowercase he/she/they sentence splitting for contradiction detection, and full-comment examples derived from the current unsaved bank across categories. Examples use the selected/first student, or a neutral `Student` placeholder without inserting a record.
+
+The full bank scan checks every combination for she/he/they, yields periodically and can be cancelled; empty categories contribute no wording. Progress and findings are advisory. Distinct grammar messages for the same excerpt retain separate grouping keys. Both live neighbour and full-bank checks continue deterministic checks if the local grammar worker fails. Failed workers are disposed before retry.
+
+Eight additional regression tests cover navigation boundaries, unsaved preview updates, lowercase contradictions, unavailable grammar, neighbour checks, distinct grouping, cancellation and empty banks. Browser verification confirmed pending-comment save while navigating, first/last button states, unsaved cross-category previews, full-bank findings and live neighbour findings. This revision requires only a launcher UI bundle; the backend schema and contract are unchanged.

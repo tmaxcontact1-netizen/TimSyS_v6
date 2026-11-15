@@ -36,19 +36,21 @@ function deadline(promise) {
   let timer;
   return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Grammar check timed out.')),20000);})]).finally(()=>clearTimeout(timer));
 }
-export async function grammar(text) {
+export async function grammarFindings(text) {
   if(!checkerPromise) {
     const url='/comment-builder/harper/index.js';
     checkerPromise=import(/* @vite-ignore */ url).then(async({WorkerLinter,Dialect,createBinaryModuleFromUrl})=>{
       const checker=new WorkerLinter({binary:createBinaryModuleFromUrl(new URL('/comment-builder/harper/harper_wasm_bg.wasm',location.origin).href),dialect:Dialect.British});
-      try {await deadline(checker.setup());return checker;}catch(e){checker.dispose();throw e;}
+      try {await deadline(checker.setup());return checker;}catch(e){await checker.dispose();throw e;}
     }).catch(e=>{checkerPromise=null;throw e;});
   }
   const checker=await checkerPromise;
   let lints;
-  try{lints=await deadline(checker.lint(text,{language:'plaintext'}));}catch(e){checker.dispose();checkerPromise=null;throw e;}
-  return lints.map(lint=>{try{return lint.message();}finally{lint.free();}});
+  try{lints=await deadline(checker.lint(text,{language:'plaintext'}));}catch(e){await checker.dispose();checkerPromise=null;throw e;}
+  try{return lints.map(lint=>({message:lint.message(),excerpt:lint.get_problem_text(),key:lint.lint_kind()+':'+lint.message()+':'+lint.get_problem_text().toLocaleLowerCase()}));}
+  finally{lints.forEach(lint=>lint.free());}
 }
+export async function grammar(text){return (await grammarFindings(text)).map(issue=>issue.message);}
 export function checkBank(categories) {
   const s={name:'Student',pronoun:'they'}, findings=[];
   const options=categories.flatMap(cat=>cat.options.map(option=>({option:{...option,categoryId:cat.id},text:fill(option.text,s)})));
@@ -65,7 +67,9 @@ export function checkBank(categories) {
     const sentenceSplitter = new Intl.Segmenter('en', { granularity: 'sentence' });
 
     function commentSentences(text) {
-      return Array.from(sentenceSplitter.segment(text), part => part.segment.trim()).filter(Boolean);
+      return Array.from(sentenceSplitter.segment(text), part => part.segment)
+        .flatMap(segment => segment.split(/(?<=[.!?])\s+(?=(?:he|she|they)\s)/u))
+        .map(sentence => sentence.trim()).filter(Boolean);
     }
 
     function explicitClaim(sentence, student) {
@@ -82,7 +86,7 @@ export function checkBank(categories) {
       return { topic: kind + ':' + words.join(' '), positive: /^(?:always|consistently|regularly|can)$/.test(qualifier) };
     }
 
-    function findContradictions(fragments, student, taggedFragments = fragments) {
+    export function findContradictions(fragments, student, taggedFragments = fragments) {
       const claims = fragments.flatMap(fragment =>
         commentSentences(fragment.text).map(sentence => ({
           sentence, option: fragment.option,
